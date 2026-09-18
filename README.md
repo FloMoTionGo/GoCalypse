@@ -2,6 +2,10 @@
 
 A 4-player custom Go variant, played online and synced live across all players.
 
+**Play now:** [flomotiongo.github.io/GoCalypse](https://flomotiongo.github.io/GoCalypse/)
+(client, hosted on GitHub Pages) — connects to the live server at
+`wss://gocalypse.fly.dev`. Open 4 tabs to fill a room.
+
 Not standard Go rules — this is a free-for-all variant with black/white
 stones distinguished by pattern (dots or stripes), alliance-based captures,
 and powerups that trigger board-altering actions (bombs, sniping enemy
@@ -85,3 +89,8 @@ machine on the first deploy from zero, which breaks this ("seat reservation
 expired" errors) — after a from-scratch deploy, run
 `fly scale count 1 -a gocalypse` once. Redeploys to existing machines
 (`fly deploy`) are unaffected.
+
+The client (`web/`) deploys to GitHub Pages via
+`.github/workflows/pages.yml`, which publishes on every push to `master`
+that touches `web/`. GitHub Pages requires a public repo on the free plan,
+which is why this repo is public.
