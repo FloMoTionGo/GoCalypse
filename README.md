@@ -19,10 +19,14 @@ registered.
     new powerup by implementing `PowerupDefinition` and registering it.
   - `src/rooms/GoRoom.ts` — room lifecycle: join/leave, turn order, move
     validation, powerup dispatch.
-
-No client yet — this scaffold is server-only.
+- `web/` — minimal browser client, plain HTML/CSS/JS (no build step, no
+  framework), using `colyseus.js` from a CDN `<script>` tag. Renders the
+  board, player list, and powerup buttons straight off the synced room
+  state (`room.onStateChange`).
 
 ## Running locally
+
+Server:
 
 ```
 cd server
@@ -31,6 +35,17 @@ npm run dev
 ```
 
 Server listens on `ws://localhost:2567`. Health check at `/healthz`.
+
+Client — just serve `web/` as static files, e.g.:
+
+```
+cd web
+npx serve .
+```
+
+Open it, leave the server field as `ws://localhost:2567` (or point it at a
+deployed Fly.io server, e.g. `wss://gocalypse.fly.dev`), optionally enter a
+name, and join. Open 4 browser tabs to fill a room and start a game.
 
 ## Deploying
 

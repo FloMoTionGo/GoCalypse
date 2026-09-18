@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GoCalypse</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/colyseus.js@0.16.22/dist/colyseus.js"></script>
+</head>
+<body>
+  <div id="app">
+    <section id="lobby">
+      <h1>GoCalypse</h1>
+      <p class="tagline">4-player Go. Custom captures. Powerups.</p>
+
+      <label>
+        Server
+        <input id="server-input" type="text" value="ws://localhost:2567" />
+      </label>
+      <label>
+        Name <span class="hint">(leave blank for a random guest name)</span>
+        <input id="name-input" type="text" placeholder="Guest" />
+      </label>
+
+      <button id="join-button">Join Game</button>
+      <p id="lobby-status" class="status"></p>
+    </section>
+
+    <section id="game" hidden>
+      <header id="game-header">
+        <div id="room-status"></div>
+        <div id="turn-indicator"></div>
+      </header>
+
+      <div id="game-body">
+        <div id="board-wrap">
+          <div id="board"></div>
+          <p id="last-event" class="status"></p>
+        </div>
+
+        <aside id="sidebar">
+          <div id="players"></div>
+
+          <div id="powerups">
+            <h3>Powerups</h3>
+            <div id="powerup-buttons"></div>
+            <p id="targeting-hint" class="hint" hidden>Select a target cell on the board&hellip; <button id="cancel-target">cancel</button></p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
