@@ -66,12 +66,22 @@ cd web
 npx serve .
 ```
 
-Open it, leave the server field as `ws://localhost:2567` (or point it at a
-deployed Fly.io server, e.g. `wss://gocalypse.fly.dev`), optionally enter a
-name, and join. Open 4 browser tabs to fill a room and start a game.
+The server field defaults to the deployed `wss://gocalypse.fly.dev` — point
+it at `ws://localhost:2567` instead if you're running the server locally.
+Optionally enter a name, then join. Open 4 browser tabs to fill a room and
+start a game.
 
 ## Deploying
 
-Deploys to [Fly.io](https://fly.io) via the included `Dockerfile` and
-`fly.toml` (`fly launch` / `fly deploy` from `server/`). Scales to zero when
-idle (`min_machines_running = 0`), so no cost while no game is running.
+Live at `wss://gocalypse.fly.dev`. Deploys to [Fly.io](https://fly.io) via
+the included `Dockerfile` and `fly.toml` (`fly deploy` from `server/`).
+Scales to zero when idle (`min_machines_running = 0`), so no cost while no
+game is running.
+
+**Single instance only.** Room state lives in each machine's memory with no
+shared backend (Redis, etc), so a client's WebSocket must land on the same
+machine that reserved its seat. Fly's default HA behavior spins up a second
+machine on the first deploy from zero, which breaks this ("seat reservation
+expired" errors) — after a from-scratch deploy, run
+`fly scale count 1 -a gocalypse` once. Redeploys to existing machines
+(`fly deploy`) are unaffected.
