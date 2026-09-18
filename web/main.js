@@ -362,6 +362,20 @@ function drawBoard() {
     boardCtx.fill();
   }
 
+  // Coordinate labels (0-indexed, matching the {x, y} the client/server
+  // protocol actually uses) -- for reporting exact positions, not display.
+  boardCtx.fillStyle = "#2a1b0a";
+  boardCtx.font = "10px monospace";
+  boardCtx.textBaseline = "middle";
+  boardCtx.textAlign = "center";
+  for (let i = 0; i < size; i++) {
+    boardCtx.fillText(String(i), pointToPixel(i), BOARD_MARGIN / 2);
+  }
+  boardCtx.textAlign = "right";
+  for (let i = 0; i < size; i++) {
+    boardCtx.fillText(String(i), BOARD_MARGIN - 6, pointToPixel(i));
+  }
+
   // Stones.
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
@@ -386,6 +400,18 @@ function drawBoard() {
     } else if (me && !occupied && boardEl.classList.contains("my-turn")) {
       drawStone(hoverPoint.x, hoverPoint.y, me.color, 0.45);
     }
+
+    // Highlight the hovered column/row's coordinate label so the exact
+    // {x, y} is unambiguous before you click.
+    boardCtx.save();
+    boardCtx.fillStyle = "#4fa3ff";
+    boardCtx.font = "bold 10px monospace";
+    boardCtx.textBaseline = "middle";
+    boardCtx.textAlign = "center";
+    boardCtx.fillText(String(hoverPoint.x), pointToPixel(hoverPoint.x), BOARD_MARGIN / 2);
+    boardCtx.textAlign = "right";
+    boardCtx.fillText(String(hoverPoint.y), BOARD_MARGIN - 6, pointToPixel(hoverPoint.y));
+    boardCtx.restore();
   }
 }
 
