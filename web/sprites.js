@@ -1,0 +1,815 @@
+// GoCalypse pixel sprites: palette, sprite data, pixel fonts, animation
+// frames and a tiny software rasterizer. Plain script, no dependencies:
+// attaches to `window.GoSprites` in the browser and `module.exports` in Node,
+// so the exact same pixels can be rendered (and checked) outside a browser.
+//
+// Everything is drawn into a palette-index buffer (one byte per pixel) and
+// only turned into RGBA at the very end, which keeps the whole scene inside
+// the 5-colour palette below. In-between tones come from ordered dithering.
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  else root.GoSprites = api;
+})(typeof self !== "undefined" ? self : this, function () {
+  "use strict";
+
+  // ---------------------------------------------------------------------------
+  // PALETTE -- the only colours in the scene. Swap hex values here to re-theme.
+  // Keys are the characters used in sprite rows below.
+  // ---------------------------------------------------------------------------
+  const PALETTE = [
+    { key: "K", name: "ink", hex: "#1f1a24" }, //  outlines, grid, black stones, night bank
+    { key: "C", name: "cream", hex: "#f4e8c8" }, // white stones, highlights, lantern light, foam
+    { key: "A", name: "amber", hex: "#d49040" }, // kaya board, lantern paper, warm glow
+    { key: "T", name: "teal", hex: "#2e6b73" }, //  river, grass on the night bank
+    { key: "S", name: "slate", hex: "#767d88" }, // grey pattern stones, stone lantern, ripples
+  ];
+
+  const TRANSPARENT = 255;
+  const KEY_TO_INDEX = {};
+  PALETTE.forEach((c, i) => (KEY_TO_INDEX[c.key] = i));
+  const K = KEY_TO_INDEX.K, C = KEY_TO_INDEX.C, A = KEY_TO_INDEX.A, T = KEY_TO_INDEX.T, S = KEY_TO_INDEX.S;
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const PALETTE_RGB = PALETTE.map((c) => hexToRgb(c.hex));
+
+  /** 4x4 ordered-dither (Bayer) matrix, values 0..15. */
+  const BAYER4 = [
+    [0, 8, 2, 10],
+    [12, 4, 14, 6],
+    [3, 11, 1, 9],
+    [15, 7, 13, 5],
+  ];
+  /** True if a pixel at (x, y) should be "on" for a coverage in 0..1. */
+  function ditherOn(x, y, coverage) {
+    if (coverage >= 1) return true;
+    if (coverage <= 0) return false;
+    return (BAYER4[y & 3][x & 3] + 0.5) / 16 < coverage;
+  }
+
+  // Light / shade ramps (palette index -> palette index). Warm light turns the
+  // night bank and river amber, amber cream; shade goes the other way.
+  const LIGHT = new Uint8Array(256).map((_, i) => i);
+  LIGHT[K] = A; LIGHT[T] = A; LIGHT[S] = C; LIGHT[A] = C;
+  const SHADE = new Uint8Array(256).map((_, i) => i);
+  SHADE[C] = S; SHADE[A] = K; SHADE[T] = K; SHADE[S] = K;
+
+  // ---------------------------------------------------------------------------
+  // Sprites. Rows are strings, one char per pixel:
+  //   K C A T S  -> palette colour
+  //   k c a t s  -> that colour on a 50% checkerboard, transparent otherwise
+  //   . or space -> transparent
+  // ---------------------------------------------------------------------------
+  function makeSprite(name, w, h, px) {
+    return { name, w, h, px };
+  }
+
+  function sprite(name, rows) {
+    const h = rows.length;
+    const w = rows.reduce((m, r) => Math.max(m, r.length), 0);
+    const px = new Uint8Array(w * h).fill(TRANSPARENT);
+    for (let y = 0; y < h; y++) {
+      const row = rows[y];
+      for (let x = 0; x < row.length; x++) {
+        const ch = row[x];
+        if (ch === "." || ch === " ") continue;
+        const upper = ch.toUpperCase();
+        const idx = KEY_TO_INDEX[upper];
+        if (idx === undefined) throw new Error(`sprite ${name}: bad char '${ch}'`);
+        if (ch !== upper && ((x + y) & 1)) continue; // lowercase = checker
+        px[y * w + x] = idx;
+      }
+    }
+    return makeSprite(name, w, h, px);
+  }
+
+  function flipX(spr, name) {
+    const px = new Uint8Array(spr.w * spr.h);
+    for (let y = 0; y < spr.h; y++)
+      for (let x = 0; x < spr.w; x++) px[y * spr.w + x] = spr.px[y * spr.w + (spr.w - 1 - x)];
+    return makeSprite(name || spr.name + "_flip", spr.w, spr.h, px);
+  }
+
+  /** Recolour every opaque pixel of a sprite with one palette index. */
+  function silhouette(spr, colorIndex, name) {
+    const px = spr.px.map((v) => (v === TRANSPARENT ? TRANSPARENT : colorIndex));
+    return makeSprite(name || spr.name + "_sil", spr.w, spr.h, px);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stones. A zone template (hand-tuned for the 15x15 game stone, generated
+  // for squash/stretch frames) is coloured per look:
+  //   o outline, m main, h rim light, g gloss, s shade, x shade transition.
+  // ---------------------------------------------------------------------------
+  const STONE_TEMPLATE_15 = [
+    ".....ooooo.....",
+    "...oommmmmoo...",
+    "..omhhhmmmmmo..",
+    ".omhhghmmmmmmo.",
+    ".ohhghmmmmmmmo.",
+    "ohhhhmmmmmmmmmo",
+    "ohhmmmmmmmmmmxo",
+    "ohmmmmmmmmmmmxo",
+    "ommmmmmmmmmmxso",
+    "ommmmmmmmmmxsso",
+    ".ommmmmmmmxsso.",
+    ".ommmmmmmxssso.",
+    "..ommmmxsssso..",
+    "...ooxssssoo...",
+    ".....ooooo.....",
+  ];
+
+  // Pattern marks for the grey (pattern-axis) stones, in 15x15 space.
+  const DOTS_15 = [
+    "...............",
+    "...............",
+    "...............",
+    "....#.....#....",
+    "...###...###...",
+    "....#.....#....",
+    ".......#.......",
+    "......###......",
+    ".......#.......",
+    "....#.....#....",
+    "...###...###...",
+    "....#.....#....",
+    "...............",
+    "...............",
+    "...............",
+  ];
+  function stripeMark(x, y) {
+    const d = x - y; // "\" diagonals, like the vector client's 45-degree stripes
+    return d === -7 || d === -6 || d === -1 || d === 0 || d === 5 || d === 6;
+  }
+  const STRIPES_15 = [];
+  for (let y = 0; y < 15; y++) {
+    let r = "";
+    for (let x = 0; x < 15; x++) r += stripeMark(x, y) ? "#" : ".";
+    STRIPES_15.push(r);
+  }
+
+  /** Procedural zone template for an ellipse of w x h (squash/stretch/shrink frames). */
+  function stoneZones(w, h) {
+    const cx = (w - 1) / 2, cy = (h - 1) / 2, rx = w / 2, ry = h / 2;
+    const inside = (x, y) => {
+      if (x < 0 || y < 0 || x >= w || y >= h) return false;
+      const dx = (x - cx) / rx, dy = (y - cy) / ry;
+      return dx * dx + dy * dy <= 1.02;
+    };
+    const rows = [];
+    for (let y = 0; y < h; y++) {
+      let s = "";
+      for (let x = 0; x < w; x++) {
+        if (!inside(x, y)) { s += "."; continue; }
+        if (!inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)) { s += "o"; continue; }
+        const dx = (x - cx) / rx, dy = (y - cy) / ry;
+        const lt = -(dx + dy) / Math.SQRT2;
+        const r = Math.sqrt(dx * dx + dy * dy);
+        const gx = x - (cx - rx * 0.38), gy = y - (cy - ry * 0.45);
+        if (gx * gx + gy * gy <= 0.6) s += "g";
+        else if (lt > 0.3 && r > 0.6) s += "h";
+        else if (lt < -0.35 && r > 0.6) s += "s";
+        else if (lt < -0.15 && r > 0.72) s += "x";
+        else s += "m";
+      }
+      rows.push(s);
+    }
+    return rows;
+  }
+
+  // Zone -> colour per stone look. Two-letter values are a checkerboard.
+  const STONE_LOOKS = {
+    black: { o: "K", m: "K", h: "S", g: "C", s: "K", x: "K", mark: null },
+    white: { o: "K", m: "C", h: "C", g: "C", s: "S", x: "SC", mark: null },
+    dots: { o: "K", m: "S", h: "S", g: "S", s: "S", x: "S", mark: DOTS_15 },
+    stripes: { o: "K", m: "S", h: "S", g: "S", s: "S", x: "S", mark: STRIPES_15 },
+    // Capture "hit flash": cream silhouette, ink outline.
+    flash: { o: "K", m: "C", h: "C", g: "C", s: "C", x: "C", mark: null },
+    // Brightest flash frame: pure cream, no outline, so it reads as light.
+    glow: { o: "C", m: "C", h: "C", g: "C", s: "C", x: "C", mark: null },
+  };
+
+  /** Board code -> look. 1/3 black, 2/4 white, 5/6 grey dots, 7/8 grey stripes. */
+  const CODE_LOOK = [null, "black", "white", "black", "white", "dots", "dots", "stripes", "stripes"];
+  function lookForCode(code) {
+    return CODE_LOOK[code] || null;
+  }
+  /** Player p's pattern-axis code is p + 4 (matches server/src/rules/goRules.ts). */
+  function patternCode(playerColor) {
+    return playerColor + 4;
+  }
+
+  function zoneColor(look, zone, x, y) {
+    const v = look[zone];
+    if (!v) return TRANSPARENT;
+    if (v.length === 1) return KEY_TO_INDEX[v];
+    return KEY_TO_INDEX[v[(x + y) & 1]];
+  }
+
+  function markAt(mark, x, y, w, h) {
+    if (!mark) return false;
+    // Map this sprite's pixel into the 15x15 mark grid (identity at 15x15).
+    const mx = w === 15 ? x : Math.round((x * 14) / (w - 1));
+    const my = h === 15 ? y : Math.round((y * 14) / (h - 1));
+    return mark[my] && mark[my][mx] === "#";
+  }
+
+  function paintStone(name, template, lookName) {
+    const look = STONE_LOOKS[lookName];
+    const h = template.length, w = template[0].length;
+    const px = new Uint8Array(w * h).fill(TRANSPARENT);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const z = template[y][x];
+        if (z === ".") continue;
+        let c = zoneColor(look, z, x, y);
+        if (z !== "o" && markAt(look.mark, x, y, w, h)) c = K;
+        px[y * w + x] = c;
+      }
+    }
+    return makeSprite(name, w, h, px);
+  }
+
+  const LOOKS = ["black", "white", "dots", "stripes"];
+  const TEMPLATES = {
+    normal: STONE_TEMPLATE_15,
+    squash: stoneZones(17, 13), // impact frame
+    stretch: stoneZones(13, 17), // falling / rebound frames
+    small: stoneZones(11, 11), // capture shrink
+    icon: stoneZones(9, 9), // sidebar-size swatch / falling shadow
+    big: stoneZones(17, 17), // capture flash burst
+  };
+  const STONES = {};
+  for (const look of LOOKS.concat(["flash", "glow"])) {
+    STONES[look] = {};
+    for (const shape of Object.keys(TEMPLATES)) {
+      STONES[look][shape] = paintStone(`stone_${look}_${shape}`, TEMPLATES[shape], look);
+    }
+  }
+
+  /** Stone sprite for a board code (1..8) and shape ("normal", "squash", ...). */
+  function stoneSprite(code, shape = "normal") {
+    const look = lookForCode(code);
+    return look ? STONES[look][shape] : null;
+  }
+
+  /**
+   * Hover preview: left half = the player's solid (base-axis) stone, right
+   * half = their grey pattern stone, with an ink divider down the middle.
+   */
+  const splitCache = {};
+  function splitPreviewSprite(playerColor) {
+    if (splitCache[playerColor]) return splitCache[playerColor];
+    const left = stoneSprite(playerColor);
+    const right = stoneSprite(patternCode(playerColor));
+    if (!left || !right) return null;
+    const w = left.w, h = left.h, mid = (w - 1) >> 1;
+    const px = new Uint8Array(w * h).fill(TRANSPARENT);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (left.px[i] === TRANSPARENT) continue;
+        px[i] = x < mid ? left.px[i] : x > mid ? right.px[i] : K;
+      }
+    }
+    return (splitCache[playerColor] = makeSprite(`preview_p${playerColor}`, w, h, px));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Props & effect sprites
+  // ---------------------------------------------------------------------------
+  const SPRITES = {};
+  const ANIMS = {};
+  function anim(name, fps, frames, opts = {}) {
+    return (ANIMS[name] = { name, fps, frames, loop: opts.loop !== false, durations: opts.durations || null });
+  }
+
+  SPRITES.hoshi = sprite("hoshi", ["KKK", "KKK", "KKK"]);
+
+  // Last-move marker: a small glowing ember, flickering.
+  anim("ember", 6, [
+    sprite("ember_0", ["..K..", ".KAK.", "KACAK", ".KAK.", "..K.."]),
+    sprite("ember_1", ["..K..", ".KCK.", "KCCCK", ".KCK.", "..K.."]),
+    sprite("ember_2", ["..K..", ".KAK.", "KACAK", ".KAK.", "..K.."]),
+    sprite("ember_3", [".....", "..K..", ".KAK.", "..K..", "....."]),
+  ]);
+
+  // Firefly blink cycle (scene decides when each firefly is lit).
+  anim("firefly", 8, [
+    sprite("firefly_0", ["...", ".A.", "..."]),
+    sprite("firefly_1", [".a.", "aCa", ".a."]),
+    sprite("firefly_2", [".A.", "ACA", ".A."]),
+    sprite("firefly_3", ["...", ".C.", "..."]),
+  ]);
+
+  // Capture sparkle (four-point star shrinking).
+  anim("sparkle", 12, [
+    sprite("sparkle_0", ["..C..", "..C..", "CCCCC", "..C..", "..C.."]),
+    sprite("sparkle_1", [".....", "..C..", ".CAC.", "..C..", "....."]),
+    sprite("sparkle_2", [".....", ".....", "..A..", ".....", "....."]),
+  ], { loop: false });
+
+  // Captured stones turn into a little paper lantern that floats away.
+  anim("wisp", 6, [
+    sprite("wisp_0", [
+      "...K...",
+      "..KKK..",
+      ".KAAAK.",
+      "KACCCAK",
+      "KACCCAK",
+      ".KAAAK.",
+      "..KKK..",
+      "...A...",
+      "...a...",
+    ]),
+    sprite("wisp_1", [
+      "...K...",
+      "..KKK..",
+      ".KAAAK.",
+      "KAACAAK",
+      "KACCCAK",
+      ".KAAAK.",
+      "..KKK..",
+      "...A...",
+      "....a..",
+    ]),
+  ]);
+
+  // Floating paper lantern (toro nagashi): glowing paper box on a little float.
+  anim("floatLantern", 4, [
+    sprite("floatLantern_0", [
+      "..KKK..",
+      ".KCCCK.",
+      ".KCCCK.",
+      ".KCACK.",
+      ".KCACK.",
+      "KKKKKKK",
+      "KAAAAAK",
+      ".KKKKK.",
+    ]),
+    sprite("floatLantern_1", [
+      "..KKK..",
+      ".KCCCK.",
+      ".KCCCK.",
+      ".KCCCK.",
+      ".KCACK.",
+      "KKKKKKK",
+      "KAAAAAK",
+      ".KKKKK.",
+    ]),
+  ]);
+
+  // Hanging festival lanterns (chochin) for the garland, two paper colours.
+  anim("garlandAmber", 3, [
+    sprite("garlandAmber_0", [
+      "...K...",
+      "..KKK..",
+      ".KAAAK.",
+      "KAACAAK",
+      "KACCCAK",
+      "KAACAAK",
+      ".KAAAK.",
+      "..KKK..",
+      "...A...",
+    ]),
+    sprite("garlandAmber_1", [
+      "...K...",
+      "..KKK..",
+      ".KAAAK.",
+      "KACCCAK",
+      "KACCCAK",
+      "KAACAAK",
+      ".KAAAK.",
+      "..KKK..",
+      "...A...",
+    ]),
+  ]);
+  anim("garlandCream", 3, [
+    sprite("garlandCream_0", [
+      "...K...",
+      "..KKK..",
+      ".KCCCK.",
+      "KCCACCK",
+      "KCAAACK",
+      "KCCACCK",
+      ".KCCCK.",
+      "..KKK..",
+      "...A...",
+    ]),
+    sprite("garlandCream_1", [
+      "...K...",
+      "..KKK..",
+      ".KCCCK.",
+      "KCCCCCK",
+      "KCCACCK",
+      "KCCCCCK",
+      ".KCCCK.",
+      "..KKK..",
+      "...A...",
+    ]),
+  ]);
+
+  // Stone lantern (toro) with a flickering fire box.
+  const TORO_ROWS = [
+    "......K......",
+    ".....KCK.....",
+    "....KSSSK....",
+    "..KKCSSSSKK..",
+    ".KCSSSSSSSSK.",
+    "KCSSSSSSSSSTK",
+    "KKKKKKKKKKKKK",
+    "...KSSSSSK...",
+    "...KS@@@SK...",
+    "...KS@@@SK...",
+    "...KS@@@SK...",
+    "...KSSSSSK...",
+    "..KKKKKKKKK..",
+    "..KCSSSSSTK..",
+    "...KKKKKKK...",
+    "....KSSSK....",
+    "....KSSTK....",
+    "....KSSSK....",
+    "....KSTSK....",
+    "...KKKKKKK...",
+    "..KCSSSSSTK..",
+    ".KKKKKKKKKKK.",
+  ];
+  const TORO_FLAMES = [
+    ["AAA", "ACA", "AAA"],
+    ["ACA", "CCC", "ACA"],
+    ["AAA", "ACA", "ACA"],
+  ];
+  anim("toro", 5, TORO_FLAMES.map((f, i) => {
+    let k = 0;
+    const rows = TORO_ROWS.map((r) => r.replace(/@@@/, () => f[k++]));
+    return sprite(`toro_${i}`, rows);
+  }));
+
+  SPRITES.rock = sprite("rock", [
+    "...KKKKKKKKK...",
+    ".KKSSSCSSSSSKK.",
+    "KSSSSSSSSSSSSTK",
+    "KKSSSSSSSSSTTKK",
+    ".KKKKKKKKKKKKK.",
+  ]);
+
+  // Lily pads: dark leaf silhouettes with a slate rim light and a notch.
+  SPRITES.lilyPad = sprite("lilyPad", [
+    "...KKKKK...",
+    ".KKSSSKKKK.",
+    "KKSKKKKT.KK",
+    "KSKKKKKKT.K",
+    "KKKKKKKKKKK",
+    ".KKKKKKKKK.",
+    "...KKKKK...",
+  ]);
+  SPRITES.lilyPadSmall = sprite("lilyPadSmall", [
+    ".KKKKK.",
+    "KSSKT.K",
+    "KKKKKKK",
+    ".KKKKK.",
+  ]);
+  SPRITES.lotus = sprite("lotus", [
+    "...C...",
+    ".C.C.C.",
+    "CKCACKC",
+    "KCCACCK",
+    ".KCCCK.",
+  ]);
+
+  // Reeds / cattails: generated as sway frames (lean left, upright, lean right).
+  function reedFrames(name, stalks) {
+    const w = 11, h = 16;
+    const frames = [];
+    for (let f = 0; f < 4; f++) {
+      const lean = [-1, 0, 1, 0][f];
+      const px = new Uint8Array(w * h).fill(TRANSPARENT);
+      const put = (x, y, c) => {
+        if (x >= 0 && y >= 0 && x < w && y < h) px[y * w + x] = c;
+      };
+      for (const st of stalks) {
+        for (let i = 0; i < st.len; i++) {
+          const t = i / (st.len - 1); // 0 at the base, 1 at the tip
+          const dx = Math.round(lean * t * t * st.bend);
+          put(st.x + dx, h - 1 - i, st.color);
+        }
+        if (st.head) {
+          const tipX = st.x + Math.round(lean * st.bend);
+          const tipY = h - st.len;
+          put(tipX, tipY - 1, K);
+          put(tipX, tipY, K);
+          put(tipX, tipY + 1, A);
+          put(tipX + 1, tipY + 1, K);
+          put(tipX, tipY + 2, A);
+          put(tipX + 1, tipY + 2, K);
+          put(tipX, tipY + 3, K);
+        }
+      }
+      frames.push(makeSprite(`${name}_${f}`, w, h, px));
+    }
+    return frames;
+  }
+  anim("reedsTall", 3, reedFrames("reedsTall", [
+    { x: 3, len: 14, bend: 2, color: K, head: true },
+    { x: 5, len: 11, bend: 1.5, color: T },
+    { x: 7, len: 15, bend: 2.5, color: K, head: true },
+    { x: 8, len: 9, bend: 1, color: T },
+  ]));
+  anim("reedsShort", 3, reedFrames("reedsShort", [
+    { x: 4, len: 9, bend: 1.5, color: K, head: true },
+    { x: 6, len: 7, bend: 1, color: T },
+    { x: 2, len: 6, bend: 1, color: T },
+  ]));
+
+  SPRITES.grassTuft = sprite("grassTuft", ["T.T.T", ".TTT."]);
+  SPRITES.grassTuftSmall = sprite("grassTuftSmall", ["T.T", ".T."]);
+  SPRITES.flower = sprite("flower", [".C.", "CAC", ".C."]);
+  SPRITES.pebble = sprite("pebble", [".SS", "SSK"]);
+
+  // Powerup targeting reticle (corner brackets), pulsing.
+  anim("reticle", 4, [
+    sprite("reticle_0", [
+      "CCC.........CCC",
+      "C.............C",
+      "C.............C",
+      "...............",
+      "...............",
+      "...............",
+      "...............",
+      ".......A.......",
+      "...............",
+      "...............",
+      "...............",
+      "...............",
+      "C.............C",
+      "C.............C",
+      "CCC.........CCC",
+    ]),
+    sprite("reticle_1", [
+      "...............",
+      ".CCC.......CCC.",
+      ".C...........C.",
+      ".C...........C.",
+      "...............",
+      "...............",
+      "...............",
+      ".......C.......",
+      "...............",
+      "...............",
+      "...............",
+      ".C...........C.",
+      ".C...........C.",
+      ".CCC.......CCC.",
+      "...............",
+    ]),
+  ]);
+
+  /** Ring sprite of radius r (pixels at distance ~r), used for placement ripples. */
+  function ringSprite(name, r, color) {
+    const size = 2 * r + 1;
+    const px = new Uint8Array(size * size).fill(TRANSPARENT);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const d = Math.hypot(x - r, y - r);
+        if (Math.abs(d - r) < 0.5) px[y * size + x] = color;
+      }
+    }
+    return makeSprite(name, size, size, px);
+  }
+  anim("ripple", 12, [9, 11, 13].map((r, i) => ringSprite(`ripple_${i}`, r, C)), { loop: false });
+
+  // ---------------------------------------------------------------------------
+  // Pixel fonts: 3x5 for the board margin, 4x6 for the highlighted label.
+  // ---------------------------------------------------------------------------
+  const FONT_SMALL_ROWS = {
+    0: ["###", "#.#", "#.#", "#.#", "###"],
+    1: [".#.", "##.", ".#.", ".#.", "###"],
+    2: ["##.", "..#", ".#.", "#..", "###"],
+    3: ["##.", "..#", ".#.", "..#", "##."],
+    4: ["#.#", "#.#", "###", "..#", "..#"],
+    5: ["###", "#..", "##.", "..#", "##."],
+    6: [".##", "#..", "###", "#.#", "###"],
+    7: ["###", "..#", ".#.", ".#.", ".#."],
+    8: ["###", "#.#", "###", "#.#", "###"],
+    9: ["###", "#.#", "###", "..#", "##."],
+  };
+  const FONT_BIG_ROWS = {
+    0: [".##.", "#..#", "#..#", "#..#", "#..#", ".##."],
+    1: [".#.", "##.", ".#.", ".#.", ".#.", "###"],
+    2: [".##.", "#..#", "..#.", ".#..", "#...", "####"],
+    3: ["###.", "...#", ".##.", "...#", "...#", "###."],
+    4: ["#..#", "#..#", "####", "...#", "...#", "...#"],
+    5: ["####", "#...", "###.", "...#", "...#", "###."],
+    6: [".##.", "#...", "###.", "#..#", "#..#", ".##."],
+    7: ["####", "...#", "..#.", ".#..", ".#..", ".#.."],
+    8: [".##.", "#..#", ".##.", "#..#", "#..#", ".##."],
+    9: [".##.", "#..#", "#..#", ".###", "...#", ".##."],
+  };
+  function buildFont(name, rowsByChar, height) {
+    const glyphs = {};
+    for (const ch of Object.keys(rowsByChar)) {
+      const rows = rowsByChar[ch];
+      const w = rows[0].length;
+      const bits = new Uint8Array(w * height);
+      rows.forEach((r, y) => {
+        for (let x = 0; x < w; x++) bits[y * w + x] = r[x] === "#" ? 1 : 0;
+      });
+      glyphs[ch] = { w, h: height, bits };
+    }
+    return { name, height, spacing: 1, glyphs };
+  }
+  const FONT_SMALL = buildFont("small", FONT_SMALL_ROWS, 5);
+  const FONT_BIG = buildFont("big", FONT_BIG_ROWS, 6);
+
+  function textWidth(font, text) {
+    let w = 0;
+    for (let i = 0; i < text.length; i++) {
+      const g = font.glyphs[text[i]];
+      w += (g ? g.w : 3) + (i ? font.spacing : 0);
+    }
+    return w;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rasterizer: a palette-index surface with sprite blits, dithered fades and
+  // light/shade ramps. toRGBA() converts to an RGBA buffer (ImageData-ready).
+  // ---------------------------------------------------------------------------
+  class Surface {
+    constructor(w, h) {
+      this.w = w;
+      this.h = h;
+      this.px = new Uint8Array(w * h);
+    }
+    fill(c) {
+      this.px.fill(c);
+    }
+    copyFrom(other) {
+      this.px.set(other.px);
+    }
+    set(x, y, c) {
+      x |= 0; y |= 0;
+      if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.px[y * this.w + x] = c;
+    }
+    get(x, y) {
+      x |= 0; y |= 0;
+      if (x < 0 || y < 0 || x >= this.w || y >= this.h) return TRANSPARENT;
+      return this.px[y * this.w + x];
+    }
+    rect(x, y, w, h, c) {
+      const x0 = Math.max(0, x | 0), y0 = Math.max(0, y | 0);
+      const x1 = Math.min(this.w, (x + w) | 0), y1 = Math.min(this.h, (y + h) | 0);
+      for (let yy = y0; yy < y1; yy++) this.px.fill(c, yy * this.w + x0, yy * this.w + x1);
+    }
+    /** Rectangle filled on a checkerboard (50% dither) or Bayer coverage. */
+    ditherRect(x, y, w, h, c, coverage = 0.5) {
+      for (let yy = y; yy < y + h; yy++)
+        for (let xx = x; xx < x + w; xx++) if (ditherOn(xx, yy, coverage)) this.set(xx, yy, c);
+    }
+    /**
+     * Draw a sprite with its top-left at (x, y).
+     * opts.coverage: 0..1 ordered-dither fade (screen-aligned).
+     * opts.color:    draw every opaque pixel in this palette index (silhouette).
+     * opts.map:      palette remap table (Uint8Array) applied to sprite pixels.
+     * opts.mask:     Uint8Array(w*h) of this surface; pixels with mask set are skipped.
+     * opts.clipX0/clipX1: horizontal clip in sprite space (for split drawing).
+     */
+    blit(spr, x, y, opts) {
+      if (!spr) return;
+      x |= 0; y |= 0;
+      const o = opts || {};
+      const cov = o.coverage === undefined ? 1 : o.coverage;
+      if (cov <= 0) return;
+      const W = this.w, H = this.h, px = this.px, sp = spr.px;
+      const sx0 = Math.max(0, -x, o.clipX0 || 0), sy0 = Math.max(0, -y);
+      const sx1 = Math.min(spr.w, W - x, o.clipX1 === undefined ? spr.w : o.clipX1);
+      const sy1 = Math.min(spr.h, H - y);
+      for (let sy = sy0; sy < sy1; sy++) {
+        const dy = y + sy;
+        for (let sx = sx0; sx < sx1; sx++) {
+          const v = sp[sy * spr.w + sx];
+          if (v === TRANSPARENT) continue;
+          const dx = x + sx;
+          if (cov < 1 && !ditherOn(dx, dy, cov)) continue;
+          const di = dy * W + dx;
+          if (o.mask && o.mask[di]) continue;
+          px[di] = o.color !== undefined ? o.color : o.map ? o.map[v] : v;
+        }
+      }
+    }
+    /** Blit a sprite centred on (cx, cy) (centre pixel = floor((w-1)/2)). */
+    blitCentered(spr, cx, cy, opts) {
+      if (!spr) return;
+      this.blit(spr, cx - ((spr.w - 1) >> 1), cy - ((spr.h - 1) >> 1), opts);
+    }
+    /**
+     * Apply a palette ramp in a dithered disc: intensity falls off linearly
+     * from `strength` at the centre to 0 at `radius`; `levels` > 1 applies the
+     * ramp repeatedly near the centre. mask: Uint8Array of pixels to leave alone.
+     */
+    ramp(table, cx, cy, radius, strength = 1, levels = 1, mask = null) {
+      const W = this.w, H = this.h, px = this.px;
+      const r = Math.max(0.5, radius);
+      const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
+      const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(H - 1, Math.ceil(cy + r));
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const i = y * W + x;
+          if (mask && mask[i]) continue;
+          const d = Math.hypot(x - cx, y - cy);
+          if (d >= r) continue;
+          const amount = strength * (1 - d / r) * levels;
+          let n = Math.floor(amount);
+          // Quantise the remainder to clean ordered patterns (1/8, 1/4, 1/2)
+          // so halos read as crisp concentric dither rings, not noise.
+          const rest = amount - n;
+          const q = rest >= 0.5 ? 0.5 : rest >= 0.25 ? 0.25 : rest >= 0.125 ? 0.125 : 0;
+          if (q > 0 && ditherOn(x, y, q)) n++;
+          let v = px[i];
+          for (let k = 0; k < n; k++) v = table[v];
+          px[i] = v;
+        }
+      }
+    }
+    /** Write this surface as RGBA into `out` (Uint8ClampedArray / Uint8Array of w*h*4). */
+    toRGBA(out) {
+      const n = this.w * this.h;
+      const dst = out || new Uint8ClampedArray(n * 4);
+      for (let i = 0, j = 0; i < n; i++, j += 4) {
+        const c = PALETTE_RGB[this.px[i]] || PALETTE_RGB[0];
+        dst[j] = c[0]; dst[j + 1] = c[1]; dst[j + 2] = c[2]; dst[j + 3] = 255;
+      }
+      return dst;
+    }
+  }
+
+  /** Draw text with its top-left at (x, y). Returns the drawn width. */
+  function drawText(surface, font, text, x, y, color) {
+    let cx = x;
+    for (let i = 0; i < text.length; i++) {
+      const g = font.glyphs[text[i]];
+      if (!g) { cx += 3 + font.spacing; continue; }
+      for (let gy = 0; gy < g.h; gy++)
+        for (let gx = 0; gx < g.w; gx++) if (g.bits[gy * g.w + gx]) surface.set(cx + gx, y + gy, color);
+      cx += g.w + font.spacing;
+    }
+    return cx - x - font.spacing;
+  }
+
+  /** Every sprite and animation, for sprite sheets and previews. */
+  function catalog() {
+    const out = [];
+    for (const look of Object.keys(STONES))
+      for (const shape of Object.keys(TEMPLATES))
+        out.push({ name: `stone_${look}_${shape}`, frames: [STONES[look][shape]], fps: 1, group: "stones" });
+    for (let p = 1; p <= 4; p++)
+      out.push({ name: `preview_p${p}`, frames: [splitPreviewSprite(p)], fps: 1, group: "stones" });
+    for (const k of Object.keys(SPRITES)) out.push({ name: k, frames: [SPRITES[k]], fps: 1, group: "props" });
+    for (const k of Object.keys(ANIMS)) out.push({ name: k, frames: ANIMS[k].frames, fps: ANIMS[k].fps, group: "anims" });
+    return out;
+  }
+
+  /** Render a string as a standalone sprite (for sprite sheets). */
+  function textSprite(font, text, color) {
+    const w = Math.max(1, textWidth(font, text)), h = font.height;
+    const s = new Surface(w, h);
+    s.fill(TRANSPARENT);
+    drawText(s, font, text, 0, 0, color);
+    return makeSprite(`text_${font.name}_${text}`, w, h, s.px);
+  }
+
+  return {
+    PALETTE,
+    PALETTE_RGB,
+    TRANSPARENT,
+    INDEX: { K, C, A, T, S },
+    BAYER4,
+    ditherOn,
+    LIGHT,
+    SHADE,
+    sprite,
+    flipX,
+    silhouette,
+    makeSprite,
+    STONES,
+    STONE_LOOKS,
+    STONE_TEMPLATE_15,
+    TEMPLATES,
+    LOOKS,
+    lookForCode,
+    patternCode,
+    stoneSprite,
+    splitPreviewSprite,
+    SPRITES,
+    ANIMS,
+    FONT_SMALL,
+    FONT_BIG,
+    textWidth,
+    drawText,
+    textSprite,
+    Surface,
+    catalog,
+  };
+});

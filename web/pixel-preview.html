@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GoCalypse Pixel Preview</title>
+  <style>
+    /* Colours are filled in from GoSprites.PALETTE at startup (see applyPaletteVars). */
+    :root {
+      --ink: #1f1a24;
+      --cream: #f4e8c8;
+      --amber: #d49040;
+      --teal: #2e6b73;
+      --slate: #767d88;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ink);
+      color: var(--cream);
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 48px; }
+    header h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
+    header p { margin: 4px 0 0; color: var(--slate); }
+    .layout { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; margin-top: 18px; }
+    .stage { flex: 0 0 auto; max-width: 100%; }
+    .stage-scroll { max-width: 100%; overflow-x: auto; }
+    canvas.px { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+    #scene { cursor: pointer; outline: 2px solid color-mix(in srgb, var(--cream) 12%, transparent); }
+    #status { margin: 8px 0 0; min-height: 1.4em; color: var(--slate); font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+    #status b { color: var(--amber); font-weight: 600; }
+    aside { flex: 1 1 260px; max-width: 360px; display: flex; flex-direction: column; gap: 14px; }
+    .panel { border: 1px solid color-mix(in srgb, var(--cream) 14%, transparent); border-radius: 8px; padding: 12px; }
+    .panel h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--slate); font-weight: 600; }
+    .turn { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .turn .who { font-weight: 700; color: var(--amber); }
+    .swatch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    button {
+      cursor: pointer; font: inherit; font-weight: 600; font-size: 13px;
+      background: var(--amber); color: var(--ink); border: none; border-radius: 6px; padding: 7px 12px;
+    }
+    button.secondary { background: transparent; color: var(--cream); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 30%, transparent); }
+    button[aria-pressed="true"] { background: var(--cream); color: var(--ink); box-shadow: none; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--cream); outline-offset: 2px; }
+    label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .hint { color: var(--slate); font-size: 12.5px; margin: 0; }
+    .palette { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .chip { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--slate); font-family: ui-monospace, Consolas, monospace; }
+    .chip span.box { height: 34px; border-radius: 4px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 25%, transparent); }
+    .chip b { color: var(--cream); font-family: inherit; font-weight: 600; }
+    section.sheet { margin-top: 36px; }
+    section.sheet h2 { font-size: 16px; margin: 0 0 4px; }
+    section.sheet > p { margin: 0 0 14px; color: var(--slate); }
+    .sheet-group { margin: 22px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--slate); }
+    .cards { display: flex; flex-wrap: wrap; gap: 10px; }
+    .card { border: 1px solid color-mix(in srgb, var(--cream) 12%, transparent); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .card .views { display: flex; gap: 8px; align-items: flex-end; }
+    .card .name { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--cream); }
+    .card .meta { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--slate); }
+    .facts { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--slate); margin: 0; }
+    .facts b { color: var(--cream); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>GoCalypse &middot; Lantern River</h1>
+      <p>Pixel scene preview. Runs without a game server; nothing here talks to the network.</p>
+    </header>
+
+    <div class="layout">
+      <section class="stage">
+        <div class="stage-scroll"><canvas id="scene" class="px" aria-label="Pixel Go board by a lantern-lit river"></canvas></div>
+        <p id="status">Hover the board.</p>
+      </section>
+
+      <aside>
+        <div class="panel">
+          <h2>Next move</h2>
+          <div class="turn">
+            <span>Player <span class="who" id="who">1</span></span>
+            <span class="swatch"><canvas class="px" id="sw-solid"></canvas> left click</span>
+            <span class="swatch"><canvas class="px" id="sw-pattern"></canvas> right click</span>
+          </div>
+          <p class="hint" style="margin-top:8px">Each placement passes the turn to the next player (1&ndash;4). Shift+click a stone to capture it.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Demo</h2>
+          <div class="row">
+            <button id="capture-demo">Capture a group</button>
+            <button id="reset" class="secondary">Reset position</button>
+            <button id="clear" class="secondary">Clear board</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>View</h2>
+          <div class="row" role="group" aria-label="Scale">
+            <span class="hint">Scale</span>
+            <button class="secondary scale" data-scale="2" aria-pressed="true">2x</button>
+            <button class="secondary scale" data-scale="3" aria-pressed="false">3x</button>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <label><input type="checkbox" id="reduced" /> Reduced motion</label>
+          </div>
+          <div class="row" style="margin-top:10px" role="radiogroup" aria-label="Hover mode">
+            <span class="hint">Hover shows</span>
+            <label><input type="radio" name="hover" value="stone" checked /> stone preview</label>
+            <label><input type="radio" name="hover" value="target" /> powerup target</label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Palette (5 colours)</h2>
+          <div class="palette" id="palette"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Layout</h2>
+          <p class="facts" id="facts"></p>
+        </div>
+      </aside>
+    </div>
+
+    <section class="sheet">
+      <h2>Sprite sheet</h2>
+      <p>Every sprite and animation, at 1x and 4x. Animations loop at their own frame rate (paused under reduced motion).</p>
+      <div id="sheet"></div>
+    </section>
+  </div>
+
+  <script src="sprites.js"></script>
+  <script src="pixelScene.js"></script>
+  <script>
+    (function () {
+      "use strict";
+      const G = window.GoSprites;
+      const P = window.GoPixelScene;
+      const { K, C, A, T, S } = G.INDEX;
+      const SIZE = 13;
+
+      // ---------------------------------------------------------------- palette
+      (function applyPaletteVars() {
+        const root = document.documentElement.style;
+        G.PALETTE.forEach((c) => root.setProperty("--" + c.name, c.hex));
+        const el = document.getElementById("palette");
+        G.PALETTE.forEach((c) => {
+          const chip = document.createElement("div");
+          chip.className = "chip";
+          chip.innerHTML = `<span class="box" style="background:${c.hex}"></span><b>${c.name}</b>${c.hex}`;
+          el.appendChild(chip);
+        });
+      })();
+
+      // ---------------------------------------------------------------- scaling
+      /** Integer device pixels per native pixel -> CSS pixels per native pixel. */
+      function cssScaleFor(scale) {
+        const dpr = window.devicePixelRatio || 1;
+        return Math.max(1, Math.round(scale * dpr)) / dpr;
+      }
+      function sizeCanvas(canvas, w, h, scale) {
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
+        const s = cssScaleFor(scale);
+        canvas.style.width = w * s + "px";
+        canvas.style.height = h * s + "px";
+      }
+      function blitSurface(canvas, surface) {
+        const ctx = canvas.getContext("2d");
+        const img = ctx.createImageData(surface.w, surface.h);
+        surface.toRGBA(img.data);
+        ctx.putImageData(img, 0, 0);
+      }
+
+      // ---------------------------------------------------------------- scene
+      const scene = P.createScene({ size: SIZE });
+      const L = scene.layout;
+      const canvas = document.getElementById("scene");
+      const ctx = canvas.getContext("2d");
+      const image = ctx.createImageData(scene.width, scene.height);
+      let scale = 2;
+
+      document.getElementById("facts").innerHTML =
+        `scene <b>${scene.width}&times;${scene.height}</b> native<br>` +
+        `grid origin <b>(${L.gridX}, ${L.gridY})</b>, spacing <b>${L.spacing}</b><br>` +
+        `board frame <b>(${L.boardX}, ${L.boardY})</b> ${L.boardW}&times;${L.boardH}`;
+
+      function samplePosition() {
+        const b = new Array(SIZE * SIZE).fill(0);
+        const stones = [
+          [3, 3, 1], [4, 3, 1], [3, 4, 3], [2, 5, 1], [4, 5, 3],
+          [9, 3, 2], [9, 4, 4], [10, 4, 2], [8, 2, 4], [10, 2, 2],
+          [3, 9, 5], [4, 9, 6], [3, 10, 5], [2, 8, 6], [5, 10, 5],
+          [9, 9, 7], [9, 10, 8], [10, 9, 7], [8, 8, 8], [10, 11, 7],
+          [6, 6, 1], [7, 6, 2], [6, 7, 7], [7, 7, 5], [5, 6, 4], [6, 5, 8],
+          [0, 0, 2], [12, 12, 1], [0, 12, 7], [12, 0, 5], [12, 6, 3], [0, 6, 6],
+        ];
+        for (const [x, y, c] of stones) b[y * SIZE + x] = c;
+        return b;
+      }
+
+      const reducedQuery = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+      const state = {
+        board: samplePosition(),
+        hover: null,
+        hoverKind: "stone",
+        myColor: 1,
+        lastMove: { x: 7, y: 6 },
+        effects: [],
+        reducedMotion: !!(reducedQuery && reducedQuery.matches),
+      };
+      const reducedBox = document.getElementById("reduced");
+      reducedBox.checked = state.reducedMotion;
+      reducedBox.addEventListener("change", () => { state.reducedMotion = reducedBox.checked; dirty = true; });
+      if (reducedQuery && reducedQuery.addEventListener) {
+        reducedQuery.addEventListener("change", (e) => {
+          state.reducedMotion = reducedBox.checked = e.matches;
+          dirty = true;
+        });
+      }
+
+      const t0 = performance.now() / 1000;
+      let ambient = 0, lastNow = null, dirty = true, lastFrameKey = -1;
+      const now = () => performance.now() / 1000 - t0;
+
+      function resize() {
+        sizeCanvas(canvas, scene.width, scene.height, scale);
+        dirty = true;
+      }
+      resize();
+      window.addEventListener("resize", resize);
+      document.querySelectorAll("button.scale").forEach((b) => {
+        b.addEventListener("click", () => {
+          scale = Number(b.dataset.scale);
+          document.querySelectorAll("button.scale").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+          resize();
+        });
+      });
+      document.querySelectorAll("input[name=hover]").forEach((r) => {
+        r.addEventListener("change", () => { state.hoverKind = r.value; dirty = true; });
+      });
+
+      // ---------------------------------------------------------------- input
+      function eventPoint(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const nx = ((evt.clientX - rect.left) * scene.width) / rect.width;
+        const ny = ((evt.clientY - rect.top) * scene.height) / rect.height;
+        return scene.nativeToPoint(nx, ny);
+      }
+      const statusEl = document.getElementById("status");
+      let lastAction = "";
+      function updateStatus() {
+        const h = state.hover;
+        const at = h ? `hover <b>(${h.x}, ${h.y})</b>` : "hover &ndash;";
+        statusEl.innerHTML = at + (lastAction ? " &middot; " + lastAction : "");
+      }
+      canvas.addEventListener("mousemove", (evt) => {
+        const p = eventPoint(evt);
+        const prev = state.hover;
+        if (!p !== !prev || (p && (p.x !== prev.x || p.y !== prev.y))) {
+          state.hover = p;
+          dirty = true;
+          updateStatus();
+        }
+      });
+      canvas.addEventListener("mouseleave", () => { state.hover = null; dirty = true; updateStatus(); });
+      canvas.addEventListener("contextmenu", (evt) => evt.preventDefault());
+      canvas.addEventListener("mousedown", (evt) => {
+        if (evt.button !== 0 && evt.button !== 2) return;
+        evt.preventDefault();
+        const p = eventPoint(evt);
+        if (!p) return;
+        const i = p.y * SIZE + p.x;
+        if (evt.shiftKey && state.board[i]) { captureStones([p]); return; }
+        if (state.board[i]) { lastAction = "occupied"; updateStatus(); return; }
+        const player = state.myColor;
+        const code = evt.button === 2 ? G.patternCode(player) : player;
+        state.board[i] = code;
+        state.effects.push(P.placeEffect(p.x, p.y, code, now()));
+        state.lastMove = { x: p.x, y: p.y };
+        lastAction = `P${player} placed ${G.lookForCode(code)} at (${p.x}, ${p.y})`;
+        state.myColor = (player % 4) + 1;
+        updateTurn();
+        updateStatus();
+        dirty = true;
+      });
+
+      function captureStones(points) {
+        const t = now();
+        points.forEach((p, k) => {
+          const i = p.y * SIZE + p.x;
+          if (!state.board[i]) return;
+          state.effects.push(P.captureEffect(p.x, p.y, state.board[i], t + k * 0.07));
+          state.board[i] = 0;
+        });
+        if (state.lastMove && !state.board[state.lastMove.y * SIZE + state.lastMove.x]) state.lastMove = null;
+        lastAction = `captured ${points.length} stone${points.length === 1 ? "" : "s"}`;
+        updateStatus();
+        dirty = true;
+      }
+
+      /** Pick a random stone and flood-fill same-look neighbours (max 6). */
+      document.getElementById("capture-demo").addEventListener("click", () => {
+        const filled = [];
+        state.board.forEach((c, i) => c && filled.push(i));
+        if (!filled.length) { lastAction = "nothing to capture, place some stones first"; updateStatus(); return; }
+        const start = filled[Math.floor(Math.random() * filled.length)];
+        const look = G.lookForCode(state.board[start]);
+        const seen = new Set([start]), queue = [start], group = [];
+        while (queue.length && group.length < 6) {
+          const i = queue.shift();
+          group.push({ x: i % SIZE, y: (i / SIZE) | 0 });
+          const x = i % SIZE, y = (i / SIZE) | 0;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE) continue;
+            const j = ny * SIZE + nx;
+            if (!seen.has(j) && state.board[j] && G.lookForCode(state.board[j]) === look) { seen.add(j); queue.push(j); }
+          }
+        }
+        captureStones(group);
+      });
+      document.getElementById("reset").addEventListener("click", () => {
+        state.board = samplePosition(); state.lastMove = { x: 7, y: 6 }; state.effects = [];
+        lastAction = "reset"; updateStatus(); dirty = true;
+      });
+      document.getElementById("clear").addEventListener("click", () => {
+        state.board = new Array(SIZE * SIZE).fill(0); state.lastMove = null; state.effects = [];
+        lastAction = "cleared"; updateStatus(); dirty = true;
+      });
+
+      // ---------------------------------------------------------------- turn swatches
+      function drawStoneIcon(canvasEl, code) {
+        const s = new G.Surface(17, 17);
+        s.fill(A);
+        s.blitCentered(G.stoneSprite(code), 8, 8);
+        sizeCanvas(canvasEl, 17, 17, 1.5);
+        blitSurface(canvasEl, s);
+      }
+      function updateTurn() {
+        document.getElementById("who").textContent = state.myColor;
+        drawStoneIcon(document.getElementById("sw-solid"), state.myColor);
+        drawStoneIcon(document.getElementById("sw-pattern"), G.patternCode(state.myColor));
+      }
+      updateTurn();
+
+      // ---------------------------------------------------------------- sprite sheet
+      const sheetCards = [];
+      // Show each sprite on the surface it lives on in the scene.
+      const AMBER_BG = new Set(["hoshi", "ember", "ripple", "sparkle", "wisp", "reticle"]);
+      const INK_BG = new Set(["grassTuft", "grassTuftSmall", "flower", "pebble", "garlandAmber", "garlandCream", "rock"]);
+      function addGroup(title) {
+        const h = document.createElement("div");
+        h.className = "sheet-group";
+        h.textContent = title;
+        const cards = document.createElement("div");
+        cards.className = "cards";
+        document.getElementById("sheet").append(h, cards);
+        return cards;
+      }
+      /** A card with a 1x and a 4x canvas; draw(surface, time) fills a w x h surface. */
+      function addCard(container, name, meta, w, h, draw, animated) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const views = document.createElement("div");
+        views.className = "views";
+        const c1 = document.createElement("canvas"), c4 = document.createElement("canvas");
+        c1.className = c4.className = "px";
+        views.append(c1, c4);
+        const nm = document.createElement("div");
+        nm.className = "name";
+        nm.textContent = name;
+        const mt = document.createElement("div");
+        mt.className = "meta";
+        mt.textContent = meta;
+        card.append(views, nm, mt);
+        container.appendChild(card);
+        const entry = { c1, c4, w, h, draw, animated, surface: new G.Surface(w, h), key: -1 };
+        sheetCards.push(entry);
+        sizeSheetCard(entry);
+        paintCard(entry, 0);
+        return entry;
+      }
+      function sizeSheetCard(e) {
+        sizeCanvas(e.c1, e.w, e.h, 1);
+        sizeCanvas(e.c4, e.w, e.h, 4);
+      }
+      function paintCard(e, time) {
+        e.draw(e.surface, time);
+        blitSurface(e.c1, e.surface);
+        blitSurface(e.c4, e.surface);
+      }
+
+      const groups = { stones: addGroup("Stones (every look and shape)"), props: addGroup("Props"), anims: addGroup("Animations") };
+      for (const item of G.catalog()) {
+        const fw = Math.max(...item.frames.map((f) => f.w)), fh = Math.max(...item.frames.map((f) => f.h));
+        const w = fw + 6, h = fh + 6;
+        const bg = item.group === "stones" || AMBER_BG.has(item.name) ? A : INK_BG.has(item.name) ? K : T;
+        const n = item.frames.length;
+        addCard(groups[item.group], item.name, n > 1 ? `${n} frames @ ${item.fps} fps` : `${fw}x${fh}`, w, h, (s, time) => {
+          s.fill(bg);
+          const f = item.frames[n > 1 ? Math.floor(time * item.fps) % n : 0];
+          s.blit(f, (w - f.w) >> 1, (h - f.h) >> 1);
+        }, n > 1);
+      }
+      // Fonts
+      {
+        const bigW = G.textWidth(G.FONT_BIG, "0123456789");
+        addCard(groups.props, "font small 3x5 / big 4x6", "board labels + hover tag", bigW + 6, 17, (s) => {
+          s.fill(K);
+          G.drawText(s, G.FONT_SMALL, "0123456789", 3, 2, A);
+          s.rect(2, 8, bigW + 2, 8, C);
+          G.drawText(s, G.FONT_BIG, "0123456789", 3, 9, K);
+        }, false);
+      }
+
+      // Effects: placement and capture per stone look, looping on a kaya tile.
+      const fxGroup = addGroup("Effects (placement and capture, looping)");
+      function kayaTile(s) {
+        s.fill(A);
+        for (let k = -1; k <= 1; k++) {
+          for (let y = 0; y < s.h; y++) s.set(24 + k * 16, y, K);
+          for (let x = 0; x < s.w; x++) s.set(x, 32 + k * 16, K);
+        }
+      }
+      for (const kind of ["place", "capture"]) {
+        for (const code of [1, 2, 5, 7]) {
+          const look = G.lookForCode(code);
+          const effect = { kind, code, start: 0 };
+          addCard(fxGroup, `${kind}: ${look}`, `${P.effectDuration(effect, false).toFixed(2)} s`, 48, 48, (s, time) => {
+            kayaTile(s);
+            const reduced = state.reducedMotion;
+            const len = P.effectDuration(effect, reduced);
+            const el = time % (len + 0.5);
+            if (el < len) {
+              P.drawEffect(s, effect, el, 24, 32, reduced);
+            } else if (kind === "place") {
+              // settled: the stone as the board draws it
+              s.blitCentered(G.stoneSprite(code), 25, 33, { color: K, coverage: 0.5 });
+              s.blitCentered(G.stoneSprite(code), 24, 32);
+            }
+          }, true);
+        }
+      }
+
+      // ---------------------------------------------------------------- loop
+      function frame(ms) {
+        const t = ms / 1000 - t0;
+        if (lastNow !== null && !state.reducedMotion) ambient += t - lastNow;
+        lastNow = t;
+        state.effects = P.pruneEffects(state.effects, t, state.reducedMotion);
+        const animating = !state.reducedMotion || state.effects.length > 0;
+        const key = Math.floor(t * 30);
+        if (dirty || (animating && key !== lastFrameKey)) {
+          lastFrameKey = key;
+          dirty = false;
+          scene.render({
+            time: t,
+            ambientTime: ambient,
+            board: state.board,
+            hover: state.hover,
+            hoverKind: state.hoverKind,
+            myColor: state.myColor,
+            lastMove: state.lastMove,
+            effects: state.effects,
+            reducedMotion: state.reducedMotion,
+          });
+          image.data.set(scene.rgba);
+          ctx.putImageData(image, 0, 0);
+        }
+        if (!state.reducedMotion && key % 2 === 0) {
+          for (const e of sheetCards) {
+            if (!e.animated || e.key === key) continue;
+            e.key = key;
+            paintCard(e, t);
+          }
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+      window.addEventListener("resize", () => sheetCards.forEach(sizeSheetCard));
+    })();
+  </script>
+</body>
+</html>
