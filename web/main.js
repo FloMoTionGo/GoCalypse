@@ -330,6 +330,67 @@ function drawStone(x, y, colorIndex, alpha = 1) {
   boardCtx.restore();
 }
 
+/**
+ * Preview stone for hovering before a move: left half shows the solid
+ * base-color option (left click), right half shows the grey pattern option
+ * (right click), split down the middle so both choices are visible at once.
+ */
+function paintSplitPreview(ctx, cx, cy, r, baseStyle, patternStyle) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  ctx.fillStyle = baseStyle.base;
+  ctx.fillRect(cx - r, cy - r, r, r * 2);
+
+  ctx.fillStyle = patternStyle.base;
+  ctx.fillRect(cx, cy - r, r, r * 2);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(cx, cy - r, r, r * 2);
+  ctx.clip();
+  if (patternStyle.pattern === "dots") paintDots(ctx, cx, cy, r, patternStyle.mark);
+  else if (patternStyle.pattern === "stripes") paintStripes(ctx, cx, cy, r, patternStyle.mark);
+  ctx.restore();
+
+  const gloss = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.05, cx, cy, r);
+  gloss.addColorStop(0, "rgba(255, 255, 255, 0.55)");
+  gloss.addColorStop(0.35, "rgba(255, 255, 255, 0.08)");
+  gloss.addColorStop(1, "rgba(255, 255, 255, 0)");
+  ctx.fillStyle = gloss;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx, cy + r);
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+  ctx.stroke();
+}
+
+function drawSplitPreview(x, y, playerColor, alpha) {
+  const cx = pointToPixel(x);
+  const cy = pointToPixel(y);
+  const r = BOARD_SPACING / 2 - 2;
+
+  boardCtx.save();
+  boardCtx.globalAlpha = alpha;
+  paintSplitPreview(boardCtx, cx, cy, r, STONE_STYLES[playerColor], STONE_STYLES[patternCode(playerColor)]);
+  boardCtx.restore();
+}
+
 const swatchIconCache = new Map();
 
 /** A small canvas-rendered PNG data URL of a stone style, for sidebar swatches. */
@@ -389,15 +450,19 @@ function drawBoard() {
 
   // Coordinate labels (0-indexed, matching the {x, y} the client/server
   // protocol actually uses) -- for reporting exact positions, not display.
+  // The hovered column/row is skipped here and drawn later as a highlighted
+  // label instead, so the plain label never shows through behind it.
   boardCtx.fillStyle = "#2a1b0a";
   boardCtx.font = "10px monospace";
   boardCtx.textBaseline = "middle";
   boardCtx.textAlign = "center";
   for (let i = 0; i < size; i++) {
+    if (hoverPoint && i === hoverPoint.x) continue;
     boardCtx.fillText(String(i), pointToPixel(i), BOARD_MARGIN / 2);
   }
   boardCtx.textAlign = "right";
   for (let i = 0; i < size; i++) {
+    if (hoverPoint && i === hoverPoint.y) continue;
     boardCtx.fillText(String(i), BOARD_MARGIN - 6, pointToPixel(i));
   }
 
@@ -423,7 +488,7 @@ function drawBoard() {
       boardCtx.lineWidth = 2;
       boardCtx.stroke();
     } else if (me && !occupied && boardEl.classList.contains("my-turn")) {
-      drawStone(hoverPoint.x, hoverPoint.y, me.color, 0.45);
+      drawSplitPreview(hoverPoint.x, hoverPoint.y, me.color, 0.55);
     }
 
     // Highlight the hovered column/row's coordinate label so the exact
