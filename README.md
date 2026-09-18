@@ -6,6 +6,12 @@ A 4-player custom Go variant, played online and synced live across all players.
 (client, hosted on GitHub Pages) — connects to the live server at
 `wss://gocalypse.fly.dev`. Open 4 tabs to fill a room.
 
+**Debugging:** `web/debug.html` fills one tab with all 4 players at once —
+each a real independent client in its own `<iframe>`, scaled down into a 2x2
+grid, auto-joining the same room with staggered delays so they don't race
+into separate rooms. `?server=...` in `debug.html`'s own URL overrides which
+server all 4 point at.
+
 Not standard Go rules — this is a free-for-all variant with black/white
 stones distinguished by pattern (dots or stripes), alliance-based captures,
 and powerups that trigger board-altering actions (bombs, sniping enemy

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GoCalypse — 4-Player Debug</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #0e1014;
+      color: #e7e9ec;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    h1 { font-size: 16px; margin: 0; }
+    .hint { color: #8a919c; font-size: 13px; }
+    button {
+      cursor: pointer;
+      background: #4fa3ff;
+      border: none;
+      color: #0b1220;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      width: fit-content;
+    }
+    .panel {
+      position: relative;
+      width: 380px;
+      height: 350px;
+      overflow: hidden;
+      border: 1px solid #2c3138;
+      border-radius: 8px;
+      background: #14171c;
+    }
+    .panel .label {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      z-index: 1;
+      background: rgba(0, 0, 0, 0.55);
+      color: #e7e9ec;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    .panel iframe {
+      width: 760px;
+      height: 700px;
+      border: 0;
+      transform: scale(0.5);
+      transform-origin: 0 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>GoCalypse — 4-Player Debug</h1>
+    <span class="hint">4 independent clients, auto-joining the same room (staggered to avoid a matchmaking race).</span>
+    <button id="reload-all">Reload all</button>
+  </header>
+
+  <div class="grid" id="grid"></div>
+
+  <script>
+    const SERVER = new URLSearchParams(location.search).get("server") || "";
+    const NAMES = ["Debug-P1", "Debug-P2", "Debug-P3", "Debug-P4"];
+    const grid = document.getElementById("grid");
+
+    function panelSrc(name, delay) {
+      // Hash, not a query string: some static hosts 301-redirect
+      // "index.html?..." and drop the query string (see main.js for why).
+      const params = new URLSearchParams({ name, autojoin: "1", delay: String(delay) });
+      if (SERVER) params.set("server", SERVER);
+      return `index.html#${params.toString()}`;
+    }
+
+    function buildPanels() {
+      grid.innerHTML = "";
+      NAMES.forEach((name, i) => {
+        const panel = document.createElement("div");
+        panel.className = "panel";
+
+        const label = document.createElement("div");
+        label.className = "label";
+        label.textContent = name;
+
+        const iframe = document.createElement("iframe");
+        iframe.src = panelSrc(name, i * 400);
+
+        panel.append(label, iframe);
+        grid.appendChild(panel);
+      });
+    }
+
+    document.getElementById("reload-all").addEventListener("click", buildPanels);
+    buildPanels();
+  </script>
+</body>
+</html>

@@ -58,6 +58,22 @@ boardEl.addEventListener("click", onBoardClick);
 joinButton.addEventListener("click", connect);
 cancelTargetButton.addEventListener("click", () => setSelectedPowerup(null));
 
+// A URL hash lets debug.html drive this page from inside an <iframe>
+// (prefill + auto-join) without touching the normal manual-join flow. Using
+// the hash rather than a query string matters: some static hosts (e.g.
+// `npx serve`, via its default clean-URL redirect) 301 "/index.html?..." to
+// "/index" and drop the query string entirely. A hash is never sent to the
+// server, so no host's redirect/rewrite rules can touch it.
+{
+  const params = new URLSearchParams(location.hash.slice(1));
+  if (params.has("server")) serverInput.value = params.get("server");
+  if (params.has("name")) nameInput.value = params.get("name");
+  if (params.has("autojoin")) {
+    const delay = Number(params.get("delay")) || 0;
+    setTimeout(connect, delay);
+  }
+}
+
 async function connect() {
   const endpoint = serverInput.value.trim() || "ws://localhost:2567";
   const name = nameInput.value.trim();
