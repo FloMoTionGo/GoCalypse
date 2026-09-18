@@ -8,6 +8,11 @@ const POWERUP_INFO = {
   remove_stone: { name: "Snipe", description: "Remove one enemy stone" },
 };
 
+const PLAYER_COLORS = ["", "#e05252", "#4f8ff0", "#4fd17a", "#f0c94f"];
+
+const BOARD_MARGIN = 26;
+const BOARD_SPACING = 32;
+
 const lobbyEl = document.getElementById("lobby");
 const gameEl = document.getElementById("game");
 const serverInput = document.getElementById("server-input");
@@ -24,9 +29,21 @@ const powerupButtonsEl = document.getElementById("powerup-buttons");
 const targetingHintEl = document.getElementById("targeting-hint");
 const cancelTargetButton = document.getElementById("cancel-target");
 
+const boardCtx = boardEl.getContext("2d");
+
 let room = null;
 let boardSize = null;
 let selectedPowerup = null;
+let lastState = null;
+let myPlayer = null;
+let hoverPoint = null; // {x, y} intersection under the mouse, or null
+
+boardEl.addEventListener("mousemove", onBoardMouseMove);
+boardEl.addEventListener("mouseleave", () => {
+  hoverPoint = null;
+  drawBoard();
+});
+boardEl.addEventListener("click", onBoardClick);
 
 joinButton.addEventListener("click", connect);
 cancelTargetButton.addEventListener("click", () => setSelectedPowerup(null));
@@ -70,23 +87,67 @@ function setLobbyStatus(text, isError) {
 function ensureBoard(size) {
   if (boardSize === size) return;
   boardSize = size;
-  boardEl.innerHTML = "";
-  boardEl.style.gridTemplateColumns = `repeat(${size}, 28px)`;
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      cell.dataset.x = String(x);
-      cell.dataset.y = String(y);
-      cell.addEventListener("click", () => onCellClick(x, y));
-      boardEl.appendChild(cell);
-    }
-  }
+  const cssSize = BOARD_MARGIN * 2 + (size - 1) * BOARD_SPACING;
+  const dpr = window.devicePixelRatio || 1;
+  boardEl.style.width = `${cssSize}px`;
+  boardEl.style.height = `${cssSize}px`;
+  boardEl.width = cssSize * dpr;
+  boardEl.height = cssSize * dpr;
+  boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-function onCellClick(x, y) {
-  if (!room) return;
+/** Standard-ish hoshi (star point) layout, generalized to arbitrary odd board sizes. */
+function starPoints(size) {
+  if (size < 9) return [];
+  const edge = size >= 13 ? 3 : 2;
+  const far = size - 1 - edge;
+  if (edge >= far) return [];
+
+  const isOdd = size % 2 === 1;
+  const mid = isOdd ? (size - 1) / 2 : null;
+  // Large boards (19x19-style) get the full 3x3 hoshi grid; smaller ones
+  // (13x13, 9x9-style) traditionally only mark the 4 corners + tengen.
+  const useFullGrid = size >= 17 && mid !== null;
+  const coords = useFullGrid ? [edge, mid, far] : [edge, far];
+
+  const points = [];
+  for (const px of coords) {
+    for (const py of coords) {
+      points.push({ x: px, y: py });
+    }
+  }
+  if (isOdd && !useFullGrid) {
+    points.push({ x: mid, y: mid }); // tengen
+  }
+  return points;
+}
+
+function pointToPixel(i) {
+  return BOARD_MARGIN + i * BOARD_SPACING;
+}
+
+function pixelToPoint(px, size) {
+  const raw = Math.round((px - BOARD_MARGIN) / BOARD_SPACING);
+  return Math.min(size - 1, Math.max(0, raw));
+}
+
+function eventToIntersection(evt) {
+  const rect = boardEl.getBoundingClientRect();
+  const x = pixelToPoint(evt.clientX - rect.left, boardSize);
+  const y = pixelToPoint(evt.clientY - rect.top, boardSize);
+  return { x, y };
+}
+
+function onBoardMouseMove(evt) {
+  if (!lastState) return;
+  hoverPoint = eventToIntersection(evt);
+  drawBoard();
+}
+
+function onBoardClick(evt) {
+  if (!room || !lastState) return;
+  const { x, y } = eventToIntersection(evt);
 
   if (selectedPowerup) {
     room.send("usePowerup", { id: selectedPowerup, target: { x, y } });
@@ -108,14 +169,17 @@ function setSelectedPowerup(id) {
 
 function render(state) {
   ensureBoard(state.size);
+  lastState = state;
 
   const players = Array.from(state.players);
   const me = players.find((p) => p.sessionId === room.sessionId);
   const myIndex = players.indexOf(me);
   const isMyTurn = myIndex !== -1 && myIndex === state.turnIndex;
+  myPlayer = me || null;
 
   renderStatus(state, players, isMyTurn);
-  renderBoard(state, players, isMyTurn);
+  boardEl.classList.toggle("my-turn", isMyTurn && !selectedPowerup);
+  drawBoard();
   renderPlayers(players, state.turnIndex, myIndex);
   renderPowerups(me, isMyTurn);
 
@@ -140,26 +204,93 @@ function renderStatus(state, players, isMyTurn) {
   turnIndicatorEl.classList.toggle("my-turn", isMyTurn);
 }
 
-function renderBoard(state, players, isMyTurn) {
-  boardEl.classList.toggle("my-turn", isMyTurn && !selectedPowerup);
+function drawStone(x, y, color, alpha = 1) {
+  const cx = pointToPixel(x);
+  const cy = pointToPixel(y);
+  const r = BOARD_SPACING / 2 - 2;
 
-  const colorClass = ["", "p1", "p2", "p3", "p4"];
-  const size = state.size;
+  boardCtx.save();
+  boardCtx.globalAlpha = alpha;
 
+  const gradient = boardCtx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r);
+  gradient.addColorStop(0, "#ffffff");
+  gradient.addColorStop(0.15, color);
+  gradient.addColorStop(1, color);
+
+  boardCtx.beginPath();
+  boardCtx.arc(cx, cy, r, 0, Math.PI * 2);
+  boardCtx.fillStyle = gradient;
+  boardCtx.fill();
+  boardCtx.lineWidth = 1;
+  boardCtx.strokeStyle = "rgba(0, 0, 0, 0.45)";
+  boardCtx.stroke();
+
+  boardCtx.restore();
+}
+
+function drawBoard() {
+  const me = myPlayer;
+  if (!lastState) return;
+  const size = lastState.size;
+  const cssSize = BOARD_MARGIN * 2 + (size - 1) * BOARD_SPACING;
+
+  // Wooden background (kaya-style gradient).
+  const woodGradient = boardCtx.createLinearGradient(0, 0, cssSize, cssSize);
+  woodGradient.addColorStop(0, "#e8c583");
+  woodGradient.addColorStop(0.5, "#dcb35c");
+  woodGradient.addColorStop(1, "#cf9f48");
+  boardCtx.fillStyle = woodGradient;
+  boardCtx.fillRect(0, 0, cssSize, cssSize);
+
+  // Grid lines.
+  boardCtx.strokeStyle = "#2a1b0a";
+  boardCtx.lineWidth = 1;
+  const last = size - 1;
+  for (let i = 0; i < size; i++) {
+    const p = pointToPixel(i);
+
+    boardCtx.beginPath();
+    boardCtx.moveTo(pointToPixel(0), p);
+    boardCtx.lineTo(pointToPixel(last), p);
+    boardCtx.stroke();
+
+    boardCtx.beginPath();
+    boardCtx.moveTo(p, pointToPixel(0));
+    boardCtx.lineTo(p, pointToPixel(last));
+    boardCtx.stroke();
+  }
+
+  // Star points (hoshi) and tengen.
+  boardCtx.fillStyle = "#2a1b0a";
+  for (const point of starPoints(size)) {
+    boardCtx.beginPath();
+    boardCtx.arc(pointToPixel(point.x), pointToPixel(point.y), 3.5, 0, Math.PI * 2);
+    boardCtx.fill();
+  }
+
+  // Stones.
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const idx = y * size + x;
-      const value = state.board[idx];
-      const cell = boardEl.children[idx];
-      const existingStone = cell.querySelector(".stone");
+      const value = lastState.board[y * size + x];
+      if (value !== 0) drawStone(x, y, PLAYER_COLORS[value]);
+    }
+  }
 
-      if (value === 0) {
-        if (existingStone) existingStone.remove();
-      } else {
-        const stone = existingStone || document.createElement("div");
-        stone.className = `stone ${colorClass[value]}`;
-        if (!existingStone) cell.appendChild(stone);
-      }
+  // Hover preview: ghost stone for a move, or a target ring for a powerup.
+  if (hoverPoint) {
+    const idx = hoverPoint.y * size + hoverPoint.x;
+    const occupied = lastState.board[idx] !== 0;
+
+    if (selectedPowerup) {
+      const cx = pointToPixel(hoverPoint.x);
+      const cy = pointToPixel(hoverPoint.y);
+      boardCtx.beginPath();
+      boardCtx.arc(cx, cy, BOARD_SPACING / 2 - 1, 0, Math.PI * 2);
+      boardCtx.strokeStyle = "#4fa3ff";
+      boardCtx.lineWidth = 2;
+      boardCtx.stroke();
+    } else if (me && !occupied && boardEl.classList.contains("my-turn")) {
+      drawStone(hoverPoint.x, hoverPoint.y, PLAYER_COLORS[me.color], 0.45);
     }
   }
 }
