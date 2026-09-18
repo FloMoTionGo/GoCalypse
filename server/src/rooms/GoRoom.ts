@@ -109,7 +109,7 @@ export class GoRoom extends Room<GoState> {
     });
     player.score += captured.length;
 
-    if (captured.length === 0 && isSuicide(rawBoard, size, x, y, player.color)) {
+    if (captured.length === 0 && isSuicide(rawBoard, size, x, y)) {
       board[idx] = 0; // illegal move: revert
       return;
     }

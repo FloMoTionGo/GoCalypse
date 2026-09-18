@@ -13,13 +13,11 @@ into separate rooms. `?server=...` in `debug.html`'s own URL overrides which
 server all 4 point at.
 
 Not standard Go rules — this is a free-for-all variant with black/white
-stones distinguished by pattern (dots or stripes), alliance-based captures,
-and powerups that trigger board-altering actions (bombs, sniping enemy
-stones, etc). Guests get a random display name if not registered.
+stones distinguished by pattern (dots or stripes), and powerups that trigger
+board-altering actions (bombs, sniping enemy stones, etc). Guests get a
+random display name if not registered.
 
-Each player's stone has two identity axes — a base tone (black/white) and a
-pattern (dots/stripes) — and stones ally for liberties/captures if they
-share *either* axis:
+Each player's stone has two identity axes:
 
 | Player | Base  | Pattern |
 |--------|-------|---------|
@@ -28,14 +26,25 @@ share *either* axis:
 | 3      | black | stripes |
 | 4      | white | stripes |
 
-So 1↔2 (share dots), 1↔3 (share black), 2↔4 (share white), and 3↔4 (share
-stripes) merge into the same group and share liberties. Only the diagonal
-opposites — 1↔4 and 2↔3 — are true enemies for capture purposes; each player
-has exactly one rival and is allied with the other two. Because alliance
-isn't transitive (1 allies with both 2 and 3, but 2 and 3 are enemies of
-each other), a mixed allied group can be wiped out as collateral damage by
-either rival — see the "collateral damage" test in
-`server/src/rules/goRules.test.ts`.
+The two axes run as **two independent, simultaneous team splits** over the
+same board, each exactly like a normal 2-color Go game:
+
+- **Base view** — black (1, 3) vs white (2, 4). White captures black and
+  vice versa; pattern is irrelevant to this view.
+- **Pattern view** — dots (1, 2) vs stripes (3, 4). Dots captures stripes
+  and vice versa; base is irrelevant to this view.
+
+A stone's group and liberties are computed separately per view (grouping by
+that view's value only — e.g. a black+dots stone merges with an adjacent
+black+stripes stone for base-view liberties, but they're separate groups
+for pattern-view liberties), and **a stone dies if either view's rules
+would capture it** — each view is a fully independent, self-contained
+ruleset; having plenty of liberties on one view never rescues a group
+that's dead on the other. Since any two distinct colors differ on at least
+one axis, every pair of distinct players is a rival on at least one view —
+there's no more "fully allied" color pair. See
+`server/src/rules/goRules.test.ts` for the exact mechanics, including the
+no-cross-view-rescue case.
 
 ## Architecture
 
@@ -44,7 +53,7 @@ either rival — see the "collateral damage" test in
   clients over WebSockets.
   - `src/state/GoState.ts` — synced schema (board, players, turn, etc).
   - `src/rules/goRules.ts` — hand-rolled capture/liberty/suicide rules,
-    including the alliance model above (not a general Go rules library).
+    including the two-view model above (not a general Go rules library).
   - `src/powerups/` — pluggable powerup registry (`definitions.ts`); add a
     new powerup by implementing `PowerupDefinition` and registering it.
   - `src/rooms/GoRoom.ts` — room lifecycle: join/leave, turn order, move
