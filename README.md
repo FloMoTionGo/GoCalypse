@@ -2,10 +2,30 @@
 
 A 4-player custom Go variant, played online and synced live across all players.
 
-Not standard Go rules — this is a free-for-all variant with 4 stone colors,
-custom captures, and powerups that trigger board-altering actions
-(bombs, sniping enemy stones, etc). Guests get a random display name if not
-registered.
+Not standard Go rules — this is a free-for-all variant with black/white
+stones distinguished by pattern (dots or stripes), alliance-based captures,
+and powerups that trigger board-altering actions (bombs, sniping enemy
+stones, etc). Guests get a random display name if not registered.
+
+Each player's stone has two identity axes — a base tone (black/white) and a
+pattern (dots/stripes) — and stones ally for liberties/captures if they
+share *either* axis:
+
+| Player | Base  | Pattern |
+|--------|-------|---------|
+| 1      | black | dots    |
+| 2      | white | dots    |
+| 3      | black | stripes |
+| 4      | white | stripes |
+
+So 1↔2 (share dots), 1↔3 (share black), 2↔4 (share white), and 3↔4 (share
+stripes) merge into the same group and share liberties. Only the diagonal
+opposites — 1↔4 and 2↔3 — are true enemies for capture purposes; each player
+has exactly one rival and is allied with the other two. Because alliance
+isn't transitive (1 allies with both 2 and 3, but 2 and 3 are enemies of
+each other), a mixed allied group can be wiped out as collateral damage by
+either rival — see the "collateral damage" test in
+`server/src/rules/goRules.test.ts`.
 
 ## Architecture
 
@@ -13,8 +33,8 @@ registered.
   holds the canonical board state per room and syncs it to all connected
   clients over WebSockets.
   - `src/state/GoState.ts` — synced schema (board, players, turn, etc).
-  - `src/rules/goRules.ts` — hand-rolled capture/liberty/suicide rules for
-    the N-color board (not a general Go rules library).
+  - `src/rules/goRules.ts` — hand-rolled capture/liberty/suicide rules,
+    including the alliance model above (not a general Go rules library).
   - `src/powerups/` — pluggable powerup registry (`definitions.ts`); add a
     new powerup by implementing `PowerupDefinition` and registering it.
   - `src/rooms/GoRoom.ts` — room lifecycle: join/leave, turn order, move
@@ -35,6 +55,9 @@ npm run dev
 ```
 
 Server listens on `ws://localhost:2567`. Health check at `/healthz`.
+
+Rules tests: `npm test` (from `server/`) — uses Node's built-in test runner,
+no extra dependency.
 
 Client — just serve `web/` as static files, e.g.:
 

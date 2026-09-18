@@ -8,7 +8,17 @@ const POWERUP_INFO = {
   remove_stone: { name: "Snipe", description: "Remove one enemy stone" },
 };
 
-const PLAYER_COLORS = ["", "#e05252", "#4f8ff0", "#4fd17a", "#f0c94f"];
+// Player identity = a base tone + a pattern (matches server/src/rules/goRules.ts):
+// 1 = black+dots, 2 = white+dots, 3 = black+stripes, 4 = white+stripes.
+const BLACK = "#1c1c1c";
+const WHITE = "#f2efe6";
+const STONE_STYLES = [
+  null,
+  { base: BLACK, mark: WHITE, pattern: "dots" },
+  { base: WHITE, mark: BLACK, pattern: "dots" },
+  { base: BLACK, mark: WHITE, pattern: "stripes" },
+  { base: WHITE, mark: BLACK, pattern: "stripes" },
+];
 
 const BOARD_MARGIN = 26;
 const BOARD_SPACING = 32;
@@ -204,28 +214,96 @@ function renderStatus(state, players, isMyTurn) {
   turnIndicatorEl.classList.toggle("my-turn", isMyTurn);
 }
 
-function drawStone(x, y, color, alpha = 1) {
+function paintDots(ctx, cx, cy, r, color) {
+  ctx.fillStyle = color;
+  const dotR = r * 0.15;
+  const offset = r * 0.48;
+  const positions = [
+    [0, 0],
+    [offset, offset],
+    [-offset, offset],
+    [offset, -offset],
+    [-offset, -offset],
+  ];
+  for (const [dx, dy] of positions) {
+    ctx.beginPath();
+    ctx.arc(cx + dx, cy + dy, dotR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function paintStripes(ctx, cx, cy, r, color) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI / 4);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = r * 0.42;
+  for (const offset of [-r * 0.7, 0, r * 0.7]) {
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.5, offset);
+    ctx.lineTo(r * 1.5, offset);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Paints one stone (base tone + dots/stripes + glossy highlight) centered at (cx, cy) with radius r. */
+function paintStoneStyle(ctx, cx, cy, r, style) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  ctx.fillStyle = style.base;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+  if (style.pattern === "dots") paintDots(ctx, cx, cy, r, style.mark);
+  else if (style.pattern === "stripes") paintStripes(ctx, cx, cy, r, style.mark);
+
+  const gloss = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.05, cx, cy, r);
+  gloss.addColorStop(0, "rgba(255, 255, 255, 0.55)");
+  gloss.addColorStop(0.35, "rgba(255, 255, 255, 0.08)");
+  gloss.addColorStop(1, "rgba(255, 255, 255, 0)");
+  ctx.fillStyle = gloss;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+  ctx.stroke();
+}
+
+function drawStone(x, y, colorIndex, alpha = 1) {
   const cx = pointToPixel(x);
   const cy = pointToPixel(y);
   const r = BOARD_SPACING / 2 - 2;
 
   boardCtx.save();
   boardCtx.globalAlpha = alpha;
-
-  const gradient = boardCtx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r);
-  gradient.addColorStop(0, "#ffffff");
-  gradient.addColorStop(0.15, color);
-  gradient.addColorStop(1, color);
-
-  boardCtx.beginPath();
-  boardCtx.arc(cx, cy, r, 0, Math.PI * 2);
-  boardCtx.fillStyle = gradient;
-  boardCtx.fill();
-  boardCtx.lineWidth = 1;
-  boardCtx.strokeStyle = "rgba(0, 0, 0, 0.45)";
-  boardCtx.stroke();
-
+  paintStoneStyle(boardCtx, cx, cy, r, STONE_STYLES[colorIndex]);
   boardCtx.restore();
+}
+
+const swatchIconCache = new Map();
+
+/** A small canvas-rendered PNG data URL of a stone style, for sidebar swatches. */
+function stoneStyleIcon(colorIndex, size = 16) {
+  if (swatchIconCache.has(colorIndex)) return swatchIconCache.get(colorIndex);
+
+  const icon = document.createElement("canvas");
+  icon.width = size;
+  icon.height = size;
+  const ctx = icon.getContext("2d");
+  paintStoneStyle(ctx, size / 2, size / 2, size / 2 - 1, STONE_STYLES[colorIndex]);
+
+  const url = icon.toDataURL();
+  swatchIconCache.set(colorIndex, url);
+  return url;
 }
 
 function drawBoard() {
@@ -272,7 +350,7 @@ function drawBoard() {
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const value = lastState.board[y * size + x];
-      if (value !== 0) drawStone(x, y, PLAYER_COLORS[value]);
+      if (value !== 0) drawStone(x, y, value);
     }
   }
 
@@ -290,7 +368,7 @@ function drawBoard() {
       boardCtx.lineWidth = 2;
       boardCtx.stroke();
     } else if (me && !occupied && boardEl.classList.contains("my-turn")) {
-      drawStone(hoverPoint.x, hoverPoint.y, PLAYER_COLORS[me.color], 0.45);
+      drawStone(hoverPoint.x, hoverPoint.y, me.color, 0.45);
     }
   }
 }
@@ -304,8 +382,8 @@ function renderPlayers(players, turnIndex, myIndex) {
     if (!player.connected) row.classList.add("disconnected");
 
     const swatch = document.createElement("span");
-    swatch.className = `swatch p${player.color}`;
-    swatch.style.background = `var(--p${player.color})`;
+    swatch.className = "swatch";
+    swatch.style.backgroundImage = `url(${stoneStyleIcon(player.color)})`;
 
     const name = document.createElement("span");
     name.textContent = player.name + (index === myIndex ? " (you)" : "");

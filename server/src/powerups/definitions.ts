@@ -1,4 +1,4 @@
-import { boardIndex, isOnBoard } from "../rules/goRules";
+import { boardIndex, isAllied, isOnBoard } from "../rules/goRules";
 import { PowerupContext, PowerupDefinition } from "./types";
 
 // Example powerups. Add new ones here and register them below — the room
@@ -42,7 +42,7 @@ const removeStone: PowerupDefinition = {
     const idx = boardIndex(size, target.x, target.y);
     const stone = state.board[idx];
     const ownColor = state.players[playerIndex].color;
-    if (stone === 0 || stone === ownColor) return false;
+    if (stone === 0 || isAllied(stone, ownColor)) return false;
 
     state.board[idx] = 0;
     broadcast("powerup:remove_stone", { target, removedColor: stone });
