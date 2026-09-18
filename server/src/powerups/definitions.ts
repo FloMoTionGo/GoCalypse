@@ -1,4 +1,4 @@
-import { boardIndex, isOnBoard } from "../rules/goRules";
+import { boardIndex, isOnBoard, ownerOf } from "../rules/goRules";
 import { PowerupContext, PowerupDefinition } from "./types";
 
 // Example powerups. Add new ones here and register them below — the room
@@ -42,9 +42,9 @@ const removeStone: PowerupDefinition = {
     const idx = boardIndex(size, target.x, target.y);
     const stone = state.board[idx];
     const ownColor = state.players[playerIndex].color;
-    // No color is fully "allied" anymore (every distinct pair rivals on at
-    // least one view) -- only exact self-stones are protected.
-    if (stone === 0 || stone === ownColor) return false;
+    // A stone's code encodes (owner, axis) -- protect the player's own
+    // stones regardless of which axis they placed them on.
+    if (stone === 0 || ownerOf(stone) === ownColor) return false;
 
     state.board[idx] = 0;
     broadcast("powerup:remove_stone", { target, removedColor: stone });

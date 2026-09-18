@@ -17,7 +17,7 @@ stones distinguished by pattern (dots or stripes), and powerups that trigger
 board-altering actions (bombs, sniping enemy stones, etc). Guests get a
 random display name if not registered.
 
-Each player's stone has two identity axes:
+Each player has a fixed identity along two axes:
 
 | Player | Base  | Pattern |
 |--------|-------|---------|
@@ -26,25 +26,24 @@ Each player's stone has two identity axes:
 | 3      | black | stripes |
 | 4      | white | stripes |
 
-The two axes run as **two independent, simultaneous team splits** over the
-same board, each exactly like a normal 2-color Go game:
+But a stone doesn't carry both axes at once — each move, the player picks
+which front that particular stone fights on:
 
-- **Base view** — black (1, 3) vs white (2, 4). White captures black and
-  vice versa; pattern is irrelevant to this view.
-- **Pattern view** — dots (1, 2) vs stripes (3, 4). Dots captures stripes
-  and vice versa; base is irrelevant to this view.
+- **Left click** — a solid stone in their base color (black/white), fighting
+  only in the **base view**: black vs white, pattern irrelevant.
+- **Right click** — a grey stone in their pattern (dots/stripes), fighting
+  only in the **pattern view**: dots vs stripes, base irrelevant.
 
-A stone's group and liberties are computed separately per view (grouping by
-that view's value only — e.g. a black+dots stone merges with an adjacent
-black+stripes stone for base-view liberties, but they're separate groups
-for pattern-view liberties), and **a stone dies if either view's rules
-would capture it** — each view is a fully independent, self-contained
-ruleset; having plenty of liberties on one view never rescues a group
-that's dead on the other. Since any two distinct colors differ on at least
-one axis, every pair of distinct players is a rival on at least one view —
-there's no more "fully allied" color pair. See
-`server/src/rules/goRules.test.ts` for the exact mechanics, including the
-no-cross-view-rescue case.
+The two views are independent, simultaneous 2-team Go games sharing the
+same board. A stone is **neutral on the axis it didn't commit to** — it
+still occupies the cell (blocking a liberty there), but it never merges
+into a group or gets captured on that other view, i.e. it's a wall. Since
+two players always share the *other* axis (e.g. players 1 and 3 are both
+black), stones from different players merge into one group when they share
+a view's value — a black stone from player 1 and a black stone from player
+3 fight the base war together. See `server/src/rules/goRules.test.ts` for
+the exact mechanics, including the wall behavior and why suicide is only
+ever checked on the one view a stone actually participates in.
 
 ## Architecture
 

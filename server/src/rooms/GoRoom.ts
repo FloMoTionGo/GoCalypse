@@ -1,7 +1,7 @@
 import { Room, Client } from "colyseus";
 import { GoState, PlayerState } from "../state/GoState";
 import { randomGuestName } from "../util/usernames";
-import { applyCaptures, boardIndex, isOnBoard, isSuicide } from "../rules/goRules";
+import { applyCaptures, boardIndex, isOnBoard, isSuicide, stoneCode, StoneView } from "../rules/goRules";
 import { allPowerupIds, getPowerup } from "../powerups/definitions";
 
 interface JoinOptions {
@@ -11,6 +11,7 @@ interface JoinOptions {
 interface MoveMessage {
   x: number;
   y: number;
+  axis?: StoneView; // left click -> "base" (default), right click -> "pattern"
 }
 
 interface UsePowerupMessage {
@@ -90,6 +91,7 @@ export class GoRoom extends Room<GoState> {
     if (playerIndex === -1 || playerIndex !== this.state.turnIndex) return;
 
     const { x, y } = message;
+    const axis: StoneView = message.axis === "pattern" ? "pattern" : "base";
     const size = this.state.size;
     if (!isOnBoard(size, x, y)) return;
 
@@ -98,12 +100,13 @@ export class GoRoom extends Room<GoState> {
     if (board[idx] !== 0) return;
 
     const player = this.state.players[playerIndex];
+    const code = stoneCode(player.color, axis);
     const rawBoard = board.toArray();
 
-    board[idx] = player.color;
-    rawBoard[idx] = player.color;
+    board[idx] = code;
+    rawBoard[idx] = code;
 
-    const captured = applyCaptures(rawBoard, size, x, y, player.color);
+    const captured = applyCaptures(rawBoard, size, x, y, code);
     captured.forEach(({ point }) => {
       board[boardIndex(size, point.x, point.y)] = 0;
     });

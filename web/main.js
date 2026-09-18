@@ -8,17 +8,33 @@ const POWERUP_INFO = {
   remove_stone: { name: "Snipe", description: "Remove one enemy stone" },
 };
 
-// Player identity = a base tone + a pattern (matches server/src/rules/goRules.ts):
-// 1 = black+dots, 2 = white+dots, 3 = black+stripes, 4 = white+stripes.
+// Each player has a fixed identity along two axes (matches
+// server/src/rules/goRules.ts): a base tone (black/white) and a pattern
+// (dots/stripes) -- 1 = black+dots, 2 = white+dots, 3 = black+stripes,
+// 4 = white+stripes. But a stone only ever commits to ONE axis, chosen per
+// move: left click places a solid stone in the player's base color; right
+// click places a grey stone in the player's pattern instead. Board codes:
+// 1-4 = that player's base-axis (solid) stone, 5-8 (player + 4) = that
+// player's pattern-axis (grey) stone.
 const BLACK = "#1c1c1c";
 const WHITE = "#f2efe6";
+const GREY = "#8a8a8a";
+const GREY_MARK = "#3f3f3f";
 const STONE_STYLES = [
   null,
-  { base: BLACK, mark: WHITE, pattern: "dots" },
-  { base: WHITE, mark: BLACK, pattern: "dots" },
-  { base: BLACK, mark: WHITE, pattern: "stripes" },
-  { base: WHITE, mark: BLACK, pattern: "stripes" },
+  { base: BLACK, mark: null, pattern: null }, // 1: player 1, base axis -> solid black
+  { base: WHITE, mark: null, pattern: null }, // 2: player 2, base axis -> solid white
+  { base: BLACK, mark: null, pattern: null }, // 3: player 3, base axis -> solid black
+  { base: WHITE, mark: null, pattern: null }, // 4: player 4, base axis -> solid white
+  { base: GREY, mark: GREY_MARK, pattern: "dots" }, // 5: player 1, pattern axis -> grey dots
+  { base: GREY, mark: GREY_MARK, pattern: "dots" }, // 6: player 2, pattern axis -> grey dots
+  { base: GREY, mark: GREY_MARK, pattern: "stripes" }, // 7: player 3, pattern axis -> grey stripes
+  { base: GREY, mark: GREY_MARK, pattern: "stripes" }, // 8: player 4, pattern axis -> grey stripes
 ];
+
+function patternCode(playerColor) {
+  return playerColor + 4;
+}
 
 const BOARD_MARGIN = 26;
 const BOARD_SPACING = 32;
@@ -54,6 +70,7 @@ boardEl.addEventListener("mouseleave", () => {
   drawBoard();
 });
 boardEl.addEventListener("click", onBoardClick);
+boardEl.addEventListener("contextmenu", onBoardRightClick);
 
 joinButton.addEventListener("click", connect);
 cancelTargetButton.addEventListener("click", () => setSelectedPowerup(null));
@@ -181,7 +198,15 @@ function onBoardClick(evt) {
     return;
   }
 
-  room.send("move", { x, y });
+  room.send("move", { x, y, axis: "base" });
+}
+
+/** Right click always places the player's pattern (grey) stone -- powerups stay left-click only. */
+function onBoardRightClick(evt) {
+  evt.preventDefault();
+  if (!room || !lastState) return;
+  const { x, y } = eventToIntersection(evt);
+  room.send("move", { x, y, axis: "pattern" });
 }
 
 function setSelectedPowerup(id) {
@@ -405,7 +430,7 @@ function drawBoard() {
     // {x, y} is unambiguous before you click.
     boardCtx.save();
     boardCtx.fillStyle = "#4fa3ff";
-    boardCtx.font = "bold 10px monospace";
+    boardCtx.font = "bold 15px monospace";
     boardCtx.textBaseline = "middle";
     boardCtx.textAlign = "center";
     boardCtx.fillText(String(hoverPoint.x), pointToPixel(hoverPoint.x), BOARD_MARGIN / 2);
@@ -423,9 +448,19 @@ function renderPlayers(players, turnIndex, myIndex) {
     if (index === turnIndex) row.classList.add("current");
     if (!player.connected) row.classList.add("disconnected");
 
-    const swatch = document.createElement("span");
-    swatch.className = "swatch";
-    swatch.style.backgroundImage = `url(${stoneStyleIcon(player.color)})`;
+    const swatches = document.createElement("span");
+    swatches.className = "swatch-pair";
+    swatches.title = "Left click: solid color · Right click: grey pattern";
+
+    const baseSwatch = document.createElement("span");
+    baseSwatch.className = "swatch";
+    baseSwatch.style.backgroundImage = `url(${stoneStyleIcon(player.color)})`;
+
+    const patternSwatch = document.createElement("span");
+    patternSwatch.className = "swatch";
+    patternSwatch.style.backgroundImage = `url(${stoneStyleIcon(patternCode(player.color))})`;
+
+    swatches.append(baseSwatch, patternSwatch);
 
     const name = document.createElement("span");
     name.textContent = player.name + (index === myIndex ? " (you)" : "");
@@ -434,7 +469,7 @@ function renderPlayers(players, turnIndex, myIndex) {
     score.className = "score";
     score.textContent = player.score;
 
-    row.append(swatch, name, score);
+    row.append(swatches, name, score);
     playersEl.appendChild(row);
   });
 }

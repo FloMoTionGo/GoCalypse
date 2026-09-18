@@ -116,6 +116,12 @@ button:disabled { opacity: 0.5; cursor: default; }
   font-size: 14px;
 }
 
+.player-row .swatch-pair {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
 .player-row .swatch {
   width: 14px;
   height: 14px;

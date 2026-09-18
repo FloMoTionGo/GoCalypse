@@ -1,118 +1,120 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyCaptures, boardIndex, findGroup, isSuicide } from "./goRules";
+import { applyCaptures, axisOf, boardIndex, findGroup, isSuicide, ownerOf, stoneCode } from "./goRules";
 
-// Identity: 1 = black+dots, 2 = white+dots, 3 = black+stripes, 4 = white+stripes.
-// Two independent views: base (black 1,3 vs white 2,4) and pattern (dots 1,2 vs stripes 3,4).
+// Player identity: 1 = black+dots, 2 = white+dots, 3 = black+stripes, 4 = white+stripes.
+// A move chooses which axis that stone fights on:
+//   stoneCode(player, "base")    -> solid black/white, neutral (a wall) on the pattern view.
+//   stoneCode(player, "pattern") -> grey dots/stripes, neutral (a wall) on the base view.
 
-test("base view: white captures black regardless of the surrounding stones' pattern", () => {
-  const size = 5;
-  const board = new Array(size * size).fill(0);
-  board[boardIndex(size, 2, 2)] = 1; // black+dots, the target
-  board[boardIndex(size, 1, 2)] = 2; // white+dots
-  board[boardIndex(size, 3, 2)] = 4; // white+stripes
-  board[boardIndex(size, 2, 1)] = 2; // white+dots
-  board[boardIndex(size, 2, 3)] = 4; // white+stripes, last move
-
-  const captured = applyCaptures(board, size, 2, 3, 4);
-  assert.equal(captured.length, 1);
-  assert.equal(captured[0].color, 1);
+test("stoneCode / ownerOf / axisOf round-trip", () => {
+  const base = stoneCode(3, "base");
+  const pattern = stoneCode(3, "pattern");
+  assert.equal(ownerOf(base), 3);
+  assert.equal(axisOf(base), "base");
+  assert.equal(ownerOf(pattern), 3);
+  assert.equal(axisOf(pattern), "pattern");
+  assert.notEqual(base, pattern);
 });
 
-test("pattern view: dots captures stripes regardless of the surrounding stones' base", () => {
+test("base-axis stones from different players (1 black, 3 black) merge and are captured together", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
-  board[boardIndex(size, 2, 2)] = 3; // black+stripes, the target
-  board[boardIndex(size, 1, 2)] = 1; // black+dots
-  board[boardIndex(size, 3, 2)] = 2; // white+dots
-  board[boardIndex(size, 2, 1)] = 1; // black+dots
-  board[boardIndex(size, 2, 3)] = 2; // white+dots, last move
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "base"); // black, player 1
+  board[boardIndex(size, 2, 3)] = stoneCode(3, "base"); // black, player 3 -- merges with the above
+  board[boardIndex(size, 1, 2)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 3, 2)] = stoneCode(4, "base"); // white
+  board[boardIndex(size, 2, 1)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 1, 3)] = stoneCode(4, "base"); // white
+  board[boardIndex(size, 3, 3)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 2, 4)] = stoneCode(4, "base"); // white, last move -- completes the surround
 
-  const captured = applyCaptures(board, size, 2, 3, 2);
-  assert.equal(captured.length, 1);
-  assert.equal(captured[0].color, 3);
+  const captured = applyCaptures(board, size, 2, 4, stoneCode(4, "base"));
+  const owners = captured.map((c) => ownerOf(c.color)).sort();
+  assert.equal(captured.length, 2);
+  assert.deepEqual(owners, [1, 3]);
 });
 
-test("surrounding with the same base (mixed pattern) does not trigger a base capture", () => {
+test("a pattern-axis (grey) stone is a wall on the base view: blocks, but can't be captured or merged there", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
-  board[boardIndex(size, 2, 2)] = 1; // black+dots, the target
-  board[boardIndex(size, 1, 2)] = 3; // black+stripes -- same base, no threat
-  board[boardIndex(size, 3, 2)] = 3;
-  board[boardIndex(size, 2, 1)] = 3; // last move
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "base"); // black, the target
+  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // grey wall -- occupies but neutral on base
+  board[boardIndex(size, 3, 2)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 2, 1)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 2, 3)] = stoneCode(2, "base"); // white, last move -- all 4 sides now occupied
 
-  const captured = applyCaptures(board, size, 2, 1, 3);
+  const captured = applyCaptures(board, size, 2, 3, stoneCode(2, "base"));
+  assert.equal(captured.length, 1);
+  assert.equal(ownerOf(captured[0].color), 1);
+});
+
+test("a base-axis move never triggers a pattern-view capture, even against a real pattern rival", () => {
+  const size = 5;
+  const board = new Array(size * size).fill(0);
+  // A lone grey+dots stone (player 1) surrounded by grey+stripes (rivals on
+  // pattern) plus one base-axis stone as the actual last move.
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // grey dots
+  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // grey stripes -- pattern rival
+  board[boardIndex(size, 3, 2)] = stoneCode(3, "pattern"); // grey stripes
+  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern"); // grey stripes
+  board[boardIndex(size, 2, 3)] = stoneCode(2, "base"); // white, last move -- a base-axis move
+
+  // The base-axis move only fights the base war; it must not reach into the
+  // pattern-view capture even though the target has 0 pattern-view liberties.
+  const captured = applyCaptures(board, size, 2, 3, stoneCode(2, "base"));
   assert.equal(captured.length, 0);
 });
 
-test("black+dots and black+stripes merge into one group on the base view", () => {
+test("that same pattern-view kill DOES happen when the last move is itself pattern-axis", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
-  board[boardIndex(size, 2, 2)] = 1; // black+dots
-  board[boardIndex(size, 2, 3)] = 3; // black+stripes, adjacent
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // grey dots
+  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // grey stripes
+  board[boardIndex(size, 3, 2)] = stoneCode(3, "pattern"); // grey stripes
+  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern"); // grey stripes
+  board[boardIndex(size, 2, 3)] = stoneCode(3, "pattern"); // grey stripes, last move
+
+  const captured = applyCaptures(board, size, 2, 3, stoneCode(3, "pattern"));
+  assert.equal(captured.length, 1);
+  assert.equal(ownerOf(captured[0].color), 1);
+  assert.equal(axisOf(captured[0].color), "pattern");
+});
+
+test("a wall neighbor blocks a liberty without joining the group", () => {
+  const size = 5;
+  const board = new Array(size * size).fill(0);
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "base");
+  board[boardIndex(size, 2, 3)] = stoneCode(3, "pattern"); // grey wall, adjacent
 
   const { group, liberties } = findGroup(board, size, 2, 2, "base");
-  assert.equal(group.length, 2);
-  assert.equal(liberties, 6); // 3 open sides each
+  assert.equal(group.length, 1); // did not merge
+  assert.equal(liberties, 3); // 4 sides minus the one the wall occupies
 });
 
-test("the same two stones are separate groups on the pattern view", () => {
-  const size = 5;
-  const board = new Array(size * size).fill(0);
-  board[boardIndex(size, 2, 2)] = 1; // dots
-  board[boardIndex(size, 2, 3)] = 3; // stripes, adjacent but different pattern
-
-  const { group, liberties } = findGroup(board, size, 2, 2, "pattern");
-  assert.equal(group.length, 1);
-  assert.equal(liberties, 3); // only this stone's own open sides
-});
-
-test("a move that would leave zero liberties on both views is suicide", () => {
+test("suicide is checked only on the placed stone's own axis", () => {
   const size = 3;
   const board = new Array(size * size).fill(0);
-  // Surround center (1,1) on all four sides with white+stripes (color 4) --
-  // a black+dots stone (color 1) placed there has 0 liberties on both views.
-  board[boardIndex(size, 0, 1)] = 4;
-  board[boardIndex(size, 2, 1)] = 4;
-  board[boardIndex(size, 1, 0)] = 4;
-  board[boardIndex(size, 1, 2)] = 4;
-  board[boardIndex(size, 1, 1)] = 1; // simulate the placement under test
+  // Center surrounded on all 4 sides by pattern-axis (grey) stones -- a
+  // base-axis placement here has 0 real base-view liberties (all neighbors
+  // are walls on the base view, so none merge and none are empty).
+  board[boardIndex(size, 0, 1)] = stoneCode(3, "pattern");
+  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern");
+  board[boardIndex(size, 1, 0)] = stoneCode(3, "pattern");
+  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern");
+  board[boardIndex(size, 1, 1)] = stoneCode(1, "base");
 
   assert.equal(isSuicide(board, size, 1, 1), true);
 });
 
-test("dying on ONE view is still suicide, even with liberties on the other -- no cross-view rescue", () => {
+test("not suicide when a real liberty or an allied merge exists on the placed stone's own axis", () => {
   const size = 3;
   const board = new Array(size * size).fill(0);
-  // Two neighbors share pattern (dots) with the placed stone, so the
-  // pattern-view group extends through them and has liberties (4, per
-  // findGroup's per-neighbor counting) -- but the base view is still a lone
-  // black stone boxed in on all four sides, with 0 liberties. Each view is
-  // an independent, self-contained ruleset: good pattern-view liberties
-  // don't save a base-view death.
-  board[boardIndex(size, 0, 1)] = 2; // white+dots -- shares pattern, not base
-  board[boardIndex(size, 2, 1)] = 4; // white+stripes
-  board[boardIndex(size, 1, 0)] = 2; // white+dots -- shares pattern, not base
-  board[boardIndex(size, 1, 2)] = 4; // white+stripes
-  board[boardIndex(size, 1, 1)] = 1; // black+dots
-
-  const base = findGroup(board, size, 1, 1, "base");
-  const pattern = findGroup(board, size, 1, 1, "pattern");
-  assert.equal(base.liberties, 0);
-  assert.ok(pattern.liberties > 0);
-  assert.equal(isSuicide(board, size, 1, 1), true);
-});
-
-test("not suicide when a real empty point is adjacent (both views see it)", () => {
-  const size = 3;
-  const board = new Array(size * size).fill(0);
-  // Only 3 sides occupied by the true rival (white+stripes); the 4th side
-  // is genuinely empty, so both views count it as a liberty.
-  board[boardIndex(size, 0, 1)] = 4;
-  board[boardIndex(size, 1, 0)] = 4;
-  board[boardIndex(size, 1, 2)] = 4;
-  // (2, 1) left empty
-  board[boardIndex(size, 1, 1)] = 1; // black+dots
+  board[boardIndex(size, 0, 1)] = stoneCode(3, "pattern"); // wall on base view
+  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern"); // wall on base view
+  board[boardIndex(size, 1, 0)] = stoneCode(2, "base"); // white -- occupied, blocks
+  // (1, 2) left empty -> a real liberty on the base view
+  board[boardIndex(size, 1, 1)] = stoneCode(1, "base");
 
   assert.equal(isSuicide(board, size, 1, 1), false);
 });
