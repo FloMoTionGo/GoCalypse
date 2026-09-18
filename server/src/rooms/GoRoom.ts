@@ -53,12 +53,32 @@ export class GoRoom extends Room<GoState> {
     if (this.state.players.length === MAX_PLAYERS) {
       this.state.status = "playing";
       this.state.turnIndex = 0;
+      // Stop matchmaking from offering this room to fresh joinOrCreate
+      // calls once it's in progress. Without this, maxClients only counts
+      // real connected sockets -- if a player later disconnects for good,
+      // a total stranger's joinOrCreate could land in their now-empty seat
+      // mid-game. Reconnection (allowReconnection) bypasses the lock, so a
+      // player who actually dropped can still get their own seat back.
+      this.lock();
     }
   }
 
   async onLeave(client: Client, consented: boolean) {
-    const player = this.findPlayer(client.sessionId);
-    if (!player) return;
+    const playerIndex = this.findPlayerIndex(client.sessionId);
+    if (playerIndex === -1) return;
+
+    if (this.state.status === "waiting") {
+      // Pre-game: don't hold a reconnection grace period. A disconnect here
+      // (e.g. a reloaded debug tab) should free the seat immediately so a
+      // fresh join can take it -- otherwise the departed session lingers for
+      // the full grace window, blocking new joins (maxClients) and then
+      // permanently inflating this.state.players.length once it expires,
+      // which also hands out invalid colors (> 4) to later joiners.
+      this.state.players.splice(playerIndex, 1);
+      return;
+    }
+
+    const player = this.state.players[playerIndex];
     player.connected = false;
 
     if (consented) return;
@@ -73,10 +93,6 @@ export class GoRoom extends Room<GoState> {
 
   private findPlayerIndex(sessionId: string): number {
     return this.state.players.findIndex((p) => p.sessionId === sessionId);
-  }
-
-  private findPlayer(sessionId: string): PlayerState | undefined {
-    return this.state.players.find((p) => p.sessionId === sessionId);
   }
 
   private advanceTurn() {

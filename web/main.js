@@ -225,7 +225,10 @@ function render(state) {
   const players = Array.from(state.players);
   const me = players.find((p) => p.sessionId === room.sessionId);
   const myIndex = players.indexOf(me);
-  const isMyTurn = myIndex !== -1 && myIndex === state.turnIndex;
+  // turnIndex defaults to 0, so without the status check the player in seat
+  // 0 would see "your turn" (and the hover preview) while still waiting for
+  // players -- before the server will even accept a move.
+  const isMyTurn = state.status === "playing" && myIndex !== -1 && myIndex === state.turnIndex;
   myPlayer = me || null;
 
   renderStatus(state, players, isMyTurn);
