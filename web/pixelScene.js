@@ -468,6 +468,7 @@
     if (!prev || prev.length !== next.length) return effects;
     const used = action && action.kind === "powerup" ? action.id : null;
     const isTarget = (x, y) => action && action.x === x && action.y === y;
+    const inBurst = (x, y) => used === "bomb" && Math.abs(x - action.x) <= 1 && Math.abs(y - action.y) <= 1;
     for (let i = 0; i < next.length; i++) {
       const a = prev[i], b = next[i];
       if (a === b) continue;
@@ -475,7 +476,7 @@
       if (a === 0) {
         effects.push(b === G.DRIFTWOOD ? makeEffect("drop", x, y, { code: b }, time) : placeEffect(x, y, b, time));
       } else if (b === 0) {
-        if (a === G.DRIFTWOOD && used !== "bomb") effects.push(makeEffect("driftAway", x, y, { code: a }, time));
+        if (a === G.DRIFTWOOD && !inBurst(x, y)) effects.push(makeEffect("driftAway", x, y, { code: a }, time));
         else if (used === "gust" && isTarget(x, y)) effects.push(makeEffect("gust", x, y, { code: a }, time));
         else if (used === "remove_stone" && isTarget(x, y)) effects.push(makeEffect("snipe", x, y, { code: a }, time));
         else effects.push(captureEffect(x, y, a, time));

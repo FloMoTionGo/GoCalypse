@@ -77,16 +77,20 @@ export class GoRoom extends Room<GoState> {
   onJoin(client: Client, options: JoinOptions) {
     const player = new PlayerState();
     player.sessionId = client.sessionId;
-    player.name = options?.name?.trim() || randomGuestName();
-    player.color = this.state.players.length + 1;
+    const name = typeof options?.name === "string" ? options.name.trim().slice(0, 24) : "";
+    player.name = name || randomGuestName();
     player.fireflies = this.startingFireflies;
 
+    // Lowest free color: a pre-game leave frees a color mid-list, so the
+    // player count can't be used (it handed out duplicates).
+    const taken = new Set(this.state.players.map((p) => p.color));
+    player.color = [1, 2, 3, 4].find((c) => !taken.has(c)) ?? this.state.players.length + 1;
     this.state.players.push(player);
     this.state.lastEvent = `${player.name} joined as player ${player.color}`;
 
     if (this.state.players.length === MAX_PLAYERS) {
       this.state.status = "playing";
-      this.state.turnIndex = 0;
+      this.state.turnIndex = this.turnOrder()[0];
       // Stop matchmaking from offering this room to fresh joinOrCreate
       // calls once it's in progress. Without this, maxClients only counts
       // real connected sockets -- if a player later disconnects for good,
@@ -123,6 +127,13 @@ export class GoRoom extends Room<GoState> {
     } catch {
       // Player did not return within the grace period; leave them marked disconnected.
     }
+  }
+
+  // Defining this makes Colyseus wrap every handler in try/catch. Without it,
+  // a throw inside a message handler escapes into the WebSocket event loop
+  // and takes down the whole process -- every room on the server.
+  onUncaughtException(error: Error, methodName: string) {
+    console.error(`GoRoom ${this.roomId}: uncaught error in ${methodName}:`, error);
   }
 
   private findPlayerIndex(sessionId: string): number {
@@ -228,15 +239,30 @@ export class GoRoom extends Room<GoState> {
     return removed;
   }
 
+  /**
+   * Player indices in turn order: by color (1 -> 2 -> 3 -> 4), so turns
+   * alternate black and white whatever order people joined in. (The array
+   * itself stays in join order: reordering an ArraySchema in the same patch
+   * as a push corrupts client state.)
+   */
+  private turnOrder(): number[] {
+    return this.state.players
+      .map((p, i) => ({ color: p.color, i }))
+      .sort((a, b) => a.color - b.color)
+      .map((o) => o.i);
+  }
+
   private advanceTurn() {
     this.state.turnCount += 1;
-    this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
+    const order = this.turnOrder();
+    this.state.turnIndex = order[(order.indexOf(this.state.turnIndex) + 1) % order.length];
     this.expireEffects();
   }
 
   // ---- messages --------------------------------------------------------------
 
   private handleMove(client: Client, message: MoveMessage) {
+    if (!message || typeof message !== "object") return;
     if (this.state.status !== "playing") return;
 
     const playerIndex = this.findPlayerIndex(client.sessionId);
@@ -288,6 +314,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   private handleBuy(client: Client, message: BuyMessage) {
+    if (!message || typeof message.id !== "string") return;
     if (this.state.status !== "playing") return;
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
@@ -316,6 +343,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   private handleUsePowerup(client: Client, message: UsePowerupMessage) {
+    if (!message || typeof message.id !== "string") return;
     if (this.state.status !== "playing") return;
 
     const playerIndex = this.findPlayerIndex(client.sessionId);

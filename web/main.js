@@ -355,7 +355,9 @@ function renderPlayers(state) {
     players.map((p) => [p.name, p.color, p.connected, p.score, p.fireflies]),
   ]);
   rebuild(playersEl, sig, () => {
-    players.forEach((player, index) => {
+    // Listed by color, which is also the turn order (the synced array is join order).
+    const seats = players.map((player, index) => ({ player, index })).sort((a, b) => a.player.color - b.player.color);
+    seats.forEach(({ player, index }) => {
       const row = document.createElement("div");
       row.className = "player-row";
       if (state.status === "playing" && index === state.turnIndex) row.classList.add("current");
