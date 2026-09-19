@@ -81,10 +81,12 @@ export class GoRoom extends Room<GoState> {
     player.name = name || randomGuestName();
     player.fireflies = this.startingFireflies;
 
-    // Lowest free color: a pre-game leave frees a color mid-list, so the
-    // player count can't be used (it handed out duplicates).
+    // A random color/pattern combo that nobody in the room holds yet, so
+    // every game deals the pairings anew and no combo is ever doubled.
+    // (Turns go by combo, 1 -> 4, so this also shuffles who moves first.)
     const taken = new Set(this.state.players.map((p) => p.color));
-    player.color = [1, 2, 3, 4].find((c) => !taken.has(c)) ?? this.state.players.length + 1;
+    const free = [1, 2, 3, 4].filter((c) => !taken.has(c));
+    player.color = free.length ? free[Math.floor(Math.random() * free.length)] : this.state.players.length + 1;
     this.state.players.push(player);
     this.state.lastEvent = `${player.name} joined as player ${player.color}`;
 

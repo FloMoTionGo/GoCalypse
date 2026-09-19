@@ -26,14 +26,16 @@ stones distinguished by pattern (dots or stripes), and powerups bought at a
 Night Market with fireflies earned in play (see below). Guests get a random
 display name if not registered.
 
-Each player has a fixed identity along two axes:
+Each player has an identity along two axes, one of four combos. The combos
+are dealt at random each game (never twice in one room), and turns go in
+combo order, so black and white alternate and whoever gets combo 1 starts:
 
-| Player | Base  | Pattern |
-|--------|-------|---------|
-| 1      | black | dots    |
-| 2      | white | dots    |
-| 3      | black | stripes |
-| 4      | white | stripes |
+| Combo | Base  | Pattern |
+|-------|-------|---------|
+| 1     | black | dots    |
+| 2     | white | dots    |
+| 3     | black | stripes |
+| 4     | white | stripes |
 
 But a stone doesn't carry both axes at once — each move, the player picks
 which front that particular stone fights on:

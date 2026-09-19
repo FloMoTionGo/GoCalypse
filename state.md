@@ -40,9 +40,13 @@ saved between matches, and there's no Flame/progression system yet.
 ### Players, board, turns
 - 13x13 board, exactly 4 players. The game starts when the 4th joins; the
   room then locks so strangers can't take a departed player's seat.
-- Seats are colors 1–4: **1** black+dots, **2** white+dots, **3**
-  black+stripes, **4** white+stripes. A joiner gets the lowest free color.
-- Turns go by color **1 → 2 → 3 → 4**, so black and white alternate.
+- Each player holds one of four combos ("colors" in the code): **1**
+  black+dots, **2** white+dots, **3** black+stripes, **4** white+stripes.
+  Combos are **dealt at random** as players join, from those nobody in the
+  room holds yet, so every game shuffles the pairings and no combo appears
+  twice.
+- Turns go by combo **1 → 2 → 3 → 4**, so black and white alternate; whoever
+  is dealt black+dots moves first (so the first mover is random too).
 - Guests get a random name; names are capped at 24 characters.
 
 ### Two fronts
@@ -161,16 +165,22 @@ scratch folder and **will be lost**. It should be moved into the repo (see
 ideas.md, D-T9).
 - Market & powerups integration test: 4 real clients, 42 checks (gating,
   prices, once-per-match, every item's board effect, consolation).
+- Combo shuffle test: 40 games, every game deals 4 distinct combos, each
+  player gets varied combos, combo 1 always moves first, rejoins never
+  double a combo.
 - Room tests: pre-game leave / color reuse / turn order, locked rooms,
   reconnect-window fragmentation, malformed messages.
 - Pixel suite: 15 checks (palette purity, readable stone looks, hit-testing,
   animations finishing, reduced motion).
 - Real-browser tests in headless Edge, driven over the DevTools protocol with
   Node's built-in WebSocket. Plays a full game with real mouse clicks through
-  all 7 items (16 checks), exercises the welcome screen (17 checks: opens on
-  first join, closes on outside click / × / Esc without placing a stone, one
-  scrollbar, stays closed on the next join), and loads `debug.html` (5 checks:
-  one room, welcome in panel 1 only, layout, no scrolling inside panels).
+  all 7 items, whatever combo the browser is dealt (19 checks), exercises the
+  welcome screen (17 checks: opens on first join, closes on outside click / × /
+  Esc without placing a stone, one scrollbar, stays closed on the next join),
+  and loads `debug.html` (7 checks: one room, welcome in panel 1 only, the
+  four names, layout, no scrolling inside panels). Each run uses a fresh Edge
+  profile and kills every process started with it (killing only Edge's
+  launcher leaves the browser, and its game connections, alive).
   Screenshots were reviewed by eye.
 
 All of the above passed locally and against production on 2026-09-19.
