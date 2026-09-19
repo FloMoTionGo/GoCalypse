@@ -483,7 +483,9 @@
 
       // ---------------------------------------------------------------- loop
       function frame(ms) {
-        const t = ms / 1000 - t0;
+        // rAF timestamps can precede t0 on the first frame; a negative time gave a
+        // negative frame index and a throw that stopped the animation loop.
+        const t = Math.max(0, ms / 1000 - t0);
         if (lastNow !== null && !state.reducedMotion) ambient += t - lastNow;
         lastNow = t;
         state.effects = P.pruneEffects(state.effects, t, state.reducedMotion);

@@ -29,6 +29,9 @@ const satchelItemsEl = document.getElementById("satchel-items");
 const targetingHintEl = document.getElementById("targeting-hint");
 const marketStatusEl = document.getElementById("market-status");
 const marketItemsEl = document.getElementById("market-items");
+const helpButton = document.getElementById("help-button");
+const welcomeEl = document.getElementById("welcome");
+const welcomeCloseButton = document.getElementById("welcome-close");
 
 const boardCtx = boardEl.getContext("2d");
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -50,6 +53,7 @@ let lastMove = null;
 let lastActionSeq = null;
 let lastFrameAt = 0;
 let noticeTimer = null;
+let welcomeChecked = false;
 
 // A URL hash lets debug.html drive this page from inside an <iframe>
 // (prefill, auto-join, debug room) without touching the manual-join flow.
@@ -69,6 +73,19 @@ boardEl.addEventListener("mouseleave", () => (hoverPoint = null));
 boardEl.addEventListener("click", onBoardClick);
 boardEl.addEventListener("contextmenu", onBoardRightClick);
 window.addEventListener("resize", sizeCanvas);
+helpButton.addEventListener("click", () => lastState && openWelcome(lastState));
+welcomeCloseButton.addEventListener("click", () => welcomeEl.close());
+// The modal's backdrop swallows clicks, so a click outside the window closes
+// it without also placing a stone on the board underneath.
+welcomeEl.addEventListener("click", (evt) => {
+  if (evt.target === welcomeEl && isOutside(welcomeEl, evt)) welcomeEl.close();
+});
+welcomeEl.addEventListener("contextmenu", (evt) => {
+  if (evt.target !== welcomeEl || !isOutside(welcomeEl, evt)) return;
+  evt.preventDefault();
+  welcomeEl.close();
+});
+welcomeEl.addEventListener("close", markWelcomeSeen); // also fires for Esc
 requestAnimationFrame(frame);
 
 async function connect() {
@@ -260,6 +277,83 @@ function onState(state) {
   boardEl.classList.toggle("my-turn", isMyTurn && !selectedPowerup);
   renderSidebar(state);
   lastEventEl.textContent = state.lastEvent || "";
+
+  if (!welcomeChecked && myPlayer) {
+    welcomeChecked = true;
+    if (!hashParams.has("nowelcome") && !welcomeSeen()) openWelcome(state);
+  }
+}
+
+// ---- welcome screen -------------------------------------------------------------
+
+const WELCOME_KEY = "gocalypse.welcomeSeen";
+
+function welcomeSeen() {
+  try {
+    return localStorage.getItem(WELCOME_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markWelcomeSeen() {
+  try {
+    localStorage.setItem(WELCOME_KEY, "1");
+  } catch {
+    // Storage blocked (private mode): it will just show again next time.
+  }
+}
+
+function isOutside(el, evt) {
+  const r = el.getBoundingClientRect();
+  return evt.clientX < r.left || evt.clientX > r.right || evt.clientY < r.top || evt.clientY > r.bottom;
+}
+
+const LOOK_NAMES = { 1: ["black", "dots"], 2: ["white", "dots"], 3: ["black", "stripes"], 4: ["white", "stripes"] };
+
+function stoneChip(code) {
+  const chip = document.createElement("span");
+  chip.className = "stone-chip";
+  chip.append(spriteImg(`stone_big_${code}`, G.stoneSprite(code), 2));
+  return chip;
+}
+
+function openWelcome(state) {
+  const color = myPlayer ? myPlayer.color : 1;
+  const [base, pattern] = LOOK_NAMES[color] || LOOK_NAMES[1];
+
+  document.getElementById("welcome-you").textContent =
+    `You play ${base} with ${pattern}. Every move, you choose which of the two your stone fights with:`;
+  document.getElementById("welcome-base-icon").replaceChildren(stoneChip(color));
+  document.getElementById("welcome-pattern-icon").replaceChildren(stoneChip(color + 4));
+
+  // Rates mirror FIREFLIES_PER_MOVE / _PER_CAPTURE / CONSOLATION_PER_STONE in server/src/rooms/GoRoom.ts.
+  document.getElementById("welcome-economy").textContent =
+    `You earn fireflies: 3 for every stone you place and 5 for every stone you capture. ` +
+    `If someone's item removes one of your stones, you get 3 back. ` +
+    `Once you've placed ${state.shopAfter} stones, the Night Market opens in the sidebar. Buying doesn't use your turn; ` +
+    `using an item does: pick it in your Satchel, then click a point on the board (right click cancels).`;
+
+  const list = document.getElementById("welcome-powerups");
+  list.replaceChildren();
+  for (const m of Array.from(state.market)) {
+    const row = document.createElement("div");
+    row.className = "welcome-item";
+    const text = document.createElement("div");
+    const title = document.createElement("div");
+    title.className = "title";
+    const name = document.createElement("span");
+    name.textContent = m.name;
+    title.append(name, fireflies(m.price));
+    const desc = document.createElement("div");
+    desc.className = "desc";
+    desc.textContent = m.description;
+    text.append(title, desc);
+    row.append(spriteImg(`icon_${m.id}`, G.powerupIcon(m.id) || G.SPRITES.fireflyIcon, 2), text);
+    list.appendChild(row);
+  }
+
+  if (!welcomeEl.open) welcomeEl.showModal();
 }
 
 function overlayKey(o) {

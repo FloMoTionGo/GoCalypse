@@ -83,7 +83,61 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
   margin-bottom: 10px;
   min-height: 24px;
 }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.link-button {
+  background: none;
+  border: 2px solid var(--slate);
+  color: var(--cream);
+  font-weight: 400;
+  font-size: 12px;
+  padding: 2px 8px;
+}
+.link-button:hover:not(:disabled) { background: none; border-color: var(--amber); color: var(--amber); }
+
 #turn-indicator { font-weight: 700; }
+
+/* Welcome screen */
+/* Only .welcome-body scrolls; the x is pinned to the dialog's corner. */
+#welcome {
+  padding: 0;
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--cream);
+  border: 2px solid var(--amber);
+  border-radius: 6px;
+}
+#welcome::backdrop { background: rgba(31, 26, 36, 0.75); }
+.welcome-body { padding: 18px 22px 16px; max-height: calc(88vh - 4px); overflow-y: auto; font-size: 14px; line-height: 1.4; }
+.welcome-body h2 { margin: 0 32px 2px 0; color: var(--amber); font-size: 20px; }
+.welcome-body h3 { margin: 16px 0 6px; font-size: 13px; color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
+.welcome-body p { margin: 6px 0; }
+.welcome-tagline { color: var(--slate); margin-top: 0; }
+.welcome-x {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 24px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: var(--ink);
+  border: 2px solid var(--slate);
+  color: var(--cream);
+  font-size: 18px;
+  line-height: 20px;
+}
+.welcome-x:hover:not(:disabled) { background: var(--ink); border-color: var(--amber); color: var(--amber); }
+.welcome-fronts { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.welcome-fronts li { display: flex; align-items: center; gap: 10px; }
+.stone-chip { display: inline-flex; background: var(--amber); padding: 3px; border-radius: 2px; flex-shrink: 0; vertical-align: middle; }
+#welcome-powerups { display: flex; flex-direction: column; gap: 6px; }
+.welcome-item { display: flex; align-items: flex-start; gap: 10px; }
+.welcome-item img { flex-shrink: 0; }
+.welcome-item .title { display: flex; gap: 8px; align-items: center; font-weight: 700; }
+.welcome-item .desc { color: var(--slate); font-size: 13px; }
+.welcome-footer { margin-top: 16px !important; color: var(--slate); font-size: 12px; text-align: center; }
 #turn-indicator.my-turn { color: var(--amber); }
 
 #game-body { display: flex; gap: 20px; }

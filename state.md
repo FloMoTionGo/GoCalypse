@@ -75,12 +75,22 @@ saved between matches, and there's no Flame/progression system yet.
 | Snipe | 140 | Removes any single enemy stone. |
 | Firework | 200 | Clears a 3x3 area, including your own stones and driftwood. Warded stones are spared. Refused on an empty area. |
 
+### Welcome screen
+On a player's first join (per browser), a welcome window explains the game:
+their own color and pattern, left vs right click, walls, the fireflies economy,
+and every market item with its icon, price and description (taken from the
+server's market, so it can't drift). Clicking anywhere outside it, the small ×,
+or Esc closes it; a click outside never places a stone. Once closed it's
+remembered in `localStorage` (`gocalypse.welcomeSeen`), and the **How to play**
+button in the game header reopens it.
+
 ### Debug rooms
 `debug.html` shows 4 real clients (760x860 panels) that auto-join a
 **`go_debug`** room: same rules, separate matchmaking pool, everyone starts
 with **600 fireflies** (enough for all 7 items at 535). The 5-move gate still
 applies. The start amount lives in a server subclass (`GoDebugRoom`), so a
-client can't request it.
+client can't request it. The panels share `localStorage`, so the first-visit
+welcome screen opens in panel 1 only (hash param `nowelcome` on the others).
 
 ## 4. Look & feel
 
@@ -157,8 +167,11 @@ ideas.md, D-T9).
   animations finishing, reduced motion).
 - Real-browser tests in headless Edge, driven over the DevTools protocol with
   Node's built-in WebSocket. Plays a full game with real mouse clicks through
-  all 7 items (16 checks) and loads `debug.html` (4 checks: one room, layout,
-  no scrolling inside panels). Screenshots were reviewed by eye.
+  all 7 items (16 checks), exercises the welcome screen (17 checks: opens on
+  first join, closes on outside click / × / Esc without placing a stone, one
+  scrollbar, stays closed on the next join), and loads `debug.html` (5 checks:
+  one room, welcome in panel 1 only, layout, no scrolling inside panels).
+  Screenshots were reviewed by eye.
 
 All of the above passed locally and against production on 2026-09-19.
 

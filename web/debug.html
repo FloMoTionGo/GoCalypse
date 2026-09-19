@@ -86,6 +86,9 @@
       // room=go_debug: separate matchmaking pool where everyone starts with
       // enough fireflies to try every Night Market item.
       const params = new URLSearchParams({ name, autojoin: "1", delay: String(delay), room: "go_debug" });
+      // The panels share localStorage, so a first-visit welcome screen would
+      // open in all four at once; show it in panel 1 only ("How to play" works everywhere).
+      if (delay > 0) params.set("nowelcome", "1");
       if (SERVER) params.set("server", SERVER);
       return `index.html#${params.toString()}`;
     }

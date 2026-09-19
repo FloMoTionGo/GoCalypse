@@ -30,7 +30,10 @@
 
     <section id="game" hidden>
       <header id="game-header">
-        <div id="room-status"></div>
+        <div class="header-left">
+          <div id="room-status"></div>
+          <button id="help-button" class="link-button" type="button">How to play</button>
+        </div>
         <div id="turn-indicator"></div>
       </header>
 
@@ -62,6 +65,32 @@
       </div>
     </section>
   </div>
+
+  <!-- Welcome screen: shown on a player's first join, reopened by "How to play". -->
+  <dialog id="welcome" aria-labelledby="welcome-title">
+    <button id="welcome-close" class="welcome-x" type="button" aria-label="Close">&times;</button>
+    <div class="welcome-body">
+      <h2 id="welcome-title">Welcome to GoCalypse</h2>
+      <p class="welcome-tagline">Four players, one board, a night of lanterns by the river.</p>
+
+      <h3>How to play</h3>
+      <p>Four players take turns placing stones. A group whose last free neighbouring point is filled gets captured.</p>
+      <p id="welcome-you"></p>
+      <ul class="welcome-fronts">
+        <li><span id="welcome-base-icon"></span><span><b>Left click</b>: a solid stone in your color. It fights <b>black against white</b>.</span></li>
+        <li><span id="welcome-pattern-icon"></span><span><b>Right click</b>: a grey stone with your pattern. It fights <b>dots against stripes</b>.</span></li>
+      </ul>
+      <p>On the other front a stone is just a wall: it blocks, but can't be captured there. Players who share your color, or your pattern, fight on your side.</p>
+
+      <h3>Fireflies &amp; the Night Market</h3>
+      <p id="welcome-economy"></p>
+
+      <h3>Powerups</h3>
+      <div id="welcome-powerups"></div>
+
+      <p class="welcome-footer">Click anywhere outside this window to start.</p>
+    </div>
+  </dialog>
 
   <script src="main.js"></script>
 </body>
