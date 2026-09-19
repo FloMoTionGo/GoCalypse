@@ -4,9 +4,14 @@ Working notes for turning GoCalypse into a **cozy, pixel-sprite, lantern-themed*
 4-player Go variant. The game should reward bold play and never punish players:
 risk earns more, and failing costs less than you'd expect. The cutthroat layer
 (stealing, targeting leaders, betrayal) is **deliberately parked for later**
-(see the last section).
+(see section 8).
 
-Status legend: ✅ exists in code · 🧪 in the pixel preview prototype · 💡 idea only
+What's actually built and live is described in [`state.md`](state.md). This
+file is the plan: ideas, and the decisions still to make.
+
+Status legend: ✅ live in the game · 💡 idea only
+
+*Last updated 2026-09-19.*
 
 ---
 
@@ -16,11 +21,11 @@ Status legend: ✅ exists in code · 🧪 in the pixel preview prototype · 💡
    screams at you. Losing a group looks like lanterns floating away.
 2. **Rewarding, not punishing.** Every finished match pays out something.
    Currency and levels are never taken away. Stones removed by items give their
-   owner a small consolation payment.
+   owner a small consolation payment (✅ live: +3 per stone).
 3. **Risk is the fun.** Bold moves (self-atari, invasions, playing the harder
    pattern axis) fill a push-your-luck meter that multiplies what you earn.
 4. **Removal is rare and precious.** Items that delete stones are the most
-   expensive in the shop, work only once, and are limited per match.
+   expensive in the shop, work only once, and are limited per match (✅ live).
 5. **Readable at a glance.** Pixel art must never make the four stone looks
    (solid black, solid white, grey+dots, grey+stripes) hard to tell apart.
 
@@ -30,11 +35,11 @@ Status legend: ✅ exists in code · 🧪 in the pixel preview prototype · 💡
 
 Three layers, from short-term to long-term:
 
-| Layer | What it is | Lifetime |
-|---|---|---|
-| **Flame** 🔥 | Push-your-luck risk meter, 0–10+ | One match |
-| **Fireflies** ✨ | Soft currency, spent at the Night Market | Permanent (only goes down when you spend it) |
-| **Lantern Path** 🏮 | Account level, earned from total fireflies ever earned | Permanent, never goes down |
+| Layer | What it is | Lifetime | Status |
+|---|---|---|---|
+| **Flame** 🔥 | Push-your-luck risk meter, 0–10+ | One match | 💡 |
+| **Fireflies** ✨ | Soft currency, spent at the Night Market | Designed: permanent. Live: one match | ✅ in-match only |
+| **Lantern Path** 🏮 | Account level, earned from total fireflies ever earned | Permanent, never goes down | 💡 |
 
 ### 2.1 Flame: rewarding risky play 💡
 
@@ -63,7 +68,21 @@ or bank it while it's safe.
 - Banked fireflies can never be lost.
 - At match end, unbanked Flame auto-banks at **50%** ("the lantern still glows").
 
-### 2.2 Firefly income per match 💡
+### 2.2 Firefly income
+
+**Live today ✅ (in-match economy):**
+
+| Source | Fireflies |
+|---|---|
+| Placing a stone | 3 |
+| Each stone you capture (by a move or by Turn the Lantern) | 5 |
+| Your stone removed by someone else's item (consolation) | 3 |
+
+At 3 per move, the cheapest item (15) is affordable exactly when the market
+opens after 5 moves. The most expensive (200) takes about 67 moves without
+captures, fewer with them.
+
+**Designed 💡 (per-match payouts, once matches can end, see D-G5):**
 
 | Source | Fireflies |
 |---|---|
@@ -72,10 +91,10 @@ or bank it while it's safe.
 | Each captured stone | 2 × Flame multiplier |
 | Banked Flame | Flame × 3 |
 | First match of the day | +25 |
-| Your stone removed by someone's item (consolation) | +3 per stone |
 
 Target: a typical match pays **~60–100 fireflies**, so a tier-1 item costs
-about a quarter of a match and the most expensive removal item costs 2–3 matches.
+about a quarter of a match and the most expensive removal item costs 2–3
+matches. The live and designed numbers don't fit together yet (D-G6).
 
 ### 2.3 Lantern Path (levels) 💡
 
@@ -92,73 +111,77 @@ about a quarter of a match and the most expensive removal item costs 2–3 match
 
 ---
 
-## 3. The Night Market (shop) 💡
+## 3. The Night Market (shop)
 
-A riverside night-market stall run by a keeper character (see decision D-N3).
-You shop **between matches**. Purchases go into your inventory, and you pack up
-to **3 powerups into your Satchel** before each match (more with upgrades).
+**Live today ✅:** an **in-match** market in the sidebar. It opens for each
+player after their **5th placed stone** and stays open. Buying never takes your
+turn; using an item does. Bought items sit in your **Satchel** (a grid of icons)
+until used; nothing carries over to the next match. Each removal item can be
+bought once per match. Items are consumed **only when successfully used**; a
+refused use explains why and keeps the item.
 
-**Rules that keep it rewarding:**
-- Items are consumed **only when successfully used**. This matches the current
-  server behavior (`apply()` returns `false` → not consumed).
-- Unused Satchel items return to your inventory after the match. Nothing is lost.
-- **Removal items**: one-time use, highest prices, max **1 per player per match**.
-- A daily rotating **Tonight's special**: one item at 30% off.
-- No real-money purchases (see D-M1).
+**Designed 💡 (needs persistence, D-T1):** a riverside stall run by a keeper
+character (D-N3), visited **between matches**. Purchases go into a permanent
+inventory, and you pack up to **3 powerups into your Satchel** before each
+match (more with upgrades). Unused Satchel items return to the inventory after
+the match.
 
-**Market tabs:**
-1. **Satchel goods**: consumable powerups (section 4)
-2. **Keepsakes**: permanent upgrades (section 5)
-3. **Trinkets**: cosmetics (section 6)
+- A daily rotating **Tonight's special**: one item at 30% off. 💡
+- No real-money purchases (D-M1).
+
+**Market tabs (designed):**
+1. **Satchel goods**: consumable powerups (section 4). ✅ in-match version live
+2. **Keepsakes**: permanent upgrades (section 5). 💡
+3. **Trinkets**: cosmetics (section 6). 💡
 
 ---
 
 ## 4. Powerups (consumables)
 
-Existing today ✅: **Bomb** (clears a 3x3 area, including your own stones) and
-**Snipe** (removes one enemy stone). Right now every player gets one of each
-free at the start of every match (`STARTING_POWERUPS` in `GoRoom.ts`). Under
-this design they move into the market as expensive removal items.
+Seven items are live ✅ with prices, rules and pixel animations: the five new
+ones (Driftwood, Lily Pad, Lantern Ward, Turn the Lantern, Gust) plus Snipe and
+the old Bomb (renamed Firework), repriced as removal items. The free starting
+kit is gone. Prices below are the live ones; the rest are still ideas.
 
 ### 4.1 Cozy & constructive (tier 1: 15–30 ✨)
 
-| Item | Effect | Price |
-|---|---|---|
-| **Lantern Light** | For one turn, highlights every group in atari (1 liberty) on both axes, for you only. A learning aid. | 15 |
-| **Driftwood** | Places a neutral log on an empty point: a wall on both axes, owned by no one, can't be captured, floats away after 3 rounds. | 20 |
-| **Firefly Jar** | Your captures earn double fireflies for your next 3 turns. | 20 |
-| **Tea Break** | Pass your turn and bank your Flame at ×1.5. | 20 |
-| **Lily Pad** | Marks an empty point that only you may play on for 3 rounds (a guaranteed liberty or eye). | 25 |
-| **Seedling** | Plant a seed on an empty point. After 2 rounds, if the point is still empty and has a liberty, it grows into your stone (axis chosen when planting). | 25 |
-| **Lucky Koi** | Your next risky play earns double Flame. | 30 |
-| **Paper Lantern Ward** | One of your groups can't be captured until your next turn. | 30 |
-| **Mist** | Your next stone's axis stays hidden from others until the end of the round (needs per-player state filtering). | 30 |
+| Item | Effect | Price | Status |
+|---|---|---|---|
+| **Driftwood** | A neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Refused if it would leave any group without liberties. Animation: splashes down; drifts off downstream when it expires. | 15 | ✅ |
+| **Lantern Light** | For one turn, highlights every group in atari (1 liberty) on both axes, for you only. A learning aid. | 15 | 💡 |
+| **Lily Pad** | Reserves an empty point for 3 rounds: only you may place there (a guaranteed liberty or eye). Animation: unfurls with sparkles and shows a mini stone in the owner's colors. | 20 | ✅ |
+| **Firefly Jar** | Your captures earn double fireflies for your next 3 turns. | 20 | 💡 |
+| **Tea Break** | Pass your turn and bank your Flame at ×1.5. | 20 | 💡 (needs Flame) |
+| **Seedling** | Plant a seed on an empty point. After 2 rounds, if the point is still empty and has a liberty, it grows into your stone (axis chosen when planting). | 25 | 💡 |
+| **Lantern Ward** | Your group can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. Animation: rings of light bloom and lanterns drop onto the stones; warded stones keep a turning ring. | 30 | ✅ |
+| **Lucky Koi** | Your next risky play earns double Flame. | 30 | 💡 (needs Flame) |
+| **Mist** | Your next stone's axis stays hidden from others until the end of the round (needs per-player state filtering). | 30 | 💡 |
 
 ### 4.2 Tactical & axis play (tier 2: 35–70 ✨)
 
 These use GoCalypse's unique two-axis rule, where each stone fights on the
 base front (black vs white) or the pattern front (dots vs stripes).
 
-| Item | Effect | Price |
-|---|---|---|
-| **Ferry** | Move one of your stones one step to an adjacent empty point. Captures are checked afterward. | 35 |
-| **Anchor Stone** | One of your stones becomes immune to removal items for the rest of the match. The counter to Snipe. | 35 |
-| **Turn the Lantern** | Flip one of your stones to the other axis (solid ↔ grey pattern). Captures are checked on the new axis. | 40 |
-| **Lantern Bridge** | Two of your diagonal stones count as connected for 3 rounds. | 40 |
-| **Stepping Stones** | Place two stones this turn. | 45 |
-| **Twin Wick** | Your next stone fights on **both** axes: it merges and captures on both fronts, but it's also vulnerable on both. High risk: +3 Flame. | 60 |
+| Item | Effect | Price | Status |
+|---|---|---|---|
+| **Ferry** | Move one of your stones one step to an adjacent empty point. Captures are checked afterward. (Needs a two-step target UI.) | 35 | 💡 |
+| **Anchor Stone** | One of your stones becomes immune to removal items for the rest of the match. The counter to Snipe. | 35 | 💡 |
+| **Turn the Lantern** | Flips one of your stones between solid and grey. Captures count on the new front. Refused if it would leave the stone or a former group-mate without liberties. Animation: the stone lifts, turns edge-on and lands showing its other face. | 40 | ✅ |
+| **Lantern Bridge** | Two of your diagonal stones count as connected for 3 rounds. | 40 | 💡 |
+| **Stepping Stones** | Place two stones this turn. | 45 | 💡 |
+| **Twin Wick** | Your next stone fights on **both** axes: it merges and captures on both fronts, but it's also vulnerable on both. High risk: +3 Flame. | 60 | 💡 |
 
-### 4.3 Removal (tier 3: 100–220 ✨, one-time use, max 1 per match)
+### 4.3 Removal (tier 3: 90–200 ✨, once per match each)
 
-The victim always gets **+3 fireflies per removed stone**, and removed stones
-visibly float away down the river instead of vanishing.
+The victim always gets **+3 fireflies per removed stone** ✅. Warded stones
+can't be removed ✅.
 
-| Item | Effect | Price |
-|---|---|---|
-| **Gust** | Removes one enemy stone that is currently in atari. | 100 |
-| **River Current** | Washes away one enemy stone on the board edge. | 120 |
-| **Snipe** ✅ | Removes any single enemy stone. Can't target warded or anchored stones. | 150 |
-| **Firework Blossom** (today's Bomb ✅) | Clears a 3x3 area, including your own stones (see D-G4). | 220 |
+| Item | Effect | Price | Status |
+|---|---|---|---|
+| **Gust** | Removes one enemy stone whose group is in atari (only that stone). Animation: wind sweeps in and the stone tumbles away. | 90 | ✅ |
+| **River Current** | Washes away one enemy stone on the board edge. | 120 | 💡 |
+| **Snipe** | Removes any single enemy stone. Animation: sights close in, then it rises as a lantern. | 140 | ✅ |
+| **Firework** (was Bomb) | Clears a 3x3 area, including your own stones and driftwood; warded stones are spared; refused on an empty area. Animation: flash, ring and starburst. | 200 | ✅ |
 
 ### 4.4 Even more ideas (parking lot) 💡
 - **Moonlit Swap**: swap the positions of one of your stones and an adjacent empty point.
@@ -174,6 +197,7 @@ visibly float away down the river instead of vanishing.
 Principle (see D-G2): **no permanent board power**. Keepsakes improve the
 economy, the Flame meter or convenience, never stones or liberties, so a
 level-1 player and a level-30 player play the same game on the board.
+All of these need persistence (D-T1).
 
 | Keepsake | Effect | Price |
 |---|---|---|
@@ -191,85 +215,79 @@ level-1 player and a level-30 player play the same game on the board.
 
 - **Stone skins**: river pebble, jade, paper lantern, frosted glass. They must
   keep the black / white / grey+dots / grey+stripes readability rule.
-- **Board skins**: kaya deck (default), bamboo raft, lotus-pond pier, snowy jetty.
+- **Board skins**: kaya deck (default ✅), bamboo raft, lotus-pond pier, snowy jetty.
 - **Placement trails**: petals, sparks, water ripples.
-- **Capture effects**: rising lanterns (default), koi splashing away, a firefly swarm.
+- **Capture effects**: rising lanterns (default ✅), koi splashing away, a firefly swarm.
 - **Weather / time of day**: dusk, full moon, gentle rain, first snow, festival fireworks.
 - **Player spirit (avatar)**: frog, fox, tanuki, heron, otter.
 - **Nameplate lantern color** and a small emote set (bow, tea, cheer, sleepy).
 
 ---
 
-## 7. Design decisions to make
+## 7. Design decisions
 
-Tick them off as they're decided. Where I have a recommendation it's marked **Rec**.
-The pixel preview prototype (`web/pixel-preview.html`, being built now) uses
-provisional defaults for the art decisions. Changing them later is cheap.
+Ticked = decided and live. Where there's a recommendation it's marked **Rec**.
+Ticked items can still be revisited; they just describe what's live now.
 
 ### 7.1 Art direction
 
-- [ ] **D-A1 Reference style.** Given: *Stardew Valley* (warm, soft, readable,
-      lots of ambient life) + *Duelyst* (crisp silhouettes, dark outlines,
-      snappy animations with anticipation and follow-through). Decide how the
-      two blend: e.g. Stardew for the scene and ambience, Duelyst for stones
-      and animation punch.
-- [ ] **D-A2 Palette size.** Given: "simple color scale, 5 colors maximum".
-      Decide whether that means **5 colors total** (the strict reading, which
-      the prototype uses, getting in-between tones by dithering) or **5 shades
-      per hue ramp** (much more room).
-- [ ] **D-A3 The 5 colors.** Prototype default: ink (near-black), warm cream,
-      wood amber, river teal, deep night/moss. Open question: does grey (for
-      pattern stones) get its own slot or come from an ink+cream dither?
-- [ ] **D-A4 Native resolution & scale.** Prototype: 16 native px per grid
-      spacing, stones ~15 px, rendered at an integer 2x (3x optional).
-- [ ] **D-A5 Perspective.** Straight top-down (prototype) vs a slight 3/4
-      tilt of the board (more Stardew-like depth, harder hit-testing).
-- [ ] **D-A6 Outline style.** Full dark outlines everywhere (Duelyst) vs
-      outlines only on stones and props, with the scene outline-free.
-- [ ] **D-A7 Lighting.** How lantern glow is drawn with only 5 colors
-      (dithered light pools?), and guaranteeing the board area stays evenly lit.
-- [ ] **D-A8 Scene composition.** Which sides the river runs along, the
-      direction it flows, and how the board meets it (deck on stilts, stone
-      shore, floating raft). Props: reeds, lily pads, stone lanterns (tōrō),
-      floating paper lanterns, fireflies, a small bridge?
-- [ ] **D-A9 Time of day.** Fixed dusk/night vs a slow cycle during a match
-      (dusk → night → festival).
-- [ ] **D-A10 UI chrome.** Wooden panels, paper-lantern buttons, pixel font
-      for all UI or just the board. Font choice/licensing (a hand-made pixel
-      font avoids licensing).
-- [ ] **D-A11 Cursor & hover.** Pixel cursor? Keep the split half/half hover
-      preview (yes), and decide how the highlighted coordinates look in pixel form.
+- [x] **D-A1 Reference style.** *Stardew Valley* + *Duelyst*: Stardew for the
+      warm scene and ambient life, Duelyst for crisp ink outlines and snappy
+      animations with anticipation and follow-through.
+- [x] **D-A2 Palette size.** **5 colors total** (the strict reading), with
+      in-between tones from dithering. You approved the preview built this way.
+- [x] **D-A3 The 5 colors.** Ink `#1f1a24`, cream `#f4e8c8`, amber `#d49040`,
+      teal `#2e6b73`, slate `#767d88`. Grey got its own slot (instead of moss)
+      because dots and stripes on an ink+cream dither were too noisy. The cost:
+      grass and lily pads are teal or dark, never green.
+- [x] **D-A4 Native resolution & scale.** 16 native px per grid spacing,
+      15 px stones, integer 2x scale.
+- [x] **D-A5 Perspective.** Straight top-down.
+- [x] **D-A6 Outline style.** Ink outlines on stones and props; the scene
+      itself is mostly outline-free.
+- [x] **D-A7 Lighting.** Dithered light pools around lanterns and fireflies;
+      the playing surface is never lit.
+- [x] **D-A8 Scene composition.** The board is a wooden deck; a river flows
+      along the bottom and a stream down the right, both touching the deck.
+      Hanging and floating lanterns, a stone lantern, reeds, lily pads, fireflies.
+- [ ] **D-A9 Time of day.** Fixed night today. A slow cycle during a match
+      (dusk → night → festival) is open.
+- [ ] **D-A10 UI chrome.** The sidebar uses the 5 colors with a system font;
+      only the board has a pixel font. Open: pixel font for all UI, wooden
+      panels, paper-lantern buttons.
+- [ ] **D-A11 Cursor & hover.** Live: split half/half hover preview and
+      highlighted coordinate tags. Open: a pixel cursor.
+- [ ] **D-A12 Wood grain.** The kaya grain is drawn as dotted cream lines,
+      which can read as scratches. Keep, soften, or drop?
 
 ### 7.2 Readability & player identity
 
 - [ ] **D-R1 Owner marks.** Stones from teammates on an axis look identical
-      today (players 1 & 3 both place solid black). Add a tiny owner pip
-      (a lantern color per player) or keep them identical on purpose?
-- [ ] **D-R2 Player colors.** 4 players need identities beyond black/white/
-      dots/stripes (nameplate lanterns, avatars). With a 5-color palette these
-      can't be 4 new hues, so maybe they're shapes or spirits instead.
-- [ ] **D-R3 Last-move marker.** Glowing ember pip (prototype) vs a ring.
-- [ ] **D-R4 Accessibility.** A high-contrast stone mode, reduced motion
-      (prototype honors `prefers-reduced-motion`), color-blind check of the palette.
+      (players 1 & 3 both place solid black). Add a tiny owner pip, or keep
+      them identical on purpose?
+- [ ] **D-R2 Player identity.** Live: each player is shown by a pair of mini
+      stones (base + pattern), which is unique per player and also marks lily
+      pads. Open: spirits/avatars, nameplate lanterns.
+- [x] **D-R3 Last-move marker.** A glowing ember on the stone.
+- [ ] **D-R4 Accessibility.** Live: `prefers-reduced-motion` freezes ambience
+      and shortens effects. Open: a high-contrast stone mode, a color-blind
+      check of the palette.
 
 ### 7.3 Motion & feel
 
-- [ ] **D-F1 Animation frame rate.** Pixel animations at ~8–12 fps,
-      independent of game state (prototype), vs smooth tweening.
-- [ ] **D-F2 Placement animation.** Drop + squash + ripple (prototype). Add a
-      wooden "clack" sound?
-- [ ] **D-F3 Capture animation.** Stones become lanterns that rise and fade
-      (prototype), or they slide into the river and float away. Maybe both:
-      captures rise, removal items float away.
-- [ ] **D-F4 Powerup animations.** Each item needs a small signature effect
-      (Firework Blossom = a pixel firework, Driftwood = a log bobbing in).
-- [ ] **D-F5 Performance budget.** `debug.html` runs 4 animated clients in one
-      tab. Throttle ambient animation in background/unfocused iframes?
+- [x] **D-F1 Animation frame rate.** Frame-based pixel animation (ambience at
+      10 fps, effects on millisecond timelines), redrawn at up to 30 fps.
+- [x] **D-F2 Placement animation.** Drop, squash, ripple. (Sound: see D-S1.)
+- [x] **D-F3 Capture animation.** Captured stones pop into lanterns that rise
+      and fade. Driftwood drifts downstream; Gust blows its stone away.
+- [x] **D-F4 Powerup animations.** Every live item has its own (section 4).
+- [x] **D-F5 Performance budget.** ~0.5 ms per frame, so 4 animated clients in
+      `debug.html` are no problem; hidden tabs pause.
 
 ### 7.4 Audio
 
 - [ ] **D-S1 Soundscape.** Lo-fi ambient loop, river water, crickets, a wooden
-      stone clack, soft chimes for Flame and banking.
+      stone clack, soft chimes for purchases and captures.
 - [ ] **D-S2 Mute & volume UI**, and whether sound is on by default.
 
 ### 7.5 Narrative & naming
@@ -280,46 +298,64 @@ provisional defaults for the art decisions. Changing them later is cheap.
 - [ ] **D-N2 Setting.** One match = one festival night on the river?
 - [ ] **D-N3 Market keeper.** A character who runs the Night Market (an old
       toad, a tanuki, a heron?) and is the voice of tutorials and tips.
-- [ ] **D-N4 Currency names.** Fireflies / Flame / Lantern Path are proposals.
+- [ ] **D-N4 Currency names.** "Fireflies" is in use; Flame and Lantern Path
+      are still proposals.
 
 ### 7.6 Game & economy
 
-- [ ] **D-G1 When can you shop?** Between matches only (Rec: simplest and
-      fair), or also a mini-market mid-match every N rounds.
+- [x] **D-G1 When can you shop?** Live: **in-match**, after a player's 5th
+      move, buying anytime, as you asked. Once persistence exists, decide
+      whether a between-match market replaces or adds to it.
 - [ ] **D-G2 Permanent power.** Rec: keepsakes never affect the board, only
       the economy and convenience, so matches stay fair.
-- [ ] **D-G3 Removal limits.** One removal item per player per match (Rec),
-      or a shared pool per room.
-- [ ] **D-G4 Bomb hits your own stones?** Today yes. Keep it as a risk element
-      (and give Flame for it?) or make it enemy-only?
-- [ ] **D-G5 Match end condition.** There isn't one yet: the `"finished"`
-      status exists in `GoState` but nothing sets it, and there's no pass move,
-      so turns run forever. Payouts need an ending: a fixed number of rounds?
+- [x] **D-G3 Removal limits.** Each removal item can be bought once per match
+      per player (so one player can own one Gust, one Snipe and one Firework).
+      Tighten to one removal item in total?
+- [x] **D-G4 Firework hits your own stones.** Kept as a risk element; warded
+      stones are spared. Open: give Flame for it once Flame exists.
+- [ ] **D-G5 Match end condition.** 🔴 The biggest gap. `status: "finished"`
+      is never set and there's no pass move, so turns run forever. Payouts,
+      rankings and progression all need an ending: a fixed number of rounds?
       First to N captures? All four players passing in a row?
-- [ ] **D-G6 Flame numbers.** Tune the values in 2.1 and the income table in
-      2.2 after playtests.
-- [ ] **D-G7 Free starting kit.** Remove the free Bomb + Snipe everyone gets
-      today (Rec, since they become expensive items), or keep a free tier-1 item.
+- [ ] **D-G6 Numbers.** Tune the live economy (3 / 5 / 3, prices 15–200,
+      market after 5 moves) and the designed Flame and payout tables after
+      playtests, and make the two fit together.
+- [x] **D-G7 Free starting kit.** Removed; everything is bought.
+- [ ] **D-G8 Players who leave mid-game.** 🔴 Turns still go to disconnected
+      players, so the game stalls. Options: skip their turns, a simple bot
+      takes over, or end the match with payouts.
+- [ ] **D-G9 Lily Pad timing.** It expires as its owner's third turn begins, so
+      the owner gets 2 turns to use it. Extend it through that third turn?
+- [ ] **D-G10 Gust scope.** It removes only the targeted stone of a group in
+      atari. Should it take the whole group (much stronger, maybe pricier)?
+- [ ] **D-G11 Consolation for item captures.** Stones captured by Turn the
+      Lantern pay no consolation (they count as normal captures). Keep?
 
 ### 7.7 Tech & persistence
 
 - [ ] **D-T1 Where progress lives.** There are no accounts, only guests. Items
-      bought in the market affect multiplayer matches, so the **server** must
-      own inventories (otherwise anyone could edit localStorage and get infinite
-      Snipes). Rec: an anonymous device token in localStorage + SQLite on a
-      Fly.io volume (fits the existing single-machine setup).
+      affect multiplayer matches, so the **server** must own inventories
+      (otherwise anyone could edit localStorage and get infinite Snipes). Rec:
+      an anonymous device token in localStorage + SQLite on a Fly.io volume
+      (fits the existing single-machine setup).
 - [ ] **D-T2 Accounts later?** Optional sign-in to carry progress across devices.
-- [ ] **D-T3 Rendering approach.** The prototype renders sprites defined in code
-      into a native-resolution pixel buffer, scaled up with
-      `image-rendering: pixelated`. The same code can render PNGs in Node for
-      tests. Alternative: PNG sprite sheets drawn in an editor (e.g. Aseprite).
-- [ ] **D-T4 Animation loop.** Today the board only redraws on state changes.
-      Pixel ambience needs a `requestAnimationFrame` loop. Pause it when the
-      tab is hidden.
+- [x] **D-T3 Rendering approach.** Sprites defined in code, rendered into a
+      native-resolution pixel buffer and scaled up with
+      `image-rendering: pixelated`. The same code renders PNGs in Node for tests.
+- [x] **D-T4 Animation loop.** A `requestAnimationFrame` loop capped at 30 fps.
 - [ ] **D-T5 Hidden information.** Mist and Kite need per-player state
       filtering (Colyseus `StateView` / filters). Worth it, or cut those items?
-- [ ] **D-T6 Layout.** The scene (board + river) is bigger than today's board.
-      It must still fit the `debug.html` panels (760x700) next to the sidebar.
+- [x] **D-T6 Layout.** The scene is 480x558 CSS px next to a 220 px sidebar;
+      `debug.html` panels are 760x860 so nothing scrolls inside them.
+- [ ] **D-T7 Reconnect.** The server holds a dropped player's seat for 60 s,
+      but the client can't reconnect (a refresh is a new session). Add
+      `client.reconnect()` with the stored reconnection token.
+- [ ] **D-T8 Touch & mobile.** Pattern stones need a right click, which touch
+      screens don't have (long-press? a front toggle?), and the layout assumes
+      ~760 px of width.
+- [ ] **D-T9 Tests in the repo.** The integration, room, pixel and headless-
+      browser tests that verified the market live outside the repo and will be
+      lost. Move them into the repo (and CI?).
 
 ### 7.8 Monetization
 
@@ -340,21 +376,28 @@ Intentionally **not** designed yet. Ideas to revisit:
 
 ---
 
-## 9. Implementation notes (for whoever builds it)
+## 9. Implementation notes (for whoever builds next)
 
+- **Adding an item:** define it in `server/src/powerups/definitions.ts`
+  (price, `removal`, `apply`) and add it to `REGISTRY`; the market fills
+  itself from that list. The client needs an icon in `powerupIcon()`
+  (`web/sprites.js`) and, for a custom animation, a timeline in
+  `web/pixelScene.js` plus a case in `diffTurn`. Items currently all target one
+  board point and take the turn when used.
+- **Timed board markers** (like wards, lily pads, driftwood) are
+  `GoState.effects` entries that end when `turnCount` reaches `until`;
+  `addEffect(kind, x, y, owner, rounds)` and `expireEffects()` in `GoRoom.ts`
+  handle them.
 - **Flame detection** fits into `GoRoom.handleMove`: after `applyCaptures`, run
   `findGroup(rawBoard, size, x, y, axisOf(code))` for the liberty count, and
   store a per-player "brave stones to recheck" list for the next turn.
-- **New state fields**: `PlayerState.flame`, `PlayerState.fireflies` (match
-  earnings), a Satchel instead of today's free `powerups`, and timed board
-  effects (driftwood, lily pads, wards) with a round countdown.
-- **Neutral stones** (Driftwood) need a new board code outside 1–8, and
-  `goRules.ts` must handle it explicitly. Today `axisOf`/`ownerOf` assume
-  codes ≤ 8: a code of 9 would be read as a pattern stone of a nonexistent
-  "player 5" (`STONE_PATTERN[5]` is `undefined`, not `null`), which makes it
-  capturable instead of a wall. `viewValue()` must return `null` for neutral codes.
-- **Twin Wick** needs another new code range that's valid on both views,
-  with `axisOf()` returning "both" and `applyCaptures`/`isSuicide` checking
-  both views. Same caveat: extend the code helpers first, with tests.
-- **Market & inventory** are server endpoints plus persistence (D-T1). The
-  client never decides what you own.
+- **Neutral pieces** exist: board code 9 is driftwood, and `goRules.ts`
+  treats any non-player code as a wall on both views (`isPlayerStone`).
+- **Twin Wick** needs another code range that's valid on both views, with
+  `axisOf()` returning "both" and `applyCaptures`/`isSuicide`/`flipStone`
+  checking both views. Extend the code helpers first, with tests.
+- **Turn order** is derived from colors (`turnOrder()`); `players` stays in
+  join order. Don't reorder or splice-insert into `ArraySchema` (see
+  `state.md`, section 9).
+- **Never trust client input:** handlers validate payloads, and gameplay
+  values must not come from create/join options.

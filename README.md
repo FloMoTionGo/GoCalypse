@@ -16,8 +16,10 @@ and everyone starts with 600 fireflies so the whole market can be tried.
 **Art:** a 5-colour pixel scene (a board by a lantern river) rendered in
 software from sprites defined in code: `web/sprites.js` (palette, sprites,
 icons) and `web/pixelScene.js` (scene, animations). `web/pixel-preview.html`
-shows every sprite and animation without a server. Design notes and open
-decisions live in `ideas.md`.
+shows every sprite and animation without a server.
+
+**Project docs:** `state.md` is a snapshot of what's built, live and missing;
+`ideas.md` holds the plans and open design decisions.
 
 Not standard Go rules — this is a free-for-all variant with black/white
 stones distinguished by pattern (dots or stripes), and powerups bought at a
