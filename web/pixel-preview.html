@@ -394,7 +394,12 @@
         blitSurface(e.c4, e.surface);
       }
 
-      const groups = { stones: addGroup("Stones (every look and shape)"), props: addGroup("Props"), anims: addGroup("Animations") };
+      const groups = {
+        stones: addGroup("Stones (every look and shape)"),
+        props: addGroup("Props"),
+        anims: addGroup("Animations"),
+        icons: addGroup("Night Market icons"),
+      };
       for (const item of G.catalog()) {
         const fw = Math.max(...item.frames.map((f) => f.w)), fh = Math.max(...item.frames.map((f) => f.h));
         const w = fw + 6, h = fh + 6;
@@ -444,6 +449,36 @@
             }
           }, true);
         }
+      }
+
+      // Powerup effects (Night Market items), looping on a kaya tile.
+      const puGroup = addGroup("Powerup effects (looping)");
+      const POWERUP_FX = [
+        ["drop", "Driftwood lands", { code: G.DRIFTWOOD }],
+        ["driftAway", "Driftwood floats away", { code: G.DRIFTWOOD }],
+        ["lily", "Lily Pad unfurls", { owner: 2 }],
+        ["ward", "Lantern Ward", { owner: 1 }],
+        ["flip", "Turn the Lantern", { from: 1, code: 5 }],
+        ["gust", "Gust", { code: 2 }],
+        ["snipe", "Snipe", { code: 3 }],
+        ["firework", "Firework", {}],
+      ];
+      for (const [kind, label, props] of POWERUP_FX) {
+        const effect = Object.assign({ kind, start: 0 }, props);
+        const big = kind === "firework" || kind === "gust";
+        const W = big ? 64 : 48;
+        addCard(puGroup, label, `${P.effectDuration(effect, false).toFixed(2)} s`, W, W, (s, time) => {
+          s.fill(A);
+          const cx = W >> 1;
+          for (let k = -2; k <= 2; k++) {
+            for (let y = 0; y < s.h; y++) s.set(cx + k * 16, y, K);
+            for (let x = 0; x < s.w; x++) s.set(x, cx + k * 16, K);
+          }
+          const reduced = state.reducedMotion;
+          const len = P.effectDuration(effect, reduced);
+          const el = time % (len + 0.6);
+          if (el < len) P.drawEffect(s, effect, el, cx, cx, reduced);
+        }, true);
       }
 
       // ---------------------------------------------------------------- loop

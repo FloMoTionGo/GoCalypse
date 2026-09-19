@@ -297,10 +297,100 @@
     { ms: 120, kind: "fade", coverage: 0.33 },
   ];
 
+  // --- powerup effects ------------------------------------------------------
+  // Driftwood splashes down onto the deck (same beats as a stone landing).
+  const DROP_TIMELINE = [
+    { ms: 50, kind: "drop", dy: -9, cov: 0.5 },
+    { ms: 50, kind: "drop", dy: -4, cov: 1 },
+    { ms: 60, kind: "drop", dy: 1, cov: 1, ripple: 0, rippleCov: 1, splash: 0 },
+    { ms: 60, kind: "drop", dy: 0, cov: 1, ripple: 1, rippleCov: 0.75, splash: 1 },
+    { ms: 80, kind: "drop", dy: 0, cov: 1, ripple: 2, rippleCov: 0.45, splash: 2 },
+    { ms: 80, kind: "drop", dy: 0, cov: 1, ripple: 2, rippleCov: 0.2 },
+  ];
+  // Expired driftwood bobs and drifts off downstream, fading out.
+  const DRIFT_AWAY_TIMELINE = Array.from({ length: 12 }, (_, k) => ({
+    ms: 80, kind: "driftAway", dx: Math.round(k * 1.4), dy: Math.round(Math.sin(k * 0.9)),
+    cov: k < 5 ? 1 : (12 - k) / 8, splash: k < 3 ? k : -1,
+  }));
+  // A lily pad unfurls from a bud, sparkles, and shows its owner.
+  const LILY_TIMELINE = [
+    { ms: 70, kind: "lily", spr: "lilyBoardBud" },
+    { ms: 70, kind: "lily", spr: "lilyBoardMid" },
+    { ms: 60, kind: "lily", spr: "lilyBoard", spark: 0, sparkR: 8 },
+    { ms: 70, kind: "lily", spr: "lilyBoard", spark: 1, sparkR: 10, mark: true },
+    { ms: 80, kind: "lily", spr: "lilyBoard", spark: 2, sparkR: 11, mark: true },
+  ];
+  // Lantern Ward: a ring of light blooms outward and the lantern drops in with a bounce.
+  const WARD_TIMELINE = [
+    { ms: 60, kind: "ward", bloom: 0, lanternDy: -8 },
+    { ms: 60, kind: "ward", bloom: 1, lanternDy: -5 },
+    { ms: 60, kind: "ward", bloom: 2, lanternDy: 1 },
+    { ms: 70, kind: "ward", ring: true, lanternDy: -1, spark: 0 },
+    { ms: 80, kind: "ward", ring: true, lanternDy: 0, spark: 1 },
+    { ms: 80, kind: "ward", ring: true, lanternDy: 0, spark: 2 },
+  ];
+  // Turn the Lantern: the stone lifts, turns edge-on, and lands showing its other face.
+  const FLIP_TIMELINE = [
+    { ms: 45, kind: "flip", side: "from", shape: "thin11", dy: -1 },
+    { ms: 45, kind: "flip", side: "from", shape: "thin7", dy: -2 },
+    { ms: 45, kind: "flip", side: "from", shape: "thin3", dy: -3 },
+    { ms: 45, kind: "flip", side: "to", shape: "thin3", dy: -3 },
+    { ms: 45, kind: "flip", side: "to", shape: "thin7", dy: -2 },
+    { ms: 45, kind: "flip", side: "to", shape: "thin11", dy: -1 },
+    { ms: 55, kind: "flip", side: "to", shape: "squash", dy: 1, spark: 0, sparkR: 8 },
+    { ms: 60, kind: "flip", side: "to", shape: "normal", dy: 0, spark: 1, sparkR: 10 },
+    { ms: 70, kind: "flip", side: "to", shape: "normal", dy: 0, spark: 2, sparkR: 11 },
+  ];
+  // Gust: wind streaks sweep in, the stone leans, then tumbles away on the wind.
+  const GUST_TIMELINE = [
+    { ms: 60, kind: "gust", wind: 0, dx: 0, dy: 0, shape: "normal", cov: 1 },
+    { ms: 60, kind: "gust", wind: 1, dx: -1, dy: 0, shape: "normal", cov: 1 },
+    { ms: 60, kind: "gust", wind: 2, dx: 1, dy: -1, shape: "stretch", cov: 1 },
+    { ms: 60, kind: "gust", wind: 3, dx: 3, dy: -3, shape: "normal", cov: 1 },
+    { ms: 60, kind: "gust", wind: 4, dx: 6, dy: -5, shape: "small", cov: 1 },
+    { ms: 70, kind: "gust", wind: 5, dx: 10, dy: -7, shape: "small", cov: 0.8 },
+    { ms: 70, kind: "gust", wind: 6, dx: 15, dy: -8, shape: "icon", cov: 0.6 },
+    { ms: 70, kind: "gust", wind: 7, dx: 21, dy: -8, shape: "icon", cov: 0.35 },
+    { ms: 70, kind: "gust", wind: 8, dx: 27, dy: -7, shape: "icon", cov: 0.15 },
+  ];
+  // Snipe: brackets close in on the stone, strike, then the usual capture lantern.
+  const SNIPE_TIMELINE = [
+    { ms: 80, kind: "aim", d: 12 },
+    { ms: 70, kind: "aim", d: 9 },
+    { ms: 60, kind: "aim", d: 7, strike: true },
+  ].concat(CAPTURE_TIMELINE.slice(2));
+  // Firework: a burst of sparks from the target point, then drifting embers.
+  const FIREWORK_TIMELINE = [
+    { ms: 90, kind: "burst", r: 0, flash: true },
+    { ms: 60, kind: "burst", r: 7, star: 0, ring: 0 },
+    { ms: 60, kind: "burst", r: 12, star: 0, ring: 1, trail: 1 },
+    { ms: 70, kind: "burst", r: 17, star: 0, ring: 2, trail: 0.66 },
+    { ms: 70, kind: "burst", r: 21, star: 1, trail: 0.33, embers: 0 },
+    { ms: 80, kind: "burst", r: 23, star: 2, embers: 1 },
+    { ms: 80, kind: "burst", r: 24, embers: 2 },
+  ];
+
+  const TIMELINES = {
+    place: [PLACE_TIMELINE, []],
+    capture: [CAPTURE_TIMELINE, REDUCED_CAPTURE_TIMELINE],
+    drop: [DROP_TIMELINE, []],
+    driftAway: [DRIFT_AWAY_TIMELINE, [
+      { ms: 120, kind: "driftAway", dx: 0, dy: 0, cov: 0.66, splash: -1 },
+      { ms: 120, kind: "driftAway", dx: 0, dy: 0, cov: 0.33, splash: -1 },
+    ]],
+    lily: [LILY_TIMELINE, []],
+    ward: [WARD_TIMELINE, [{ ms: 150, kind: "ward", ring: true, lanternDy: 0 }]],
+    flip: [FLIP_TIMELINE, []],
+    gust: [GUST_TIMELINE, REDUCED_CAPTURE_TIMELINE],
+    snipe: [SNIPE_TIMELINE, REDUCED_CAPTURE_TIMELINE],
+    firework: [FIREWORK_TIMELINE, [{ ms: 150, kind: "burst", r: 0, flash: true }]],
+  };
+  /** Effect kinds that draw their own piece at the cell while playing (the board already shows the end state). */
+  const OWNS_CELL = new Set(["place", "drop", "flip"]);
+
   function timelineFor(kind, reducedMotion) {
-    if (kind === "place") return reducedMotion ? [] : PLACE_TIMELINE;
-    if (kind === "capture") return reducedMotion ? REDUCED_CAPTURE_TIMELINE : CAPTURE_TIMELINE;
-    return [];
+    const pair = TIMELINES[kind];
+    return pair ? pair[reducedMotion ? 1 : 0] : [];
   }
   function timelineDuration(tl) {
     return tl.reduce((sum, f) => sum + f.ms, 0) / 1000;
@@ -323,6 +413,15 @@
   }
   function captureEffect(x, y, code, start) {
     return { kind: "capture", x, y, code, start };
+  }
+  /**
+   * Any other effect kind (see TIMELINES), e.g.
+   *   makeEffect("flip", x, y, { from: 1, code: 5 }, t)
+   *   makeEffect("lily", x, y, { owner: 2 }, t)
+   *   makeEffect("gust", x, y, { code: 3 }, t)
+   */
+  function makeEffect(kind, x, y, props, start) {
+    return Object.assign({ kind, x, y, start }, props);
   }
   function effectDuration(effect, reducedMotion) {
     return timelineDuration(timelineFor(effect.kind, reducedMotion));
@@ -357,6 +456,43 @@
   }
 
   /**
+   * Effects for one server update, powerup-aware. `action` is the room's
+   * LastAction ({kind: "move"|"powerup", id, x, y}) if it changed in this
+   * update, else null. `newOverlays` are lily/ward markers that just appeared.
+   * Picks the matching animation per changed cell: driftwood drops in or
+   * drifts away, a flipped stone turns over, the Gust/Snipe target gets its
+   * own exit, everything else that vanished is captured (Firework included).
+   */
+  function diffTurn(prev, next, size, action, newOverlays, time) {
+    const effects = [];
+    if (!prev || prev.length !== next.length) return effects;
+    const used = action && action.kind === "powerup" ? action.id : null;
+    const isTarget = (x, y) => action && action.x === x && action.y === y;
+    for (let i = 0; i < next.length; i++) {
+      const a = prev[i], b = next[i];
+      if (a === b) continue;
+      const x = i % size, y = (i / size) | 0;
+      if (a === 0) {
+        effects.push(b === G.DRIFTWOOD ? makeEffect("drop", x, y, { code: b }, time) : placeEffect(x, y, b, time));
+      } else if (b === 0) {
+        if (a === G.DRIFTWOOD && used !== "bomb") effects.push(makeEffect("driftAway", x, y, { code: a }, time));
+        else if (used === "gust" && isTarget(x, y)) effects.push(makeEffect("gust", x, y, { code: a }, time));
+        else if (used === "remove_stone" && isTarget(x, y)) effects.push(makeEffect("snipe", x, y, { code: a }, time));
+        else effects.push(captureEffect(x, y, a, time));
+      } else if (a <= 8 && b <= 8 && (a > 4 ? a - 4 : a + 4) === b) {
+        effects.push(makeEffect("flip", x, y, { from: a, code: b }, time));
+      } else {
+        effects.push(captureEffect(x, y, a, time), placeEffect(x, y, b, time));
+      }
+    }
+    if (used === "bomb") effects.push(makeEffect("firework", action.x, action.y, {}, time));
+    for (const o of newOverlays || []) {
+      if (o.kind === "lily" || o.kind === "ward") effects.push(makeEffect(o.kind, o.x, o.y, { owner: o.owner }, time));
+    }
+    return effects;
+  }
+
+  /**
    * Draw one effect frame centred on native pixel (cx, cy). Exposed so the
    * sprite-sheet preview can show effects in isolation.
    * Returns a light source {x, y, r} if the frame glows, else null.
@@ -383,14 +519,17 @@
       }
       return null;
     }
-    // capture
+    const powerup = drawPowerupFrame(surf, effect, f, at.index, cx, cy);
+    if (powerup !== undefined) return powerup;
+
+    // capture (also the tail of the snipe timeline)
     const look = G.lookForCode(code);
     if (f.kind === "stone") {
-      surf.blitCentered(G.stoneSprite(code), cx + f.dx, cy);
+      surf.blitCentered(G.pieceSprite(code), cx + f.dx, cy);
       return null;
     }
     if (f.kind === "squish") {
-      surf.blitCentered(G.stoneSprite(code, "squash"), cx, cy + 1);
+      surf.blitCentered(G.pieceSprite(code, "squash"), cx, cy + 1);
       return null;
     }
     if (f.kind === "flash") {
@@ -398,7 +537,7 @@
       return { x: cx, y: cy, r: 9 };
     }
     if (f.kind === "fade") {
-      surf.blitCentered(G.stoneSprite(code), cx, cy, { coverage: f.coverage });
+      surf.blitCentered(G.pieceSprite(code), cx, cy, { coverage: f.coverage });
       return null;
     }
     const wisp = ANIMS.wisp.frames[at.index & 1];
@@ -416,6 +555,131 @@
       surf.set(wx, wy + 6 + (at.index & 1), A);
     }
     return f.coverage > 0.3 ? { x: wx, y: wy, r: 8 * f.coverage } : null;
+  }
+
+  /**
+   * Frames of the powerup timelines. Returns a light source / null when it
+   * drew the frame, or undefined if the frame kind isn't a powerup kind.
+   */
+  function drawPowerupFrame(surf, effect, f, index, cx, cy) {
+    switch (f.kind) {
+      case "drop": {
+        const log = G.SPRITES.driftwood;
+        surf.blitCentered(log, cx + 1, cy + 1, { color: K, coverage: 0.5 * f.cov });
+        if (f.ripple !== undefined) surf.blitCentered(ANIMS.ripple.frames[f.ripple], cx, cy, { coverage: f.rippleCov });
+        surf.blitCentered(log, cx, cy + f.dy, { coverage: f.cov });
+        if (f.splash !== undefined) drawSplash(surf, cx, cy, f.splash);
+        return null;
+      }
+      case "driftAway": {
+        surf.blitCentered(G.SPRITES.driftwood, cx + f.dx, cy + f.dy, { coverage: f.cov });
+        if (f.splash >= 0) drawSplash(surf, cx, cy, f.splash);
+        return null;
+      }
+      case "lily": {
+        surf.blitCentered(G.SPRITES[f.spr], cx, cy + 1);
+        if (f.mark && effect.owner) surf.blitCentered(G.splitPreviewSprite(effect.owner, "mini"), cx, cy + 1);
+        if (f.spark !== undefined) drawSparkRing(surf, cx, cy, f.sparkR, f.spark);
+        return null;
+      }
+      case "ward": {
+        if (f.bloom !== undefined) surf.blitCentered(ANIMS.wardBloom.frames[f.bloom], cx, cy);
+        if (f.ring) surf.blitCentered(ANIMS.wardRing.frames[index & 3], cx, cy);
+        surf.blitCentered(ANIMS.wardLantern.frames[0], cx + WARD_LANTERN_DX, cy + WARD_LANTERN_DY + f.lanternDy);
+        if (f.spark !== undefined) drawSparkRing(surf, cx, cy, 10, f.spark);
+        return { x: cx + WARD_LANTERN_DX, y: cy + WARD_LANTERN_DY, r: 6 };
+      }
+      case "flip": {
+        const code = f.side === "from" ? effect.from : effect.code;
+        surf.blitCentered(G.stoneSprite(code, "icon"), cx + 1, cy + 1, { color: K, coverage: 0.5 });
+        surf.blitCentered(G.stoneSprite(code, f.shape), cx, cy + f.dy);
+        if (f.spark !== undefined) drawSparkRing(surf, cx, cy, f.sparkR, f.spark);
+        return null;
+      }
+      case "gust": {
+        drawWind(surf, cx, cy, f.wind);
+        surf.blitCentered(G.pieceSprite(effect.code, f.shape), cx + f.dx, cy + f.dy, { coverage: f.cov });
+        return null;
+      }
+      case "aim": {
+        surf.blitCentered(G.pieceSprite(effect.code), cx, cy);
+        drawBrackets(surf, cx, cy, f.d);
+        if (f.strike) {
+          for (let k = 3; k <= 10; k++) {
+            surf.set(cx - k, cy, C); surf.set(cx + k, cy, C);
+            surf.set(cx, cy - k, C); surf.set(cx, cy + k, C);
+          }
+          return { x: cx, y: cy, r: 8 };
+        }
+        return null;
+      }
+      case "burst": {
+        if (f.flash) {
+          surf.blitCentered(G.STONES.glow.big, cx, cy);
+          return { x: cx, y: cy, r: 14 };
+        }
+        if (f.ring !== undefined) surf.blitCentered(ANIMS.ripple.frames[f.ring], cx, cy);
+        for (let k = 0; k < 8; k++) {
+          const a = (k * Math.PI) / 4 + (k & 1 ? 0.2 : 0);
+          const rr = k & 1 ? f.r * 0.8 : f.r;
+          const px = Math.round(cx + Math.cos(a) * rr), py = Math.round(cy + Math.sin(a) * rr);
+          if (f.trail !== undefined) {
+            for (let d = 5; d < rr - 3; d++) {
+              const tx = Math.round(cx + Math.cos(a) * d), ty = Math.round(cy + Math.sin(a) * d);
+              if (G.ditherOn(tx, ty, f.trail * 0.5)) surf.set(tx, ty, k & 1 ? A : C);
+            }
+          }
+          if (f.star !== undefined) {
+            // Alternate cream and amber hearts; the ink outline keeps every spark visible.
+            surf.blitCentered(ANIMS.burstStar.frames[f.star], px, py, k & 1 ? { map: SWAP_CREAM_AMBER } : undefined);
+          }
+          if (f.embers !== undefined) {
+            const ey = py + 1 + f.embers * 2;
+            surf.set(px, ey, f.embers < 2 ? A : S);
+            if (f.embers === 0) surf.set(px, ey - 1, C);
+          }
+        }
+        return f.r < 20 ? { x: cx, y: cy, r: 22 - f.r } : null;
+      }
+      default:
+        return undefined;
+    }
+  }
+
+  const WARD_LANTERN_DX = 5, WARD_LANTERN_DY = -6;
+  const SWAP_CREAM_AMBER = new Uint8Array(256).map((_, i) => (i === C ? A : i === A ? C : i));
+
+  /** Little teal and cream droplets thrown up around a landing piece. */
+  function drawSplash(surf, cx, cy, step) {
+    const d = 6 + step * 2;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 0], [1, 0]]) {
+      surf.set(cx + sx * (d + 2), cy + sy * (2 + step) - 1, step < 2 ? C : T);
+      if (step === 0) surf.set(cx + sx * (d + 1), cy + sy * (2 + step), T);
+    }
+  }
+
+  /** Three wind streaks sweeping left to right, each with a curl at its head. */
+  function drawWind(surf, cx, cy, step) {
+    const rows = [[-6, 0, C], [-1, 3, S], [4, -2, C]];
+    for (const [oy, ox, c] of rows) {
+      const head = cx - 14 + step * 5 + ox;
+      const len = step < 7 ? 7 : 9 - step;
+      for (let k = 0; k < len; k++) surf.set(head - k, cy + oy, c);
+      surf.set(head + 1, cy + oy - 1, c);
+      surf.set(head + 1, cy + oy - 2, c);
+      surf.set(head, cy + oy - 3, c);
+    }
+  }
+
+  /** Four corner brackets at distance d from (cx, cy) (the snipe's closing sight). */
+  function drawBrackets(surf, cx, cy, d) {
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const x = cx + sx * d, y = cy + sy * d;
+      for (let k = 0; k < 3; k++) {
+        surf.set(x - sx * k, y, C);
+        surf.set(x, y - sy * k, C);
+      }
+    }
   }
 
   function drawSparkRing(surf, cx, cy, r, frame) {
@@ -718,13 +982,40 @@
         const code = board[i];
         if (!code || skip.has(i)) continue;
         const p = pointToNative(i % size, (i / size) | 0);
-        surf.blitCentered(G.stoneSprite(code), p.x + 1, p.y + 1, { color: K, coverage: 0.5 });
+        surf.blitCentered(G.pieceSprite(code), p.x + 1, p.y + 1, { color: K, coverage: 0.5 });
       }
       for (let i = 0; i < board.length; i++) {
         const code = board[i];
         if (!code || skip.has(i)) continue;
         const p = pointToNative(i % size, (i / size) | 0);
-        surf.blitCentered(G.stoneSprite(code), p.x, p.y);
+        surf.blitCentered(G.pieceSprite(code), p.x, p.y);
+      }
+    }
+
+    /** Lily pads (under stones) on empty cells, each showing its owner's mini split stone. */
+    function drawLilyPads(overlays, board, busy) {
+      for (const o of overlays) {
+        if (o.kind !== "lily") continue;
+        const i = o.y * size + o.x;
+        if (board[i] || busy.has("lily:" + i)) continue;
+        const p = pointToNative(o.x, o.y);
+        surf.blitCentered(G.SPRITES.lilyBoard, p.x, p.y + 1);
+        if (o.owner) surf.blitCentered(G.splitPreviewSprite(o.owner, "mini"), p.x, p.y + 1);
+      }
+    }
+
+    /** Lantern Ward: a turning ring of light and a hanging lantern on each warded stone. */
+    function drawWards(overlays, board, busy, time, reduced) {
+      const ring = animFrame("wardRing", reduced ? 0 : time);
+      const lantern = animFrame("wardLantern", reduced ? 0 : time);
+      const bob = reduced ? 0 : Math.round(Math.sin(time * 2.4) * 0.8);
+      for (const o of overlays) {
+        if (o.kind !== "ward") continue;
+        const i = o.y * size + o.x;
+        if (!board[i] || busy.has("ward:" + i)) continue;
+        const p = pointToNative(o.x, o.y);
+        surf.blitCentered(ring, p.x, p.y);
+        surf.blitCentered(lantern, p.x + WARD_LANTERN_DX, p.y + WARD_LANTERN_DY + bob);
       }
     }
 
@@ -738,7 +1029,8 @@
      *   hoverKind:     "stone" (split preview) | "target" (powerup reticle) | "none" (labels only),
      *   myColor:       1..4, the viewing player (for the split preview),
      *   lastMove:      {x, y} | null,
-     *   effects:       [placeEffect(...) | captureEffect(...)],
+     *   effects:       [placeEffect(...) | captureEffect(...) | makeEffect(kind, ...)],
+     *   overlays:      [{kind: "lily" | "ward", x, y, owner}] -- lasting board markers,
      *   reducedMotion: boolean,
      * }
      * Returns the RGBA buffer (Uint8ClampedArray, width*height*4).
@@ -787,16 +1079,21 @@
       const hover = st.hover && st.hover.x >= 0 && st.hover.y >= 0 && st.hover.x < size && st.hover.y < size ? st.hover : null;
       drawLabels(hover);
 
-      // 6. stones (placement effects draw their own stone while in flight)
+      // 6. lily pads, stones and wards (effects in flight draw their own piece/marker)
       const skip = new Set();
+      const busy = new Set();
       const active = [];
       for (const e of effects) {
         const el = time - e.start;
         if (!frameAt(timelineFor(e.kind, reduced), el)) continue;
         active.push(e);
-        if (e.kind === "place") skip.add(e.y * size + e.x);
+        if (OWNS_CELL.has(e.kind)) skip.add(e.y * size + e.x);
+        busy.add(e.kind + ":" + (e.y * size + e.x));
       }
+      const overlays = st.overlays || [];
+      drawLilyPads(overlays, board, busy);
       drawStones(board, skip);
+      drawWards(overlays, board, busy, time, reduced);
 
       // 7. last-move ember
       if (st.lastMove && !skip.has(st.lastMove.y * size + st.lastMove.x) && board[st.lastMove.y * size + st.lastMove.x]) {
@@ -901,10 +1198,13 @@
     starPoints,
     placeEffect,
     captureEffect,
+    makeEffect,
+    EFFECT_KINDS: Object.keys(TIMELINES),
     effectDuration,
     effectDone,
     pruneEffects,
     diffBoards,
+    diffTurn,
     drawEffect,
     timelineFor,
     PLACE_TIMELINE,

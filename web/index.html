@@ -6,12 +6,14 @@
   <title>GoCalypse</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/colyseus.js@0.16.22/dist/colyseus.js"></script>
+  <script src="sprites.js"></script>
+  <script src="pixelScene.js"></script>
 </head>
 <body>
   <div id="app">
     <section id="lobby">
       <h1>GoCalypse</h1>
-      <p class="tagline">4-player Go. Custom captures. Powerups.</p>
+      <p class="tagline">4-player Go by the lantern river. Custom captures. A night market.</p>
 
       <label>
         Server
@@ -34,18 +36,27 @@
 
       <div id="game-body">
         <div id="board-wrap">
-          <canvas id="board"></canvas>
-          <p class="hint">Left click: place your color &middot; Right click: place your grey pattern stone</p>
+          <canvas id="board" class="px"></canvas>
+          <p id="board-hint" class="hint">Left click: your color &middot; Right click: your grey pattern stone</p>
+          <p id="notice" class="status notice"></p>
           <p id="last-event" class="status"></p>
         </div>
 
         <aside id="sidebar">
-          <div id="players"></div>
+          <div id="players" class="panel"></div>
 
-          <div id="powerups">
-            <h3>Powerups</h3>
-            <div id="powerup-buttons"></div>
-            <p id="targeting-hint" class="hint" hidden>Select a target cell on the board&hellip; <button id="cancel-target">cancel</button></p>
+          <div id="wallet" class="panel"></div>
+
+          <div id="satchel" class="panel">
+            <h3>Satchel</h3>
+            <div id="satchel-items"></div>
+            <p id="targeting-hint" class="hint" hidden></p>
+          </div>
+
+          <div id="market" class="panel">
+            <h3>Night Market</h3>
+            <p id="market-status" class="hint"></p>
+            <div id="market-items"></div>
           </div>
         </aside>
       </div>

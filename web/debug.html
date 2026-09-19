@@ -41,7 +41,7 @@
     .panel {
       position: relative;
       width: 760px;
-      height: 700px;
+      height: 860px;
       overflow: hidden;
       border: 1px solid #2c3138;
       border-radius: 8px;
@@ -61,7 +61,7 @@
     }
     .panel iframe {
       width: 760px;
-      height: 700px;
+      height: 860px;
       border: 0;
     }
   </style>
@@ -69,7 +69,7 @@
 <body>
   <header>
     <h1>GoCalypse — 4-Player Debug</h1>
-    <span class="hint">4 independent clients, auto-joining the same room (staggered to avoid a matchmaking race).</span>
+    <span class="hint">4 independent clients, auto-joining the same debug room (staggered to avoid a matchmaking race). Debug rooms start everyone with 600 fireflies.</span>
     <button id="reload-all">Reload all</button>
   </header>
 
@@ -83,7 +83,9 @@
     function panelSrc(name, delay) {
       // Hash, not a query string: some static hosts 301-redirect
       // "index.html?..." and drop the query string (see main.js for why).
-      const params = new URLSearchParams({ name, autojoin: "1", delay: String(delay) });
+      // room=go_debug: separate matchmaking pool where everyone starts with
+      // enough fireflies to try every Night Market item.
+      const params = new URLSearchParams({ name, autojoin: "1", delay: String(delay), room: "go_debug" });
       if (SERVER) params.set("server", SERVER);
       return `index.html#${params.toString()}`;
     }

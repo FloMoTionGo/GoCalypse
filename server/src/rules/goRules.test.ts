@@ -1,6 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyCaptures, axisOf, boardIndex, findGroup, isSuicide, ownerOf, stoneCode } from "./goRules";
+import {
+  applyCaptures,
+  axisOf,
+  boardIndex,
+  canPlaceNeutral,
+  DRIFTWOOD,
+  findGroup,
+  flipStone,
+  isSuicide,
+  ownerOf,
+  stoneCode,
+} from "./goRules";
 
 // Player identity: 1 = black+dots, 2 = white+dots, 3 = black+stripes, 4 = white+stripes.
 // A move chooses which axis that stone fights on:
@@ -117,4 +128,92 @@ test("not suicide when a real liberty or an allied merge exists on the placed st
   board[boardIndex(size, 1, 1)] = stoneCode(1, "base");
 
   assert.equal(isSuicide(board, size, 1, 1), false);
+});
+
+test("driftwood is owned by no one and is a wall on both views", () => {
+  assert.equal(ownerOf(DRIFTWOOD), 0);
+  const size = 3;
+  const board = new Array(size * size).fill(0);
+  board[boardIndex(size, 1, 1)] = stoneCode(1, "base");
+  board[boardIndex(size, 1, 0)] = DRIFTWOOD;
+  const base = findGroup(board, size, 1, 1, "base");
+  assert.equal(base.group.length, 1);
+  assert.equal(base.liberties, 3);
+
+  // A lone driftwood surrounded by rivals on every view is never captured.
+  const b2 = new Array(size * size).fill(0);
+  b2[boardIndex(size, 1, 1)] = DRIFTWOOD;
+  b2[boardIndex(size, 0, 1)] = stoneCode(2, "base");
+  b2[boardIndex(size, 2, 1)] = stoneCode(2, "base");
+  b2[boardIndex(size, 1, 0)] = stoneCode(4, "pattern");
+  b2[boardIndex(size, 1, 2)] = stoneCode(4, "pattern");
+  assert.equal(applyCaptures(b2, size, 1, 2, stoneCode(4, "pattern")).length, 0);
+  assert.equal(applyCaptures(b2, size, 2, 1, stoneCode(2, "base")).length, 0);
+  assert.equal(b2[boardIndex(size, 1, 1)], DRIFTWOOD);
+});
+
+test("driftwood can't be dropped where it would smother a group", () => {
+  const size = 3;
+  const board = new Array(size * size).fill(0);
+  // Black corner stone at (0,0) with one liberty left at (1,0).
+  board[boardIndex(size, 0, 0)] = stoneCode(1, "base");
+  board[boardIndex(size, 0, 1)] = stoneCode(2, "base");
+  assert.equal(canPlaceNeutral(board, size, 1, 0), false);
+  assert.equal(canPlaceNeutral(board, size, 2, 2), true);
+  assert.equal(canPlaceNeutral(board, size, 0, 1), false); // occupied
+});
+
+test("a protected (warded) group survives with zero liberties", () => {
+  const size = 3;
+  const board = new Array(size * size).fill(0);
+  board[boardIndex(size, 0, 0)] = stoneCode(1, "base");
+  board[boardIndex(size, 1, 0)] = stoneCode(2, "base");
+  board[boardIndex(size, 0, 1)] = stoneCode(2, "base"); // last move
+  const warded = new Set([boardIndex(size, 0, 0)]);
+  const captured = applyCaptures(board, size, 0, 1, stoneCode(2, "base"), (i) => warded.has(i));
+  assert.equal(captured.length, 0);
+  assert.equal(board[boardIndex(size, 0, 0)], stoneCode(1, "base"));
+  // Same position without the ward: captured.
+  assert.equal(applyCaptures(board, size, 0, 1, stoneCode(2, "base")).length, 1);
+});
+
+test("flipStone moves a stone to its other axis and captures on the new view", () => {
+  const size = 3;
+  const board = new Array(size * size).fill(0);
+  // Grey dots (player 1) at (0,0), hemmed in by a stripes stone and ...
+  board[boardIndex(size, 0, 0)] = stoneCode(1, "pattern");
+  board[boardIndex(size, 1, 0)] = stoneCode(3, "pattern");
+  // ... player 3's solid black stone at (0,1), which flips to grey stripes.
+  board[boardIndex(size, 0, 1)] = stoneCode(3, "base");
+  const captured = flipStone(board, size, 0, 1);
+  assert.ok(captured);
+  assert.equal(captured!.length, 1);
+  assert.equal(ownerOf(captured![0].color), 1);
+  assert.equal(board[boardIndex(size, 0, 1)], stoneCode(3, "pattern"));
+  assert.equal(board[boardIndex(size, 0, 0)], 0);
+});
+
+test("flipStone refuses a flip that leaves the flipped stone without liberties", () => {
+  const size = 3;
+  const board = new Array(size * size).fill(0);
+  // Solid black corner stone whose neighbours are stripes (rivals of dots on the pattern view).
+  board[boardIndex(size, 0, 0)] = stoneCode(1, "base");
+  board[boardIndex(size, 1, 0)] = stoneCode(3, "pattern");
+  board[boardIndex(size, 0, 1)] = stoneCode(3, "pattern");
+  const before = board.slice();
+  assert.equal(flipStone(board, size, 0, 0), null);
+  assert.deepEqual(board, before);
+});
+
+test("flipStone refuses a flip that strands a former group-mate", () => {
+  const size = 3;
+  const board = new Array(size * size).fill(0);
+  // Black chain (0,0)-(1,0) whose only liberties come through (1,0).
+  board[boardIndex(size, 0, 0)] = stoneCode(1, "base");
+  board[boardIndex(size, 1, 0)] = stoneCode(3, "base");
+  board[boardIndex(size, 0, 1)] = stoneCode(2, "base");
+  // Flipping (1,0) to pattern turns it into a wall on the base view, leaving (0,0) with none.
+  const before = board.slice();
+  assert.equal(flipStone(board, size, 1, 0), null);
+  assert.deepEqual(board, before);
 });

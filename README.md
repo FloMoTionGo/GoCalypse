@@ -7,15 +7,22 @@ A 4-player custom Go variant, played online and synced live across all players.
 `wss://gocalypse.fly.dev`. Open 4 tabs to fill a room.
 
 **Debugging:** `web/debug.html` fills one tab with all 4 players at once —
-each a real independent client in its own `<iframe>`, scaled down into a 2x2
-grid, auto-joining the same room with staggered delays so they don't race
-into separate rooms. `?server=...` in `debug.html`'s own URL overrides which
-server all 4 point at.
+each a real independent client in its own `<iframe>` in a 2x2 grid,
+auto-joining the same room with staggered delays so they don't race into
+separate rooms. They join `go_debug` rooms: same rules, separate matchmaking,
+and everyone starts with 600 fireflies so the whole market can be tried.
+`?server=...` in `debug.html`'s own URL overrides which server all 4 point at.
+
+**Art:** a 5-colour pixel scene (a board by a lantern river) rendered in
+software from sprites defined in code: `web/sprites.js` (palette, sprites,
+icons) and `web/pixelScene.js` (scene, animations). `web/pixel-preview.html`
+shows every sprite and animation without a server. Design notes and open
+decisions live in `ideas.md`.
 
 Not standard Go rules — this is a free-for-all variant with black/white
-stones distinguished by pattern (dots or stripes), and powerups that trigger
-board-altering actions (bombs, sniping enemy stones, etc). Guests get a
-random display name if not registered.
+stones distinguished by pattern (dots or stripes), and powerups bought at a
+Night Market with fireflies earned in play (see below). Guests get a random
+display name if not registered.
 
 Each player has a fixed identity along two axes:
 
@@ -45,6 +52,27 @@ a view's value — a black stone from player 1 and a black stone from player
 the exact mechanics, including the wall behavior and why suicide is only
 ever checked on the one view a stone actually participates in.
 
+### Fireflies & the Night Market
+
+Placing a stone earns **3 fireflies**, capturing earns **5 per stone**, and
+losing a stone to someone's item pays you **3** as consolation. A player's
+**Night Market** opens after their **5th move**. Buying never takes your turn;
+using an item does. Items that fail (bad target) aren't used up.
+
+| Item | Price | Effect |
+|---|---|---|
+| Driftwood | 15 | Neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Can't smother a group. |
+| Lily Pad | 20 | Reserves an empty point for 3 rounds: only you may play there. |
+| Lantern Ward | 30 | One of your groups can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. |
+| Turn the Lantern | 40 | Flips one of your stones to your other front (solid <-> grey pattern); captures count on the new front. Refused if it would leave it or a former group-mate without liberties. |
+| Gust | 90 | Removes one enemy stone whose group is in atari. Once per match. |
+| Snipe | 140 | Removes any single enemy stone. Once per match. |
+| Firework | 200 | Clears a 3x3 area (your stones and driftwood too; warded stones are spared). Once per match. |
+
+Board code 9 is driftwood (see `goRules.ts`). Timed markers (wards, lily pads,
+driftwood timers) are `GoState.effects`; `GoState.action` records the last move
+or item so clients can play the matching animation.
+
 ## Architecture
 
 - `server/` — authoritative game server ([Colyseus](https://colyseus.io/)),
@@ -53,13 +81,15 @@ ever checked on the one view a stone actually participates in.
   - `src/state/GoState.ts` — synced schema (board, players, turn, etc).
   - `src/rules/goRules.ts` — hand-rolled capture/liberty/suicide rules,
     including the two-view model above (not a general Go rules library).
-  - `src/powerups/` — pluggable powerup registry (`definitions.ts`); add a
-    new powerup by implementing `PowerupDefinition` and registering it.
+  - `src/powerups/` — the Night Market's stock (`definitions.ts`); add a
+    powerup by implementing `PowerupDefinition` (with a price) and adding it
+    to the registry. The client needs a sprite/icon for new ids
+    (`web/sprites.js` `powerupIcon`).
   - `src/rooms/GoRoom.ts` — room lifecycle: join/leave, turn order, move
     validation, powerup dispatch.
-- `web/` — minimal browser client, plain HTML/CSS/JS (no build step, no
-  framework), using `colyseus.js` from a CDN `<script>` tag. Renders the
-  board, player list, and powerup buttons straight off the synced room
+- `web/` — browser client, plain HTML/CSS/JS (no build step, no framework),
+  using `colyseus.js` from a CDN `<script>` tag. `main.js` renders the pixel
+  scene, player list, Satchel and Night Market straight off the synced room
   state (`room.onStateChange`).
 
 ## Running locally

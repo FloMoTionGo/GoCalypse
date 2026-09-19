@@ -241,6 +241,10 @@
     small: stoneZones(11, 11), // capture shrink
     icon: stoneZones(9, 9), // sidebar-size swatch / falling shadow
     big: stoneZones(17, 17), // capture flash burst
+    thin11: stoneZones(11, 15), // "Turn the Lantern" flip: the stone turning edge-on...
+    thin7: stoneZones(7, 15),
+    thin3: stoneZones(3, 15), // ...until only its edge shows
+    mini: stoneZones(7, 7), // owner mark sitting on a lily pad
   };
   const STONES = {};
   for (const look of LOOKS.concat(["flash", "glow"])) {
@@ -261,10 +265,11 @@
    * half = their grey pattern stone, with an ink divider down the middle.
    */
   const splitCache = {};
-  function splitPreviewSprite(playerColor) {
-    if (splitCache[playerColor]) return splitCache[playerColor];
-    const left = stoneSprite(playerColor);
-    const right = stoneSprite(patternCode(playerColor));
+  function splitPreviewSprite(playerColor, shape = "normal") {
+    const key = `${playerColor}_${shape}`;
+    if (splitCache[key]) return splitCache[key];
+    const left = stoneSprite(playerColor, shape);
+    const right = stoneSprite(patternCode(playerColor), shape);
     if (!left || !right) return null;
     const w = left.w, h = left.h, mid = (w - 1) >> 1;
     const px = new Uint8Array(w * h).fill(TRANSPARENT);
@@ -275,7 +280,16 @@
         px[i] = x < mid ? left.px[i] : x > mid ? right.px[i] : K;
       }
     }
-    return (splitCache[playerColor] = makeSprite(`preview_p${playerColor}`, w, h, px));
+    const name = shape === "normal" ? `preview_p${playerColor}` : `preview_p${playerColor}_${shape}`;
+    return (splitCache[key] = makeSprite(name, w, h, px));
+  }
+
+  /** Board code 9 (matches DRIFTWOOD in server/src/rules/goRules.ts): a neutral log. */
+  const DRIFTWOOD = 9;
+  /** Sprite for any board code: stones 1..8, or the driftwood log (which has one shape). */
+  function pieceSprite(code, shape = "normal") {
+    if (code === DRIFTWOOD) return SPRITES.driftwood;
+    return stoneSprite(code, shape);
   }
 
   // ---------------------------------------------------------------------------
@@ -582,6 +596,148 @@
   anim("ripple", 12, [9, 11, 13].map((r, i) => ringSprite(`ripple_${i}`, r, C)), { loop: false });
 
   // ---------------------------------------------------------------------------
+  // Powerups: board pieces, markers and Night Market icons
+  // ---------------------------------------------------------------------------
+
+  // Driftwood: a weathered slate log with a cream cut face and a tuft of moss.
+  SPRITES.driftwood = sprite("driftwood", [
+    "...KKKKKKKKKK..",
+    "..KCKSSSSSTTSKK",
+    ".KCACKSSKSSSSSK",
+    ".KAAAKSSSSSKSSK",
+    ".KCACKSKSSSSSSK",
+    "..KCKSSSSSKSSK.",
+    "...KKKKKKKKKK..",
+  ]);
+
+  /** Lily pad: teal leaf with an ink outline, a cream rim light and a notch. */
+  function lilyPadSprite(name, w, h, notch) {
+    const cx = (w - 1) / 2, cy = (h - 1) / 2, rx = w / 2, ry = h / 2;
+    const inside = (x, y) => {
+      if (x < 0 || y < 0 || x >= w || y >= h) return false;
+      const dx = (x - cx) / rx, dy = (y - cy) / ry;
+      if (dx * dx + dy * dy > 1.02) return false;
+      if (notch && dx * dx + dy * dy > 0.05) {
+        const a = Math.atan2(dy, dx); // notch cut toward the upper right
+        if (Math.abs(a + Math.PI / 3) < 0.3) return false;
+      }
+      return true;
+    };
+    const px = new Uint8Array(w * h).fill(TRANSPARENT);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!inside(x, y)) continue;
+        const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+        const dx = (x - cx) / rx, dy = (y - cy) / ry;
+        const lt = -(dx + dy) / Math.SQRT2, r = Math.sqrt(dx * dx + dy * dy);
+        px[y * w + x] = edge ? K : lt > 0.35 && r > 0.62 ? C : T;
+      }
+    }
+    return makeSprite(name, w, h, px);
+  }
+  SPRITES.lilyBoard = lilyPadSprite("lilyBoard", 15, 13, true);
+  SPRITES.lilyBoardMid = lilyPadSprite("lilyBoardMid", 9, 7, true);
+  SPRITES.lilyBoardBud = lilyPadSprite("lilyBoardBud", 5, 4, false);
+
+  // Lantern Ward: a dashed ring of lantern light turning around the stone,
+  // plus a small paper lantern hanging above it.
+  function dashedRing(name, r, phase) {
+    const size = 2 * r + 1;
+    const px = new Uint8Array(size * size).fill(TRANSPARENT);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (Math.abs(Math.hypot(x - r, y - r) - r) >= 0.5) continue;
+        const a = (Math.atan2(y - r, x - r) + Math.PI) / (2 * Math.PI);
+        px[y * size + x] = Math.floor(a * 12 + phase) % 2 ? A : C;
+      }
+    }
+    return makeSprite(name, size, size, px);
+  }
+  anim("wardRing", 5, [0, 0.5, 1, 1.5].map((p, i) => dashedRing(`wardRing_${i}`, 8, p)));
+  anim("wardBloom", 12, [4, 6, 8].map((r, i) => ringSprite(`wardBloom_${i}`, r, C)), { loop: false });
+  anim("wardLantern", 4, [
+    sprite("wardLantern_0", ["..K..", ".KKK.", "KACAK", "KCCCK", "KACAK", ".KKK.", "..A.."]),
+    sprite("wardLantern_1", ["..K..", ".KKK.", "KAAAK", "KACAK", "KAAAK", ".KKK.", "..a.."]),
+  ]);
+  SPRITES.wardLanternBig = sprite("wardLanternBig", [
+    "....K....",
+    "...KKK...",
+    "..KAAAK..",
+    ".KACCCAK.",
+    "KACCCCCAK",
+    "KACCACCAK",
+    "KACCCCCAK",
+    ".KACCCAK.",
+    "..KAAAK..",
+    "...KKK...",
+    "....A....",
+    "....a....",
+  ]);
+
+  SPRITES.gustIcon = sprite("gustIcon", [
+    "..........CC...",
+    ".........C..C..",
+    "............C..",
+    "CCCCCCCCCCCC...",
+    "...............",
+    "..SSSSSSSSSSS..",
+    "...............",
+    ".CCCCCCCCCC....",
+    "...........C...",
+    "........C..C...",
+    ".........CC....",
+  ]);
+  SPRITES.fireworkIcon = sprite("fireworkIcon", [
+    ".......A.......",
+    "..A....C....A..",
+    "...C...A...C...",
+    "....C.....C....",
+    ".......C.......",
+    "......CAC......",
+    "AAC..CAAAC..CAA",
+    "......CAC......",
+    ".......C.......",
+    "....C.....C....",
+    "...C...A...C...",
+    "..A....C....A..",
+    ".......A.......",
+  ]);
+  SPRITES.flipArrows = sprite("flipArrows", [
+    "....AAAAA......",
+    "..AA.....AA.A..",
+    ".A.........AA..",
+    ".A........AAA..",
+    "...............",
+    "...............",
+    "...............",
+    "...............",
+    "...............",
+    "...............",
+    "..AAA........A.",
+    "..AA.........A.",
+    "..A.AA.....AA..",
+    "......AAAAA....",
+    "...............",
+  ]);
+  // Firework sparks: ink-outlined so they read on the kaya and on white stones alike.
+  anim("burstStar", 12, [
+    sprite("burstStar_0", [".......", "...K...", "..KCK..", ".KCCCK.", "..KCK..", "...K...", "......."]),
+    sprite("burstStar_1", [".....", "..K..", ".KCK.", "..K..", "....."]),
+    sprite("burstStar_2", ["...", ".C.", "..."]),
+  ], { loop: false });
+
+  // Fireflies are the market currency: a little glowing light.
+  SPRITES.fireflyIcon = sprite("fireflyIcon", [
+    "...a...",
+    "..aAa..",
+    ".aACAa.",
+    "aACCCAa",
+    ".aACAa.",
+    "..aAa..",
+    "...a...",
+  ]);
+
+  // ---------------------------------------------------------------------------
   // Pixel fonts: 3x5 for the board margin, 4x6 for the highlighted label.
   // ---------------------------------------------------------------------------
   const FONT_SMALL_ROWS = {
@@ -758,6 +914,46 @@
     return cx - x - font.spacing;
   }
 
+  /** 15x15 Night Market icon for a powerup id (matches server/src/powerups/definitions.ts), or null. */
+  const iconCache = {};
+  function powerupIcon(id) {
+    if (id in iconCache) return iconCache[id];
+    const s = new Surface(15, 15);
+    s.fill(TRANSPARENT);
+    const c = 7;
+    switch (id) {
+      case "driftwood":
+        s.blitCentered(SPRITES.driftwood, c, c - 1);
+        for (const x of [2, 3, 8, 9, 10]) s.set(x, c + 4, T);
+        break;
+      case "lily_pad":
+        s.blitCentered(SPRITES.lilyBoard, c, c + 1);
+        s.blitCentered(SPRITES.flower, c - 3, c - 3);
+        break;
+      case "lantern_ward":
+        s.blitCentered(SPRITES.wardLanternBig, c, c);
+        break;
+      case "turn_lantern":
+        s.blit(SPRITES.flipArrows, 0, 0);
+        s.blitCentered(splitPreviewSprite(1, "icon"), c, c);
+        break;
+      case "gust":
+        s.blitCentered(SPRITES.gustIcon, c, c);
+        break;
+      case "remove_stone":
+        s.blitCentered(ANIMS.reticle.frames[0], c, c);
+        s.blitCentered(stoneSprite(2, "icon"), c, c);
+        break;
+      case "bomb":
+        s.blitCentered(SPRITES.fireworkIcon, c, c);
+        break;
+      default:
+        return (iconCache[id] = null);
+    }
+    return (iconCache[id] = makeSprite(`icon_${id}`, 15, 15, s.px));
+  }
+  const POWERUP_ICON_IDS = ["driftwood", "lily_pad", "lantern_ward", "turn_lantern", "gust", "remove_stone", "bomb"];
+
   /** Every sprite and animation, for sprite sheets and previews. */
   function catalog() {
     const out = [];
@@ -768,6 +964,7 @@
       out.push({ name: `preview_p${p}`, frames: [splitPreviewSprite(p)], fps: 1, group: "stones" });
     for (const k of Object.keys(SPRITES)) out.push({ name: k, frames: [SPRITES[k]], fps: 1, group: "props" });
     for (const k of Object.keys(ANIMS)) out.push({ name: k, frames: ANIMS[k].frames, fps: ANIMS[k].fps, group: "anims" });
+    for (const id of POWERUP_ICON_IDS) out.push({ name: `icon_${id}`, frames: [powerupIcon(id)], fps: 1, group: "icons" });
     return out;
   }
 
@@ -802,6 +999,10 @@
     patternCode,
     stoneSprite,
     splitPreviewSprite,
+    DRIFTWOOD,
+    pieceSprite,
+    powerupIcon,
+    POWERUP_ICON_IDS,
     SPRITES,
     ANIMS,
     FONT_SMALL,

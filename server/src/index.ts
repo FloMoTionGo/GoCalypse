@@ -2,7 +2,7 @@ import http from "http";
 import express from "express";
 import { Server } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { GoRoom } from "./rooms/GoRoom";
+import { GoDebugRoom, GoRoom } from "./rooms/GoRoom";
 
 const port = Number(process.env.PORT) || 2567;
 const app = express();
@@ -16,6 +16,9 @@ const gameServer = new Server({
 });
 
 gameServer.define("go_custom", GoRoom);
+// Separate matchmaking pool for web/debug.html: same rules, but everyone
+// starts with enough fireflies to try every market item.
+gameServer.define("go_debug", GoDebugRoom);
 
 gameServer.listen(port);
 console.log(`GoCalypse server listening on ws://0.0.0.0:${port}`);
