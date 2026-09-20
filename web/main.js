@@ -350,28 +350,15 @@ function reducedMotion() {
   return reducedMotionQuery.matches;
 }
 
-/** The player a board code belongs to: stones 1..8, twin stones 10..13; 0 for empty points and driftwood. */
-function codeOwner(code) {
-  if (code >= 10 && code <= 13) return code - 9;
-  if (code >= 5 && code <= 8) return code - 4;
-  return code >= 1 && code <= 4 ? code : 0;
-}
-
 /**
  * A stone under someone else's mist is not to be seen (nor how it landed) until
- * the mist lifts or the game ends. A fog hides the stones under it from everyone
- * but the player who rolled it and the stones' own owners.
+ * the mist lifts or the game ends. A fog hides every stone under it from every
+ * player, the one who rolled it and the stones' own owners included.
  */
 function isVeiled(x, y, code, list = overlays) {
   if (!lastState || lastState.status === "finished") return false;
   const mine = myPlayer ? myPlayer.color : 0;
-  return list.some(
-    (o) =>
-      o.x === x &&
-      o.y === y &&
-      ((o.kind === "mist" && o.owner !== mine) ||
-        (o.kind === "fog" && o.owner !== mine && (code === undefined || codeOwner(code) !== mine)))
-  );
+  return list.some((o) => o.x === x && o.y === y && (o.kind === "fog" || (o.kind === "mist" && o.owner !== mine)));
 }
 
 function veiled(cells, list) {
@@ -398,7 +385,8 @@ function frame() {
   const snap = viewedSnap();
   scene.render({
     time: now,
-    board: veiled(snap ? snap.board : board, snap ? snap.overlays : overlays),
+    // The recall strip must not give away what a fog hides: a fog on the board now covers the older boards too.
+    board: veiled(snap ? snap.board : board, snap ? snap.overlays.concat(overlays.filter((o) => o.kind === "fog")) : overlays),
     hover: snap ? null : hoverPoint,
     hoverKind: hoverKind(),
     myColor: myPlayer ? myPlayer.color : 0,
