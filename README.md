@@ -28,9 +28,6 @@ nothing inside, so the board and its grid lines show through it. Each player
 holds two of them, one of black/white and one of gray/transparent. The player
 boxes beside the board show both at full board size with their names.
 
-**Project docs:** `state.md` is a snapshot of what's built, live and missing;
-`ideas.md` holds the plans and open design decisions.
-
 Not standard Go rules — this is a free-for-all variant with four kinds of
 stone (black, white, gray and transparent), and powerups bought at a
 Night Market with fireflies earned in play (see below). Guests get a random
