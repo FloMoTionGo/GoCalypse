@@ -21,7 +21,7 @@
   // Layout (native pixels)
   // ---------------------------------------------------------------------------
   const SPACING = 16; // native px between grid lines (x2 = today's 32 CSS px)
-  const FRAME = 9; // dark lacquer frame band around the kaya (holds the labels)
+  const FRAME = 11; // dark lacquer frame band around the kaya (holds the labels)
   const KAYA_MARGIN = 8; // kaya between the outer grid line and the frame
   const FRONT = 5; // visible front face of the deck
   // The deck is a pier standing in the river: water runs all the way round it.
@@ -1212,7 +1212,7 @@
         const label = String(i);
         const w = G.textWidth(f, label);
         if (!(hover && hover.x === i)) {
-          G.drawText(surf, f, label, L.gridX + i * SPACING - (w >> 1), L.boardY + 2, A);
+          G.drawText(surf, f, label, L.gridX + i * SPACING - (w >> 1), L.boardY + ((FRAME - 5) >> 1), A);
         }
         if (!(hover && hover.y === i)) {
           const cx = L.boardX + (FRAME >> 1);
