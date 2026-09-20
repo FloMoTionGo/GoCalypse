@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>GoCalypse mock: new features</title>
+<link rel="stylesheet" href="../web/style.css" />
+<script src="../web/sprites.js"></script>
+<script src="../web/pixelScene.js"></script>
+<style>
+  #picker { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+  #picker button.on { background: var(--amber); color: var(--ink); }
+  .note { color: var(--slate); font-size: 13px; max-width: 900px; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <p class="note">Static mock of the new features, using the real stylesheet and pixel scene. Pick a state:
+  <b>live</b> (toolbar, firefly boat, greyed passed players, full market text), <b>PASS sign</b> (frozen mid-hold),
+  <b>looking back</b> (recall bar at -3), <b>oldest move</b> (back arrow disabled). Sample data only, no server.</p>
+  <div id="picker"></div>
+
+  <section id="game">
+    <header id="game-header">
+      <div id="toolbar">
+        <button class="link-button" type="button">How to play</button>
+        <button class="link-button" type="button">Pass</button>
+        <div id="recall">
+          <button id="recall-back" type="button">&#9664;</button>
+          <span id="recall-steps"></span>
+          <button id="recall-fwd" type="button">&#9654;</button>
+          <button id="recall-live" type="button">Live</button>
+        </div>
+        <button class="link-button" type="button">Leave game</button>
+      </div>
+      <div class="header-right">
+        <div id="room-status">Game in progress · 2/4 passed</div>
+        <div id="turn-indicator">Your turn</div>
+      </div>
+    </header>
+    <div id="game-body">
+      <div id="board-wrap">
+        <canvas id="board" class="px"></canvas>
+        <p id="last-event" class="status">Reed passed (2 of 4 in a row)</p>
+      </div>
+      <aside id="sidebar">
+        <div id="players" class="panel"></div>
+        <div id="market" class="panel"><h3>Night Market</h3><div id="market-items"></div></div>
+      </aside>
+    </div>
+  </section>
+</div>
+<script>
+(function () {
+  const G = window.GoSprites, P = window.GoPixelScene;
+  const urlCache = {};
+  function img(key, spr, scale) {
+    if (!urlCache[key]) {
+      const c = document.createElement("canvas");
+      c.width = spr.w; c.height = spr.h;
+      const ctx = c.getContext("2d"), d = ctx.createImageData(spr.w, spr.h);
+      for (let i = 0; i < spr.px.length; i++) {
+        const v = spr.px[i];
+        if (v === G.TRANSPARENT) continue;
+        const rgb = G.PALETTE_RGB[v];
+        d.data.set([rgb[0], rgb[1], rgb[2], 255], i * 4);
+      }
+      ctx.putImageData(d, 0, 0);
+      urlCache[key] = c.toDataURL();
+    }
+    const el = document.createElement("img");
+    el.className = "px"; el.src = urlCache[key]; el.width = spr.w * scale; el.height = spr.h * scale;
+    return el;
+  }
+  function ff(n) {
+    const s = document.createElement("span");
+    s.className = "ff";
+    s.append(img("ff", G.SPRITES.fireflyIcon, 2), String(n));
+    return s;
+  }
+
+  // ---- sample players ------------------------------------------------------
+  const PLAYERS = [
+    { name: "You", color: 1, ff: 12, score: 3, passed: false, look: "black + gray", current: true },
+    { name: "Mira (bot)", color: 2, ff: 9, score: 1, passed: true, look: "white + transparent" },
+    { name: "Reed (bot)", color: 3, ff: 15, score: 2, passed: true, look: "black + gray" },
+    { name: "Bo", color: 4, ff: 7, score: 0, passed: false, look: "white + transparent" },
+  ];
+  let look_flag;
+  function renderPlayers() {
+    const box = document.getElementById("players");
+    box.replaceChildren();
+    for (const p of PLAYERS) {
+      const row = document.createElement("div");
+      row.className = "player-row";
+      if (p.current) row.classList.add("current");
+      if (p.passed) row.classList.add("passed");
+      const sw = document.createElement("span");
+      sw.className = "swatch-pair";
+      sw.append(img("s" + p.color, G.stoneSprite(p.color), 2), img("s" + (p.color + 4), G.stoneSprite(p.color + 4), 2));
+      const top = document.createElement("span");
+      top.className = "top";
+      const name = document.createElement("span");
+      name.className = "name"; name.textContent = p.name;
+      const sc = document.createElement("span");
+      sc.className = "score"; sc.textContent = p.score;
+      top.append(name, ff(p.ff), sc);
+      if (p.passed) {
+        const f = document.createElement("span");
+        f.className = "pass-flag"; f.textContent = "passed";
+        look_flag = f;
+      }
+      const look = document.createElement("span");
+      look.className = "look"; look.textContent = p.look;
+      if (p.passed) look.append(look_flag);
+      const info = document.createElement("span");
+      info.className = "info"; info.append(top, look);
+      row.append(sw, info);
+      box.append(row);
+    }
+  }
+
+  const MARKET = [
+    ["driftwood", "Driftwood", 4, "Drop a log on an empty point: a wall on both fronts that no one owns or can capture. Floats away after 3 rounds."],
+    ["lantern_ward", "Lantern Ward", 6, "Light a lantern over one of your groups: it can't be captured or removed until your next turn."],
+    ["turn_lantern", "Turn the Lantern", 5, "Flip one of your stones to your other front (black/white <-> gray/transparent). Captures count on the new front."],
+  ];
+  function renderMarket() {
+    const box = document.getElementById("market-items");
+    box.replaceChildren();
+    for (const [id, name, price, desc] of MARKET) {
+      const b = document.createElement("button");
+      b.className = "item";
+      const text = document.createElement("span");
+      text.className = "text";
+      const title = document.createElement("span");
+      title.className = "title";
+      const n = document.createElement("span");
+      n.textContent = name;
+      title.append(n, ff(price));
+      const d = document.createElement("span");
+      d.className = "desc"; d.textContent = desc;
+      text.append(title, d);
+      b.append(img("i" + id, G.powerupIcon(id) || G.SPRITES.fireflyIcon, 2), text);
+      box.append(b);
+    }
+  }
+
+  // ---- scene -----------------------------------------------------------------
+  const SIZE = 13, scene = P.createScene({ size: SIZE });
+  const canvas = document.getElementById("board");
+  canvas.width = scene.width; canvas.height = scene.height;
+  canvas.style.width = scene.width * 3 + "px"; canvas.style.height = scene.height * 3 + "px";
+  const ctx = canvas.getContext("2d"), image = ctx.createImageData(scene.width, scene.height);
+  const board = new Array(SIZE * SIZE).fill(0);
+  [[3,3,1],[3,4,5],[4,4,2],[5,3,6],[6,6,3],[7,6,7],[8,8,4],[9,3,8],[6,9,1],[5,5,2]].forEach((s) => (board[s[1] * SIZE + s[0]] = s[2]));
+  const T0 = 20; // a fixed moment, so the boats sit still
+  function draw(state) {
+    scene.render({
+      time: T0, board: board, hover: null, hoverKind: "none", myColor: 1, lastMove: { x: 5, y: 5 },
+      effects: [], overlays: [], storm: null, round: 4, fireflies: 12, turnCount: 15, roundLength: 4, stormUntil: 0,
+      reducedMotion: true, passFlash: state === "pass" ? T0 - 0.5 : undefined,
+    });
+    image.data.set(scene.rgba);
+    ctx.putImageData(image, 0, 0);
+  }
+
+  // ---- recall bar ------------------------------------------------------------
+  function recall(off, max) {
+    document.getElementById("recall-steps").textContent = off === 0 ? "0" : "-" + off;
+    document.getElementById("recall-back").disabled = off >= max;
+    document.getElementById("recall-fwd").disabled = off === 0;
+    document.getElementById("recall").classList.toggle("looking", off > 0);
+    canvas.classList.toggle("recalling", off > 0);
+  }
+
+  const STATES = {
+    live: function () { recall(0, 5); draw("live"); },
+    pass: function () { recall(0, 5); draw("pass"); },
+    back: function () { recall(3, 5); draw("live"); },
+    oldest: function () { recall(5, 5); draw("live"); },
+  };
+  const LABELS = { live: "live", pass: "PASS sign", back: "looking back (-3)", oldest: "oldest move (-5)" };
+  const picker = document.getElementById("picker");
+  function pick(k) {
+    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === k));
+    STATES[k]();
+  }
+  Object.keys(STATES).forEach((k) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.k = k; b.textContent = LABELS[k];
+    b.addEventListener("click", () => pick(k));
+    picker.append(b);
+  });
+  renderPlayers();
+  renderMarket();
+  pick(new URLSearchParams(location.search).get("state") || "live");
+})();
+</script>
+</body>
+</html>

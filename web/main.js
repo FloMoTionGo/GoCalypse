@@ -25,7 +25,6 @@ const boardEl = document.getElementById("board");
 const noticeEl = document.getElementById("notice");
 const lastEventEl = document.getElementById("last-event");
 const playersEl = document.getElementById("players");
-const walletEl = document.getElementById("wallet");
 const satchelItemsEl = document.getElementById("satchel-items");
 const satchelCountEl = document.getElementById("satchel-count");
 const targetingHintEl = document.getElementById("targeting-hint");
@@ -75,7 +74,6 @@ let nextSnapId = 1;
 let viewId = null; // id of the snapshot on screen, or null while live
 const recallEl = document.getElementById("recall");
 const recallStepsEl = document.getElementById("recall-steps");
-const recallLabelEl = document.getElementById("recall-label");
 let noticeTimer = null;
 let welcomeChecked = false;
 let resultOpened = false; // the final scores open by themselves once, when the game ends
@@ -215,7 +213,7 @@ async function rejoinAfterDrop(inGame) {
 
 let leaving = false;
 let lastPasses = 0;
-let passTimer;
+let passFlashAt;
 
 function attachRoom(joined) {
   lastPasses = 0;
@@ -294,16 +292,10 @@ function setLobbyStatus(text, isError) {
   lobbyStatus.classList.toggle("error", !!isError);
 }
 
-/** A pass is easy to miss in the log line: flash a banner when the pass count goes up. */
+/** A pass is easy to miss in the log line: show the pixel PASS sign when the pass count goes up. */
 function showPass(state) {
-  const banner = document.getElementById("pass-banner");
   if (state.status === "playing" && state.passes > lastPasses && /passed/.test(state.lastEvent || "")) {
-    banner.textContent = `${state.lastEvent} -- ${state.passes} of ${state.players.length} passes ends the game`;
-    banner.hidden = false;
-    clearTimeout(passTimer);
-    passTimer = setTimeout(() => (banner.hidden = true), 4000);
-  } else if (state.passes === 0 || state.status !== "playing") {
-    banner.hidden = true;
+    passFlashAt = clock();
   }
   lastPasses = state.passes;
 }
@@ -379,6 +371,8 @@ function frame() {
     overlays: snap ? snap.overlays : overlays,
     storm: snap ? null : storm,
     round: roundLength > 0 ? Math.floor((snap ? snap.turnCount : turnCount) / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
+    passFlash: passFlashAt,
+    fireflies: myPlayer ? myPlayer.fireflies : undefined,
     turnCount: snap ? snap.turnCount : turnCount,
     roundLength,
     stormUntil: snap ? snap.stormUntil : stormUntil,
@@ -509,19 +503,12 @@ function renderRecall() {
   const back = history.length - 1;
   recallEl.hidden = back < 1;
   const off = viewOffset();
-  recallStepsEl.replaceChildren();
-  for (let i = back; i >= 1; i--) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = String(i);
-    b.title = `${i} move${i === 1 ? "" : "s"} back`;
-    b.classList.toggle("on", i === off);
-    b.addEventListener("click", () => setView(i));
-    recallStepsEl.append(b);
-  }
-  recallEl.classList.toggle("looking", off > 0);
+  recallStepsEl.textContent = off === 0 ? "0" : `-${off}`;
   const snap = viewedSnap();
-  recallLabelEl.textContent = snap ? `${off} back: ${snap.event}` : "";
+  recallStepsEl.title = snap ? `${off} back: ${snap.event}` : "Moves back from the live board";
+  document.getElementById("recall-back").disabled = off >= back;
+  document.getElementById("recall-fwd").disabled = off === 0;
+  recallEl.classList.toggle("looking", off > 0);
   boardEl.classList.toggle("recalling", off > 0);
 }
 
@@ -1103,7 +1090,6 @@ function rebuild(el, signature, build) {
 
 function renderSidebar(state) {
   renderPlayers(state);
-  renderWallet(state);
   renderSatchel(state);
   renderMarket(state);
 }
@@ -1112,7 +1098,7 @@ function renderPlayers(state) {
   const players = Array.from(state.players);
   const sig = JSON.stringify([
     state.turnIndex, state.status, myPlayer && myPlayer.sessionId,
-    players.map((p) => [p.name, p.color, p.connected, p.bot, p.score, p.fireflies, p.finalScore, p.place]),
+    players.map((p) => [p.name, p.color, p.connected, p.bot, p.passed, p.score, p.fireflies, p.finalScore, p.place]),
   ]);
   rebuild(playersEl, sig, () => {
     // Listed by color, which is also the turn order (the synced array is join order).
@@ -1123,6 +1109,7 @@ function renderPlayers(state) {
       if (state.status === "playing" && index === state.turnIndex) row.classList.add("current");
       if (state.status === "finished" && player.place === 1) row.classList.add("current"); // the winner(s)
       if (!player.connected) row.classList.add("disconnected");
+      if (state.status === "playing" && player.passed) row.classList.add("passed");
 
       // Both of the player's stones at full board size, so black, white, gray and
       // transparent can be told apart at a glance, and named underneath the name.
@@ -1146,9 +1133,16 @@ function renderPlayers(state) {
       const top = document.createElement("span");
       top.className = "top";
       top.append(name, fireflies(player.fireflies), score);
+      const flag = document.createElement("span");
+      flag.className = "pass-flag";
+      flag.textContent = "passed";
+      if (state.status === "playing" && player.passed) {
+        top.dataset.passed = "1";
+      }
       const look = document.createElement("span");
       look.className = "look";
       look.textContent = `${baseName} + ${otherName}`;
+      if (top.dataset.passed) look.append(flag);
       const info = document.createElement("span");
       info.className = "info";
       info.append(top, look);
@@ -1156,17 +1150,6 @@ function renderPlayers(state) {
       row.append(swatches, info);
       playersEl.appendChild(row);
     });
-  });
-}
-
-function renderWallet(state) {
-  const amount = myPlayer ? myPlayer.fireflies : 0;
-  rebuild(walletEl, String(amount), () => {
-    const label = document.createElement("span");
-    label.textContent = "Your fireflies";
-    const value = fireflies(amount);
-    value.classList.add("amount");
-    walletEl.append(label, value);
   });
 }
 

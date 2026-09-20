@@ -6,6 +6,7 @@ export class PlayerState extends Schema {
   @type("number") color: number = 0; // 1-4, assigned on join
   @type("boolean") connected: boolean = true;
   @type("boolean") bot: boolean = false; // a seat played by the server, not a socket
+  @type("boolean") passed: boolean = false; // passed in the current run of passes (reset by any stone or item)
   @type("number") score: number = 0; // stones captured
   @type("number") fireflies: number = 0; // market currency, earned this match
   @type("number") moves: number = 0; // stones placed; the market opens after GoState.shopAfter

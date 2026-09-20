@@ -1352,12 +1352,16 @@
     // for orientation, like a clock on the wall.
     const BOAT_X0 = 34, BOAT_X1 = W - 34, BOAT_SPEED = 3.5; // px per second
     const BOAT_WATERLINE = L.riverY0 + 21; // the hull's bottom row
-    function drawBoat(t, round) {
+    // The firefly boat is the same craft going the other way: slower, lower in the
+    // water, with a dark sign and the firefly icon, so the two never read as one.
+    const FIREBOAT = { speed: 2.2, dir: -1, phase: 0.37, waterline: L.riverY0 + 27, bob: 1.3, sign: C, edge: K, text: K, icon: true };
+    function drawBoat(t, label, opts) {
+      const o = opts || { speed: BOAT_SPEED, dir: 1, phase: 0, waterline: BOAT_WATERLINE, bob: 0.9, sign: C, edge: K, text: K };
       const span = BOAT_X1 - BOAT_X0;
-      const u = frac((t * BOAT_SPEED) / (2 * span));
+      const u = frac(o.phase + o.dir * ((t * o.speed) / (2 * span)));
       const leg = u < 0.5 ? u * 2 : 2 - u * 2; // there and back
       const cx = Math.round(BOAT_X0 + (0.5 - 0.5 * Math.cos(Math.PI * leg)) * span); // slowing at each turn
-      const wl = BOAT_WATERLINE + Math.round(Math.sin(t * 1.6) * 0.9);
+      const wl = o.waterline + Math.round(Math.sin(t * 1.6 + o.phase * 9) * o.bob);
       const hull = G.SPRITES.boatHull;
       const hullTop = wl - hull.h + 1;
       const ripple = Math.floor(t * 2) & 1;
@@ -1367,18 +1371,48 @@
       }
       surf.blit(hull, cx - (hull.w >> 1), hullTop);
 
-      const label = "R" + round;
-      const sw = G.textWidth(G.FONT_BIG, label) + 4, sh = 10;
+      const icon = o.icon ? G.SPRITES.fireflyIcon : null;
+      const iconW = icon ? icon.w + 2 : 0;
+      const sw = G.textWidth(G.FONT_BIG, label) + iconW + 4, sh = Math.max(10, icon ? icon.h + 4 : 0);
       const mastTop = hullTop - 4;
       for (let y = mastTop; y < hullTop; y++) surf.set(cx, y, K);
       const sx = cx - (sw >> 1), sy = mastTop - sh;
       for (let y = 0; y < sh; y++) {
         for (let x = 0; x < sw; x++) {
           const edge = x === 0 || y === 0 || x === sw - 1 || y === sh - 1;
-          surf.set(sx + x, sy + y, edge ? K : C);
+          surf.set(sx + x, sy + y, edge ? o.edge : o.sign);
         }
       }
-      G.drawText(surf, G.FONT_BIG, label, sx + 2, sy + 2, K);
+      if (icon) surf.blit(icon, sx + 2, sy + ((sh - icon.h) >> 1));
+      G.drawText(surf, G.FONT_BIG, label, sx + 2 + iconW, sy + ((sh - G.FONT_BIG.height) >> 1), o.text);
+    }
+
+    /** "PASS" at triple size on an ink plate in the middle of the board; holds, then dithers away. */
+    const PASS_HOLD = 1.6, PASS_FADE = 0.7;
+    function drawPassSign(age) {
+      if (age < 0 || age > PASS_HOLD + PASS_FADE) return;
+      const fade = age > PASS_HOLD ? (age - PASS_HOLD) / PASS_FADE : 0;
+      const label = "PASS", scale = 3, font = G.FONT_BIG;
+      const tw = G.textWidth(font, label) * scale, th = font.height * scale;
+      const pw = tw + 10, ph = th + 6;
+      const px0 = L.boardX + ((L.boardW - pw) >> 1), py0 = L.boardY + ((L.boardH - ph) >> 1);
+      const on = (x, y) => fade === 0 || G.ditherOn(x, y, 1 - fade);
+      for (let y = 0; y < ph; y++) {
+        for (let x = 0; x < pw; x++) {
+          const edge = x === 0 || y === 0 || x === pw - 1 || y === ph - 1;
+          if (on(px0 + x, py0 + y)) surf.set(px0 + x, py0 + y, edge ? A : K);
+        }
+      }
+      let cx = px0 + 5;
+      for (const ch of label) {
+        const g = font.glyphs[ch];
+        for (let y = 0; y < g.h * scale; y++) {
+          for (let x = 0; x < g.w * scale; x++) {
+            if (g.bits[((y / scale) | 0) * g.w + ((x / scale) | 0)] && on(cx + x, py0 + 3 + y)) surf.set(cx + x, py0 + 3 + y, C);
+          }
+        }
+        cx += (g.w + font.spacing) * scale;
+      }
     }
 
     /**
@@ -1460,6 +1494,8 @@
      *   overlays:      [{kind: "lily" | "ward" | "drift" | "fire", x, y, owner, until}] -- timed board
      *                  pieces; each shows its rounds left, and owned ones carry their owner's mark,
      *   round:         the number on the boat's signboard: the round being played (scenery: it drifts on its own clock),
+     *   passFlash:     time (seconds) a pass happened, to show the PASS sign (omit for none),
+     *   fireflies:     the viewing player's firefly count, on a second boat (omit for none),
      *   turnCount:     the room's turn counter (lets a fire show its last round, and every timer its rounds),
      *   roundLength:   players in the room (how many turns make one round),
      *   storm:         {start: seconds, seq, strikes: [{x, y}, ...]} while a storm plays,
@@ -1505,7 +1541,8 @@
       }
 
       // 3b. the turn boat, drifting on its own clock (only its sign follows play)
-      drawBoat(t, st.round === undefined ? 1 : st.round);
+      drawBoat(t, "R" + (st.round === undefined ? 1 : st.round));
+      if (st.fireflies !== undefined) drawBoat(t, String(st.fireflies), FIREBOAT);
 
       // 4. props: reeds, stone lantern, garland
       for (const rd of reeds) surf.blit(animFrame(rd.anim, t, rd.phase / 3), rd.x, rd.y);
@@ -1619,6 +1656,9 @@
       // storm doesn't dim, and they keep burning long after it has passed.
       drawFires(overlays, busy, time, reduced, st.turnCount, st.roundLength || 0, pendingFires);
       drawTimers(overlays, board, busy, st.turnCount, st.roundLength || 0, pendingFires);
+
+      // 8d. a pass: a quick PASS sign over the board that fades out
+      if (st.passFlash !== undefined) drawPassSign(time - st.passFlash);
 
       // 9. hover: split preview or powerup reticle, then the highlighted labels
       if (hover) {

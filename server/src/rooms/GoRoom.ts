@@ -67,6 +67,9 @@ interface AddBotsMessage {
 
 const BOARD_SIZE = 13;
 const MAX_PLAYERS = 4;
+// Later seats move later, so they start with fireflies: SEAT_BONUS per place in the
+// turn order (0, 5, 10, 15). Under the cheapest item's price, so no one shops on it alone.
+export const SEAT_BONUS = 5;
 const MAX_BOTS = 3; // bots a table may be given in all, from any mix of kinds
 const SHOP_AFTER_MOVES = 5;
 const FIREFLIES_PER_MOVE = 3;
@@ -232,6 +235,9 @@ export class GoRoom extends Room<GoState> {
   }
 
   private startGame() {
+    this.turnOrder().forEach((playerIndex, seat) => {
+      this.state.players[playerIndex].fireflies += SEAT_BONUS * seat;
+    });
     this.state.status = "playing";
     this.state.turnIndex = this.turnOrder()[0];
     // Stop matchmaking from offering this room to fresh joinOrCreate
@@ -721,7 +727,7 @@ export class GoRoom extends Room<GoState> {
     player.score += captured.length;
     player.moves += 1;
     player.fireflies += FIREFLIES_PER_MOVE + FIREFLIES_PER_CAPTURE * captured.length;
-    this.state.passes = 0;
+    this.clearPasses();
 
     this.recordAction("move", "", x, y, player.color);
     this.state.lastEvent = `${player.name} played (${x}, ${y})${
@@ -729,6 +735,12 @@ export class GoRoom extends Room<GoState> {
     }`;
     this.advanceTurn();
     return null;
+  }
+
+  /** A stone or an item ends the run of passes: every seat may play on again. */
+  private clearPasses() {
+    this.state.passes = 0;
+    for (const p of this.state.players) p.passed = false;
   }
 
   private handlePass(client: Client) {
@@ -749,6 +761,7 @@ export class GoRoom extends Room<GoState> {
     const state = this.state;
     const player = state.players[playerIndex];
     state.passes += 1;
+    player.passed = true;
     if (state.passes >= state.players.length) {
       this.finishGame();
       return null;
@@ -869,7 +882,7 @@ export class GoRoom extends Room<GoState> {
     }
 
     player.powerups.splice(inventoryIndex, 1);
-    this.state.passes = 0;
+    this.clearPasses();
     this.recordAction("powerup", definition.id, target!.x, target!.y, player.color);
     this.state.lastEvent = `${player.name} used ${definition.name}`;
     this.advanceTurn();

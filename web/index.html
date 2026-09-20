@@ -42,7 +42,6 @@
           <button id="bots-button" class="link-button" type="button" hidden>Add bots</button>
           <button id="result-button" class="link-button" type="button" hidden>Results</button>
           <button id="pass-button" class="link-button" type="button" hidden>Pass</button>
-          <div id="pass-banner" hidden></div>
           <button id="leave-button" class="link-button" type="button">Leave game</button>
         </div>
         <div class="header-right">
@@ -56,10 +55,9 @@
           <canvas id="board" class="px"></canvas>
           <div id="recall" hidden>
             <button id="recall-back" type="button" aria-label="One move back" title="One move back (left arrow)">&#9664;</button>
-            <span id="recall-steps"></span>
+            <span id="recall-steps" title="Moves back from the live board"></span>
             <button id="recall-fwd" type="button" aria-label="One move forward" title="One move forward (right arrow)">&#9654;</button>
             <button id="recall-live" type="button" title="Back to the live board (Esc)">Live</button>
-            <span id="recall-label"></span>
           </div>
           <p id="board-hint" class="hint">Left click: your black or white stone &middot; Right click: your gray or transparent stone</p>
           <p id="notice" class="status notice"></p>
@@ -70,8 +68,6 @@
           <div id="players" class="panel"></div>
 
           <div id="weather" class="panel"></div>
-
-          <div id="wallet" class="panel"></div>
 
           <div id="satchel" class="panel">
             <h3>Satchel <span id="satchel-count" class="count-tag"></span></h3>
