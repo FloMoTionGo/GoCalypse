@@ -228,8 +228,8 @@ share `localStorage`, so the first-visit welcome screen opens in panel 1 only
   haloed mini split stone of the owner at the upper left, plus the tag. Wards
   turn a ring of light and hang a lantern on every warded stone.
 - **The turn boat:** a small boat drifts back and forth along the wide river
-  under the board with a sign reading "T" and the turn now being played
-  (`turnCount + 1`). It moves on its own clock (frozen by reduced motion), not
+  under the board with a sign reading "R" and the round now being played
+  (`floor(turnCount / players) + 1`; one round = 4 turns). It moves on its own clock (frozen by reduced motion), not
   the game's; only the number follows play. `drawBoat` in `pixelScene.js`.
 - **Sidebar:** exactly 250px wide (`min-width: 0`, so a long name ellipsizes
   instead of widening it). Each player gets a box with both stones at full

@@ -9,8 +9,8 @@ import {
 } from "../rules/goRules";
 import { chooseAction, chooseBuy } from "./index";
 import { Rng } from "./rng";
-import { BotView, rankMoves, scoreMove } from "./scoring";
-import { heron, magpie, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
+import { BotView, isPointless, rankMoves, scoreMove } from "./scoring";
+import { heron, magpie, moth, oldToad, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
 
 // The players are pure functions over a plain board, so everything below runs
 // without a room, a socket or a clock. Seat 1 is black+gray throughout.
@@ -241,4 +241,50 @@ test("the balanced bot would rather take the board than a ward it barely needs",
   for (const [x, y] of [[1, 2], [3, 2], [2, 1]]) v.board[boardIndex(size, x, y)] = stoneCode(1, "base");
   const action = chooseAction(v, tanuki(), new Rng(1));
   assert.equal(action.kind, "move");
+});
+
+test("a bot with judgement passes when every point left is a loss", () => {
+  const size = 3;
+  const v = view(size, 1);
+  // Driftwood everywhere but two adjacent corner points: a stone on either
+  // would sit on its last liberty and take nothing for it.
+  v.board = [0, 0, 9, 9, 9, 9, 9, 9, 9];
+  assert.ok(rankMoves(v, heron()).length > 0, "there are legal points to be declined");
+  assert.deepEqual(chooseAction(v, heron(), new Rng(7)), { kind: "pass" });
+  // The fallback style has no judgement and plays any legal point.
+  assert.equal(chooseAction(v, randomStyle(), new Rng(7)).kind, "move");
+});
+
+test("a move that only refills its own area is pointless, one that grows it is not", () => {
+  const size = 5;
+  const v = view(size, 1);
+  // A black wall across row 2 with two liberties to spare: the empty points
+  // above it are black area on the base front already.
+  for (let x = 0; x < size; x++) v.board[boardIndex(size, x, 2)] = stoneCode(1, "base");
+  for (let x = 0; x < size; x++) v.board[boardIndex(size, x, 3)] = stoneCode(1, "pattern");
+  for (let x = 0; x < size; x++) v.board[boardIndex(size, x, 4)] = 9;
+  const fill = rankMoves(v, heron()).find((c) => c.x === 2 && c.y === 1 && c.axis === "base");
+  assert.ok(fill, "the fill is a legal point");
+  assert.equal(isPointless(v, fill), true);
+  const open = view(size, 1);
+  const first = rankMoves(open, heron())[0];
+  assert.equal(isPointless(open, first), false);
+});
+
+test("a bot with judgement still plays on an open board", () => {
+  for (const style of [heron(), tanuki(), oldToad(), moth()]) {
+    const action = chooseAction(view(7, 1), style, new Rng(3));
+    assert.equal(action.kind, "move", style.name);
+  }
+});
+
+test("a move that would repeat a board position is not offered", () => {
+  const size = 5;
+  const v = view(size, 1, { repeats: () => true });
+  assert.equal(rankMoves(v, heron()).length, 0);
+  const only = 12; // ko applies only to the point that recreates the board
+  const w = view(size, 1, { repeats: (b) => b[only] !== 0 });
+  const ranked = rankMoves(w, heron());
+  assert.ok(ranked.length > 0);
+  assert.ok(ranked.every((c) => boardIndex(size, c.x, c.y) !== only));
 });

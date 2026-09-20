@@ -1,6 +1,7 @@
 import { Client, Delayed, Room } from "colyseus";
 import { BoardEffect, GoState, MarketItem, PlayerState } from "../state/GoState";
 import { randomGuestName } from "../util/usernames";
+import { deleteSnapshot, restoreState, saveSnapshot, takeRestore } from "../state/persist";
 import {
   applyCaptures,
   axisOf,
@@ -15,6 +16,7 @@ import {
   StoneView,
 } from "../rules/goRules";
 import { areaScore, finalResults } from "../rules/endgame";
+import { PositionHistory } from "../rules/ko";
 import { getPowerup, marketStock } from "../powerups/definitions";
 import { EffectKind, PowerupContext } from "../powerups/types";
 import {
@@ -41,6 +43,7 @@ import {
 
 interface JoinOptions {
   name?: string;
+  playerKey?: string; // secret the browser tab keeps, to win its seat back after a disconnect or restart
 }
 
 interface MoveMessage {
@@ -76,6 +79,22 @@ const DEBUG_STORM_EVERY_TURNS = 6; // debug rooms roll far more often, so storms
 // take over a seat whose player is gone for good (ideas.md D-G8).
 const BOT_THINK_MIN_MS = 700;
 const BOT_THINK_SPREAD_MS = 700;
+const SAVE_EVERY_MS = 1000;
+// After a restart nobody is connected. Seats not claimed back within this long
+// are handed to lantern keepers, as for a player who drops mid-game.
+const RESTORE_GRACE_MS = 120_000;
+
+/** Rooms alive in this process, so /rejoin can find the one a returning player belongs to. */
+const liveRooms = new Set<GoRoom>();
+
+export function findRoomForKey(key: string): GoRoom | undefined {
+  for (const room of liveRooms) if (room.seatFor(key)) return room;
+  return undefined;
+}
+
+function cleanKey(value: unknown): string {
+  return typeof value === "string" ? value.slice(0, 64) : "";
+}
 
 export class GoRoom extends Room<GoState> {
   maxClients = MAX_PLAYERS;
@@ -85,11 +104,17 @@ export class GoRoom extends Room<GoState> {
   protected stormEvery = STORM_EVERY_TURNS;
   private botTimer?: Delayed;
   private botStyles = new Map<string, Style>();
+  private seatKeys = new Map<number, string>(); // player color -> that player's secret; see state/persist.ts
+  private lastSaved = "";
+  private shuttingDown = false;
+  // Every board position so far, for the ko rule (rules/ko.ts).
+  private positions = new PositionHistory();
   // Seeded per room, so two tables never play out the same. Tests drive the
   // bot functions directly with a seed of their own.
   private rng = new Rng((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
 
-  onCreate() {
+  onCreate(options?: { restoreToken?: string }) {
+    const restored = takeRestore(options?.restoreToken);
     const state = new GoState();
     state.size = BOARD_SIZE;
     state.shopAfter = SHOP_AFTER_MOVES;
@@ -99,6 +124,7 @@ export class GoRoom extends Room<GoState> {
     for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
       state.board.push(0);
     }
+    this.positions.record(state.board.toArray());
     // Five stalls, only one of them selling something powerful (drawn per match).
     for (const def of marketStock()) {
       const item = new MarketItem();
@@ -109,8 +135,16 @@ export class GoRoom extends Room<GoState> {
       item.removal = def.removal;
       state.market.push(item);
     }
+    if (restored) {
+      restoreState(state, restored.state);
+      // Earlier positions are not saved, so ko only remembers from here on.
+      this.positions.record(state.board.toArray());
+      for (const [color, key] of Object.entries(restored.keys)) this.seatKeys.set(Number(color), key);
+    }
     this.setState(state);
     this.updateForecast();
+    liveRooms.add(this);
+    this.clock.setInterval(() => this.saveSnapshot(), SAVE_EVERY_MS);
 
     this.onMessage("move", (client, message: MoveMessage) => this.handleMove(client, message));
     this.onMessage("usePowerup", (client, message: UsePowerupMessage) =>
@@ -119,9 +153,65 @@ export class GoRoom extends Room<GoState> {
     this.onMessage("buy", (client, message: BuyMessage) => this.handleBuy(client, message));
     this.onMessage("pass", (client) => this.handlePass(client));
     this.onMessage("addBots", (client, message: AddBotsMessage) => this.handleAddBots(client, message));
+
+    if (restored) this.resumeRestored();
+  }
+
+  /** The seat a returning player's secret opens, if any: a human seat in a game under way. */
+  seatFor(key: string): PlayerState | undefined {
+    if (!key || this.state.status !== "playing") return undefined;
+    return this.state.players.find((p) => !p.bot && this.seatKeys.get(p.color) === key);
+  }
+
+  /**
+   * A room rebuilt from disk has no sockets yet: every human seat waits for its
+   * player to come back through /rejoin. The room must not be disposed as empty
+   * while it waits, and seats still unclaimed afterwards are handed to bots.
+   */
+  private resumeRestored() {
+    for (const player of this.state.players) if (!player.bot) player.connected = false;
+    this.lock();
+    this.autoDispose = false;
+    this.saveSnapshot();
+    this.scheduleBotTurn();
+    this.clock.setTimeout(() => {
+      this.autoDispose = true; // disposes the room if nobody came back
+      this.state.players.forEach((player, i) => {
+        if (!player.bot && !player.connected) this.seatToBot(player, i);
+      });
+    }, RESTORE_GRACE_MS);
+  }
+
+  /** Writes the game to disk when it has changed; a finished game is no longer worth keeping. */
+  private saveSnapshot() {
+    if (this.shuttingDown) return;
+    if (this.state.status === "finished") return deleteSnapshot(this.roomId);
+    if (this.state.status !== "playing") return;
+    const json = JSON.stringify({
+      room: this.roomName,
+      keys: Object.fromEntries(this.seatKeys),
+      state: this.state.toJSON(),
+    });
+    if (json === this.lastSaved) return;
+    try {
+      saveSnapshot(this.roomId, json);
+      this.lastSaved = json;
+    } catch (err) {
+      console.error(`GoRoom ${this.roomId}: could not save snapshot:`, err);
+    }
   }
 
   onJoin(client: Client, options: JoinOptions) {
+    const key = cleanKey(options?.playerKey);
+    const seat = this.seatFor(key);
+    if (seat) {
+      // Back after a dropped connection or a server restart: same seat, new socket.
+      seat.sessionId = client.sessionId;
+      seat.connected = true;
+      this.state.lastEvent = `${seat.name} is back`;
+      return;
+    }
+
     const player = new PlayerState();
     player.sessionId = client.sessionId;
     const name = typeof options?.name === "string" ? options.name.trim().slice(0, 24) : "";
@@ -135,6 +225,7 @@ export class GoRoom extends Room<GoState> {
     const free = [1, 2, 3, 4].filter((c) => !taken.has(c));
     player.color = free.length ? free[Math.floor(Math.random() * free.length)] : this.state.players.length + 1;
     this.state.players.push(player);
+    if (key) this.seatKeys.set(player.color, key);
     this.state.lastEvent = `${player.name} joined as player ${player.color}`;
 
     if (this.state.players.length === MAX_PLAYERS) this.startGame();
@@ -217,6 +308,7 @@ export class GoRoom extends Room<GoState> {
       // the full grace window, blocking new joins (maxClients) and then
       // permanently inflating this.state.players.length once it expires,
       // which also hands out invalid colors (> 4) to later joiners.
+      this.seatKeys.delete(this.state.players[playerIndex].color);
       this.state.players.splice(playerIndex, 1);
       return;
     }
@@ -230,20 +322,38 @@ export class GoRoom extends Room<GoState> {
       await this.allowReconnection(client, 60);
       player.connected = true;
     } catch {
-      // Player did not return within the grace period. A lantern keeper plays
-      // the seat rather than leaving the table stalled on someone who will
-      // never move again (ideas.md D-G8). They stay marked disconnected, so the
-      // client still shows the seat as theirs.
-      const style = temperamentFor(playerIndex);
-      player.bot = true;
-      this.botStyles.set(player.sessionId, style);
-      this.state.lastEvent = `${player.name} drifted off; ${style.name} plays the seat`;
-      this.scheduleBotTurn();
+      // The seat may have been won back through /rejoin on a new socket meanwhile.
+      if (player.sessionId !== client.sessionId) return;
+      this.seatToBot(player, playerIndex);
     }
+  }
+
+  /**
+   * Player did not return within the grace period. A lantern keeper plays
+   * the seat rather than leaving the table stalled on someone who will
+   * never move again (ideas.md D-G8). They stay marked disconnected, so the
+   * client still shows the seat as theirs.
+   */
+  private seatToBot(player: PlayerState, playerIndex: number) {
+    const style = temperamentFor(playerIndex);
+    player.bot = true;
+    this.botStyles.set(player.sessionId, style);
+    this.state.lastEvent = `${player.name} drifted off; ${style.name} plays the seat`;
+    this.scheduleBotTurn();
+  }
+
+  // Saves the game one last time, then lets the shutdown go on: the disconnects
+  // it causes must not overwrite the snapshot, nor onDispose delete it.
+  onBeforeShutdown() {
+    this.saveSnapshot();
+    this.shuttingDown = true;
+    super.onBeforeShutdown();
   }
 
   onDispose() {
     this.botTimer?.clear();
+    liveRooms.delete(this);
+    if (!this.shuttingDown) deleteSnapshot(this.roomId);
   }
 
   // Defining this makes Colyseus wrap every handler in try/catch. Without it,
@@ -390,6 +500,7 @@ export class GoRoom extends Room<GoState> {
     const order = this.turnOrder();
     this.state.turnIndex = order[(order.indexOf(this.state.turnIndex) + 1) % order.length];
     this.expireEffects();
+    this.positions.record(this.state.board.toArray());
     if (isRollTurn(this.state.turnCount, this.stormEvery)) this.rollForStorm();
     this.scheduleBotTurn();
   }
@@ -478,6 +589,7 @@ export class GoRoom extends Room<GoState> {
       isWarded: (idx) => this.isWarded(idx),
       lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
       isBurning: (idx) => this.isBurning(idx),
+      repeats: (board) => this.positions.repeats(board),
     };
   }
 
@@ -580,18 +692,22 @@ export class GoRoom extends Room<GoState> {
     const code = stoneCode(player.color, axis);
     const rawBoard = board.toArray();
 
-    board[idx] = code;
     rawBoard[idx] = code;
 
+    // Judged on a copy, so a refused move never touches the synced board.
     const captured = applyCaptures(rawBoard, size, x, y, code, (i) => this.isWarded(i));
+
+    if (captured.length === 0 && isSuicide(rawBoard, size, x, y)) {
+      return "No liberties there -- that stone would be captured at once.";
+    }
+    if (this.positions.repeats(rawBoard)) {
+      return "Ko: that would bring back a board position that has stood before.";
+    }
+
+    board[idx] = code;
     captured.forEach(({ point }) => {
       board[boardIndex(size, point.x, point.y)] = 0;
     });
-
-    if (captured.length === 0 && isSuicide(rawBoard, size, x, y)) {
-      board[idx] = 0; // illegal move: revert
-      return "No liberties there -- that stone would be captured at once.";
-    }
 
     if (lily) this.removeEffectsAt("lily", idx);
     player.score += captured.length;

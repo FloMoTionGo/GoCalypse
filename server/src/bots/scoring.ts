@@ -10,6 +10,7 @@ import {
   stoneCode,
   StoneView,
 } from "../rules/goRules";
+import { areaScore, sidesOf } from "../rules/endgame";
 import { Rng } from "./rng";
 import { Style } from "./styles";
 
@@ -42,6 +43,8 @@ export interface BotView {
   isWarded(idx: number): boolean;
   lilyOwnerAt(idx: number): number;
   isBurning(idx: number): boolean;
+  /** Whether a board would repeat an earlier position (the ko rule). Absent means nothing does. */
+  repeats?(board: number[]): boolean;
 }
 
 export interface Candidate {
@@ -139,6 +142,7 @@ export function scoreMove(
   const captured = applyCaptures(after, size, x, y, code, (i) => view.isWarded(i));
   const mine = findGroup(after, size, x, y, axis);
   if (captured.length === 0 && mine.liberties === 0) return null; // suicide
+  if (view.repeats?.(after)) return null; // ko
 
   // ---- what the move took -------------------------------------------------
   // Paid in full to the mover: the room credits captures per player, so taking
@@ -261,4 +265,52 @@ export function rankMoves(view: BotView, style: Style): Candidate[] {
 export function chooseMove(view: BotView, style: Style, rng: Rng): Candidate | null {
   const ranked = rankMoves(view, style);
   return ranked.length === 0 ? null : rng.pick(ranked.slice(0, Math.max(1, style.variation)));
+}
+
+// Only what a move takes, saves or threatens; every positional term is zero.
+const TACTICAL: Style = {
+  name: "tactical",
+  capture: 1,
+  save: 1,
+  atari: 1,
+  connect: 0,
+  cut: 1,
+  contact: 0,
+  locality: 0,
+  extension: 0,
+  line: 0,
+  selfAtari: 0,
+  hemmed: 0,
+  axisBias: 0,
+  prefers: "base",
+  itemBias: 0,
+  shopping: [],
+  variation: 1,
+  judgement: false,
+};
+
+/** The bot's two sides added together on the board as it stands. */
+function ownArea(view: BotView, board: number[]): number {
+  const area = areaScore(board, view.size);
+  const sides = sidesOf(view.color);
+  return area[sides.base] + area[sides.pattern];
+}
+
+/**
+ * Whether a bot with judgement would rather pass than play this move. A move
+ * is pointless when it takes, saves, cuts and threatens nothing and does not
+ * grow the bot's area (a stone filling its own territory just swaps one
+ * counted point for another), or when it is a net loss to begin with. Early in
+ * a game every stone grows the area, so this only bites once the board is
+ * settled and what is left are the moves nobody profits from.
+ */
+export function isPointless(view: BotView, move: Candidate): boolean {
+  if (move.score <= 0) return true;
+  const tactical = scoreMove(view, move.x, move.y, move.axis, TACTICAL);
+  if (tactical === null || tactical > 0) return false;
+  const after = view.board.slice();
+  const code = stoneCode(view.color, move.axis);
+  after[boardIndex(view.size, move.x, move.y)] = code;
+  applyCaptures(after, view.size, move.x, move.y, code, (i) => view.isWarded(i));
+  return ownArea(view, after) <= ownArea(view, view.board);
 }

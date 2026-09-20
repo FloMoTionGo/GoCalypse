@@ -75,6 +75,16 @@ isn't a capture but suicide, which is still checked only on the one view the
 stone participates in. See `server/src/rules/goRules.test.ts` for the exact
 mechanics.
 
+### Ko
+
+No move may **bring back a board position that has stood before** (positional
+superko). Plain ko is not enough with four seats: a capture can be answered two
+or three stones later by someone else, and the same board comes round again. Only the
+stones count, not whose turn it is. A refused move says so (`rules/ko.ts`,
+checked in `GoRoom.applyMove`); bots never offer such a move. Positions are not
+part of a saved snapshot, so after a server restart the rule remembers from the
+restored board on.
+
 ### Ending the game & scoring
 
 On your turn you can **pass** (the *Pass* button in the header) instead of
@@ -101,8 +111,10 @@ two; the higher one only breaks ties.** Players who share a side share its
 total, and players level on both numbers share a place. The welcome screen
 explains this too, and a *Results* window opens when the game ends.
 
-Bots only pass when the board leaves them no legal move, so at a table with
-bots the humans can't end the game on their own.
+Bots pass by judgement: a bot with nothing left worth playing (no capture, no
+rescue, no threat, no growth of its own area, or a move that is plain self-atari)
+passes rather than fill in its own territory. The drifter, the fallback that
+keeps a stalled table moving, never passes while a legal point exists.
 
 ### Fireflies & the Night Market
 
@@ -148,9 +160,11 @@ and counts down to the next roll.
 The storm also **lasts for its full 3 rounds**, not just the ten-second
 cloudburst: behind it a much weaker copy of the same weather (a faint dusk,
 thin cloud, sparse rain) hangs over the river and banks and eases out through
-the last round. It leaves the playing surface alone and **stones keep their own
-colours** throughout, so black, white, gray and transparent always stay
-readable. It is driven by `GoState.storm.until` versus `GoState.turnCount`, so
+the last round; the board gets a lighter share of it. For the storm's full three
+rounds **every player stone is drawn the same slate grey**, so nobody can see whose
+is whose. The rules do not change: captures and suicide still run on the real
+colours, and players have to remember what they cannot see. The grey comes in with the
+cloudburst and eases out through the last round. It is driven by `GoState.storm.until` versus `GoState.turnCount`, so
 a client joining mid-storm sees it too (`stormLinger` in `web/pixelScene.js`).
 
 `go_debug` rooms roll every **6** turns instead, so a storm can actually be
@@ -169,7 +183,7 @@ lily pad, driftwood, a ward or a fire; a ward covers a whole group, but only
 its first stone carries the tag). It turns amber in the last round. A lily pad
 or ward also carries its **owner's mark**, their two stones side by side, so you
 can see whose it is. In the scene a little **boat** drifts along the river with
-a sign showing the turn being played ("T12"): scenery on its own clock, there
+a sign showing the round being played ("R3", one round = every seat has moved once): scenery on its own clock, there
 only for orientation.
 
 ### Playing with bots

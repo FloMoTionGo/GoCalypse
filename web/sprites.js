@@ -817,7 +817,7 @@
     7: ["####", "...#", "..#.", ".#..", ".#..", ".#.."],
     8: [".##.", "#..#", ".##.", "#..#", "#..#", ".##."],
     9: [".##.", "#..#", "#..#", ".###", "...#", ".##."],
-    T: ["###", ".#.", ".#.", ".#.", ".#.", ".#."], // the turn sign on the boat reads "T12"
+    R: ["###.", "#..#", "###.", "#.#.", "#..#", "#..#"], // the sign on the boat reads "R3": the round being played
   };
   function buildFont(name, rowsByChar, height) {
     const glyphs = {};

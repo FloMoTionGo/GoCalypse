@@ -1,12 +1,12 @@
 import { StoneView } from "../rules/goRules";
 import { planItem } from "./items";
 import { Rng } from "./rng";
-import { BotView, rankMoves } from "./scoring";
+import { BotView, Candidate, isPointless, rankMoves } from "./scoring";
 import { Style } from "./styles";
 
 export { Rng } from "./rng";
 export { chooseBuy } from "./items";
-export { rankMoves, scoreMove, chooseMove } from "./scoring";
+export { rankMoves, scoreMove, chooseMove, isPointless } from "./scoring";
 export type { BotView, Candidate, MarketRow } from "./scoring";
 export type { Style } from "./styles";
 export { heron, magpie, moth, oldToad, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
@@ -32,7 +32,7 @@ export type BotAction =
  */
 export function chooseAction(view: BotView, style: Style, rng: Rng): BotAction {
   const ranked = rankMoves(view, style);
-  const move = ranked.length > 0 ? rng.pick(ranked.slice(0, Math.max(1, style.variation))) : null;
+  const move = pickMove(view, style, rng, ranked);
   const item = planItem(view, style, ranked);
 
   if (item && (!move || item.score + style.itemBias > move.score)) {
@@ -40,4 +40,23 @@ export function chooseAction(view: BotView, style: Style, rng: Rng): BotAction {
   }
   if (move) return { kind: "move", x: move.x, y: move.y, axis: move.axis };
   return { kind: "pass" };
+}
+
+/**
+ * One of the best few points, drawn at random -- but a bot with judgement
+ * only draws from moves worth making. When every point left is pointless it
+ * has no move at all, which chooseAction turns into a pass: better to hand
+ * the turn over than to fill in its own area or throw a stone into atari.
+ */
+function pickMove(view: BotView, style: Style, rng: Rng, ranked: Candidate[]): Candidate | null {
+  const width = Math.max(1, style.variation);
+  const pool = style.judgement ? [] : ranked.slice(0, width);
+  if (style.judgement) {
+    for (const move of ranked) {
+      if (isPointless(view, move)) continue;
+      pool.push(move);
+      if (pool.length >= width) break;
+    }
+  }
+  return pool.length > 0 ? rng.pick(pool) : null;
 }

@@ -115,7 +115,7 @@
 
         <div class="panel">
           <h2>Weather</h2>
-          <p class="hint">A thunderstorm: 10 s of cloud and rain, up to three bolts, and a fire on every point they hit. A much weaker storm then lingers over the river for 3 rounds; the board and stones stay clear.</p>
+          <p class="hint">A thunderstorm: 10 s of cloud and rain, up to three bolts, and a fire on every point they hit. A much weaker storm then lingers over the river for 3 rounds; the board gets a lighter share of it and every stone turns the same grey until it ends.</p>
           <div class="row" style="margin-top:8px">
             <button id="storm-demo">Thunderstorm</button>
             <button class="secondary" id="storm-clear">Put the fires out</button>
@@ -566,7 +566,7 @@
             effects: state.effects,
             overlays: state.overlays,
             storm: state.storm,
-            turn: state.turnCount + 1,
+            round: Math.floor(state.turnCount / state.roundLength) + 1,
             turnCount: state.turnCount,
             roundLength: state.roundLength,
             stormUntil: state.stormUntil,

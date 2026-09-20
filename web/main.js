@@ -123,8 +123,85 @@ welcomeEl.addEventListener("contextmenu", (evt) => {
 welcomeEl.addEventListener("close", markWelcomeSeen); // also fires for Esc
 requestAnimationFrame(frame);
 
+// A secret this tab keeps (it survives a refresh, not closing the tab) and shows
+// the server on every join. The server ties it to the seat, so a dropped
+// connection or a restarted server can hand the same seat back (see /rejoin in
+// server/src/index.ts). Debug panels share one origin, hence the name in the key.
+const PLAYER_KEY_STORE = `gocalypse.playerKey.${hashParams.get("name") || ""}`;
+let memoryKey = "";
+
+function playerKey() {
+  try {
+    let key = sessionStorage.getItem(PLAYER_KEY_STORE);
+    if (!key) sessionStorage.setItem(PLAYER_KEY_STORE, (key = crypto.randomUUID()));
+    return key;
+  } catch {
+    return memoryKey || (memoryKey = crypto.randomUUID()); // storage blocked: rejoin works until refresh
+  }
+}
+
+function serverEndpoint() {
+  return serverInput.value.trim() || "ws://localhost:2567";
+}
+
+/**
+ * Asks the server for this tab's seat in a game under way and sits back down.
+ * False when there is no such game; throws when the server can't be reached.
+ */
+async function rejoin() {
+  const endpoint = serverEndpoint();
+  const res = await fetch(`${endpoint.replace(/^ws/, "http")}/rejoin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playerKey: playerKey() }),
+  });
+  if (res.status === 404) return false;
+  if (!res.ok) throw new Error(`rejoin refused (${res.status})`);
+  attachRoom(await new Colyseus.Client(endpoint).consumeSeatReservation(await res.json()));
+  return true;
+}
+
+/** After an unexpected disconnect: keeps knocking (a restarting server takes a few seconds to wake). */
+async function rejoinAfterDrop() {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    setLobbyStatus(`Disconnected. Reconnecting... (${attempt + 1}/10)`, true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      if (await rejoin()) return;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  setLobbyStatus("Disconnected. Refresh to reconnect.", true);
+  joinButton.disabled = false;
+}
+
+function attachRoom(joined) {
+  room = joined;
+  room.onStateChange((state) => onState(state));
+  room.onMessage("notice", (text) => showNotice(text));
+  room.onLeave((code) => {
+    const inGame = lastState && lastState.status === "playing";
+    gameEl.hidden = true;
+    lobbyEl.hidden = false;
+    joinButton.disabled = true;
+    if (inGame) {
+      rejoinAfterDrop();
+    } else {
+      setLobbyStatus(`Disconnected (code ${code}). Refresh to reconnect.`, true);
+      joinButton.disabled = false;
+    }
+  });
+  room.onError((code, message) => {
+    setLobbyStatus(`Room error ${code}: ${message || ""}`, true);
+  });
+
+  lobbyEl.hidden = true;
+  gameEl.hidden = false;
+}
+
 async function connect() {
-  const endpoint = serverInput.value.trim() || "ws://localhost:2567";
+  const endpoint = serverEndpoint();
   const name = nameInput.value.trim();
   const bots = pickedIds();
 
@@ -132,26 +209,19 @@ async function connect() {
   setLobbyStatus("Connecting...", false);
 
   try {
+    // A refreshed tab goes back to its game rather than starting a new one.
+    try {
+      if (await rejoin()) return;
+    } catch (err) {
+      console.error(err); // an old server without /rejoin: just join normally
+    }
+
     const client = new Colyseus.Client(endpoint);
-    const options = name ? { name } : {};
+    const options = name ? { name, playerKey: playerKey() } : { playerKey: playerKey() };
     // Bringing bots means a table of your own; without them you are matched with
     // whoever is already waiting.
-    room = bots.length ? await client.create(ROOM_NAME, options) : await client.joinOrCreate(ROOM_NAME, options);
+    attachRoom(bots.length ? await client.create(ROOM_NAME, options) : await client.joinOrCreate(ROOM_NAME, options));
 
-    room.onStateChange((state) => onState(state));
-    room.onMessage("notice", (text) => showNotice(text));
-    room.onLeave((code) => {
-      setLobbyStatus(`Disconnected (code ${code}). Refresh to reconnect.`, true);
-      gameEl.hidden = true;
-      lobbyEl.hidden = false;
-      joinButton.disabled = false;
-    });
-    room.onError((code, message) => {
-      setLobbyStatus(`Room error ${code}: ${message || ""}`, true);
-    });
-
-    lobbyEl.hidden = true;
-    gameEl.hidden = false;
     if (bots.length) {
       room.send("addBots", { ids: bots });
       botPicks.clear();
@@ -163,6 +233,10 @@ async function connect() {
     joinButton.disabled = false;
   }
 }
+
+// Opening the page (or refreshing it) in the middle of a game puts you back at
+// the table. Panels that autojoin get the same from connect().
+if (!hashParams.has("autojoin")) rejoin().catch(() => {});
 
 function setLobbyStatus(text, isError) {
   lobbyStatus.textContent = text;
@@ -238,7 +312,7 @@ function frame() {
     effects,
     overlays,
     storm,
-    turn: turnCount + 1, // the boat's sign: the turn now being played
+    round: roundLength > 0 ? Math.floor(turnCount / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
     turnCount,
     roundLength,
     stormUntil,
@@ -453,7 +527,7 @@ function openWelcome(state) {
     `storm. At 20 or more a thunderstorm breaks: the night darkens, rain sweeps the board for ten seconds and up to ` +
     `three bolts come down on random points. Whatever stands there catches fire and burns away three rounds later, ` +
     `and nobody can play on a burning point until the fire goes out. A fainter storm hangs over the river for all ` +
-    `three rounds; your stones keep their colors throughout. The forecast in the sidebar (unlikely, likely, very likely) ` +
+    `three rounds, and for those rounds every stone turns the same grey: the rules still know whose is whose, so remember. The forecast in the sidebar (unlikely, likely, very likely) ` +
     `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll.`;
 
   // Mirrors areaScore / finalResults in server/src/rules/endgame.ts.

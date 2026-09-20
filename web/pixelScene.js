@@ -723,15 +723,16 @@
   // bolts come down on the points the server picked, each lighting a fire that
   // burns for three rounds. Behind it a much weaker copy of the same weather
   // (STORM_LINGER) stays for the storm's full three rounds, easing out through
-  // the last. Stones keep their own colours throughout, and the playing surface
-  // is kept clear of the lingering weather, so black, white, gray and
-  // transparent stay readable in a storm.
+  // the last. The board gets a lighter share of that weather, and every player
+  // stone goes the same slate grey for the storm's three rounds (drawStones):
+  // the rules still run on the real colours, the players just cannot see them.
   // ---------------------------------------------------------------------------
   const STORM_SECONDS = 10;
   const STORM_DARK_IN = 1.4; // dusk ramps up over this
   const STORM_DARK_OUT = 1.6; // ... and clears again at the end
   const STORM_DARKNESS = 0.32; // peak dither coverage of the shade ramp
   const STORM_LINGER = 0.35; // how much of that weather stays for the storm's three rounds
+  const STORM_BOARD_SHARE = 0.6; // the lingering weather over the board, as a share of what the river gets
   const STORM_FIRST_BOLT = 2.4; // when the first bolt lands
   const STORM_BOLT_GAP = 2.0; // and how far apart the rest fall
   const BOLT_FLASH = 0.5; // how long one bolt's flash lasts
@@ -1238,8 +1239,14 @@
       }
     }
 
-    /** Every stone in its own look (a storm never changes whose stone is whose). */
-    function drawStones(board, skip) {
+    /**
+     * Every stone in its own look -- except in a storm (`grey` 0..1), when the
+     * rain and dark take the colour out of them all: each player stone fades to
+     * the same slate grey, so nobody can tell whose is whose. The server plays on
+     * the real colours, so captures and suicide work as ever; the players must
+     * remember what they cannot see. Driftwood keeps its own look.
+     */
+    function drawStones(board, skip, grey) {
       const spriteFor = (code) => G.pieceSprite(code);
       // Shadows first so they never cover a neighbour.
       for (let i = 0; i < board.length; i++) {
@@ -1253,6 +1260,7 @@
         if (!code || skip.has(i)) continue;
         const p = pointToNative(i % size, (i / size) | 0);
         surf.blitCentered(spriteFor(code), p.x, p.y);
+        if (grey > 0 && G.isPlayerStoneCode(code)) surf.blitCentered(G.pieceSprite(6), p.x, p.y, { coverage: grey });
       }
     }
 
@@ -1338,13 +1346,13 @@
     }
 
     // --- the turn boat ---------------------------------------------------------------
-    // A little boat drifting up and down the wide river, carrying the turn number
+    // A little boat drifting up and down the wide river, carrying the round number
     // on a signboard. It is scenery with one job: it moves on its own clock, not
     // the game's, and only the number on its sign follows the play. It is there
     // for orientation, like a clock on the wall.
     const BOAT_X0 = 34, BOAT_X1 = W - 34, BOAT_SPEED = 3.5; // px per second
     const BOAT_WATERLINE = L.riverY0 + 21; // the hull's bottom row
-    function drawBoat(t, turn) {
+    function drawBoat(t, round) {
       const span = BOAT_X1 - BOAT_X0;
       const u = frac((t * BOAT_SPEED) / (2 * span));
       const leg = u < 0.5 ? u * 2 : 2 - u * 2; // there and back
@@ -1359,7 +1367,7 @@
       }
       surf.blit(hull, cx - (hull.w >> 1), hullTop);
 
-      const label = "T" + turn;
+      const label = "R" + round;
       const sw = G.textWidth(G.FONT_BIG, label) + 4, sh = 10;
       const mastTop = hullTop - 4;
       for (let y = mastTop; y < hullTop; y++) surf.set(cx, y, K);
@@ -1451,7 +1459,7 @@
      *   effects:       [placeEffect(...) | captureEffect(...) | makeEffect(kind, ...)],
      *   overlays:      [{kind: "lily" | "ward" | "drift" | "fire", x, y, owner, until}] -- timed board
      *                  pieces; each shows its rounds left, and owned ones carry their owner's mark,
-     *   turn:          the number on the boat's signboard (scenery: it drifts on its own clock),
+     *   round:         the number on the boat's signboard: the round being played (scenery: it drifts on its own clock),
      *   turnCount:     the room's turn counter (lets a fire show its last round, and every timer its rounds),
      *   roundLength:   players in the room (how many turns make one round),
      *   storm:         {start: seconds, seq, strikes: [{x, y}, ...]} while a storm plays,
@@ -1497,7 +1505,7 @@
       }
 
       // 3b. the turn boat, drifting on its own clock (only its sign follows play)
-      drawBoat(t, st.turn === undefined ? 1 : st.turn);
+      drawBoat(t, st.round === undefined ? 1 : st.round);
 
       // 4. props: reeds, stone lantern, garland
       for (const rd of reeds) surf.blit(animFrame(rd.anim, t, rd.phase / 3), rd.x, rd.y);
@@ -1532,8 +1540,12 @@
           if (!storm.landed[i]) pendingFires.add(s.y * size + s.x);
         });
       }
+      // The storm greys every stone for its full three rounds: it comes in with
+      // the cloudburst and eases out through the last round (stormLinger).
+      const stormElapsed = st.storm ? time - st.storm.start : STORM_DARK_IN;
+      const greyW = Math.min(1, stormLinger(st.turnCount, st.stormUntil, st.roundLength || 0), stormElapsed / STORM_DARK_IN);
       drawLilyPads(overlays, board, busy);
-      drawStones(board, skip);
+      drawStones(board, skip, greyW);
       drawWards(overlays, board, busy, time, reduced);
 
       // 7. last-move ember
@@ -1558,10 +1570,11 @@
       const introW = storm ? storm.weight : 0;
       const lingerW = stormLinger(st.turnCount, st.stormUntil, st.roundLength || 0) * STORM_LINGER;
       const outsideW = Math.max(introW, lingerW); // over water, banks and the frame
+      const boardW = Math.max(introW, lingerW * STORM_BOARD_SHARE); // over the playing surface
       const weather = outsideW > 0;
       if (weather) {
         const darkOut = STORM_DARKNESS * outsideW;
-        const darkIn = STORM_DARKNESS * introW;
+        const darkIn = STORM_DARKNESS * boardW;
         for (let i = 0; i < surf.px.length; i++) {
           const d = region[i] === R_KAYA ? darkIn : darkOut;
           if (d > 0 && G.ditherOn(i % W, (i / W) | 0, d)) surf.px[i] = G.SHADE[surf.px[i]];
@@ -1570,9 +1583,9 @@
           const offBoard = (x, y) => !inKaya(x, y);
           drawClouds(surf, W, H, ambientRaw, outsideW, offBoard);
           drawRain(surf, W, H, time, outsideW, offBoard);
-          if (introW > 0) {
-            drawClouds(surf, W, H, ambientRaw, introW, inKaya);
-            drawRain(surf, W, H, time, introW, inKaya);
+          if (boardW > 0) {
+            drawClouds(surf, W, H, ambientRaw, boardW, inKaya);
+            drawRain(surf, W, H, time, boardW, inKaya);
           }
         }
       }

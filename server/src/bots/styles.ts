@@ -37,6 +37,7 @@ export interface Style {
   itemBias: number; // added to every item score: how readily it spends a turn at the market
   shopping: string[]; // what it buys, in order
   variation: number; // how many of the best points it draws from
+  judgement: boolean; // passes rather than play a move that takes, saves and gains nothing
 }
 
 const BALANCED: Style = {
@@ -57,6 +58,7 @@ const BALANCED: Style = {
   itemBias: 0,
   shopping: ["lantern_ward", "driftwood", "gust", "remove_stone"],
   variation: 3,
+  judgement: true,
 };
 
 /**
@@ -248,5 +250,6 @@ export function randomStyle(): Style {
     itemBias: -1_000_000, // never spends a turn at the market
     shopping: [],
     variation: Number.MAX_SAFE_INTEGER,
+    judgement: false, // the fallback plays any legal point, so a stalled table always moves
   };
 }

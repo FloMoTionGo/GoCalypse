@@ -3,6 +3,16 @@ primary_region = "fra"
 
 [build]
 
+# Games in progress are saved to this volume (src/state/persist.ts) so they
+# survive a restart. Create it once before deploying:
+#   fly volumes create gocalypse_data --region fra --size 1 -a gocalypse
+[env]
+  DATA_DIR = "/data"
+
+[mounts]
+  source = "gocalypse_data"
+  destination = "/data"
+
 [http_service]
   internal_port = 2567
   force_https = true
