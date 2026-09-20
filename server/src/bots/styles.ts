@@ -166,7 +166,57 @@ export function moth(): Style {
   };
 }
 
+/** Plays the board and only the board: never buys, never uses an item. */
+export function reed(): Style {
+  return {
+    ...BALANCED,
+    name: "Reed",
+    hemmed: 100,
+    itemBias: -1_000_000, // no item can ever beat a stone
+    shopping: [], // and nothing is ever bought, so there is nothing to use
+    variation: 3,
+  };
+}
+
+/**
+ * Spends a turn at the market rather than on a stone whenever an item can do
+ * anything at all, and shops down the whole list. The purse is what limits it:
+ * fireflies are only earned by placing stones, so it still has to play the
+ * board every few moves to afford the next item.
+ */
+export function magpie(): Style {
+  return {
+    ...BALANCED,
+    name: "Magpie",
+    capture: 1300,
+    atari: 450,
+    contact: 100,
+    locality: 450,
+    extension: 320,
+    line: 220,
+    itemBias: 2400,
+    shopping: ["lantern_ward", "turn_lantern", "driftwood", "lily_pad", "gust", "remove_stone", "bomb"],
+    variation: 3,
+  };
+}
+
 const TEMPERAMENTS = [heron, tanuki, oldToad, moth];
+
+// The bots a player can seat from the welcome screen, from no items at all to
+// every item there is. The ids are the wire names web/main.js sends in
+// "addBots" -- a Map, so a client-supplied id like "constructor" finds nothing.
+const RECRUITS = new Map<string, () => Style>([
+  ["pure", reed],
+  ["balanced", tanuki],
+  ["shark", magpie],
+]);
+
+export const RECRUIT_IDS = Array.from(RECRUITS.keys());
+
+export function recruitStyle(id: string): Style | null {
+  const make = RECRUITS.get(id);
+  return make ? make() : null;
+}
 
 /** A temperament (and with it a name) per seat, so no two bots at a table are alike. */
 export function temperamentFor(seat: number): Style {

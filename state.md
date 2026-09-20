@@ -14,8 +14,9 @@ drawn as a cozy 5-color pixel scene: a wooden pier standing in a lantern-lit
 river. Players earn **fireflies** by playing and, after their 5th move, can
 spend them at the **Night Market**, which stocks 5 of the 7 powerups a night.
 Every 20 turns a die decides the weather, and a six brings a **thunderstorm**
-that sets fire to the board. It's live and playable, but matches never end,
-nothing is saved between matches, and there's no Flame/progression system yet.
+that sets fire to the board. A match ends when all four players pass in a row
+and is scored (lower of a player's two sides wins). Nothing is saved between
+matches, and there's no Flame/progression system yet.
 
 ## 2. Where it runs
 
@@ -115,9 +116,32 @@ nothing is saved between matches, and there's no Flame/progression system yet.
 | Snipe | 140 | Removes any single enemy stone. |
 | Firework | 200 | Clears a 3x3 area, including your own stones and driftwood. Warded stones are spared. Refused on an empty area. |
 
+### Ending the game
+- **Pass:** the header's *Pass* button (message `pass`) skips your turn. Turn
+  counting, effects and the weather advance as on any turn.
+  `GoState.passes` counts passes in a row; a stone or an item resets it.
+  Buying doesn't.
+- **End:** when `passes` reaches the number of players, `GoRoom.finishGame`
+  sets `status: "finished"` (nothing else is accepted afterwards) and closes
+  any storm blackout, so the final board shows real stone colors.
+- **Scoring** (`rules/endgame.ts`): normal Go **area scoring**, once per
+  front. A stone counts for its side on the front it fights on; an empty
+  region counts for a side when it touches only that side's stones. Walls
+  (stones committed to the other front, driftwood) are invisible: they score
+  for no one and don't spoil a region. Dead stones are **not** removed.
+- **Score:** four totals (black, white, dots, stripes). A player's two totals
+  are their base side and pattern side; the **lower is the final score**, the
+  **higher is the tie-break**. Players level on both share a place. Stored per
+  player in `baseArea`, `patternArea`, `finalScore`, `tiebreak`, `place`.
+- **Client:** a *Results* dialog opens by itself once (reopen with *Results*
+  in the header) and the sidebar swaps captured stones for final scores, the
+  winner(s) highlighted. While playing, the status line shows `n/4 passed`.
+- **Bots** make a real pass only when they have no legal move.
+
 ### Welcome screen
 On a player's first join (per browser), a welcome window explains the game:
-their own color and pattern, left vs right click, walls, the fireflies economy,
+their own color and pattern, left vs right click, walls, how the game ends
+and is scored (with the player's own two sides), the fireflies economy,
 and every market item with its icon, price and description (taken from the
 server's market, so it can't drift). Clicking anywhere outside it, the small ×,
 or Esc closes it; a click outside never places a stone. Once closed it's
@@ -189,6 +213,8 @@ server/src/
                          the weather roll; GoDebugRoom (600 fireflies, storms every 6 turns)
   rules/goRules.ts       two-front captures, suicide, driftwood, flipStone, canPlaceNeutral
   rules/goRules.test.ts  18 rule tests (npm test)
+  rules/endgame.ts       area scoring, final score / tie-break / place (pure)
+  rules/endgame.test.ts  9 end-game scoring tests
   rules/storm.ts         when to roll, what a 6 means, where the bolts land
   rules/storm.test.ts    5 weather tests
   powerups/definitions.ts  the 7 items (price, removal flag, apply) + marketStock()
@@ -226,8 +252,9 @@ defines `onUncaughtException`, so a bad message can't crash the process.
 
 ## 6. Testing
 
-**In the repo:** `npm test` in `server/`: **28** tests (Node's built-in test
-runner, no extra dependency) — 18 rules, 5 weather, 5 market stock.
+**In the repo:** `npm test` in `server/`: **52** tests (Node's built-in test
+runner, no extra dependency) — 18 rules, 9 end-game scoring, 5 weather, 5
+market stock, 15 bots.
 
 **Outside the repo (temporary!):** everything below lives in Claude's session
 scratch folder and **will be lost**. It should be moved into the repo (see
@@ -264,8 +291,11 @@ All of the above passed locally on 2026-09-20 (production not yet redeployed).
 
 ## 7. Known gaps and limits
 
-- **Matches never end.** `status: "finished"` is never set and there's no
-  pass move. This blocks payouts, rankings and progression.
+- **The ending is bare-bones.** Four passes in a row end and score the match,
+  but nothing is paid out or ranked beyond `PlayerState.place`, and there's no
+  rematch: a finished room just sits there. Dead stones are not removed before
+  scoring, so pass only once they're captured. Bots pass only when they have no
+  legal move, so at a table with bots the humans can't end the game alone.
 - **Leavers stall the game.** Turns still go to disconnected players, so the
   game waits forever if someone leaves for good.
 - **No real reconnect.** The server holds a dropped player's seat for 60 s, but

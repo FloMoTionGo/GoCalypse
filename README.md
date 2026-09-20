@@ -76,6 +76,35 @@ isn't a capture but suicide, which is still checked only on the one view the
 stone participates in. See `server/src/rules/goRules.test.ts` for the exact
 mechanics.
 
+### Ending the game & scoring
+
+On your turn you can **pass** (the *Pass* button in the header) instead of
+placing a stone. When **all four players pass in a row** the game ends; a stone
+or an item played in between starts the count again.
+
+The board is then scored the normal Go way (**area scoring**), once on each
+front:
+
+- every stone counts one point for its side (black, white, dots or stripes),
+- and so does every empty point whose empty region touches only that side's
+  stones.
+
+A stone that is a wall on a front (its owner committed it to the other front,
+or it is driftwood) counts for no one there and doesn't spoil a region for
+anyone, like the edge of the board. Nothing is removed first, since nobody is
+there to agree what is dead: capture what should go before you pass. Stones
+standing on a burning point still count.
+
+That leaves four totals: black, white, dots and stripes. Every player belongs
+to one side on each front (player 1, black + dots, to black and to dots), so
+each has two totals of their own. **A player's final score is the lower of the
+two; the higher one only breaks ties.** Players who share a side share its
+total, and players level on both numbers share a place. The welcome screen
+explains this too, and a *Results* window opens when the game ends.
+
+Bots only pass when the board leaves them no legal move, so at a table with
+bots the humans can't end the game on their own.
+
 ### Fireflies & the Night Market
 
 Placing a stone earns **3 fireflies**, capturing earns **5 per stone**, and
@@ -128,6 +157,31 @@ driftwood timers, lightning fires) are `GoState.effects`; `GoState.action`
 records the last move or item so clients can play the matching animation, and
 `GoState.storm` carries the last die roll and its strike points.
 
+### Playing with bots
+
+While a room is still waiting for its fourth player, the welcome screen (it
+opens by itself on a first visit; **Add bots** in the header reopens it) has a
+**Play with bots** menu: seat up to three bots, each playing differently. The
+lanterns beside each name show how much of the Night Market it uses.
+
+| Bot | Plays | Night Market |
+|---|---|---|
+| Reed | Pure Go: stones only | Never buys, never uses an item |
+| Tanuki | A fighter that goes looking for contact | Some: buys a ward or a removal item when it pays |
+| Magpie | Market shark | Max: spends turns on items whenever one can do anything, and shops down the whole list |
+
+Bots are strictly opt-in: nobody is ever seated at a table that didn't ask for
+one. The one other time a bot plays is a seat whose player never came back
+within the 60 s grace period, so the table doesn't stall. A table with no
+humans left closes itself.
+
+They are not AI in the machine-learning sense: nothing is trained and nothing
+learns. Each is a hand-written scorer over the board (capture, saving stones,
+ataris, cuts, shape) with different weights, taken from GoSequencer's classic
+player, whose list of things to look at comes from Leela, Gian-Carlo
+Pascutto's Go engine (https://github.com/gcp/Leela, MIT). No Leela source or
+data is copied, and its search and neural networks are left out.
+
 ## Architecture
 
 - `server/` — authoritative game server ([Colyseus](https://colyseus.io/)),
@@ -136,12 +190,19 @@ records the last move or item so clients can play the matching animation, and
   - `src/state/GoState.ts` — synced schema (board, players, turn, etc).
   - `src/rules/goRules.ts` — hand-rolled capture/liberty/suicide rules,
     including the two-view model above (not a general Go rules library).
+  - `src/rules/endgame.ts` — end-of-game area scoring and the per-player
+    final score / tie-break / place, pure functions with their own tests.
   - `src/rules/storm.ts` — when the weather die is rolled, what a six means
     and where the bolts land, kept apart from room state so it can be tested.
   - `src/powerups/` — the Night Market's stock (`definitions.ts`); add a
     powerup by implementing `PowerupDefinition` (with a price) and adding it
     to the registry. The client needs a sprite/icon for new ids
     (`web/sprites.js` `powerupIcon`).
+  - `src/bots/` — the bots: `scoring.ts` values every point on both fronts,
+    `items.ts` decides what to buy and use, `styles.ts` holds the weights that
+    make each bot different (and the three seatable ones), `index.ts` picks a
+    stone or an item. Plain functions over a plain board, tested without a
+    room in `bots.test.ts`. A client seats them with the `addBots` message.
   - `src/rooms/GoRoom.ts` — room lifecycle: join/leave, turn order, move
     validation, powerup dispatch.
 - `web/` — browser client, plain HTML/CSS/JS (no build step, no framework),

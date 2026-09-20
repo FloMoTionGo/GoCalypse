@@ -14,6 +14,7 @@ import {
   stoneCode,
   StoneView,
 } from "../rules/goRules";
+import { areaScore, finalResults } from "../rules/endgame";
 import { getPowerup, marketStock } from "../powerups/definitions";
 import { EffectKind, PowerupContext } from "../powerups/types";
 import {
@@ -22,6 +23,7 @@ import {
   chooseAction,
   chooseBuy,
   randomStyle,
+  recruitStyle,
   Rng,
   Style,
   temperamentFor,
@@ -54,6 +56,10 @@ interface BuyMessage {
   id: string;
 }
 
+interface AddBotsMessage {
+  ids?: unknown; // recruit ids from bots/styles.ts, at most 3
+}
+
 const BOARD_SIZE = 13;
 const MAX_PLAYERS = 4;
 const SHOP_AFTER_MOVES = 5;
@@ -63,9 +69,8 @@ const CONSOLATION_PER_STONE = 3; // paid to the owner of a stone removed by some
 const SATCHEL_LIMIT = 5; // items a player may hold at once
 const POWERFUL_LIMIT = 1; // removal items a player may hold at once
 const DEBUG_STORM_EVERY_TURNS = 6; // debug rooms roll far more often, so storms can be watched
-// Bots fill a room that never finds four players, and take over a seat whose
-// player is gone for good (ideas.md D-G8).
-const BOT_FILL_AFTER_MS = 20_000;
+// Bots are only ever seated on request (the welcome screen's "add bots"), or to
+// take over a seat whose player is gone for good (ideas.md D-G8).
 const BOT_THINK_MIN_MS = 700;
 const BOT_THINK_SPREAD_MS = 700;
 
@@ -76,7 +81,6 @@ export class GoRoom extends Room<GoState> {
   protected startingFireflies = 0;
   protected stormEvery = STORM_EVERY_TURNS;
   private botTimer?: Delayed;
-  private fillTimer?: Delayed;
   private botStyles = new Map<string, Style>();
   // Seeded per room, so two tables never play out the same. Tests drive the
   // bot functions directly with a seed of their own.
@@ -108,6 +112,8 @@ export class GoRoom extends Room<GoState> {
       this.handleUsePowerup(client, message)
     );
     this.onMessage("buy", (client, message: BuyMessage) => this.handleBuy(client, message));
+    this.onMessage("pass", (client) => this.handlePass(client));
+    this.onMessage("addBots", (client, message: AddBotsMessage) => this.handleAddBots(client, message));
   }
 
   onJoin(client: Client, options: JoinOptions) {
@@ -126,18 +132,10 @@ export class GoRoom extends Room<GoState> {
     this.state.players.push(player);
     this.state.lastEvent = `${player.name} joined as player ${player.color}`;
 
-    if (this.state.players.length === MAX_PLAYERS) {
-      this.startGame();
-    } else if (!this.fillTimer) {
-      // Nobody should sit at an empty table all evening: if the room is still
-      // short when this fires, lantern keepers take the free seats.
-      this.fillTimer = this.clock.setTimeout(() => this.fillWithBots(), BOT_FILL_AFTER_MS);
-    }
+    if (this.state.players.length === MAX_PLAYERS) this.startGame();
   }
 
   private startGame() {
-    this.fillTimer?.clear();
-    this.fillTimer = undefined;
     this.state.status = "playing";
     this.state.turnIndex = this.turnOrder()[0];
     // Stop matchmaking from offering this room to fresh joinOrCreate
@@ -150,20 +148,12 @@ export class GoRoom extends Room<GoState> {
     this.scheduleBotTurn();
   }
 
-  /** Fills the free seats and starts, unless everyone has left by the time it fires. */
-  private fillWithBots() {
-    this.fillTimer = undefined;
-    if (this.state.status !== "waiting" || this.state.players.length === 0) return;
-    while (this.state.players.length < MAX_PLAYERS) this.addBot();
-    this.startGame();
-  }
-
-  private addBot() {
+  /** Seats a bot with this style in a free seat. False when the table is already full. */
+  private addBot(style: Style): boolean {
     const taken = new Set(this.state.players.map((p) => p.color));
     const free = [1, 2, 3, 4].filter((c) => !taken.has(c));
-    if (free.length === 0) return;
+    if (free.length === 0) return false;
 
-    const style = temperamentFor(this.state.players.length);
     const bot = new PlayerState();
     bot.color = free[this.rng.below(free.length)];
     // Not a session id any socket can hold, so the client's "(you)" test
@@ -175,6 +165,27 @@ export class GoRoom extends Room<GoState> {
     this.botStyles.set(bot.sessionId, style);
     this.state.players.push(bot);
     this.state.lastEvent = `${bot.name} takes a seat`;
+    return true;
+  }
+
+  /**
+   * The welcome screen's "add bots": a seated player asks for up to three bots
+   * by recruit id, while the room is still waiting for its fourth player. Free
+   * seats are the only limit, so it can never overfill the table, and seats it
+   * leaves empty stay open for other players (or a second request). Bots give
+   * the sender nothing, so there is nothing to abuse in asking twice.
+   */
+  private handleAddBots(client: Client, message: AddBotsMessage) {
+    if (this.state.status !== "waiting") return;
+    if (this.findPlayerIndex(client.sessionId) === -1) return;
+    const ids = Array.isArray(message?.ids) ? message.ids : [];
+
+    let added = 0;
+    for (const id of ids.slice(0, MAX_PLAYERS - 1)) {
+      const style = typeof id === "string" ? recruitStyle(id) : null;
+      if (style && this.addBot(style)) added += 1;
+    }
+    if (added > 0 && this.state.players.length === MAX_PLAYERS) this.startGame();
   }
 
   async onLeave(client: Client, consented: boolean) {
@@ -215,7 +226,6 @@ export class GoRoom extends Room<GoState> {
 
   onDispose() {
     this.botTimer?.clear();
-    this.fillTimer?.clear();
   }
 
   // Defining this makes Colyseus wrap every handler in try/catch. Without it,
@@ -484,13 +494,11 @@ export class GoRoom extends Room<GoState> {
     if (this.takeBotAction(playerIndex, wanted) === null) return;
 
     // The rules had the last word and refused it. Any legal point at all keeps
-    // the table moving; a board with nothing legal left on it skips the seat,
-    // which is the closest thing to a pass the rules have (ideas.md D-G5).
+    // the table moving; a board with nothing legal left on it makes the seat pass.
     const drifter = chooseAction(this.botView(playerIndex), randomStyle(), this.rng);
     if (drifter.kind !== "pass" && this.takeBotAction(playerIndex, drifter) === null) return;
 
-    this.state.lastEvent = `${player.name} sits this one out`;
-    this.advanceTurn();
+    this.applyPass(playerIndex);
   }
 
   /** Puts a bot's action through the same path a client's message takes. Null when it was taken. */
@@ -558,6 +566,7 @@ export class GoRoom extends Room<GoState> {
     player.score += captured.length;
     player.moves += 1;
     player.fireflies += FIREFLIES_PER_MOVE + FIREFLIES_PER_CAPTURE * captured.length;
+    this.state.passes = 0;
 
     this.recordAction("move", "", x, y, player.color);
     this.state.lastEvent = `${player.name} played (${x}, ${y})${
@@ -565,6 +574,62 @@ export class GoRoom extends Room<GoState> {
     }`;
     this.advanceTurn();
     return null;
+  }
+
+  private handlePass(client: Client) {
+    const playerIndex = this.findPlayerIndex(client.sessionId);
+    if (playerIndex === -1) return;
+    const refused = this.applyPass(playerIndex);
+    if (refused) this.notice(client, refused);
+  }
+
+  /**
+   * Passing takes the turn and places nothing. A stone or an item played in
+   * between resets the count; once every seat has passed in a row the game ends.
+   */
+  private applyPass(playerIndex: number): string | null {
+    if (this.state.status !== "playing") return "";
+    if (playerIndex !== this.state.turnIndex) return "";
+
+    const state = this.state;
+    const player = state.players[playerIndex];
+    state.passes += 1;
+    if (state.passes >= state.players.length) {
+      this.finishGame();
+      return null;
+    }
+    state.lastEvent = `${player.name} passed (${state.passes} of ${state.players.length} in a row)`;
+    this.advanceTurn();
+    return null;
+  }
+
+  /** Scores the board as it stands (rules/endgame.ts) and closes the game. */
+  private finishGame() {
+    const state = this.state;
+    this.botTimer?.clear();
+    this.botTimer = undefined;
+
+    const results = finalResults(
+      areaScore(state.board.toArray(), state.size),
+      state.players.map((p) => p.color)
+    );
+    state.players.forEach((player, i) => {
+      player.baseArea = results[i].base;
+      player.patternArea = results[i].pattern;
+      player.finalScore = results[i].score;
+      player.tiebreak = results[i].tiebreak;
+      player.place = results[i].place;
+    });
+
+    // Turns stop here, so a storm still in its three rounds would keep every
+    // stone blacked out on the final board, hiding whose is whose.
+    if (state.storm.until > state.turnCount) state.storm.until = state.turnCount;
+    state.status = "finished";
+
+    const winners = state.players.filter((p) => p.place === 1);
+    state.lastEvent =
+      `Game over: ${winners.map((p) => p.name).join(", ")} ` +
+      `${winners.length === 1 ? "wins" : "share first place"} with ${winners[0].finalScore}.`;
   }
 
   private handleBuy(client: Client, message: BuyMessage) {
@@ -649,6 +714,7 @@ export class GoRoom extends Room<GoState> {
     }
 
     player.powerups.splice(inventoryIndex, 1);
+    this.state.passes = 0;
     this.recordAction("powerup", definition.id, target!.x, target!.y, player.color);
     this.state.lastEvent = `${player.name} used ${definition.name}`;
     this.advanceTurn();

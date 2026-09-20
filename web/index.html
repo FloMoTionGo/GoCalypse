@@ -33,9 +33,14 @@
         <div class="header-left">
           <div id="room-status"></div>
           <button id="help-button" class="link-button" type="button">How to play</button>
+          <button id="bots-button" class="link-button" type="button" hidden>Add bots</button>
           <button id="stones-button" class="link-button" type="button" title="Try the three pattern-stone designs"></button>
+          <button id="result-button" class="link-button" type="button" hidden>Results</button>
         </div>
-        <div id="turn-indicator"></div>
+        <div class="header-right">
+          <button id="pass-button" class="link-button" type="button" hidden>Pass</button>
+          <div id="turn-indicator"></div>
+        </div>
       </header>
 
       <div id="game-body">
@@ -74,6 +79,17 @@
       <h2 id="welcome-title">Welcome to GoCalypse</h2>
       <p class="welcome-tagline">Four players, one board, a night of lanterns by the river.</p>
 
+      <!-- Only while the room is still waiting for players; see renderWelcomeBots() in main.js. -->
+      <section id="welcome-bots" hidden>
+        <h3>Play with bots</h3>
+        <p id="welcome-bots-intro"></p>
+        <div id="welcome-bot-list"></div>
+        <div class="welcome-bots-actions">
+          <button id="welcome-bots-add" type="button" disabled>Seat bots</button>
+          <span id="welcome-bots-note" class="hint"></span>
+        </div>
+      </section>
+
       <h3>How to play</h3>
       <p>Four players take turns placing stones. A group whose last free neighbouring point is filled gets captured.</p>
       <p id="welcome-you"></p>
@@ -82,6 +98,11 @@
         <li><span id="welcome-pattern-icon"></span><span><b>Right click</b>: a grey stone with your pattern. It fights <b>dots against stripes</b>.</span></li>
       </ul>
       <p>On the other front a stone is just a wall: it blocks, but can't be captured there. Players who share your color, or your pattern, fight on your side.</p>
+
+      <h3>Ending the game &amp; scoring</h3>
+      <p>On your turn you can <b>Pass</b> (button in the header) instead of placing a stone. When <b>all four players pass in a row</b> the game ends. A stone or an item played in between starts the count again.</p>
+      <p>The board is then scored the normal Go way, once on each front: every stone counts one point for its side, and so does every empty point that only that side's stones surround. A stone that is a wall on a front counts for no one there. Nothing is removed first, so capture what should go before you pass.</p>
+      <p id="welcome-scoring"></p>
 
       <h3>Fireflies &amp; the Night Market</h3>
       <p id="welcome-economy"></p>
@@ -93,6 +114,17 @@
       <p id="welcome-weather"></p>
 
       <p class="welcome-footer">Click anywhere outside this window to start.</p>
+    </div>
+  </dialog>
+
+  <!-- Final scores: opens when the game ends, reopened by "Results". Filled in by openResult() in main.js. -->
+  <dialog id="result" aria-labelledby="result-title">
+    <button id="result-close" class="welcome-x" type="button" aria-label="Close">&times;</button>
+    <div class="welcome-body">
+      <h2 id="result-title">Game over</h2>
+      <p id="result-summary" class="welcome-tagline"></p>
+      <div id="result-table"></div>
+      <p class="hint">A player's score is the lower of their two totals; the higher one only breaks ties. Players on the same side share its total.</p>
     </div>
   </dialog>
 

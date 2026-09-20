@@ -35,6 +35,16 @@ const marketItemsEl = document.getElementById("market-items");
 const helpButton = document.getElementById("help-button");
 const welcomeEl = document.getElementById("welcome");
 const welcomeCloseButton = document.getElementById("welcome-close");
+const botsButton = document.getElementById("bots-button");
+const passButton = document.getElementById("pass-button");
+const resultButton = document.getElementById("result-button");
+const resultEl = document.getElementById("result");
+const resultCloseButton = document.getElementById("result-close");
+const welcomeBotsEl = document.getElementById("welcome-bots");
+const welcomeBotsIntroEl = document.getElementById("welcome-bots-intro");
+const welcomeBotListEl = document.getElementById("welcome-bot-list");
+const welcomeBotsAddButton = document.getElementById("welcome-bots-add");
+const welcomeBotsNoteEl = document.getElementById("welcome-bots-note");
 
 const boardCtx = boardEl.getContext("2d");
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -57,6 +67,9 @@ let lastActionSeq = null;
 let lastFrameAt = 0;
 let noticeTimer = null;
 let welcomeChecked = false;
+let resultOpened = false; // the final scores open by themselves once, when the game ends
+const botPicks = new Set(); // ids ticked in the welcome screen's bot menu
+let closeWelcomeOnStart = false; // the player just seated bots that fill the table
 let storm = null; // {start, seq, strikes: [{x, y}]} while a thunderstorm plays
 let lastStormSeq = null;
 let turnCount = 0;
@@ -107,6 +120,18 @@ boardEl.addEventListener("contextmenu", onBoardRightClick);
 window.addEventListener("resize", sizeCanvas);
 helpButton.addEventListener("click", () => lastState && openWelcome(lastState));
 welcomeCloseButton.addEventListener("click", () => welcomeEl.close());
+botsButton.addEventListener("click", () => {
+  if (!lastState) return;
+  openWelcome(lastState);
+  welcomeBotsEl.scrollIntoView({ block: "nearest" });
+});
+welcomeBotsAddButton.addEventListener("click", seatPickedBots);
+passButton.addEventListener("click", () => room && room.send("pass"));
+resultButton.addEventListener("click", () => lastState && openResult(lastState));
+resultCloseButton.addEventListener("click", () => resultEl.close());
+resultEl.addEventListener("click", (evt) => {
+  if (evt.target === resultEl && isOutside(resultEl, evt)) resultEl.close();
+});
 // The modal's backdrop swallows clicks, so a click outside the window closes
 // it without also placing a stone on the board underneath.
 welcomeEl.addEventListener("click", (evt) => {
@@ -351,7 +376,21 @@ function onState(state) {
   renderStatus(state, players);
   boardEl.classList.toggle("my-turn", isMyTurn && !selectedPowerup);
   renderSidebar(state);
+  renderBotMenu(state);
+  renderPass(state);
   lastEventEl.textContent = state.lastEvent || "";
+
+  if (state.status === "finished" && !resultOpened) {
+    resultOpened = true;
+    openResult(state);
+  }
+
+  // Bots that filled the table start the game at once: the player only opened
+  // the welcome screen to seat them, so put the board back in front of them.
+  if (closeWelcomeOnStart && state.status === "playing") {
+    closeWelcomeOnStart = false;
+    if (welcomeEl.open) welcomeEl.close();
+  }
 
   if (!welcomeChecked && myPlayer) {
     welcomeChecked = true;
@@ -415,6 +454,14 @@ function openWelcome(state) {
     `rain sweeps the board and up to three bolts come down on random points. Whatever stands there catches fire ` +
     `and burns away three rounds later, and nobody can play on a burning point until the fire goes out.`;
 
+  // Mirrors areaScore / finalResults in server/src/rules/endgame.ts.
+  document.getElementById("welcome-scoring").textContent =
+    `You play ${base} with ${pattern}, so your score is the lower of the ${base} total and the ${pattern} total; ` +
+    `the higher one only breaks ties. Players who share your color share the ${base} total, ` +
+    `and players who share your pattern share the ${pattern} total.`;
+
+  renderWelcomeBots(state);
+
   const list = document.getElementById("welcome-powerups");
   list.replaceChildren();
   for (const m of Array.from(state.market)) {
@@ -435,6 +482,138 @@ function openWelcome(state) {
   }
 
   if (!welcomeEl.open) welcomeEl.showModal();
+}
+
+// ---- bots ---------------------------------------------------------------------------
+
+// The bots a player can seat while the room waits for its fourth player. `id`
+// is the wire name server/src/bots/styles.ts (RECRUITS) answers to, and `name`
+// is the name the seated bot takes there. `items` is how much of the Night
+// Market it uses, 0 to 3: from Reed, who never buys or uses a thing, to Magpie,
+// who spends turns on items whenever one can do anything.
+const BOT_OPTIONS = [
+  { id: "pure", name: "Reed", kind: "Pure Go", items: 0, itemsLabel: "No powerups",
+    desc: "Plays stones and nothing else. Never visits the Night Market." },
+  { id: "balanced", name: "Tanuki", kind: "Fighter", items: 1, itemsLabel: "Some powerups",
+    desc: "Goes looking for fights, and buys a ward or a removal item when it pays off." },
+  { id: "shark", name: "Magpie", kind: "Market shark", items: 3, itemsLabel: "Max powerups",
+    desc: "Spends turns on items whenever it can, and shops down the whole list." },
+];
+const BOT_SEATS = 4; // mirrors MAX_PLAYERS in server/src/rooms/GoRoom.ts
+
+function freeSeats(state) {
+  return Math.max(0, BOT_SEATS - state.players.length);
+}
+
+/** Bots can be seated only by someone at the table, before the game starts, while a seat is free. */
+function botMenuAvailable(state) {
+  return !!myPlayer && state.status === "waiting" && freeSeats(state) > 0;
+}
+
+function renderBotMenu(state) {
+  botsButton.hidden = !botMenuAvailable(state);
+  if (welcomeEl.open) renderWelcomeBots(state);
+}
+
+/** One row per bot, built once and then updated in place so ticking a box never loses keyboard focus. */
+function buildBotRows() {
+  for (const option of BOT_OPTIONS) {
+    const row = document.createElement("label");
+    row.className = "bot-option";
+    row.dataset.id = option.id;
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.addEventListener("change", () => {
+      if (box.checked) botPicks.add(option.id);
+      else botPicks.delete(option.id);
+      if (lastState) renderWelcomeBots(lastState);
+    });
+
+    const who = document.createElement("div");
+    who.className = "who";
+    const name = document.createElement("span");
+    name.textContent = option.name;
+    const kind = document.createElement("span");
+    kind.className = "kind";
+    kind.textContent = option.kind;
+    const lamps = document.createElement("span");
+    lamps.className = "lamps";
+    lamps.title = `Uses ${option.items === 0 ? "none" : option.items === 3 ? "all" : "some"} of the Night Market`;
+    for (let i = 0; i < 3; i++) {
+      const lamp = document.createElement("i");
+      lamp.className = "lamp" + (i < option.items ? " lit" : "");
+      lamps.appendChild(lamp);
+    }
+    lamps.append(` ${option.itemsLabel}`);
+    who.append(name, kind, lamps);
+
+    const desc = document.createElement("div");
+    desc.className = "desc";
+    desc.textContent = option.desc;
+
+    const body = document.createElement("div");
+    body.className = "body";
+    body.append(who, desc);
+    row.append(box, body);
+    welcomeBotListEl.appendChild(row);
+  }
+}
+
+function renderWelcomeBots(state) {
+  const show = botMenuAvailable(state);
+  welcomeBotsEl.hidden = !show;
+  if (!show) {
+    botPicks.clear();
+    return;
+  }
+  if (!welcomeBotListEl.firstChild) buildBotRows();
+
+  const free = freeSeats(state);
+  const seated = new Set(Array.from(state.players).filter((p) => p.bot).map((p) => p.name));
+
+  // A pick can go stale under the player: someone else seated that bot, or the seats ran out.
+  for (const option of BOT_OPTIONS) {
+    if (seated.has(option.name)) botPicks.delete(option.id);
+  }
+  for (const id of Array.from(botPicks).slice(free)) botPicks.delete(id);
+
+  welcomeBotsIntroEl.textContent =
+    `${state.players.length} of ${BOT_SEATS} seats are taken. Seat up to ${free} bot${free === 1 ? "" : "s"} ` +
+    `to play against. They differ in how much of the Night Market they use:`;
+
+  for (const row of welcomeBotListEl.children) {
+    const id = row.dataset.id;
+    const option = BOT_OPTIONS.find((o) => o.id === id);
+    const taken = seated.has(option.name);
+    const picked = botPicks.has(id);
+    const full = !picked && botPicks.size >= free;
+    const box = row.querySelector("input");
+    box.checked = picked;
+    box.disabled = taken || full;
+    row.classList.toggle("picked", picked);
+    row.classList.toggle("taken", taken);
+    row.classList.toggle("full", full && !taken);
+    row.title = taken ? `${option.name} already has a seat` : "";
+  }
+
+  const n = botPicks.size;
+  welcomeBotsAddButton.disabled = n === 0;
+  welcomeBotsAddButton.textContent = n === 0 ? "Seat bots" : `Seat ${n} bot${n === 1 ? "" : "s"}`;
+  const left = free - n;
+  welcomeBotsNoteEl.textContent =
+    n === 0 ? "" :
+    left === 0 ? "The game starts as soon as they sit down." :
+    `${left === 1 ? "1 seat stays" : `${left} seats stay`} open for other players.`;
+}
+
+function seatPickedBots() {
+  if (!room || !lastState || botPicks.size === 0) return;
+  const ids = BOT_OPTIONS.filter((o) => botPicks.has(o.id)).map((o) => o.id);
+  closeWelcomeOnStart = ids.length >= freeSeats(lastState);
+  room.send("addBots", { ids });
+  botPicks.clear();
+  renderWelcomeBots(lastState);
 }
 
 function overlayKey(o) {
@@ -462,7 +641,7 @@ function startStorm(state) {
 function renderStatus(state, players) {
   const statusLabel = {
     waiting: `Waiting for players (${players.length}/4)...`,
-    playing: "Game in progress",
+    playing: state.passes > 0 ? `Game in progress · ${state.passes}/${players.length} passed` : "Game in progress",
     finished: "Game finished",
   }[state.status] || state.status;
   roomStatusEl.textContent = statusLabel;
@@ -475,6 +654,80 @@ function renderStatus(state, players) {
   const current = players[state.turnIndex];
   turnIndicatorEl.textContent = isMyTurn ? "Your turn" : `${current ? current.name : "?"}'s turn`;
   turnIndicatorEl.classList.toggle("my-turn", isMyTurn);
+}
+
+/** The Pass button lives for as long as the game is on; Results appears once it is over. */
+function renderPass(state) {
+  passButton.hidden = state.status !== "playing";
+  passButton.disabled = !isMyTurn;
+  passButton.title =
+    `Skip your turn without placing a stone. When all ${state.players.length} players pass in a row, ` +
+    `the game ends and is scored.`;
+  resultButton.hidden = state.status !== "finished";
+}
+
+const ORDINALS = ["1st", "2nd", "3rd", "4th"];
+
+/** The final scores: one row per player, best first, with both of their totals. */
+function openResult(state) {
+  const players = Array.from(state.players).sort((a, b) => a.place - b.place || a.color - b.color);
+  const winners = players.filter((p) => p.place === 1);
+  document.getElementById("result-summary").textContent = winners.length
+    ? `${winners.map((p) => p.name).join(", ")} ${winners.length === 1 ? "wins" : "share first place"} ` +
+      `with ${winners[0].finalScore}.`
+    : "";
+
+  const table = document.getElementById("result-table");
+  table.replaceChildren();
+
+  const head = document.createElement("div");
+  head.className = "result-row head";
+  for (const label of ["Place", "Player", "Color", "Pattern", "Score"]) {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    head.appendChild(cell);
+  }
+  table.appendChild(head);
+
+  for (const player of players) {
+    const [baseName, patternName] = LOOK_NAMES[player.color] || LOOK_NAMES[1];
+    const row = document.createElement("div");
+    row.className = "result-row" + (player.place === 1 ? " winner" : "");
+
+    const place = document.createElement("span");
+    place.textContent = ORDINALS[player.place - 1] || `${player.place}th`;
+
+    const who = document.createElement("span");
+    who.className = "who";
+    const swatches = document.createElement("span");
+    swatches.className = "swatch-pair";
+    swatches.append(
+      spriteImg(`stone_${player.color}`, G.stoneSprite(player.color, "icon"), 2),
+      spriteImg(`stone_${player.color + 4}`, G.stoneSprite(player.color + 4, "icon"), 2)
+    );
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent =
+      player.name + (room && player.sessionId === room.sessionId ? " (you)" : player.bot ? " (bot)" : "");
+    who.append(swatches, name);
+
+    // The lower total is the score; the higher one is only the tie-break.
+    const side = (label, area) => {
+      const cell = document.createElement("span");
+      cell.className = "side" + (area === player.finalScore ? " low" : "");
+      cell.textContent = `${label} ${area}`;
+      return cell;
+    };
+
+    const score = document.createElement("span");
+    score.className = "final";
+    score.textContent = String(player.finalScore);
+
+    row.append(place, who, side(baseName, player.baseArea), side(patternName, player.patternArea), score);
+    table.appendChild(row);
+  }
+
+  if (!resultEl.open) resultEl.showModal();
 }
 
 function marketItem(id) {
@@ -545,7 +798,7 @@ function renderPlayers(state) {
   const players = Array.from(state.players);
   const sig = JSON.stringify([
     state.turnIndex, state.status, myPlayer && myPlayer.sessionId,
-    players.map((p) => [p.name, p.color, p.connected, p.score, p.fireflies]),
+    players.map((p) => [p.name, p.color, p.connected, p.bot, p.score, p.fireflies, p.finalScore, p.place]),
   ]);
   rebuild(playersEl, sig, () => {
     // Listed by color, which is also the turn order (the synced array is join order).
@@ -554,6 +807,7 @@ function renderPlayers(state) {
       const row = document.createElement("div");
       row.className = "player-row";
       if (state.status === "playing" && index === state.turnIndex) row.classList.add("current");
+      if (state.status === "finished" && player.place === 1) row.classList.add("current"); // the winner(s)
       if (!player.connected) row.classList.add("disconnected");
 
       const swatches = document.createElement("span");
@@ -566,12 +820,14 @@ function renderPlayers(state) {
 
       const name = document.createElement("span");
       name.className = "name";
-      name.textContent = player.name + (room && player.sessionId === room.sessionId ? " (you)" : "");
+      name.textContent =
+        player.name + (room && player.sessionId === room.sessionId ? " (you)" : player.bot ? " (bot)" : "");
 
       const score = document.createElement("span");
       score.className = "score";
-      score.title = "Stones captured";
-      score.textContent = `${player.score}`;
+      const finished = state.status === "finished";
+      score.title = finished ? "Final score: the lower of this player's two totals" : "Stones captured";
+      score.textContent = `${finished ? player.finalScore : player.score}`;
 
       row.append(swatches, name, fireflies(player.fireflies), score);
       playersEl.appendChild(row);

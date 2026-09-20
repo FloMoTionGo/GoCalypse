@@ -334,17 +334,21 @@ Ticked items can still be revisited; they just describe what's live now.
       fixed nightly stock would be better than a random draw.
 - [x] **D-G4 Firework hits your own stones.** Kept as a risk element; warded
       stones are spared. Open: give Flame for it once Flame exists.
-- [ ] **D-G5 Match end condition.** 🔴 The biggest gap. `status: "finished"`
-      is never set and there's no pass move, so turns run forever. Payouts,
-      rankings and progression all need an ending: a fixed number of rounds?
-      First to N captures? All four players passing in a row?
+- [x] **D-G5 Match end condition.** All four players passing in a row ends the
+      match (`GoRoom.applyPass` / `finishGame`). The board is scored with area
+      scoring on each front and a player's score is the lower of their two
+      sides, the higher one breaking ties (`rules/endgame.ts`). Still open:
+      payouts, rankings and progression need wiring to `PlayerState.place`;
+      bots never pass by choice (only when they have no legal move); no rematch.
 - [ ] **D-G6 Numbers.** Tune the live economy (3 / 5 / 3, prices 15–200,
       market after 5 moves) and the designed Flame and payout tables after
       playtests, and make the two fit together.
 - [x] **D-G7 Free starting kit.** Removed; everything is bought.
-- [ ] **D-G8 Players who leave mid-game.** 🔴 Turns still go to disconnected
-      players, so the game stalls. Options: skip their turns, a simple bot
-      takes over, or end the match with payouts.
+- [x] **D-G8 Players who leave mid-game.** A bot takes over the seat once the
+      60 s reconnect grace runs out (`GoRoom.onLeave`); the seat still shows as
+      the player's. Bots can also be seated up front from the welcome screen.
+      Still open: what a returning player gets back if they arrive after the
+      takeover (D-T7 covers reconnecting at all).
 - [ ] **D-G9 Lily Pad timing.** It expires as its owner's third turn begins, so
       the owner gets 2 turns to use it. Extend it through that third turn?
 - [ ] **D-G10 Gust scope.** It removes only the targeted stone of a group in

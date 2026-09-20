@@ -9,13 +9,12 @@ export { chooseBuy } from "./items";
 export { rankMoves, scoreMove, chooseMove } from "./scoring";
 export type { BotView, Candidate, MarketRow } from "./scoring";
 export type { Style } from "./styles";
-export { heron, moth, oldToad, randomStyle, tanuki, temperamentFor } from "./styles";
+export { heron, magpie, moth, oldToad, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
 
 /**
  * One turn's worth of intent. "pass" is what a bot returns when the board
- * offers it nothing legal -- there is no pass move in the rules yet
- * (ideas.md D-G5), so the room turns it into a skipped seat rather than a
- * stalled table.
+ * offers it nothing legal; the room turns it into a real pass, which counts
+ * towards the four in a row that end the game.
  */
 export type BotAction =
   | { kind: "move"; x: number; y: number; axis: StoneView }

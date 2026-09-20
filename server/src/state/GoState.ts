@@ -9,6 +9,12 @@ export class PlayerState extends Schema {
   @type("number") score: number = 0; // stones captured
   @type("number") fireflies: number = 0; // market currency, earned this match
   @type("number") moves: number = 0; // stones placed; the market opens after GoState.shopAfter
+  // Filled in once when the game ends (rules/endgame.ts); all 0 until then.
+  @type("number") baseArea: number = 0; // area of this player's base side (black or white)
+  @type("number") patternArea: number = 0; // area of this player's pattern side (dots or stripes)
+  @type("number") finalScore: number = 0; // the lower of the two
+  @type("number") tiebreak: number = 0; // the higher of the two
+  @type("number") place: number = 0; // 1 = winner; players level on both numbers share a place
   @type(["string"]) powerups = new ArraySchema<string>(); // owned, unused items (bought at the market)
   @type(["string"]) bought = new ArraySchema<string>(); // removal items already bought this match (once each)
 }
@@ -66,6 +72,7 @@ export class GoState extends Schema {
   @type("number") turnIndex: number = 0; // index into players (turn order)
   @type("string") status: "waiting" | "playing" | "finished" = "waiting";
   @type("number") turnCount: number = 0;
+  @type("number") passes: number = 0; // passes in a row; the game ends when every player has passed
   @type("string") lastEvent: string = ""; // human-readable log of the last action, for client toasts
   @type("number") shopAfter: number = 5; // a player's market opens after this many placed stones
   @type("number") satchelLimit: number = 5; // items a player may hold at once

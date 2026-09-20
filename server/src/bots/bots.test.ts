@@ -7,10 +7,10 @@ import {
   stoneCode,
   StoneView,
 } from "../rules/goRules";
-import { chooseAction } from "./index";
+import { chooseAction, chooseBuy } from "./index";
 import { Rng } from "./rng";
 import { BotView, rankMoves, scoreMove } from "./scoring";
-import { heron, randomStyle, tanuki, temperamentFor } from "./styles";
+import { heron, magpie, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
 
 // The players are pure functions over a plain board, so everything below runs
 // without a room, a socket or a clock. Seat 1 is black+dots throughout.
@@ -174,4 +174,71 @@ test("the drifter still only offers legal points", () => {
   const ranked = rankMoves(v, randomStyle());
   assert.equal(new Set(ranked.map((c) => c.score)).size, 1); // every point equal: a flat draw
   assert.ok(ranked.length > 0);
+});
+
+// ---- the bots a player can seat from the welcome screen ---------------------------
+
+const MARKET = [
+  { id: "driftwood", price: 15, removal: false },
+  { id: "lily_pad", price: 20, removal: false },
+  { id: "lantern_ward", price: 30, removal: false },
+  { id: "turn_lantern", price: 40, removal: false },
+  { id: "gust", price: 90, removal: true },
+];
+
+/** Our two black stones in the corner, both on their last liberty at (1, 1). */
+function corneredPair(over: Partial<BotView> = {}): BotView {
+  const size = 5;
+  const v = view(size, 1, over);
+  for (const [x, y, color] of [[0, 0, 1], [1, 0, 1], [2, 0, 2], [0, 1, 2]]) {
+    v.board[boardIndex(size, x, y)] = stoneCode(color, "base");
+  }
+  return v;
+}
+
+test("recruit ids resolve to a style, and anything else to nothing", () => {
+  assert.deepEqual(RECRUIT_IDS, ["pure", "balanced", "shark"]);
+  for (const id of RECRUIT_IDS) assert.ok(recruitStyle(id) !== null, id);
+  for (const id of ["", "PURE", "constructor", "__proto__", "toString", "hasOwnProperty"]) {
+    assert.equal(recruitStyle(id), null, id);
+  }
+});
+
+test("the recruits run from no items to every item", () => {
+  const [pure, balanced, shark] = RECRUIT_IDS.map((id) => recruitStyle(id)!);
+  assert.ok(pure.itemBias < balanced.itemBias && balanced.itemBias < shark.itemBias);
+  assert.equal(pure.shopping.length, 0);
+  assert.ok(shark.shopping.length > balanced.shopping.length);
+  assert.equal(new Set([pure.name, balanced.name, shark.name]).size, 3);
+});
+
+test("the pure Go bot never buys, and never uses an item even when handed one", () => {
+  const rich = { moves: 9, fireflies: 500, market: MARKET };
+  assert.equal(chooseBuy(view(5, 1, rich), reed()), null);
+
+  const v = corneredPair({ powerups: ["lantern_ward"] });
+  const action = chooseAction(v, reed(), new Rng(1));
+  assert.equal(action.kind, "move");
+});
+
+test("the market bot shops as soon as the market opens, and spends a turn on an item", () => {
+  const rich = { moves: 5, fireflies: 500, market: MARKET };
+  assert.equal(chooseBuy(view(5, 1, rich), magpie()), "lantern_ward");
+  assert.equal(chooseBuy(view(5, 1, { ...rich, moves: 4 }), magpie()), null); // not open yet
+
+  const v = corneredPair({ powerups: ["lantern_ward"] });
+  const action = chooseAction(v, magpie(), new Rng(1));
+  assert.equal(action.kind, "powerup");
+  if (action.kind === "powerup") assert.equal(action.id, "lantern_ward");
+});
+
+test("the balanced bot would rather take the board than a ward it barely needs", () => {
+  // The same cornered pair, but a stone that captures is on the board: Tanuki's
+  // itemBias is small enough that the capture wins.
+  const size = 5;
+  const v = view(size, 1, { powerups: ["lantern_ward"] });
+  v.board[boardIndex(size, 2, 2)] = stoneCode(2, "base");
+  for (const [x, y] of [[1, 2], [3, 2], [2, 1]]) v.board[boardIndex(size, x, y)] = stoneCode(1, "base");
+  const action = chooseAction(v, tanuki(), new Rng(1));
+  assert.equal(action.kind, "move");
 });
