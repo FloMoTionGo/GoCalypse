@@ -1,6 +1,6 @@
 # GoCalypse: Current State
 
-Snapshot as of **2026-09-20** (working tree on top of commit `0d8665d`, which is what is deployed; later changes are listed first in section 8).
+Snapshot as of **2026-09-20** (at commit `fa3afa0`, which is what is deployed: Fly version 10 and the GitHub Pages client).
 What's built, where it runs, how it's tested, and what's missing. Plans and
 open design questions are in [`ideas.md`](ideas.md); setup instructions are in
 [`README.md`](README.md).
@@ -338,9 +338,11 @@ ideas.md, D-T9).
   rounds later and its owner is paid. `preview.js` drives
   `pixel-preview.html` for storm screenshots.
 
-All of the above passed locally on 2026-09-20. Production (Fly version 8, and
-the GitHub Pages client) was redeployed from `0d8665d` the same day; the pass /
-end-game flow has been played through only locally, not on the live server.
+All of the above passed locally on 2026-09-20. Production (Fly version 10, and
+the GitHub Pages client) was redeployed from `fa3afa0` the same day. A live smoke
+test passed (3 bots from the home screen on the live server: numbered names,
+doubled prices, the forecast, the player boxes). The pass / end-game flow and a
+real storm breaking have been played through only locally.
 
 ## 7. Known gaps and limits
 
@@ -370,7 +372,7 @@ end-game flow has been played through only locally, not on the live server.
 
 | Commit | What changed |
 |---|---|
-| (working tree) | The storm now lasts its full 3 rounds as a weak lingering weather that leaves stones and the board untouched (the all-stones-one-tone blackout is gone); four distinct stones (black, white, gray, transparent) replace dots/stripes and the design switcher; timers and owner marks on timed board items; a turn-number boat; storm odds rise with a D20 + 1 per calm roll, with a forecast meter; up to 3 bots of a kind (3 in all), also from the home screen; all item prices doubled (debug rooms start with 1200 fireflies); board grain removed; larger player boxes |
+| `2c69f36`, `fa3afa0` | The storm now lasts its full 3 rounds as a weak lingering weather that leaves stones and the board untouched (the all-stones-one-tone blackout is gone); four distinct stones (black, white, gray, transparent) replace dots/stripes and the design switcher; timers and owner marks on timed board items; a turn-number boat; storm odds rise with a D20 + 1 per calm roll, with a forecast meter; up to 3 bots of a kind (3 in all), also from the home screen; all item prices doubled (debug rooms start with 1200 fireflies); board grain removed; larger player boxes |
 | `0d8665d` | Pass move; four passes in a row end the game, scored by area on each front (lower of a player's two sides, higher breaks ties); Results dialog; opt-in bots menu on the welcome screen |
 | `b653abb` | Liberty rule fixed (any 0-liberty group dies); thunderstorms and fire; see-through pattern stones in 3 designs; market cut to 5 items / 1 powerful and a 5-item satchel; river all around the board; board scales to the screen; lantern-keeper bots |
 | `765936d` | Deal color/pattern combos at random each game |
