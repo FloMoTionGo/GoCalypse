@@ -275,8 +275,8 @@ start a game.
 
 Live at `wss://gocalypse.fly.dev`. Deploys to [Fly.io](https://fly.io) via
 the included `Dockerfile` and `fly.toml` (`fly deploy` from `server/`).
-Scales to zero when idle (`min_machines_running = 0`), so no cost while no
-game is running.
+One machine is kept running (`min_machines_running = 1`, about $2/month):
+letting Fly autostop an idle machine dropped players sitting in a lobby.
 
 **Single instance only.** Room state lives in each machine's memory with no
 shared backend (Redis, etc), so a client's WebSocket must land on the same

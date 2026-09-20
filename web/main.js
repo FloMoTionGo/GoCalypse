@@ -162,12 +162,18 @@ async function rejoin() {
 }
 
 /** After an unexpected disconnect: keeps knocking (a restarting server takes a few seconds to wake). */
-async function rejoinAfterDrop() {
+async function rejoinAfterDrop(inGame) {
   for (let attempt = 0; attempt < 10; attempt++) {
     setLobbyStatus(`Disconnected. Reconnecting... (${attempt + 1}/10)`, true);
     await new Promise((resolve) => setTimeout(resolve, 1500));
     try {
       if (await rejoin()) return;
+      if (!inGame) {
+        // The server is back but a lobby doesn't survive a restart: start a new one.
+        setLobbyStatus("The server restarted. Press Join to start a new lobby.", true);
+        joinButton.disabled = false;
+        return;
+      }
     } catch (err) {
       console.error(err);
     }
@@ -185,8 +191,9 @@ function attachRoom(joined) {
     gameEl.hidden = true;
     lobbyEl.hidden = false;
     joinButton.disabled = true;
-    if (inGame) {
-      rejoinAfterDrop();
+    // 1012 = the server is restarting (Fly stops an idle machine); anything else in a lobby stays manual.
+    if (inGame || code === 1012) {
+      rejoinAfterDrop(inGame);
     } else {
       setLobbyStatus(`Disconnected (code ${code}). Refresh to reconnect.`, true);
       joinButton.disabled = false;

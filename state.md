@@ -31,8 +31,9 @@ matches, and there's no Flame/progression system yet.
 - **Client:** GitHub Pages, deployed by `.github/workflows/pages.yml` on every
   push to `master` that touches `web/`. The repo is public because free Pages
   requires it.
-- **Server:** Fly.io app `gocalypse`, region `fra`, **one machine only**, which
-  scales to zero when idle (`fly deploy` from `server/`). Room state lives in
+- **Server:** Fly.io app `gocalypse`, region `fra`, **one machine only**, kept
+  running (`min_machines_running = 1`; Fly's autostop used to drop lobbies with
+  close code 1012) (`fly deploy` from `server/`). Room state lives in
   memory, so a second machine breaks matchmaking; after a from-scratch deploy
   run `fly scale count 1 -a gocalypse`.
 - **On this PC:** Node is at `C:\Program Files\nodejs` and flyctl at
@@ -357,7 +358,7 @@ real storm breaking have been played through only locally.
   the client has no reconnect code: refreshing creates a new session, which
   can't enter the locked room.
 - **Nothing persists.** No accounts, no database; fireflies and items vanish
-  when the match (or server) ends. The server also scales to zero when idle.
+  when the match (or server) ends. The server stays running (about $2/month).
 - **Not built yet:** Flame risk meter, Lantern Path levels, keepsakes,
   cosmetics, sound, match-end payouts.
 - **Balance is untuned:** prices and earn rates are first guesses. The new
