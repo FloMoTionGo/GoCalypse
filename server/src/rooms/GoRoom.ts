@@ -427,6 +427,11 @@ export class GoRoom extends Room<GoState> {
     return this.effectAt("lily", idx)?.owner ?? 0;
   }
 
+  /** Under a fog: nothing may be placed there until it lifts. */
+  private isFogged(idx: number): boolean {
+    return this.effectAt("fog", idx) !== undefined;
+  }
+
   private isBurning(idx: number): boolean {
     return this.effectAt("fire", idx) !== undefined;
   }
@@ -730,6 +735,7 @@ export class GoRoom extends Room<GoState> {
 
     const player = this.state.players[playerIndex];
     if (this.isBurning(idx)) return "That point is still burning after the storm.";
+    if (this.isFogged(idx)) return "That point is lost in fog: no stone can be placed there.";
     const lily = this.lilyOwnerAt(idx);
     if (lily && lily !== player.color) return "That point is reserved by someone's lily pad.";
 
@@ -799,7 +805,7 @@ export class GoRoom extends Room<GoState> {
     if (!isOnBoard(size, x, y)) return null;
     const idx = boardIndex(size, x, y);
     const board = this.state.board;
-    if (board[idx] !== 0 || this.isBurning(idx)) return null;
+    if (board[idx] !== 0 || this.isBurning(idx) || this.isFogged(idx)) return null;
     const player = this.state.players[playerIndex];
     const lily = this.lilyOwnerAt(idx);
     if (lily && lily !== player.color) return null;

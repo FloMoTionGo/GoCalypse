@@ -433,6 +433,7 @@ function hoverKind() {
   if (selectedPowerup) return "target";
   if (!isMyTurn || !myPlayer) return "none";
   if (burningAt(hoverPoint.x, hoverPoint.y)) return "none"; // nothing can be played into a fire
+  if (overlays.some((o) => o.kind === "fog" && o.x === hoverPoint.x && o.y === hoverPoint.y)) return "none"; // nor into a fog
   const owner = lilyOwnerAt(hoverPoint.x, hoverPoint.y);
   return owner && owner !== myPlayer.color ? "none" : "stone";
 }

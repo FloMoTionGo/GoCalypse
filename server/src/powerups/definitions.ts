@@ -244,7 +244,7 @@ const fog: PowerupDefinition = {
   tier: 1,
   name: "Fog",
   description:
-    "Roll a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed, and the other players can't see them. Anyone may still play there.",
+    "Roll a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed, and the other players can't see them. No stone can be placed inside it.",
   price: 35,
   removal: false,
   apply(ctx) {
