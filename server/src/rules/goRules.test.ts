@@ -13,10 +13,10 @@ import {
   stoneCode,
 } from "./goRules";
 
-// Player identity: 1 = black+dots, 2 = white+dots, 3 = black+stripes, 4 = white+stripes.
+// Player identity: 1 = black+gray, 2 = white+gray, 3 = black+transparent, 4 = white+transparent.
 // A move chooses which axis that stone fights on:
 //   stoneCode(player, "base")    -> solid black/white, neutral (a wall) on the pattern view.
-//   stoneCode(player, "pattern") -> grey dots/stripes, neutral (a wall) on the base view.
+//   stoneCode(player, "pattern") -> gray/transparent, neutral (a wall) on the base view.
 
 test("stoneCode / ownerOf / axisOf round-trip", () => {
   const base = stoneCode(3, "base");
@@ -63,12 +63,12 @@ test("a pattern-axis (grey) stone is a wall on the base view: blocks, but can't 
 test("a base-axis move DOES smother a pattern group whose last liberty it fills", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
-  // A lone grey+dots stone (player 1) surrounded by grey+stripes (rivals on
+  // A lone gray stone (player 1) surrounded by grey+transparent (rivals on
   // pattern) plus one base-axis stone as the actual last move.
-  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // grey dots
-  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // grey stripes -- pattern rival
-  board[boardIndex(size, 3, 2)] = stoneCode(3, "pattern"); // grey stripes
-  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern"); // grey stripes
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // gray
+  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // transparent -- pattern rival
+  board[boardIndex(size, 3, 2)] = stoneCode(3, "pattern"); // transparent
+  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern"); // transparent
   board[boardIndex(size, 2, 3)] = stoneCode(2, "base"); // white, last move -- a base-axis move
 
   // No liberties left is no liberties left, whoever filled the last one.
@@ -78,13 +78,13 @@ test("a base-axis move DOES smother a pattern group whose last liberty it fills"
   assert.equal(board[boardIndex(size, 2, 2)], 0);
 });
 
-test("a group hemmed in by one single colour dies: four white base stones kill a dots stone", () => {
+test("a group hemmed in by one single colour dies: four white base stones kill a gray stone", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
   // The reported case: only ONE colour around a stone of another pattern.
   // None of these white stones fights the pattern war at all -- they just
-  // occupy every free point the dots stone had.
-  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // grey dots
+  // occupy every free point the gray stone had.
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // gray
   board[boardIndex(size, 1, 2)] = stoneCode(2, "base"); // white
   board[boardIndex(size, 3, 2)] = stoneCode(2, "base"); // white
   board[boardIndex(size, 2, 1)] = stoneCode(2, "base"); // white
@@ -100,13 +100,13 @@ test("a mixed ring of walls and rivals kills a multi-stone group", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
   // Black chain (1,1)-(2,1) surrounded by a mixture: white base stones (rivals
-  // on its own front), a grey dots stone and a grey stripes stone (walls that
+  // on its own front), a gray stone and a transparent stone (walls that
   // fight a different war entirely), and driftwood.
   board[boardIndex(size, 1, 1)] = stoneCode(1, "base"); // black
   board[boardIndex(size, 2, 1)] = stoneCode(3, "base"); // black, merges
-  board[boardIndex(size, 0, 1)] = stoneCode(2, "pattern"); // grey dots wall
+  board[boardIndex(size, 0, 1)] = stoneCode(2, "pattern"); // gray wall
   board[boardIndex(size, 1, 0)] = DRIFTWOOD;
-  board[boardIndex(size, 2, 0)] = stoneCode(4, "pattern"); // grey stripes wall
+  board[boardIndex(size, 2, 0)] = stoneCode(4, "pattern"); // transparent wall
   board[boardIndex(size, 3, 1)] = stoneCode(2, "base"); // white
   board[boardIndex(size, 1, 2)] = stoneCode(4, "base"); // white
   board[boardIndex(size, 2, 2)] = stoneCode(2, "base"); // white, last move
@@ -119,9 +119,9 @@ test("a mixed ring of walls and rivals kills a multi-stone group", () => {
 test("your own stone can smother your own group on the other front", () => {
   const size = 3;
   const board = new Array(size * size).fill(0);
-  // Player 1's grey dots stone in the corner, with player 1's own solid black
+  // Player 1's gray stone in the corner, with player 1's own solid black
   // stone about to take its last liberty. It dies all the same.
-  board[boardIndex(size, 0, 0)] = stoneCode(1, "pattern"); // grey dots
+  board[boardIndex(size, 0, 0)] = stoneCode(1, "pattern"); // gray
   board[boardIndex(size, 1, 0)] = stoneCode(1, "base"); // own black stone
   board[boardIndex(size, 0, 1)] = stoneCode(1, "base"); // own black stone, last move
 
@@ -149,11 +149,11 @@ test("allies on the same front are never smothered by each other's placements", 
 test("that same pattern-view kill DOES happen when the last move is itself pattern-axis", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
-  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // grey dots
-  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // grey stripes
-  board[boardIndex(size, 3, 2)] = stoneCode(3, "pattern"); // grey stripes
-  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern"); // grey stripes
-  board[boardIndex(size, 2, 3)] = stoneCode(3, "pattern"); // grey stripes, last move
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // gray
+  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // transparent
+  board[boardIndex(size, 3, 2)] = stoneCode(3, "pattern"); // transparent
+  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern"); // transparent
+  board[boardIndex(size, 2, 3)] = stoneCode(3, "pattern"); // transparent, last move
 
   const captured = applyCaptures(board, size, 2, 3, stoneCode(3, "pattern"));
   assert.equal(captured.length, 1);
@@ -249,10 +249,10 @@ test("a protected (warded) group survives with zero liberties", () => {
 test("flipStone moves a stone to its other axis and captures on the new view", () => {
   const size = 3;
   const board = new Array(size * size).fill(0);
-  // Grey dots (player 1) at (0,0), hemmed in by a stripes stone and ...
+  // Grey gray (player 1) at (0,0), hemmed in by a transparent stone and ...
   board[boardIndex(size, 0, 0)] = stoneCode(1, "pattern");
   board[boardIndex(size, 1, 0)] = stoneCode(3, "pattern");
-  // ... player 3's solid black stone at (0,1), which flips to grey stripes.
+  // ... player 3's solid black stone at (0,1), which flips to transparent.
   board[boardIndex(size, 0, 1)] = stoneCode(3, "base");
   const captured = flipStone(board, size, 0, 1);
   assert.ok(captured);
@@ -265,7 +265,7 @@ test("flipStone moves a stone to its other axis and captures on the new view", (
 test("flipStone refuses a flip that leaves the flipped stone without liberties", () => {
   const size = 3;
   const board = new Array(size * size).fill(0);
-  // Solid black corner stone whose neighbours are stripes (rivals of dots on the pattern view).
+  // Solid black corner stone whose neighbours are transparent (rivals of gray on the pattern view).
   board[boardIndex(size, 0, 0)] = stoneCode(1, "base");
   board[boardIndex(size, 1, 0)] = stoneCode(3, "pattern");
   board[boardIndex(size, 0, 1)] = stoneCode(3, "pattern");

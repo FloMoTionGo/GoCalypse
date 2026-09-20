@@ -11,19 +11,19 @@
 // front, or it is driftwood) is invisible there: it scores for no one and does
 // not spoil a region for anyone, exactly like the edge of the board.
 //
-// That gives four totals -- black, white, dots, stripes. Every player belongs to
+// That gives four totals -- black, white, gray, transparent. Every player belongs to
 // one side on each front, so each has two totals of their own. The lower of the
 // two is their final score; the higher only breaks a tie.
 
 import { boardIndex, neighbors, StoneView, stoneCode, viewValue } from "./goRules";
 
-export type Side = "black" | "white" | "dots" | "stripes";
+export type Side = "black" | "white" | "gray" | "transparent";
 export type AreaScore = Record<Side, number>;
 
 export interface PlayerResult {
   color: number; // 1..4
   base: number; // area of this player's base side (black or white)
-  pattern: number; // area of this player's pattern side (dots or stripes)
+  pattern: number; // area of this player's pattern side (gray or transparent)
   score: number; // the lower of the two: the final score
   tiebreak: number; // the higher of the two
   place: number; // 1 = first; players level on score and tiebreak share a place
@@ -69,7 +69,7 @@ function scoreFront(board: ArrayLike<number>, size: number, view: StoneView, tot
 
 /** Area totals for all four sides, counted on the board as it stands. */
 export function areaScore(board: ArrayLike<number>, size: number): AreaScore {
-  const totals: AreaScore = { black: 0, white: 0, dots: 0, stripes: 0 };
+  const totals: AreaScore = { black: 0, white: 0, gray: 0, transparent: 0 };
   scoreFront(board, size, "base", totals);
   scoreFront(board, size, "pattern", totals);
   return totals;

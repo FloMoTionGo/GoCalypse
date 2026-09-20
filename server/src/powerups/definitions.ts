@@ -36,7 +36,7 @@ const driftwood: PowerupDefinition = {
   id: "driftwood",
   name: "Driftwood",
   description: "Drop a log on an empty point: a wall on both fronts that no one owns or can capture. Floats away after 3 rounds.",
-  price: 15,
+  price: 30,
   removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
@@ -52,7 +52,7 @@ const lilyPad: PowerupDefinition = {
   id: "lily_pad",
   name: "Lily Pad",
   description: "Reserve an empty point for 3 rounds: only you may place a stone there.",
-  price: 20,
+  price: 40,
   removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
@@ -66,7 +66,7 @@ const lanternWard: PowerupDefinition = {
   id: "lantern_ward",
   name: "Lantern Ward",
   description: "Light a lantern over one of your groups: it can't be captured or removed until your next turn.",
-  price: 30,
+  price: 60,
   removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
@@ -83,7 +83,7 @@ const turnLantern: PowerupDefinition = {
   id: "turn_lantern",
   name: "Turn the Lantern",
   description: "Flip one of your stones to your other front (solid <-> grey pattern). Captures count on the new front.",
-  price: 40,
+  price: 80,
   removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
@@ -105,7 +105,7 @@ const gust: PowerupDefinition = {
   id: "gust",
   name: "Gust",
   description: "Blow away one enemy stone whose group is in atari (down to its last liberty). Once per match.",
-  price: 90,
+  price: 180,
   removal: true,
   apply(ctx) {
     const idx = targetIndex(ctx);
@@ -122,7 +122,7 @@ const removeStone: PowerupDefinition = {
   id: "remove_stone",
   name: "Snipe",
   description: "Remove any single enemy stone. Once per match.",
-  price: 140,
+  price: 280,
   removal: true,
   apply(ctx) {
     const idx = targetIndex(ctx);
@@ -136,7 +136,7 @@ const bomb: PowerupDefinition = {
   id: "bomb",
   name: "Firework",
   description: "Burst a 3x3 area clear -- your own stones and driftwood too. Warded stones are spared. Once per match.",
-  price: 200,
+  price: 400,
   removal: true,
   apply(ctx) {
     if (targetIndex(ctx) === -1) return false;

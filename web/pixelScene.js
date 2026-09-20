@@ -250,26 +250,10 @@
       }
     }
 
-    // Kaya: flat amber with a few long, gently flowing grain lines (cream on a
-    // checkerboard, so they read as a lighter tone) and a cream bevel on the
-    // lit edges. Kept sparse: the stones must own this surface.
+    // Kaya: flat amber with a cream bevel on the lit edges and nothing else on
+    // it, no grain or specks: the stones and the grid own this surface.
     const kx0 = L.kayaX, ky0 = L.kayaY, kx1 = L.kayaX + L.kayaW - 1, ky1 = L.kayaY + L.kayaH - 1;
     for (let y = ky0; y <= ky1; y++) for (let x = kx0; x <= kx1; x++) s.px[y * W + x] = A;
-    const rg = rng(4242);
-    const grain = [];
-    for (let gx = kx0 + 5; gx < kx1 - 3; gx += 9 + Math.floor(rg() * 11)) {
-      grain.push({ x: gx, a: 2.5 + rg() * 3, f: 0.03 + rg() * 0.03, p: rg() * 6.28, y0: ky0 + Math.floor(rg() * 80), len: 40 + Math.floor(rg() * 90) });
-    }
-    for (const g of grain) {
-      for (let k = 0; k < g.len; k++) {
-        const y = ky0 + 1 + ((g.y0 - ky0 + k) % (L.kayaH - 2));
-        const x = Math.round(g.x + g.a * Math.sin(y * g.f + g.p) + 0.8 * Math.sin(y * 0.11 + g.p * 2));
-        // taper: sparser at both ends of each streak
-        const edge = Math.min(k, g.len - 1 - k);
-        const on = edge > 10 ? (x + y) & 1 : (x + y) % 4 === 0;
-        if (x > kx0 && x < kx1 && on) s.px[y * W + x] = C;
-      }
-    }
     for (let x = kx0; x <= kx1; x++) s.px[ky0 * W + x] = C; // bevel highlight
     for (let y = ky0; y <= ky1; y++) s.px[y * W + kx0] = C;
 
@@ -732,16 +716,22 @@
   const SWAP_CREAM_AMBER = new Uint8Array(256).map((_, i) => (i === C ? A : i === A ? C : i));
 
   // ---------------------------------------------------------------------------
-  // Thunderstorm. Every 20 turns the server rolls a die; on a 6 the sky opens
-  // (see server/src/rooms/GoRoom.ts). The client plays it out over
-  // STORM_SECONDS: clouds roll over the scene, rain falls across the board,
-  // and up to three bolts come down on the points the server picked. Each bolt
-  // lights its fire, which then burns for three rounds.
+  // Thunderstorm. Every 20 turns the server rolls a D20 (plus a bonus for every
+  // calm roll) and at 20 the sky opens (see server/src/rooms/GoRoom.ts). The
+  // client plays it out in two layers. First a ~10 s cloudburst
+  // (STORM_SECONDS): clouds roll over the scene, rain falls, and up to three
+  // bolts come down on the points the server picked, each lighting a fire that
+  // burns for three rounds. Behind it a much weaker copy of the same weather
+  // (STORM_LINGER) stays for the storm's full three rounds, easing out through
+  // the last. Stones keep their own colours throughout, and the playing surface
+  // is kept clear of the lingering weather, so black, white, gray and
+  // transparent stay readable in a storm.
   // ---------------------------------------------------------------------------
   const STORM_SECONDS = 10;
   const STORM_DARK_IN = 1.4; // dusk ramps up over this
   const STORM_DARK_OUT = 1.6; // ... and clears again at the end
-  const STORM_DARKNESS = 0.5; // peak dither coverage of the shade ramp
+  const STORM_DARKNESS = 0.32; // peak dither coverage of the shade ramp
+  const STORM_LINGER = 0.35; // how much of that weather stays for the storm's three rounds
   const STORM_FIRST_BOLT = 2.4; // when the first bolt lands
   const STORM_BOLT_GAP = 2.0; // and how far apart the rest fall
   const BOLT_FLASH = 0.5; // how long one bolt's flash lasts
@@ -769,6 +759,7 @@
       landed.push(dt >= 0);
     }
     return {
+      weight,
       darkness: STORM_DARKNESS * weight,
       rain: reduced ? 0 : weight,
       clouds: weight,
@@ -776,6 +767,16 @@
       landed,
       elapsed,
     };
+  }
+
+  /**
+   * How much of a storm's three rounds is left, 0..1: full for the first two
+   * rounds, then easing out through the last. Worked out from the synced turn
+   * counters alone, so a client that joins mid-storm sees the same weather.
+   */
+  function stormLinger(turnCount, until, roundLength) {
+    if (turnCount === undefined || until === undefined || !(roundLength > 0) || turnCount >= until) return 0;
+    return Math.min(1, (until - turnCount) / roundLength);
   }
 
   /** A bolt's jagged path from the top of the scene down to (x1, y1). */
@@ -830,7 +831,7 @@
   }
 
   /** Rolling cloud cover: soft ink masses drifting right, lit along their tops. */
-  function drawClouds(surf, W, H, t, weight) {
+  function drawClouds(surf, W, H, t, weight, accept) {
     const count = 5;
     for (let i = 0; i < count; i++) {
       const speed = 9 + i * 2.5;
@@ -848,6 +849,7 @@
           // Lumpy edge: puffs rather than one smooth ellipse.
           const lump = 0.72 + 0.28 * Math.sin(x * 0.27 + i) * Math.sin(y * 0.4 + i * 2);
           if (d > lump) continue;
+          if (accept && !accept(x, y)) continue;
           const i0 = y * W + x;
           // Painted, not shaded: over an already dusky scene a shade ramp
           // would do nothing, and a cloud you can't see isn't weather.
@@ -862,7 +864,7 @@
   }
 
   /** Slanting rain over the whole scene, with drops bouncing where they land. */
-  function drawRain(surf, W, H, t, weight) {
+  function drawRain(surf, W, H, t, weight, accept) {
     const drops = Math.round(200 * weight);
     for (let i = 0; i < drops; i++) {
       const seedX = hash2(i, 0, 31), seedY = hash2(i, 1, 31);
@@ -873,6 +875,7 @@
       const x = seedX * (W + 80) - 40 + y * 0.35; // the whole curtain slants
       for (let k = 0; k < len; k++) {
         const px = Math.round(x - k * 0.35), py = Math.round(y - k);
+        if (accept && !accept(px, py)) continue;
         surf.set(px, py, k === 0 || G.ditherOn(px, py, 0.5) ? C : S);
       }
     }
@@ -1235,15 +1238,9 @@
       }
     }
 
-    /**
-     * `stormActive`: while a thunderstorm's fires still burn, every player
-     * stone (codes 1..8) loses its colour to one shared dithered tone,
-     * regardless of black/white or which pattern-stone design is in use --
-     * the storm erases whose stone is whose, not just how it's drawn.
-     * Driftwood keeps its own look; it isn't anyone's stone.
-     */
-    function drawStones(board, skip, stormActive) {
-      const spriteFor = (code) => (stormActive && G.isPlayerStoneCode(code) ? G.stormStoneSprite() : G.pieceSprite(code));
+    /** Every stone in its own look (a storm never changes whose stone is whose). */
+    function drawStones(board, skip) {
+      const spriteFor = (code) => G.pieceSprite(code);
       // Shadows first so they never cover a neighbour.
       for (let i = 0; i < board.length; i++) {
         const code = board[i];
@@ -1259,7 +1256,7 @@
       }
     }
 
-    /** Lily pads (under stones) on empty cells, each showing its owner's mini split stone. */
+    /** Lily pads (under stones) on empty cells, each showing its owner's split stone (base | other front). */
     function drawLilyPads(overlays, board, busy) {
       for (const o of overlays) {
         if (o.kind !== "lily") continue;
@@ -1267,8 +1264,113 @@
         if (board[i] || busy.has("lily:" + i)) continue;
         const p = pointToNative(o.x, o.y);
         surf.blitCentered(G.SPRITES.lilyBoard, p.x, p.y + 1);
-        if (o.owner) surf.blitCentered(G.splitPreviewSprite(o.owner, "mini"), p.x, p.y + 1);
+        if (o.owner) surf.blitCentered(G.splitPreviewSprite(o.owner, "icon"), p.x, p.y + 1);
       }
+    }
+
+    // --- timers and owner markers ------------------------------------------------
+    /** Rounds an effect has left: 3, 2, 1. A 1 means it ends within the next round. */
+    function roundsLeft(o, turnCount, roundLength) {
+      if (o.until === undefined || turnCount === undefined || !(roundLength > 0)) return 0;
+      return Math.max(0, Math.ceil((o.until - turnCount) / roundLength));
+    }
+
+    /** A small ink tag on the upper right of a point, showing the rounds left (amber on the last one). */
+    function drawTimerTag(cx, cy, rounds) {
+      if (rounds <= 0) return;
+      const font = G.FONT_SMALL, text = String(rounds), w = G.textWidth(font, text) + 2;
+      const x0 = cx + 9 - w, y0 = cy - 10;
+      for (let y = 0; y < 7; y++) {
+        for (let x = 0; x < w; x++) {
+          if ((x === 0 || x === w - 1) && (y === 0 || y === 6)) continue; // round the corners
+          surf.set(x0 + x, y0 + y, K);
+        }
+      }
+      G.drawText(surf, font, text, x0 + 1, y0 + 1, rounds === 1 ? A : C);
+    }
+
+    /** A sprite ringed in cream, so a black stone under it can't swallow it. */
+    function blitHaloed(spr, cx, cy) {
+      const x0 = cx - ((spr.w - 1) >> 1), y0 = cy - ((spr.h - 1) >> 1);
+      const opaque = (x, y) => x >= 0 && y >= 0 && x < spr.w && y < spr.h && spr.px[y * spr.w + x] !== G.TRANSPARENT;
+      for (let y = -1; y <= spr.h; y++) {
+        for (let x = -1; x <= spr.w; x++) {
+          if (opaque(x, y)) continue;
+          let near = false;
+          for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) if (opaque(x + dx, y + dy)) { near = true; break; }
+          if (near) surf.set(x0 + x, y0 + y, C);
+        }
+      }
+      surf.blit(spr, x0, y0);
+    }
+
+    /**
+     * Everything timed on the board shows how long it has left, and whatever
+     * belongs to a player carries that player's mark (their two stones side by
+     * side, on the upper left of the point). Lily pads and wards are owned;
+     * driftwood and fires are nobody's. A ward covers a whole group, one
+     * overlay per stone, so only its first stone carries the mark and the tag.
+     * (The lily pad's mark is the split stone drawn on the pad itself.)
+     */
+    function drawTimers(overlays, board, busy, turnCount, roundLength, pendingFires) {
+      const wardAnchor = new Map();
+      for (const o of overlays) {
+        if (o.kind !== "ward") continue;
+        const i = o.y * size + o.x;
+        if (!board[i] || busy.has("ward:" + i)) continue;
+        const first = wardAnchor.get(o.owner);
+        if (!first || i < first.y * size + first.x) wardAnchor.set(o.owner, o);
+      }
+      for (const o of wardAnchor.values()) {
+        const p = pointToNative(o.x, o.y);
+        if (o.owner) blitHaloed(G.splitPreviewSprite(o.owner, "mini"), p.x - 7, p.y - 7);
+        drawTimerTag(p.x, p.y, roundsLeft(o, turnCount, roundLength));
+      }
+      for (const o of overlays) {
+        if (o.kind !== "lily" && o.kind !== "drift" && o.kind !== "fire") continue;
+        const i = o.y * size + o.x;
+        if (o.kind === "lily" && (board[i] || busy.has("lily:" + i))) continue;
+        if (o.kind === "drift" && (board[i] !== G.DRIFTWOOD || busy.has("drop:" + i) || busy.has("driftAway:" + i))) continue;
+        if (o.kind === "fire" && (busy.has("burnAway:" + i) || pendingFires.has(i))) continue;
+        const p = pointToNative(o.x, o.y);
+        drawTimerTag(p.x, p.y, roundsLeft(o, turnCount, roundLength));
+      }
+    }
+
+    // --- the turn boat ---------------------------------------------------------------
+    // A little boat drifting up and down the wide river, carrying the turn number
+    // on a signboard. It is scenery with one job: it moves on its own clock, not
+    // the game's, and only the number on its sign follows the play. It is there
+    // for orientation, like a clock on the wall.
+    const BOAT_X0 = 34, BOAT_X1 = W - 34, BOAT_SPEED = 3.5; // px per second
+    const BOAT_WATERLINE = L.riverY0 + 21; // the hull's bottom row
+    function drawBoat(t, turn) {
+      const span = BOAT_X1 - BOAT_X0;
+      const u = frac((t * BOAT_SPEED) / (2 * span));
+      const leg = u < 0.5 ? u * 2 : 2 - u * 2; // there and back
+      const cx = Math.round(BOAT_X0 + (0.5 - 0.5 * Math.cos(Math.PI * leg)) * span); // slowing at each turn
+      const wl = BOAT_WATERLINE + Math.round(Math.sin(t * 1.6) * 0.9);
+      const hull = G.SPRITES.boatHull;
+      const hullTop = wl - hull.h + 1;
+      const ripple = Math.floor(t * 2) & 1;
+      for (const side of [-1, 1]) {
+        waterSet(cx + side * (hull.w >> 1) + side * (1 + ripple), wl, S);
+        waterSet(cx + side * ((hull.w >> 1) + 3 - ripple), wl + 1, C);
+      }
+      surf.blit(hull, cx - (hull.w >> 1), hullTop);
+
+      const label = "T" + turn;
+      const sw = G.textWidth(G.FONT_BIG, label) + 4, sh = 10;
+      const mastTop = hullTop - 4;
+      for (let y = mastTop; y < hullTop; y++) surf.set(cx, y, K);
+      const sx = cx - (sw >> 1), sy = mastTop - sh;
+      for (let y = 0; y < sh; y++) {
+        for (let x = 0; x < sw; x++) {
+          const edge = x === 0 || y === 0 || x === sw - 1 || y === sh - 1;
+          surf.set(sx + x, sy + y, edge ? K : C);
+        }
+      }
+      G.drawText(surf, G.FONT_BIG, label, sx + 2, sy + 2, K);
     }
 
     /**
@@ -1347,13 +1449,15 @@
      *   myColor:       1..4, the viewing player (for the split preview),
      *   lastMove:      {x, y} | null,
      *   effects:       [placeEffect(...) | captureEffect(...) | makeEffect(kind, ...)],
-     *   overlays:      [{kind: "lily" | "ward" | "fire", x, y, owner, until}] -- lasting board markers,
-     *   turnCount:     the room's turn counter (lets a fire show its last round),
+     *   overlays:      [{kind: "lily" | "ward" | "drift" | "fire", x, y, owner, until}] -- timed board
+     *                  pieces; each shows its rounds left, and owned ones carry their owner's mark,
+     *   turn:          the number on the boat's signboard (scenery: it drifts on its own clock),
+     *   turnCount:     the room's turn counter (lets a fire show its last round, and every timer its rounds),
      *   roundLength:   players in the room (how many turns make one round),
      *   storm:         {start: seconds, seq, strikes: [{x, y}, ...]} while a storm plays,
      *   stormUntil:    turnCount when the storm's fires go out; while turnCount is below
-     *                  this, every stone on the board renders as one shared dithered tone
-     *                  (see drawStones) -- lasts the full 3 rounds, not just the ~10s flash,
+     *                  this, a weak copy of the storm's weather lingers over the scene (see
+     *                  stormLinger) -- for the full 3 rounds, not just the ~10s cloudburst,
      *   reducedMotion: boolean,
      * }
      * Returns the RGBA buffer (Uint8ClampedArray, width*height*4).
@@ -1392,6 +1496,9 @@
         surf.blitCentered(animFrame("floatLantern", t, fl.fl.phase / 6.28), fl.x, fl.y);
       }
 
+      // 3b. the turn boat, drifting on its own clock (only its sign follows play)
+      drawBoat(t, st.turn === undefined ? 1 : st.turn);
+
       // 4. props: reeds, stone lantern, garland
       for (const rd of reeds) surf.blit(animFrame(rd.anim, t, rd.phase / 3), rd.x, rd.y);
       surf.blit(G.SPRITES.rock, toro.x - 1, H - 5);
@@ -1425,14 +1532,8 @@
           if (!storm.landed[i]) pendingFires.add(s.y * size + s.x);
         });
       }
-      // The longer, mechanical half of the storm: every stone stays blacked
-      // out for as long as its fires burn (until GoState.turnCount reaches
-      // stormUntil), independent of the ~10s cloudburst animation above --
-      // a client that joins mid-storm gets this without ever seeing the flash.
-      const stormActive =
-        st.turnCount !== undefined && st.stormUntil !== undefined && st.turnCount < st.stormUntil;
       drawLilyPads(overlays, board, busy);
-      drawStones(board, skip, stormActive);
+      drawStones(board, skip);
       drawWards(overlays, board, busy, time, reduced);
 
       // 7. last-move ember
@@ -1448,17 +1549,34 @@
         if (glow) surf.ramp(G.LIGHT, glow.x, glow.y, glow.r, 0.6, 1, noLight);
       }
 
-      // 8b. weather: dusk, cloud cover, rain and the bolts themselves. Drawn
-      // over the whole scene (the board included) but under the hover UI, so
-      // you can still see where you are about to play.
-      if (storm) {
-        if (storm.darkness > 0) {
-          for (let i = 0; i < surf.px.length; i++) {
-            if (G.ditherOn(i % W, (i / W) | 0, storm.darkness)) surf.px[i] = G.SHADE[surf.px[i]];
+      // 8b. weather: dusk, cloud cover and rain, then the bolts themselves.
+      // Two layers (see the Thunderstorm notes above): the ~10 s cloudburst
+      // (`storm`, introW) over the whole scene, playing surface included, and
+      // behind it a weak copy for the storm's full three rounds (lingerW, from
+      // GoState.storm.until) that leaves the playing surface alone. Both sit
+      // under the hover UI, so you can still see where you are about to play.
+      const introW = storm ? storm.weight : 0;
+      const lingerW = stormLinger(st.turnCount, st.stormUntil, st.roundLength || 0) * STORM_LINGER;
+      const outsideW = Math.max(introW, lingerW); // over water, banks and the frame
+      const weather = outsideW > 0;
+      if (weather) {
+        const darkOut = STORM_DARKNESS * outsideW;
+        const darkIn = STORM_DARKNESS * introW;
+        for (let i = 0; i < surf.px.length; i++) {
+          const d = region[i] === R_KAYA ? darkIn : darkOut;
+          if (d > 0 && G.ditherOn(i % W, (i / W) | 0, d)) surf.px[i] = G.SHADE[surf.px[i]];
+        }
+        if (!reduced) {
+          const offBoard = (x, y) => !inKaya(x, y);
+          drawClouds(surf, W, H, ambientRaw, outsideW, offBoard);
+          drawRain(surf, W, H, time, outsideW, offBoard);
+          if (introW > 0) {
+            drawClouds(surf, W, H, ambientRaw, introW, inKaya);
+            drawRain(surf, W, H, time, introW, inKaya);
           }
         }
-        if (!reduced) drawClouds(surf, W, H, ambientRaw, storm.clouds);
-        if (storm.rain > 0) drawRain(surf, W, H, time, storm.rain);
+      }
+      if (storm) {
         (st.storm.strikes || []).forEach((s, i) => {
           const u = storm.bolts[i];
           if (u < 0) return;
@@ -1487,6 +1605,7 @@
       // 8c. fires burn on top of the weather: they are the one thing the
       // storm doesn't dim, and they keep burning long after it has passed.
       drawFires(overlays, busy, time, reduced, st.turnCount, st.roundLength || 0, pendingFires);
+      drawTimers(overlays, board, busy, st.turnCount, st.roundLength || 0, pendingFires);
 
       // 9. hover: split preview or powerup reticle, then the highlighted labels
       if (hover) {
@@ -1509,7 +1628,7 @@
       }
 
       // 10. fireflies (never over the playing surface; they sit the storm out)
-      if (!storm || storm.darkness < STORM_DARKNESS * 0.5) {
+      if (!weather) {
         for (const ff of flies) {
           if (ff.frame < 0 || inKaya(ff.x, ff.y)) continue;
           surf.blitCentered(ANIMS.firefly.frames[ff.frame], ff.x, ff.y);

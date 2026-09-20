@@ -13,7 +13,7 @@ import { BotView, rankMoves, scoreMove } from "./scoring";
 import { heron, magpie, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
 
 // The players are pure functions over a plain board, so everything below runs
-// without a room, a socket or a clock. Seat 1 is black+dots throughout.
+// without a room, a socket or a clock. Seat 1 is black+gray throughout.
 
 function view(size: number, color: number, over: Partial<BotView> = {}): BotView {
   return {
@@ -88,7 +88,7 @@ test("every ranked move is one the rules would accept", () => {
 
 test("takes the capture in front of it", () => {
   const size = 5;
-  const v = view(size, 1); // black+dots
+  const v = view(size, 1); // black+gray
   v.board[boardIndex(size, 2, 2)] = stoneCode(2, "base"); // a white stone, base front
   for (const [x, y] of [[1, 2], [3, 2], [2, 1]]) {
     v.board[boardIndex(size, x, y)] = stoneCode(1, "base"); // ours, down to its last liberty
@@ -179,11 +179,11 @@ test("the drifter still only offers legal points", () => {
 // ---- the bots a player can seat from the welcome screen ---------------------------
 
 const MARKET = [
-  { id: "driftwood", price: 15, removal: false },
-  { id: "lily_pad", price: 20, removal: false },
-  { id: "lantern_ward", price: 30, removal: false },
-  { id: "turn_lantern", price: 40, removal: false },
-  { id: "gust", price: 90, removal: true },
+  { id: "driftwood", price: 30, removal: false },
+  { id: "lily_pad", price: 40, removal: false },
+  { id: "lantern_ward", price: 60, removal: false },
+  { id: "turn_lantern", price: 80, removal: false },
+  { id: "gust", price: 180, removal: true },
 ];
 
 /** Our two black stones in the corner, both on their last liberty at (1, 1). */

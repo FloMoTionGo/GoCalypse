@@ -3,15 +3,15 @@
 // board mutation all need to interact with the powerup system.
 //
 // Each player has a fixed identity along two axes — a base tone (black or
-// white) and a pattern (dots or stripes):
-//   1 = black+dots   2 = white+dots   3 = black+stripes   4 = white+stripes
+// white) and a pattern (gray or transparent):
+//   1 = black+gray   2 = white+gray   3 = black+transparent   4 = white+transparent
 //
 // But a stone doesn't carry both axes at once. Each move, the player picks
 // which front that particular stone fights on:
 //   - left click  -> a solid stone in their BASE color (black/white),
 //                    fighting only in the base-view war (black vs white).
-//   - right click -> a grey stone in their PATTERN (dots/stripes),
-//                    fighting only in the pattern-view war (dots vs stripes).
+//   - right click -> a grey stone in their PATTERN (gray/transparent),
+//                    fighting only in the pattern-view war (gray vs transparent).
 // A stone is neutral ("a wall") on the axis it didn't commit to: it still
 // occupies the cell (so it blocks a liberty there), but it never merges
 // into a group, and can never be captured, on that other axis.
@@ -35,7 +35,7 @@ export type IsProtected = (idx: number) => boolean;
 export const DRIFTWOOD = 9;
 
 const STONE_BASE: (string | null)[] = [null, "black", "white", "black", "white"];
-const STONE_PATTERN: (string | null)[] = [null, "dots", "dots", "stripes", "stripes"];
+const STONE_PATTERN: (string | null)[] = [null, "gray", "gray", "transparent", "transparent"];
 
 export function stoneCode(player: number, axis: StoneView): number {
   return axis === "pattern" ? player + 4 : player;
@@ -136,7 +136,7 @@ export function findGroup(
 /**
  * After a stone lands on (x, y), remove any adjacent group left with zero
  * liberties. A group is always judged on ITS OWN front -- a liberty is a
- * liberty whoever filled it, so a solid black stone can smother a grey dots
+ * liberty whoever filled it, so a solid black stone can smother a gray
  * group just by occupying its last free point, even though the two never
  * fight each other. (The front a stone commits to decides who it *merges*
  * with and who can be captured *together with* it, not who can suffocate it.)

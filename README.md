@@ -10,7 +10,7 @@ A 4-player custom Go variant, played online and synced live across all players.
 each a real independent client in its own `<iframe>` in a 2x2 grid,
 auto-joining the same room with staggered delays so they don't race into
 separate rooms. They join `go_debug` rooms: same rules, separate matchmaking,
-everyone starts with 600 fireflies so the whole market can be tried, and the
+everyone starts with 1200 fireflies so the whole market can be tried, and the
 weather die is rolled every 6 turns instead of 20.
 `?server=...` in `debug.html`'s own URL overrides which server all 4 point at.
 
@@ -22,19 +22,17 @@ that still fits the window, so it fills the screen without ever blurring.
 `web/pixel-preview.html` shows every sprite and animation without a server,
 and can fire a thunderstorm on demand.
 
-**Pattern stones** (the grey, pattern-axis pieces) are see-through, in one of
-four designs. **Plain** (default) uses just white, black, grey and
-transparent, no glyph at all — dots and stripes render pixel-identical.
-**Glass** inlays the pattern in bright cream on a clear marble, **Paper**
-prints it in grey on a pale wash, and **Wash** cuts it clean out of a frosted
-body. Switch with the *Stones* button in the header,
-`#stones=plain|glass|paper|wash` in the URL, or the preview page.
+**Four stones:** black, white, gray and transparent. Black and white are
+solid, gray is solid slate, and transparent is an ink ring with a glint and
+nothing inside, so the board and its grid lines show through it. Each player
+holds two of them, one of black/white and one of gray/transparent. The player
+boxes beside the board show both at full board size with their names.
 
 **Project docs:** `state.md` is a snapshot of what's built, live and missing;
 `ideas.md` holds the plans and open design decisions.
 
-Not standard Go rules — this is a free-for-all variant with black/white
-stones distinguished by pattern (dots or stripes), and powerups bought at a
+Not standard Go rules — this is a free-for-all variant with four kinds of
+stone (black, white, gray and transparent), and powerups bought at a
 Night Market with fireflies earned in play (see below). Guests get a random
 display name if not registered.
 
@@ -42,20 +40,21 @@ Each player has an identity along two axes, one of four combos. The combos
 are dealt at random each game (never twice in one room), and turns go in
 combo order, so black and white alternate and whoever gets combo 1 starts:
 
-| Combo | Base  | Pattern |
-|-------|-------|---------|
-| 1     | black | dots    |
-| 2     | white | dots    |
-| 3     | black | stripes |
-| 4     | white | stripes |
+| Combo | Left click | Right click |
+|-------|------------|-------------|
+| 1     | black      | gray        |
+| 2     | white      | gray        |
+| 3     | black      | transparent |
+| 4     | white      | transparent |
 
 But a stone doesn't carry both axes at once — each move, the player picks
 which front that particular stone fights on:
 
-- **Left click** — a solid stone in their base color (black/white), fighting
-  only in the **base view**: black vs white, pattern irrelevant.
-- **Right click** — a grey stone in their pattern (dots/stripes), fighting
-  only in the **pattern view**: dots vs stripes, base irrelevant.
+- **Left click** — their black or white stone, fighting only in the **base
+  view**: black vs white, the other front irrelevant.
+- **Right click** — their gray or transparent stone, fighting only in the
+  **pattern view** (the code's name for this second front): gray vs
+  transparent, base irrelevant.
 
 The two views are independent, simultaneous 2-team Go games sharing the
 same board. A stone is **neutral on the axis it didn't commit to** — it
@@ -69,7 +68,7 @@ a view's value — a black stone from player 1 and a black stone from player
 **Liberties are liberties, whoever fills them.** The front a stone commits
 to decides who it *merges* with and who it can be captured *with* — not who
 can suffocate it. A group is always judged on its own front, so a wall of
-solid white stones kills a grey dots group by taking its last free point,
+solid white stones kills a gray group by taking its last free point,
 even though neither fights the other's war. That includes your own stones on
 your other front. The one exception is the group the new stone joins: that
 isn't a capture but suicide, which is still checked only on the one view the
@@ -85,7 +84,7 @@ or an item played in between starts the count again.
 The board is then scored the normal Go way (**area scoring**), once on each
 front:
 
-- every stone counts one point for its side (black, white, dots or stripes),
+- every stone counts one point for its side (black, white, gray or transparent),
 - and so does every empty point whose empty region touches only that side's
   stones.
 
@@ -95,8 +94,8 @@ anyone, like the edge of the board. Nothing is removed first, since nobody is
 there to agree what is dead: capture what should go before you pass. Stones
 standing on a burning point still count.
 
-That leaves four totals: black, white, dots and stripes. Every player belongs
-to one side on each front (player 1, black + dots, to black and to dots), so
+That leaves four totals: black, white, gray and transparent. Every player
+belongs to one side on each front (player 1, black + gray, to black and to gray), so
 each has two totals of their own. **A player's final score is the lower of the
 two; the higher one only breaks ties.** Players who share a side share its
 total, and players level on both numbers share a place. The welcome screen
@@ -121,18 +120,19 @@ with a notice.
 
 | Item | Price | Effect |
 |---|---|---|
-| Driftwood | 15 | Neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Can't smother a group. |
-| Lily Pad | 20 | Reserves an empty point for 3 rounds: only you may play there. |
-| Lantern Ward | 30 | One of your groups can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. |
-| Turn the Lantern | 40 | Flips one of your stones to your other front (solid <-> grey pattern); captures count on the new front, and a former group-mate left with no liberties is captured too. Refused only if the flipped stone itself would have none. |
-| Gust | 90 | Removes one enemy stone whose group is in atari. Once per match. |
-| Snipe | 140 | Removes any single enemy stone. Once per match. |
-| Firework | 200 | Clears a 3x3 area (your stones and driftwood too; warded stones are spared). Once per match. |
+| Driftwood | 30 | Neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Can't smother a group. |
+| Lily Pad | 40 | Reserves an empty point for 3 rounds: only you may play there. |
+| Lantern Ward | 60 | One of your groups can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. |
+| Turn the Lantern | 80 | Flips one of your stones to your other front (black/white <-> gray/transparent); captures count on the new front, and a former group-mate left with no liberties is captured too. Refused only if the flipped stone itself would have none. |
+| Gust | 180 | Removes one enemy stone whose group is in atari. Once per match. |
+| Snipe | 280 | Removes any single enemy stone. Once per match. |
+| Firework | 400 | Clears a 3x3 area (your stones and driftwood too; warded stones are spared). Once per match. |
 
 ### Thunderstorms
 
-Every **20 turns** the room rolls a die out of sight. On a **six** a storm
-breaks: the night darkens, rain sweeps the board for about ten seconds, and
+Every **20 turns** the room rolls a **D20** out of sight and adds **1 for
+every calm roll** since the last storm. At **20 or more** a storm breaks: the
+night darkens, rain sweeps the board for about ten seconds, and
 **up to three bolts** come down on random points (never on a warded point or
 one already alight). Whatever stands there catches fire and **burns away
 three rounds later** — its owner gets the usual 3-firefly consolation — and
@@ -140,14 +140,18 @@ three rounds later** — its owner gets the usual 3-firefly consolation — and
 take liberties: a burning point counts as empty for the purposes of staying
 alive, it just can't be filled.
 
-For those same **3 rounds** — not just the ten-second flash — **every stone
-on the board loses its colour**: black, white and every pattern-stone design
-all render as one shared dithered tone exactly between ink and slate, so the
-storm erases whose stone is whose, not just how it's drawn. This is driven by
-`GoState.storm.until` versus `GoState.turnCount`, so it survives past the
-animation and a client joining mid-storm sees it too (`GoSprites.stormStoneSprite`
-in `web/sprites.js`). Driftwood keeps its own look; sidebar, satchel and
-market icons are unaffected — only stones already on the board go dark.
+The chance of a storm at each roll starts at **5%** and grows **5% with every
+calm roll**, then starts over after a storm. The sidebar's **storm forecast**
+says so in words (5–10% *unlikely*, 15–25% *likely*, 30% and up *very likely*)
+and counts down to the next roll.
+
+The storm also **lasts for its full 3 rounds**, not just the ten-second
+cloudburst: behind it a much weaker copy of the same weather (a faint dusk,
+thin cloud, sparse rain) hangs over the river and banks and eases out through
+the last round. It leaves the playing surface alone and **stones keep their own
+colours** throughout, so black, white, gray and transparent always stay
+readable. It is driven by `GoState.storm.until` versus `GoState.turnCount`, so
+a client joining mid-storm sees it too (`stormLinger` in `web/pixelScene.js`).
 
 `go_debug` rooms roll every **6** turns instead, so a storm can actually be
 watched in a test session (`src/rules/storm.ts`, `GoDebugRoom`).
@@ -155,14 +159,29 @@ watched in a test session (`src/rules/storm.ts`, `GoDebugRoom`).
 Board code 9 is driftwood (see `goRules.ts`). Timed markers (wards, lily pads,
 driftwood timers, lightning fires) are `GoState.effects`; `GoState.action`
 records the last move or item so clients can play the matching animation, and
-`GoState.storm` carries the last die roll and its strike points.
+`GoState.storm` carries the last die roll, the forecast (`calm`, `chance`,
+`level`, `every`) and its strike points.
+
+### Reading the board
+
+Anything that doesn't last shows a small **timer**: the rounds it has left (a
+lily pad, driftwood, a ward or a fire; a ward covers a whole group, but only
+its first stone carries the tag). It turns amber in the last round. A lily pad
+or ward also carries its **owner's mark**, their two stones side by side, so you
+can see whose it is. In the scene a little **boat** drifts along the river with
+a sign showing the turn being played ("T12"): scenery on its own clock, there
+only for orientation.
 
 ### Playing with bots
 
-While a room is still waiting for its fourth player, the welcome screen (it
-opens by itself on a first visit; **Add bots** in the header reopens it) has a
-**Play with bots** menu: seat up to three bots, each playing differently. The
-lanterns beside each name show how much of the Night Market it uses.
+Bots can be brought along from the **home screen** (a *Play with bots* menu
+above the Join button; bringing bots starts a table of your own instead of
+matching you with strangers), or added while a room is still waiting for its
+fourth player: the welcome screen (it opens by itself on a first visit;
+**Add bots** in the header reopens it) has the same menu. Pick up to **three of
+each kind**, but **no more than three bots in all** (the server enforces this
+too). Two of a kind are numbered ("Reed", "Reed 2"). The lanterns beside each
+name show how much of the Night Market it uses.
 
 | Bot | Plays | Night Market |
 |---|---|---|
@@ -192,8 +211,9 @@ data is copied, and its search and neural networks are left out.
     including the two-view model above (not a general Go rules library).
   - `src/rules/endgame.ts` — end-of-game area scoring and the per-player
     final score / tie-break / place, pure functions with their own tests.
-  - `src/rules/storm.ts` — when the weather die is rolled, what a six means
-    and where the bolts land, kept apart from room state so it can be tested.
+  - `src/rules/storm.ts` — when the D20 is rolled, what a roll plus the calm
+    bonus means, the forecast, and where the bolts land, kept apart from room
+    state so it can be tested.
   - `src/powerups/` — the Night Market's stock (`definitions.ts`); add a
     powerup by implementing `PowerupDefinition` (with a price) and adding it
     to the registry. The client needs a sprite/icon for new ids

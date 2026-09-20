@@ -2,8 +2,8 @@
 // pixel lantern-river scene (sprites.js + pixelScene.js). No build step.
 //
 // Board codes (see server/src/rules/goRules.ts): 1-4 a player's solid
-// base-axis stone, 5-8 (player + 4) their grey pattern-axis stone, 9 driftwood.
-// Left click places the solid stone, right click the grey pattern stone.
+// base-axis stone, 5-8 (player + 4) their gray (players 1-2) or transparent (players 3-4) stone, 9 driftwood.
+// Left click places the solid stone, right click the gray or transparent one.
 
 const G = window.GoSprites;
 const P = window.GoPixelScene;
@@ -28,7 +28,6 @@ const playersEl = document.getElementById("players");
 const walletEl = document.getElementById("wallet");
 const satchelItemsEl = document.getElementById("satchel-items");
 const satchelCountEl = document.getElementById("satchel-count");
-const stonesButton = document.getElementById("stones-button");
 const targetingHintEl = document.getElementById("targeting-hint");
 const marketStatusEl = document.getElementById("market-status");
 const marketItemsEl = document.getElementById("market-items");
@@ -45,6 +44,9 @@ const welcomeBotsIntroEl = document.getElementById("welcome-bots-intro");
 const welcomeBotListEl = document.getElementById("welcome-bot-list");
 const welcomeBotsAddButton = document.getElementById("welcome-bots-add");
 const welcomeBotsNoteEl = document.getElementById("welcome-bots-note");
+const lobbyBotListEl = document.getElementById("lobby-bot-list");
+const boardHintEl = document.getElementById("board-hint");
+const weatherEl = document.getElementById("weather");
 
 const boardCtx = boardEl.getContext("2d");
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -68,13 +70,13 @@ let lastFrameAt = 0;
 let noticeTimer = null;
 let welcomeChecked = false;
 let resultOpened = false; // the final scores open by themselves once, when the game ends
-const botPicks = new Set(); // ids ticked in the welcome screen's bot menu
+const botPicks = new Map(); // bot id -> how many of that bot are picked, in the home and welcome screen menus
 let closeWelcomeOnStart = false; // the player just seated bots that fill the table
 let storm = null; // {start, seq, strikes: [{x, y}]} while a thunderstorm plays
 let lastStormSeq = null;
 let turnCount = 0;
 let roundLength = 0;
-let stormUntil = 0; // turnCount when the current storm's fires go out; stones stay blacked out until then
+let stormUntil = 0; // turnCount when the current storm's fires go out; the lingering weather lasts until then
 
 // A URL hash lets debug.html drive this page from inside an <iframe>
 // (prefill, auto-join, debug room) without touching the manual-join flow.
@@ -86,30 +88,6 @@ if (hashParams.has("server")) serverInput.value = hashParams.get("server");
 if (hashParams.has("name")) nameInput.value = hashParams.get("name");
 if (hashParams.has("autojoin")) {
   setTimeout(connect, Number(hashParams.get("delay")) || 0);
-}
-
-// Pattern stones come in four see-through designs (sprites.js), Plain by
-// default. Pick one with #stones=plain|glass|paper|wash, or cycle them from
-// the header to compare in play.
-if (hashParams.has("stones")) G.setPatternStyle(hashParams.get("stones"));
-updateStonesButton();
-stonesButton.addEventListener("click", () => {
-  const ids = G.PATTERN_STYLE_IDS;
-  G.setPatternStyle(ids[(ids.indexOf(G.getPatternStyle()) + 1) % ids.length]);
-  // Sidebar icons are cached as data URLs, and every panel caches what it drew.
-  spriteUrlCache.clear();
-  for (const el of [playersEl, satchelItemsEl, marketItemsEl]) delete el.dataset.sig;
-  updateStonesButton();
-  if (lastState) {
-    renderSidebar(lastState);
-    if (welcomeEl.open) openWelcome(lastState);
-  }
-});
-
-function updateStonesButton() {
-  const style = G.PATTERN_STYLES[G.getPatternStyle()];
-  stonesButton.textContent = `Stones: ${style.label}`;
-  stonesButton.title = `${style.note} Click for the next design.`;
 }
 
 joinButton.addEventListener("click", connect);
@@ -148,13 +126,17 @@ requestAnimationFrame(frame);
 async function connect() {
   const endpoint = serverInput.value.trim() || "ws://localhost:2567";
   const name = nameInput.value.trim();
+  const bots = pickedIds();
 
   joinButton.disabled = true;
   setLobbyStatus("Connecting...", false);
 
   try {
     const client = new Colyseus.Client(endpoint);
-    room = await client.joinOrCreate(ROOM_NAME, name ? { name } : {});
+    const options = name ? { name } : {};
+    // Bringing bots means a table of your own; without them you are matched with
+    // whoever is already waiting.
+    room = bots.length ? await client.create(ROOM_NAME, options) : await client.joinOrCreate(ROOM_NAME, options);
 
     room.onStateChange((state) => onState(state));
     room.onMessage("notice", (text) => showNotice(text));
@@ -170,6 +152,11 @@ async function connect() {
 
     lobbyEl.hidden = true;
     gameEl.hidden = false;
+    if (bots.length) {
+      room.send("addBots", { ids: bots });
+      botPicks.clear();
+      renderLobbyBots();
+    }
   } catch (err) {
     console.error(err);
     setLobbyStatus(`Failed to join: ${err.message || err}`, true);
@@ -251,6 +238,7 @@ function frame() {
     effects,
     overlays,
     storm,
+    turn: turnCount + 1, // the boat's sign: the turn now being played
     turnCount,
     roundLength,
     stormUntil,
@@ -302,7 +290,7 @@ function onBoardClick(evt) {
   room.send("move", { x: p.x, y: p.y, axis: "base" });
 }
 
-/** Right click places the grey pattern stone -- or cancels powerup targeting. */
+/** Right click places the gray or transparent stone -- or cancels powerup targeting. */
 function onBoardRightClick(evt) {
   evt.preventDefault();
   if (!room || !lastState) return;
@@ -332,17 +320,17 @@ function onState(state) {
 
   const nextBoard = Array.from(state.board);
   const nextOverlays = Array.from(state.effects)
-    .filter((e) => e.kind === "lily" || e.kind === "ward" || e.kind === "fire")
+    .filter((e) => e.kind === "lily" || e.kind === "ward" || e.kind === "drift" || e.kind === "fire")
     .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until }));
   const action = state.action;
   const actionChanged = lastActionSeq !== null && action.seq !== lastActionSeq;
   turnCount = state.turnCount;
   roundLength = state.players.length;
   // Synced, not derived from the ~10s cloudburst animation: a client that
-  // joins mid-storm gets the blacked-out stones without ever seeing the flash.
+  // joins mid-storm gets the lingering weather without ever seeing the flash.
   stormUntil = state.storm.until;
 
-  // A fresh die roll of 6: the sky opens. Only a change in seq starts the
+  // A storm breaks: the sky opens. Only a change in seq starts the
   // animation, so joining mid-match never replays an old storm.
   if (state.storm && lastStormSeq !== null && state.storm.seq !== lastStormSeq) {
     startStorm(state);
@@ -378,6 +366,11 @@ function onState(state) {
   renderSidebar(state);
   renderBotMenu(state);
   renderPass(state);
+  renderWeather(state);
+  if (myPlayer) {
+    const [baseName, otherName] = LOOK_NAMES[myPlayer.color] || LOOK_NAMES[1];
+    boardHintEl.textContent = `Left click: your ${baseName} stone · Right click: your ${otherName} stone`;
+  }
   lastEventEl.textContent = state.lastEvent || "";
 
   if (state.status === "finished" && !resultOpened) {
@@ -423,12 +416,17 @@ function isOutside(el, evt) {
   return evt.clientX < r.left || evt.clientX > r.right || evt.clientY < r.top || evt.clientY > r.bottom;
 }
 
-const LOOK_NAMES = { 1: ["black", "dots"], 2: ["white", "dots"], 3: ["black", "stripes"], 4: ["white", "stripes"] };
+const LOOK_NAMES = { 1: ["black", "gray"], 2: ["white", "gray"], 3: ["black", "transparent"], 4: ["white", "transparent"] };
+
+/** A board stone (code 1..8) at twice its board size. */
+function stoneImg(code) {
+  return spriteImg(`stone_big_${code}`, G.stoneSprite(code), 2);
+}
 
 function stoneChip(code) {
   const chip = document.createElement("span");
   chip.className = "stone-chip";
-  chip.append(spriteImg(`stone_big_${code}`, G.stoneSprite(code), 2));
+  chip.append(stoneImg(code));
   return chip;
 }
 
@@ -449,16 +447,20 @@ function openWelcome(state) {
     `only one of them a powerful one. Your satchel holds ${state.satchelLimit} items and just ${state.powerfulLimit} powerful item at a time. ` +
     `Buying doesn't use your turn; using an item does: pick it in your Satchel, then click a point on the board (right click cancels).`;
 
+  // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
   document.getElementById("welcome-weather").textContent =
-    `Every 20 turns a die is rolled behind the clouds. On a six a thunderstorm breaks: the night goes dark, ` +
-    `rain sweeps the board and up to three bolts come down on random points. Whatever stands there catches fire ` +
-    `and burns away three rounds later, and nobody can play on a burning point until the fire goes out.`;
+    `Every ${state.storm.every} turns a D20 is rolled behind the clouds, plus 1 for every calm roll since the last ` +
+    `storm. At 20 or more a thunderstorm breaks: the night darkens, rain sweeps the board for ten seconds and up to ` +
+    `three bolts come down on random points. Whatever stands there catches fire and burns away three rounds later, ` +
+    `and nobody can play on a burning point until the fire goes out. A fainter storm hangs over the river for all ` +
+    `three rounds; your stones keep their colors throughout. The forecast in the sidebar (unlikely, likely, very likely) ` +
+    `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll.`;
 
   // Mirrors areaScore / finalResults in server/src/rules/endgame.ts.
   document.getElementById("welcome-scoring").textContent =
     `You play ${base} with ${pattern}, so your score is the lower of the ${base} total and the ${pattern} total; ` +
-    `the higher one only breaks ties. Players who share your color share the ${base} total, ` +
-    `and players who share your pattern share the ${pattern} total.`;
+    `the higher one only breaks ties. Players who also hold ${base} share the ${base} total, ` +
+    `and players who also hold ${pattern} share the ${pattern} total.`;
 
   renderWelcomeBots(state);
 
@@ -486,9 +488,10 @@ function openWelcome(state) {
 
 // ---- bots ---------------------------------------------------------------------------
 
-// The bots a player can seat while the room waits for its fourth player. `id`
-// is the wire name server/src/bots/styles.ts (RECRUITS) answers to, and `name`
-// is the name the seated bot takes there. `items` is how much of the Night
+// The bots a player can bring, on the home screen before joining or on the welcome
+// screen while the room waits for its fourth player. `id` is the wire name
+// server/src/bots/styles.ts (RECRUITS) answers to, and `name` is the name the seated
+// bot takes there (a second one is "Reed 2"). `items` is how much of the Night
 // Market it uses, 0 to 3: from Reed, who never buys or uses a thing, to Magpie,
 // who spends turns on items whenever one can do anything.
 const BOT_OPTIONS = [
@@ -500,14 +503,41 @@ const BOT_OPTIONS = [
     desc: "Spends turns on items whenever it can, and shops down the whole list." },
 ];
 const BOT_SEATS = 4; // mirrors MAX_PLAYERS in server/src/rooms/GoRoom.ts
+const MAX_BOTS = 3; // mirrors MAX_BOTS there: bots in all, from any mix of kinds (so up to 3 of one kind)
 
 function freeSeats(state) {
   return Math.max(0, BOT_SEATS - state.players.length);
 }
 
-/** Bots can be seated only by someone at the table, before the game starts, while a seat is free. */
+/** Bots a table can still take: 3 in all, and never more than the free seats. */
+function botRoom(state) {
+  const seated = Array.from(state.players).filter((p) => p.bot).length;
+  return Math.max(0, Math.min(MAX_BOTS - seated, freeSeats(state)));
+}
+
+/** How many bots the open menu may hold: a fresh table on the home screen, the real room in the game. */
+function pickCap() {
+  return lobbyEl.hidden && lastState ? botRoom(lastState) : MAX_BOTS;
+}
+
+function pickedTotal() {
+  let n = 0;
+  for (const count of botPicks.values()) n += count;
+  return n;
+}
+
+/** The picks as the wire list the server takes: one id per bot, so two Reeds are "pure" twice. */
+function pickedIds() {
+  const ids = [];
+  for (const option of BOT_OPTIONS) {
+    for (let i = 0; i < (botPicks.get(option.id) || 0); i++) ids.push(option.id);
+  }
+  return ids;
+}
+
+/** Bots can be added by someone at the table, before the game starts, while there is room. */
 function botMenuAvailable(state) {
-  return !!myPlayer && state.status === "waiting" && freeSeats(state) > 0;
+  return !!myPlayer && state.status === "waiting" && botRoom(state) > 0;
 }
 
 function renderBotMenu(state) {
@@ -515,20 +545,12 @@ function renderBotMenu(state) {
   if (welcomeEl.open) renderWelcomeBots(state);
 }
 
-/** One row per bot, built once and then updated in place so ticking a box never loses keyboard focus. */
-function buildBotRows() {
+/** One row per bot, built once and then updated in place so a click never loses keyboard focus. */
+function buildBotRows(listEl) {
   for (const option of BOT_OPTIONS) {
-    const row = document.createElement("label");
+    const row = document.createElement("div");
     row.className = "bot-option";
     row.dataset.id = option.id;
-
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.addEventListener("change", () => {
-      if (box.checked) botPicks.add(option.id);
-      else botPicks.delete(option.id);
-      if (lastState) renderWelcomeBots(lastState);
-    });
 
     const who = document.createElement("div");
     who.className = "who";
@@ -555,9 +577,69 @@ function buildBotRows() {
     const body = document.createElement("div");
     body.className = "body";
     body.append(who, desc);
-    row.append(box, body);
-    welcomeBotListEl.appendChild(row);
+
+    const stepper = document.createElement("div");
+    stepper.className = "stepper";
+    const minus = document.createElement("button");
+    minus.type = "button";
+    minus.className = "step minus";
+    minus.textContent = "−";
+    minus.setAttribute("aria-label", `One fewer ${option.name}`);
+    minus.addEventListener("click", () => changePick(option.id, -1));
+    const count = document.createElement("span");
+    count.className = "count";
+    const plus = document.createElement("button");
+    plus.type = "button";
+    plus.className = "step plus";
+    plus.textContent = "+";
+    plus.setAttribute("aria-label", `One more ${option.name}`);
+    plus.addEventListener("click", () => changePick(option.id, 1));
+    stepper.append(minus, count, plus);
+
+    row.append(body, stepper);
+    listEl.appendChild(row);
   }
+}
+
+/** Shows each bot's count and switches off what can't go further: below 0, or past the table's room. */
+function updateBotRows(listEl, cap) {
+  const total = pickedTotal();
+  for (const row of listEl.children) {
+    const count = botPicks.get(row.dataset.id) || 0;
+    row.querySelector(".count").textContent = String(count);
+    row.querySelector(".minus").disabled = count === 0;
+    row.querySelector(".plus").disabled = total >= cap;
+    row.classList.toggle("picked", count > 0);
+  }
+}
+
+function changePick(id, delta) {
+  if (delta > 0 && pickedTotal() >= pickCap()) return;
+  const next = Math.max(0, (botPicks.get(id) || 0) + delta);
+  if (next === 0) botPicks.delete(id);
+  else botPicks.set(id, next);
+  renderLobbyBots();
+  if (lastState && welcomeEl.open) renderWelcomeBots(lastState);
+}
+
+/** Drops picks the table no longer has room for (someone else seated a bot, or a seat filled). */
+function trimPicks(cap) {
+  let over = pickedTotal() - cap;
+  for (const option of BOT_OPTIONS.slice().reverse()) {
+    while (over > 0 && (botPicks.get(option.id) || 0) > 0) {
+      botPicks.set(option.id, botPicks.get(option.id) - 1);
+      if (botPicks.get(option.id) === 0) botPicks.delete(option.id);
+      over -= 1;
+    }
+  }
+}
+
+/** The home screen's menu: bots to bring along before there is a room at all. */
+function renderLobbyBots() {
+  if (!lobbyBotListEl.firstChild) buildBotRows(lobbyBotListEl);
+  updateBotRows(lobbyBotListEl, MAX_BOTS);
+  const n = pickedTotal();
+  joinButton.textContent = n === 0 ? "Join Game" : `Start with ${n} bot${n === 1 ? "" : "s"}`;
 }
 
 function renderWelcomeBots(state) {
@@ -567,40 +649,21 @@ function renderWelcomeBots(state) {
     botPicks.clear();
     return;
   }
-  if (!welcomeBotListEl.firstChild) buildBotRows();
+  if (!welcomeBotListEl.firstChild) buildBotRows(welcomeBotListEl);
 
-  const free = freeSeats(state);
-  const seated = new Set(Array.from(state.players).filter((p) => p.bot).map((p) => p.name));
-
-  // A pick can go stale under the player: someone else seated that bot, or the seats ran out.
-  for (const option of BOT_OPTIONS) {
-    if (seated.has(option.name)) botPicks.delete(option.id);
-  }
-  for (const id of Array.from(botPicks).slice(free)) botPicks.delete(id);
+  const room = botRoom(state);
+  trimPicks(room);
+  updateBotRows(welcomeBotListEl, room);
 
   welcomeBotsIntroEl.textContent =
-    `${state.players.length} of ${BOT_SEATS} seats are taken. Seat up to ${free} bot${free === 1 ? "" : "s"} ` +
-    `to play against. They differ in how much of the Night Market they use:`;
+    `${state.players.length} of ${BOT_SEATS} seats are taken. Add up to ${room} bot${room === 1 ? "" : "s"}, ` +
+    `in any mix: even ${room === 1 ? "one" : room === 2 ? "two" : "three"} of the same kind. ` +
+    `They differ in how much of the Night Market they use:`;
 
-  for (const row of welcomeBotListEl.children) {
-    const id = row.dataset.id;
-    const option = BOT_OPTIONS.find((o) => o.id === id);
-    const taken = seated.has(option.name);
-    const picked = botPicks.has(id);
-    const full = !picked && botPicks.size >= free;
-    const box = row.querySelector("input");
-    box.checked = picked;
-    box.disabled = taken || full;
-    row.classList.toggle("picked", picked);
-    row.classList.toggle("taken", taken);
-    row.classList.toggle("full", full && !taken);
-    row.title = taken ? `${option.name} already has a seat` : "";
-  }
-
-  const n = botPicks.size;
+  const n = pickedTotal();
   welcomeBotsAddButton.disabled = n === 0;
   welcomeBotsAddButton.textContent = n === 0 ? "Seat bots" : `Seat ${n} bot${n === 1 ? "" : "s"}`;
-  const left = free - n;
+  const left = freeSeats(state) - n;
   welcomeBotsNoteEl.textContent =
     n === 0 ? "" :
     left === 0 ? "The game starts as soon as they sit down." :
@@ -608,13 +671,15 @@ function renderWelcomeBots(state) {
 }
 
 function seatPickedBots() {
-  if (!room || !lastState || botPicks.size === 0) return;
-  const ids = BOT_OPTIONS.filter((o) => botPicks.has(o.id)).map((o) => o.id);
+  if (!room || !lastState || pickedTotal() === 0) return;
+  const ids = pickedIds();
   closeWelcomeOnStart = ids.length >= freeSeats(lastState);
   room.send("addBots", { ids });
   botPicks.clear();
   renderWelcomeBots(lastState);
 }
+
+renderLobbyBots();
 
 function overlayKey(o) {
   return `${o.kind}:${o.x},${o.y}`;
@@ -656,6 +721,43 @@ function renderStatus(state, players) {
   turnIndicatorEl.classList.toggle("my-turn", isMyTurn);
 }
 
+/**
+ * The storm forecast: three pips and a word, from the room's synced odds for the
+ * next roll (rules/storm.ts), and how many turns away that roll is.
+ */
+const FORECAST_PIPS = { unlikely: 1, likely: 2, "very likely": 3 };
+function renderWeather(state) {
+  const s = state.storm;
+  const level = s.level in FORECAST_PIPS ? s.level : "unlikely";
+  const turnsToRoll = s.every > 0 ? s.every - (state.turnCount % s.every) : 0;
+  rebuild(weatherEl, JSON.stringify([level, s.chance, turnsToRoll, state.status]), () => {
+    const meter = document.createElement("div");
+    meter.className = `meter ${level.replace(" ", "-")}`;
+    meter.title = `${s.chance}% chance that the next roll brings a storm`;
+    const pips = document.createElement("span");
+    pips.className = "pips";
+    for (let i = 0; i < 3; i++) {
+      const pip = document.createElement("i");
+      pip.className = "pip" + (i < FORECAST_PIPS[level] ? " lit" : "");
+      pips.appendChild(pip);
+    }
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = "Storm";
+    const word = document.createElement("span");
+    word.className = "level";
+    word.textContent = level;
+    meter.append(label, pips, word);
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent =
+      state.status === "playing"
+        ? `Next roll in ${turnsToRoll} turn${turnsToRoll === 1 ? "" : "s"} · ${s.chance}%`
+        : `Rolled every ${s.every} turns · ${s.chance}%`;
+    weatherEl.append(meter, hint);
+  });
+}
+
 /** The Pass button lives for as long as the game is on; Results appears once it is over. */
 function renderPass(state) {
   passButton.hidden = state.status !== "playing";
@@ -682,7 +784,7 @@ function openResult(state) {
 
   const head = document.createElement("div");
   head.className = "result-row head";
-  for (const label of ["Place", "Player", "Color", "Pattern", "Score"]) {
+  for (const label of ["Place", "Player", "Left click", "Right click", "Score"]) {
     const cell = document.createElement("span");
     cell.textContent = label;
     head.appendChild(cell);
@@ -701,10 +803,7 @@ function openResult(state) {
     who.className = "who";
     const swatches = document.createElement("span");
     swatches.className = "swatch-pair";
-    swatches.append(
-      spriteImg(`stone_${player.color}`, G.stoneSprite(player.color, "icon"), 2),
-      spriteImg(`stone_${player.color + 4}`, G.stoneSprite(player.color + 4, "icon"), 2)
-    );
+    swatches.append(stoneImg(player.color), stoneImg(player.color + 4));
     const name = document.createElement("span");
     name.className = "name";
     name.textContent =
@@ -810,13 +909,13 @@ function renderPlayers(state) {
       if (state.status === "finished" && player.place === 1) row.classList.add("current"); // the winner(s)
       if (!player.connected) row.classList.add("disconnected");
 
+      // Both of the player's stones at full board size, so black, white, gray and
+      // transparent can be told apart at a glance, and named underneath the name.
+      const [baseName, otherName] = LOOK_NAMES[player.color] || LOOK_NAMES[1];
       const swatches = document.createElement("span");
       swatches.className = "swatch-pair";
-      swatches.title = "Left click: solid color · Right click: grey pattern";
-      swatches.append(
-        spriteImg(`stone_${player.color}`, G.stoneSprite(player.color, "icon"), 2),
-        spriteImg(`stone_${player.color + 4}`, G.stoneSprite(player.color + 4, "icon"), 2)
-      );
+      swatches.title = `Left click: ${baseName} · Right click: ${otherName}`;
+      swatches.append(stoneImg(player.color), stoneImg(player.color + 4));
 
       const name = document.createElement("span");
       name.className = "name";
@@ -829,7 +928,17 @@ function renderPlayers(state) {
       score.title = finished ? "Final score: the lower of this player's two totals" : "Stones captured";
       score.textContent = `${finished ? player.finalScore : player.score}`;
 
-      row.append(swatches, name, fireflies(player.fireflies), score);
+      const top = document.createElement("span");
+      top.className = "top";
+      top.append(name, fireflies(player.fireflies), score);
+      const look = document.createElement("span");
+      look.className = "look";
+      look.textContent = `${baseName} + ${otherName}`;
+      const info = document.createElement("span");
+      info.className = "info";
+      info.append(top, look);
+
+      row.append(swatches, info);
       playersEl.appendChild(row);
     });
   });
@@ -904,7 +1013,7 @@ function renderMarket(state) {
   const powerfulFull = powerfulHeld() >= state.powerfulLimit;
 
   marketStatusEl.textContent = open
-    ? `Five stalls tonight. Your satchel holds ${state.satchelLimit}, and only ${state.powerfulLimit} powerful item at a time.`
+    ? "Five stalls tonight."
     : `Opens after ${state.shopAfter} moves (${Math.min(moves, state.shopAfter)}/${state.shopAfter}).`;
 
   const items = Array.from(state.market);

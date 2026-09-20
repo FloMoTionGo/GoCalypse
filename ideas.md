@@ -27,7 +27,7 @@ Status legend: ✅ live in the game · 💡 idea only
 4. **Removal is rare and precious.** Items that delete stones are the most
    expensive in the shop, work only once, and are limited per match (✅ live).
 5. **Readable at a glance.** Pixel art must never make the four stone looks
-   (solid black, solid white, grey+dots, grey+stripes) hard to tell apart.
+   (solid black, solid white, gray, transparent) hard to tell apart.
 
 ---
 
@@ -50,7 +50,7 @@ Each player has a Flame meter during a match. Risky plays raise it:
 | **Brave stone**: your placed stone's group has exactly 1 liberty on its own axis (self-atari) | +2 | `findGroup` on the placed stone's axis after captures |
 | **...and it survives** until your next turn | +2 more | Recheck that group at the start of your next turn |
 | **Close quarters**: the stone touches ≥ 2 opposing stones on its axis | +1 | Neighbor scan |
-| **Pattern capture**: a capture made with a grey (pattern-axis) stone | +1 per stone | `axisOf(placedCode)` in `handleMove` |
+| **Pattern capture**: a capture made with a gray or transparent (pattern-axis) stone | +1 per stone | `axisOf(placedCode)` in `handleMove` |
 | **Front switch**: a capture on the other axis than your previous move | +1 | Store the last axis per player |
 | **Underdog wind**: you're last in score | all Flame gains ×1.5 | Compare scores |
 
@@ -147,26 +147,26 @@ kit is gone. Prices below are the live ones; the rest are still ideas.
 
 | Item | Effect | Price | Status |
 |---|---|---|---|
-| **Driftwood** | A neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Refused if it would leave any group without liberties. Animation: splashes down; drifts off downstream when it expires. | 15 | ✅ |
+| **Driftwood** | A neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Refused if it would leave any group without liberties. Animation: splashes down; drifts off downstream when it expires. | 30 | ✅ |
 | **Lantern Light** | For one turn, highlights every group in atari (1 liberty) on both axes, for you only. A learning aid. | 15 | 💡 |
-| **Lily Pad** | Reserves an empty point for 3 rounds: only you may place there (a guaranteed liberty or eye). Animation: unfurls with sparkles and shows a mini stone in the owner's colors. | 20 | ✅ |
+| **Lily Pad** | Reserves an empty point for 3 rounds: only you may place there (a guaranteed liberty or eye). Animation: unfurls with sparkles and shows a mini stone in the owner's colors. | 40 | ✅ |
 | **Firefly Jar** | Your captures earn double fireflies for your next 3 turns. | 20 | 💡 |
 | **Tea Break** | Pass your turn and bank your Flame at ×1.5. | 20 | 💡 (needs Flame) |
 | **Seedling** | Plant a seed on an empty point. After 2 rounds, if the point is still empty and has a liberty, it grows into your stone (axis chosen when planting). | 25 | 💡 |
-| **Lantern Ward** | Your group can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. Animation: rings of light bloom and lanterns drop onto the stones; warded stones keep a turning ring. | 30 | ✅ |
+| **Lantern Ward** | Your group can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. Animation: rings of light bloom and lanterns drop onto the stones; warded stones keep a turning ring. | 60 | ✅ |
 | **Lucky Koi** | Your next risky play earns double Flame. | 30 | 💡 (needs Flame) |
 | **Mist** | Your next stone's axis stays hidden from others until the end of the round (needs per-player state filtering). | 30 | 💡 |
 
 ### 4.2 Tactical & axis play (tier 2: 35–70 ✨)
 
 These use GoCalypse's unique two-axis rule, where each stone fights on the
-base front (black vs white) or the pattern front (dots vs stripes).
+base front (black vs white) or the pattern front (gray vs transparent).
 
 | Item | Effect | Price | Status |
 |---|---|---|---|
 | **Ferry** | Move one of your stones one step to an adjacent empty point. Captures are checked afterward. (Needs a two-step target UI.) | 35 | 💡 |
 | **Anchor Stone** | One of your stones becomes immune to removal items for the rest of the match. The counter to Snipe. | 35 | 💡 |
-| **Turn the Lantern** | Flips one of your stones between solid and grey. Captures count on the new front. Refused if it would leave the stone or a former group-mate without liberties. Animation: the stone lifts, turns edge-on and lands showing its other face. | 40 | ✅ |
+| **Turn the Lantern** | Flips one of your stones between solid and grey. Captures count on the new front. Refused if it would leave the stone or a former group-mate without liberties. Animation: the stone lifts, turns edge-on and lands showing its other face. | 80 | ✅ |
 | **Lantern Bridge** | Two of your diagonal stones count as connected for 3 rounds. | 40 | 💡 |
 | **Stepping Stones** | Place two stones this turn. | 45 | 💡 |
 | **Twin Wick** | Your next stone fights on **both** axes: it merges and captures on both fronts, but it's also vulnerable on both. High risk: +3 Flame. | 60 | 💡 |
@@ -178,10 +178,10 @@ can't be removed ✅.
 
 | Item | Effect | Price | Status |
 |---|---|---|---|
-| **Gust** | Removes one enemy stone whose group is in atari (only that stone). Animation: wind sweeps in and the stone tumbles away. | 90 | ✅ |
+| **Gust** | Removes one enemy stone whose group is in atari (only that stone). Animation: wind sweeps in and the stone tumbles away. | 180 | ✅ |
 | **River Current** | Washes away one enemy stone on the board edge. | 120 | 💡 |
-| **Snipe** | Removes any single enemy stone. Animation: sights close in, then it rises as a lantern. | 140 | ✅ |
-| **Firework** (was Bomb) | Clears a 3x3 area, including your own stones and driftwood; warded stones are spared; refused on an empty area. Animation: flash, ring and starburst. | 200 | ✅ |
+| **Snipe** | Removes any single enemy stone. Animation: sights close in, then it rises as a lantern. | 280 | ✅ |
+| **Firework** (was Bomb) | Clears a 3x3 area, including your own stones and driftwood; warded stones are spared; refused on an empty area. Animation: flash, ring and starburst. | 400 | ✅ |
 
 ### 4.4 Even more ideas (parking lot) 💡
 - **Moonlit Swap**: swap the positions of one of your stones and an adjacent empty point.
@@ -214,7 +214,7 @@ All of these need persistence (D-T1).
 ## 6. Trinkets (cosmetics) 💡
 
 - **Stone skins**: river pebble, jade, paper lantern, frosted glass. They must
-  keep the black / white / grey+dots / grey+stripes readability rule.
+  keep the black / white / gray / transparent readability rule.
 - **Board skins**: kaya deck (default ✅), bamboo raft, lotus-pond pier, snowy jetty.
 - **Placement trails**: petals, sparks, water ripples.
 - **Capture effects**: rising lanterns (default ✅), koi splashing away, a firefly swarm.
@@ -260,32 +260,32 @@ Ticked items can still be revisited; they just describe what's live now.
 - [ ] **D-A9 Time of day.** Fixed night today. A slow cycle during a match
       (dusk → night → festival) is open. Weather now varies within a match
       (see D-G7), which is a first step toward it.
-- [x] **D-A13 Pattern stones.** The grey pattern stones are **see-through**,
-      so the grid reads straight through them and they can never be taken for
-      a solid stone. Four designs ship — **Plain** (white, black, grey,
-      transparent, no glyph at all, **the default** as of 2026-09-20; dots and
-      stripes render pixel-identical, which trades away telling the two
-      pattern teams apart by colour), **Glass** (cream pattern inlaid in a
-      clear marble), **Paper** (pale wash, grey pattern) and **Wash** (frosted
-      body, pattern cut out) — switchable from the header, the URL or the
-      preview page. Open: whether to keep all four, and whether the choice
-      should be remembered per browser.
+- [x] **D-A13 Four stones.** Black, white, **gray** and **transparent**
+      (2026-09-20). Gray is solid slate; transparent is an ink ring with a
+      glint and a shaded edge and nothing inside, so the grid reads straight
+      through it and it can't be taken for a solid stone. Each player holds one
+      of black/white and one of gray/transparent. This replaces the dots and
+      stripes marks and the four see-through designs (Plain / Glass / Paper /
+      Wash), which were dropped along with the *Stones* button: in Plain the
+      two pattern teams looked identical, and the marks were too noisy at 15 px.
 - [ ] **D-A10 UI chrome.** The sidebar uses the 5 colors with a system font;
       only the board has a pixel font. Open: pixel font for all UI, wooden
       panels, paper-lantern buttons.
 - [ ] **D-A11 Cursor & hover.** Live: split half/half hover preview and
       highlighted coordinate tags. Open: a pixel cursor.
-- [ ] **D-A12 Wood grain.** The kaya grain is drawn as dotted cream lines,
-      which can read as scratches. Keep, soften, or drop?
+- [x] **D-A12 Wood grain.** Dropped (2026-09-20): the dotted cream streaks read
+      as scratches. The kaya is flat amber with a cream bevel and the grid.
 
 ### 7.2 Readability & player identity
 
-- [ ] **D-R1 Owner marks.** Stones from teammates on an axis look identical
+- [ ] **D-R1 Owner marks.** Live on timed items (2026-09-20): a lily pad shows
+      its owner's two stones, and a ward's first stone carries a haloed mark.
+      Still open for stones: teammates' stones on an axis look identical
       (players 1 & 3 both place solid black). Add a tiny owner pip, or keep
       them identical on purpose?
-- [ ] **D-R2 Player identity.** Live: each player is shown by a pair of mini
-      stones (base + pattern), which is unique per player and also marks lily
-      pads. Open: spirits/avatars, nameplate lanterns.
+- [ ] **D-R2 Player identity.** Live: each player is shown by a pair of
+      full-size stones (base + gray/transparent) with both named ("black +
+      gray"), which is unique per player and also marks lily pads and wards. Open: spirits/avatars, nameplate lanterns.
 - [x] **D-R3 Last-move marker.** A glowing ember on the stone.
 - [ ] **D-R4 Accessibility.** Live: `prefers-reduced-motion` freezes ambience
       and shortens effects. Open: a high-contrast stone mode, a color-blind
@@ -340,13 +340,14 @@ Ticked items can still be revisited; they just describe what's live now.
       sides, the higher one breaking ties (`rules/endgame.ts`). Still open:
       payouts, rankings and progression need wiring to `PlayerState.place`;
       bots never pass by choice (only when they have no legal move); no rematch.
-- [ ] **D-G6 Numbers.** Tune the live economy (3 / 5 / 3, prices 15–200,
+- [ ] **D-G6 Numbers.** Tune the live economy (3 / 5 / 3, prices 30–400 (doubled 2026-09-20),
       market after 5 moves) and the designed Flame and payout tables after
       playtests, and make the two fit together.
 - [x] **D-G7 Free starting kit.** Removed; everything is bought.
 - [x] **D-G8 Players who leave mid-game.** A bot takes over the seat once the
       60 s reconnect grace runs out (`GoRoom.onLeave`); the seat still shows as
-      the player's. Bots can also be seated up front from the welcome screen.
+      the player's. Bots can also be seated up front from the home screen or the welcome
+      screen: up to 3 of a kind and 3 in all.
       Still open: what a returning player gets back if they arrive after the
       takeover (D-T7 covers reconnecting at all).
 - [ ] **D-G9 Lily Pad timing.** It expires as its owner's third turn begins, so
@@ -359,18 +360,20 @@ Ticked items can still be revisited; they just describe what's live now.
       2026-09-20 captures were only checked on the placed stone's own front,
       which left dead groups sitting on the board. Suicide (the group the new
       stone joins) is still refused rather than removed.
-- [x] **D-G12 Weather.** Every 20 turns the room rolls a die; a six brings a
-      **thunderstorm**: up to 3 bolts set fire to random points, a burning
+- [x] **D-G12 Weather.** Every 20 turns the room rolls a D20 and adds 1 for
+      every calm roll since the last storm; 20 or more brings a
+      **thunderstorm** (5% at first, +5% per calm roll; the sidebar's forecast
+      reads unlikely / likely / very likely; 2026-09-20): up to 3 bolts set fire to random points, a burning
       point can't be played on for 3 rounds, and whatever stood there burns
       away when the fire dies (3 fireflies consolation, no score). Fires don't
-      take liberties. For those same 3 rounds every stone on the board also
-      loses its colour, rendering as one shared dithered tone between ink and
-      slate regardless of team or pattern-stone design (added 2026-09-20,
-      tied to `GoState.storm.until` so it outlasts the ~10s cloud/rain
-      animation and survives a client joining mid-storm). Open: should a
-      storm also *end* something (a round bonus?), are three bolts on a
-      13x13 board too many, and does blacking out every stone (rather than
-      just the pattern ones) make a storm too disorienting in a long game?
+      take liberties. The weather lasts those same 3 rounds: after the ~10s
+      cloudburst a much weaker copy lingers over the river and banks, easing
+      out through the last round, tied to `GoState.storm.until` so it survives
+      a client joining mid-storm. It leaves the playing surface alone and stones
+      keep their colours (2026-09-20: this replaced blacking out every stone
+      to one tone, which made the gray stones meaningless). Open: should a
+      storm also *end* something (a round bonus?), and are three bolts on a
+      13x13 board too many?
 - [ ] **D-G11 Consolation for item captures.** Stones captured by Turn the
       Lantern pay no consolation (they count as normal captures). Keep?
 

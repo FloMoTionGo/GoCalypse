@@ -35,6 +35,8 @@ import {
   pickStrikes,
   rollDie,
   STORM_EVERY_TURNS,
+  stormChance,
+  stormLevel,
 } from "../rules/storm";
 
 interface JoinOptions {
@@ -62,6 +64,7 @@ interface AddBotsMessage {
 
 const BOARD_SIZE = 13;
 const MAX_PLAYERS = 4;
+const MAX_BOTS = 3; // bots a table may be given in all, from any mix of kinds
 const SHOP_AFTER_MOVES = 5;
 const FIREFLIES_PER_MOVE = 3;
 const FIREFLIES_PER_CAPTURE = 5;
@@ -92,6 +95,7 @@ export class GoRoom extends Room<GoState> {
     state.shopAfter = SHOP_AFTER_MOVES;
     state.satchelLimit = SATCHEL_LIMIT;
     state.powerfulLimit = POWERFUL_LIMIT;
+    state.storm.every = this.stormEvery;
     for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
       state.board.push(0);
     }
@@ -106,6 +110,7 @@ export class GoRoom extends Room<GoState> {
       state.market.push(item);
     }
     this.setState(state);
+    this.updateForecast();
 
     this.onMessage("move", (client, message: MoveMessage) => this.handleMove(client, message));
     this.onMessage("usePowerup", (client, message: UsePowerupMessage) =>
@@ -160,7 +165,7 @@ export class GoRoom extends Room<GoState> {
     // (main.js: player.sessionId === room.sessionId) can never match a bot.
     bot.sessionId = `bot:${bot.color}`;
     bot.bot = true;
-    bot.name = style.name;
+    bot.name = this.freeName(style.name);
     bot.fireflies = this.startingFireflies;
     this.botStyles.set(bot.sessionId, style);
     this.state.players.push(bot);
@@ -168,20 +173,33 @@ export class GoRoom extends Room<GoState> {
     return true;
   }
 
+  /** `base`, or `base 2`, `base 3`... when a seat already has that name, so two Reeds are told apart. */
+  private freeName(base: string): string {
+    const names = new Set(this.state.players.map((p) => p.name));
+    if (!names.has(base)) return base;
+    for (let n = 2; ; n++) if (!names.has(`${base} ${n}`)) return `${base} ${n}`;
+  }
+
   /**
-   * The welcome screen's "add bots": a seated player asks for up to three bots
-   * by recruit id, while the room is still waiting for its fourth player. Free
-   * seats are the only limit, so it can never overfill the table, and seats it
-   * leaves empty stay open for other players (or a second request). Bots give
-   * the sender nothing, so there is nothing to abuse in asking twice.
+   * "Add bots", from the home screen or the welcome screen: a seated player
+   * asks for bots by recruit id while the room is still waiting for its fourth
+   * player. The same id may repeat, so a table can hold up to three of one
+   * kind, but never more than MAX_BOTS bots in all, however they were asked
+   * for, and never more than the free seats, so it can never overfill the
+   * table. Seats it leaves empty stay open for other players (or a second
+   * request). Bots give the sender nothing, so there is nothing to abuse in
+   * asking twice.
    */
   private handleAddBots(client: Client, message: AddBotsMessage) {
     if (this.state.status !== "waiting") return;
     if (this.findPlayerIndex(client.sessionId) === -1) return;
     const ids = Array.isArray(message?.ids) ? message.ids : [];
 
+    const seated = this.state.players.filter((p) => p.bot).length;
+    const room = Math.min(MAX_BOTS - seated, MAX_PLAYERS - this.state.players.length);
     let added = 0;
-    for (const id of ids.slice(0, MAX_PLAYERS - 1)) {
+    for (const id of ids.slice(0, MAX_BOTS)) {
+      if (added >= room) break;
       const style = typeof id === "string" ? recruitStyle(id) : null;
       if (style && this.addBot(style)) added += 1;
     }
@@ -379,11 +397,12 @@ export class GoRoom extends Room<GoState> {
   // ---- weather ---------------------------------------------------------------
 
   /**
-   * Every `stormEvery` turns a die is rolled out of sight. On a 6 the sky
-   * opens: lightning hits up to STORM_MAX_STRIKES random points, and each one
-   * catches fire for FIRE_ROUNDS rounds. A stone standing there burns with it
-   * and is gone when the fire dies; until then nobody may play on that point.
-   * Warded points and points already alight are never struck.
+   * Every `stormEvery` turns a D20 is rolled out of sight, plus one for every
+   * calm roll since the last storm. At 20 the sky opens: lightning hits up to
+   * STORM_MAX_STRIKES random points, and each one catches fire for FIRE_ROUNDS
+   * rounds. A stone standing there burns with it and is gone when the fire
+   * dies; until then nobody may play on that point. Warded points and points
+   * already alight are never struck.
    */
   private rollForStorm() {
     const state = this.state;
@@ -392,14 +411,19 @@ export class GoRoom extends Room<GoState> {
     const roll = rollDie();
     state.storm.roll = roll;
     state.storm.rolledAt = state.turnCount;
-    if (!isStormRoll(roll)) return;
 
     const size = state.size;
     const candidates: number[] = [];
     for (let idx = 0; idx < size * size; idx++) {
       if (!this.isWarded(idx) && !this.isBurning(idx)) candidates.push(idx);
     }
-    if (candidates.length === 0) return;
+    if (!isStormRoll(roll, state.storm.calm) || candidates.length === 0) {
+      state.storm.calm += 1; // calm: the next roll is likelier
+      this.updateForecast();
+      return;
+    }
+    state.storm.calm = 0;
+    this.updateForecast();
 
     const struck = pickStrikes(candidates);
     let stonesHit = 0;
@@ -419,6 +443,13 @@ export class GoRoom extends Room<GoState> {
       `A thunderstorm breaks: ${struck.length} lightning strike${struck.length === 1 ? "" : "s"}` +
       `${stonesHit ? `, ${stonesHit} stone${stonesHit === 1 ? "" : "s"} alight` : ""}. ` +
       `The fires burn for ${FIRE_ROUNDS} rounds.`;
+  }
+
+  /** Puts the chance of the next roll breaking a storm, in numbers and in words, where clients can read it. */
+  private updateForecast() {
+    const storm = this.state.storm;
+    storm.chance = Math.round(stormChance(storm.calm) * 100);
+    storm.level = stormLevel(storm.calm);
   }
 
   // ---- bots ------------------------------------------------------------------
@@ -621,8 +652,8 @@ export class GoRoom extends Room<GoState> {
       player.place = results[i].place;
     });
 
-    // Turns stop here, so a storm still in its three rounds would keep every
-    // stone blacked out on the final board, hiding whose is whose.
+    // Turns stop here, so a storm still in its three rounds would leave its
+    // weather hanging over the final board for good.
     if (state.storm.until > state.turnCount) state.storm.until = state.turnCount;
     state.status = "finished";
 
@@ -728,6 +759,6 @@ export class GoRoom extends Room<GoState> {
  * a thunderstorm can actually be watched in a test session.
  */
 export class GoDebugRoom extends GoRoom {
-  protected startingFireflies = 600;
+  protected startingFireflies = 1200;
   protected stormEvery = DEBUG_STORM_EVERY_TURNS;
 }

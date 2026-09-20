@@ -1,6 +1,6 @@
 # GoCalypse: Current State
 
-Snapshot as of **2026-09-20** (working tree, on top of commit `765936d`).
+Snapshot as of **2026-09-20** (working tree on top of commit `0d8665d`, which is what is deployed; later changes are listed first in section 8).
 What's built, where it runs, how it's tested, and what's missing. Plans and
 open design questions are in [`ideas.md`](ideas.md); setup instructions are in
 [`README.md`](README.md).
@@ -13,8 +13,8 @@ GoCalypse is a 4-player online Go variant with custom two-front captures,
 drawn as a cozy 5-color pixel scene: a wooden pier standing in a lantern-lit
 river. Players earn **fireflies** by playing and, after their 5th move, can
 spend them at the **Night Market**, which stocks 5 of the 7 powerups a night.
-Every 20 turns a die decides the weather, and a six brings a **thunderstorm**
-that sets fire to the board. A match ends when all four players pass in a row
+Every 20 turns a D20 (plus 1 per calm roll) decides the weather, and a 20
+brings a **thunderstorm** that sets fire to the board. A match ends when all four players pass in a row
 and is scored (lower of a player's two sides wins). Nothing is saved between
 matches, and there's no Flame/progression system yet.
 
@@ -44,25 +44,29 @@ matches, and there's no Flame/progression system yet.
 - 13x13 board, exactly 4 players. The game starts when the 4th joins; the
   room then locks so strangers can't take a departed player's seat.
 - Each player holds one of four combos ("colors" in the code): **1**
-  black+dots, **2** white+dots, **3** black+stripes, **4** white+stripes.
+  black+gray, **2** white+gray, **3** black+transparent, **4** white+transparent.
+  The four stones are **black, white, gray and transparent**: solid ink, solid
+  cream, solid slate, and an ink ring with nothing inside (the board shows
+  through). The code's older names for the second front are still `pattern`
+  (axis) and the codes 5–8.
   Combos are **dealt at random** as players join, from those nobody in the
   room holds yet, so every game shuffles the pairings and no combo appears
   twice.
 - Turns go by combo **1 → 2 → 3 → 4**, so black and white alternate; whoever
-  is dealt black+dots moves first (so the first mover is random too).
+  is dealt black+gray moves first (so the first mover is random too).
 - Guests get a random name; names are capped at 24 characters.
 
 ### Two fronts
-- **Left click** places a solid stone in your base color (black/white). It
-  fights only the base war: black vs white.
-- **Right click** places a grey stone with your pattern (dots/stripes). It
-  fights only the pattern war: dots vs stripes.
+- **Left click** places your black or white stone. It fights only the base
+  war: black vs white.
+- **Right click** places your gray or transparent stone. It fights only the
+  pattern war: gray vs transparent.
 - On the front it didn't choose, a stone is a **wall**: it blocks a liberty
   there but never joins a group or gets captured on that front.
 - Stones of different players merge when they share a value on that front
   (players 1 and 3 fight the base war together as black).
 - **A group with no liberties dies, whoever filled them.** Every group is
-  judged on its own front, so a ring of solid white stones kills a grey dots
+  judged on its own front, so a ring of solid white stones kills a gray
   group, and your own stone can smother your own group on the other front.
   The mover is credited with every stone that comes off. (Until 2026-09-20
   captures were only ever checked on the *placed stone's* front, so groups
@@ -85,8 +89,16 @@ matches, and there's no Flame/progression system yet.
 - There's no free starting kit.
 
 ### Weather
-- Every **20 turns** (`GoState.turnCount`) the room rolls a die. On a **6** a
-  thunderstorm breaks; the roll is kept in `GoState.storm` either way.
+- Every **20 turns** (`GoState.turnCount`) the room rolls a **D20** and adds
+  **1 for every calm roll** since the last storm; at **20 or more** a
+  thunderstorm breaks (`rules/storm.ts`). So the first roll is a 5% chance and
+  each calm roll adds 5%, until a storm resets it. The roll is kept in
+  `GoState.storm` either way.
+- **Forecast:** `storm.calm`, `storm.chance` (percent), `storm.level` and
+  `storm.every` are synced. The sidebar's *Storm* panel shows three pips and a
+  word — 5–10% *unlikely*, 15–25% *likely*, 30% and up *very likely* — plus the
+  turns to the next roll. (The 5% start and the 20 target were a judgment call
+  on "roll a D20, add 1 after each unsuccessful roll"; tune `STORM_TARGET`.)
 - Up to **3 bolts** hit random points — never a warded one or one already
   alight. Each lights a **fire** effect for **3 rounds**.
 - A burning point **can't be played on** (by a stone, driftwood or a lily
@@ -95,26 +107,32 @@ matches, and there's no Flame/progression system yet.
   its owner is paid the 3-firefly consolation. Nobody scores it.
 - The client plays the storm as a 10-second scene: dusk, cloud, rain, then the
   bolts at 2.4 / 4.4 / 6.4 s, each lighting its fire as it lands.
-- **Every stone on the board goes one colour for the full 3 rounds**, not just
-  the 10-second flash: while `GoState.turnCount` is below `GoState.storm.until`
-  (set the moment a storm breaks, synced to every client), black, white and
-  every pattern-stone design all render as the same shape in one dithered
-  tone exactly between ink and slate (`G.stormStoneSprite()`), so the storm
-  erases whose stone is whose, not just how it's coloured. A client that
-  joins mid-storm gets this without ever seeing the cloudburst. Driftwood
-  keeps its own look; it isn't anyone's stone. Sidebar icons, satchel and
-  market are unaffected — only stones already on the board go dark.
-- `go_debug` rooms roll every **6** turns so storms can be watched in testing.
+- **The storm lasts the full 3 rounds, gently.** While `GoState.turnCount` is
+  below `GoState.storm.until` (set the moment a storm breaks, synced to every
+  client), a weak copy of the weather lingers: `STORM_LINGER` (0.35) of the
+  cloudburst's dusk, cloud and rain, full for the first two rounds and easing
+  out through the last (`stormLinger()` in `pixelScene.js`, worked out from the
+  synced counters, so a client that joins mid-storm sees it without the
+  cloudburst). It stays off the playing surface, and **stones keep their own
+  colours**. (Until 2026-09-20 every stone was blacked out to one dithered tone
+  for the 3 rounds; that erased the difference between gray and the other
+  stones, so it was replaced by this.) The cloudburst's peak dusk was also
+  cut from 0.5 to 0.32.
+- `go_debug` rooms roll every **6** turns so storms can be watched in testing
+  (and reach *very likely* in about 30 turns).
 
 | Item | Price | What it does |
 |---|---|---|
-| Driftwood | 15 | A neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Refused if it would leave a group with no liberties — neutral pieces never capture, which also keeps a 15-firefly log from doing Gust's 90-firefly job. |
-| Lily Pad | 20 | Reserves an empty point for 3 rounds: only you may place there. Expires at the start of your own turn 3 rounds later, so you get 2 own turns to use it. |
-| Lantern Ward | 30 | Your group can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed (credited to no one). |
-| Turn the Lantern | 40 | Flips one of your stones between solid and grey. Captures count on the new front, and a former group-mate the flip strands is captured too. Refused only if the flipped stone itself would have no liberties. |
-| Gust | 90 | Removes one enemy stone whose group is in atari (only that stone). |
-| Snipe | 140 | Removes any single enemy stone. |
-| Firework | 200 | Clears a 3x3 area, including your own stones and driftwood. Warded stones are spared. Refused on an empty area. |
+| Driftwood | 30 | A neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Refused if it would leave a group with no liberties — neutral pieces never capture, which also keeps a 30-firefly log from doing Gust's 180-firefly job. |
+| Lily Pad | 40 | Reserves an empty point for 3 rounds: only you may place there. Expires at the start of your own turn 3 rounds later, so you get 2 own turns to use it. |
+| Lantern Ward | 60 | Your group can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed (credited to no one). |
+| Turn the Lantern | 80 | Flips one of your stones between black/white and gray/transparent. Captures count on the new front, and a former group-mate the flip strands is captured too. Refused only if the flipped stone itself would have no liberties. |
+| Gust | 180 | Removes one enemy stone whose group is in atari (only that stone). |
+| Snipe | 280 | Removes any single enemy stone. |
+| Firework | 400 | Clears a 3x3 area, including your own stones and driftwood. Warded stones are spared. Refused on an empty area. |
+
+All prices were doubled on 2026-09-20 (the earning rates were left alone, so
+items take twice as long to afford).
 
 ### Ending the game
 - **Pass:** the header's *Pass* button (message `pass`) skips your turn. Turn
@@ -123,13 +141,13 @@ matches, and there's no Flame/progression system yet.
   Buying doesn't.
 - **End:** when `passes` reaches the number of players, `GoRoom.finishGame`
   sets `status: "finished"` (nothing else is accepted afterwards) and closes
-  any storm blackout, so the final board shows real stone colors.
+  the storm's lingering weather, so the final board is left clear.
 - **Scoring** (`rules/endgame.ts`): normal Go **area scoring**, once per
   front. A stone counts for its side on the front it fights on; an empty
   region counts for a side when it touches only that side's stones. Walls
   (stones committed to the other front, driftwood) are invisible: they score
   for no one and don't spoil a region. Dead stones are **not** removed.
-- **Score:** four totals (black, white, dots, stripes). A player's two totals
+- **Score:** four totals (black, white, gray, transparent). A player's two totals
   are their base side and pattern side; the **lower is the final score**, the
   **higher is the tie-break**. Players level on both share a place. Stored per
   player in `baseArea`, `patternArea`, `finalScore`, `tiebreak`, `place`.
@@ -138,9 +156,25 @@ matches, and there's no Flame/progression system yet.
   winner(s) highlighted. While playing, the status line shows `n/4 passed`.
 - **Bots** make a real pass only when they have no legal move.
 
+### Bots
+- **Kinds:** Reed (stones only), Tanuki (a fighter, some items), Magpie (market
+  shark). `bots/styles.ts` `RECRUITS` maps the wire ids `pure` / `balanced` /
+  `shark` to them.
+- **From the home screen:** a *Play with bots* menu above *Join Game* (a
+  `- n +` counter per kind). Bringing bots calls `client.create` (a table of
+  your own) and sends `addBots` right after joining; without bots it is
+  `joinOrCreate` as before.
+- **From the welcome screen:** the same menu while the room waits for its 4th
+  player (*Add bots* in the header reopens it).
+- **Limits:** up to **3 of a kind**, **3 bots in all** (`MAX_BOTS`), and never
+  more than the free seats. Enforced by `GoRoom.handleAddBots`, so a raw
+  message asking for more just gets 3. Two of a kind are numbered ("Reed",
+  "Reed 2"). A bot seat can still appear later when a player leaves for good.
+- Bots make a real pass only when they have no legal move.
+
 ### Welcome screen
 On a player's first join (per browser), a welcome window explains the game:
-their own color and pattern, left vs right click, walls, how the game ends
+their own two stones, left vs right click, walls, how the game ends
 and is scored (with the player's own two sides), the fireflies economy,
 and every market item with its icon, price and description (taken from the
 server's market, so it can't drift). Clicking anywhere outside it, the small ×,
@@ -152,8 +186,8 @@ button in the game header reopens it.
 `debug.html` shows 4 real clients (**820x860** panels — wide enough for the
 board at 2x plus the sidebar, with no inner scrollbar) that auto-join a
 **`go_debug`** room: same rules, separate matchmaking pool, everyone starts
-with **600 fireflies**, and the weather die is rolled every **6** turns
-instead of 20. The 5-move gate still applies. Both debug values live in a
+with **1200 fireflies** (enough to try the whole market at the doubled
+prices), and the weather die is rolled every **6** turns instead of 20. The 5-move gate still applies. Both debug values live in a
 server subclass (`GoDebugRoom`), so a client can't request them. The panels
 share `localStorage`, so the first-visit welcome screen opens in panel 1 only
 (hash param `nowelcome` on the others).
@@ -175,19 +209,32 @@ share `localStorage`, so the first-visit welcome screen opens in panel 1 only
   pixels** per native pixel that leaves room for the sidebar and the lines
   under the board (`sizeCanvas` in `main.js`, 1x–6x). A 1080p window gets 3x
   (762x852 CSS px), a 1440p one 4x; the 820px debug panels get 2x.
-- **Pattern stones** are see-through in one of four designs — **Plain**
-  (default: white, black, grey, transparent, no glyph at all — dots and
-  stripes render pixel-identical), **Glass** (cream pattern inlaid in a
-  clear marble), **Paper** (pale wash, grey pattern), **Wash** (frosted
-  body, pattern cut out). `GoSprites.setPatternStyle`, the header's *Stones*
-  button, `#stones=` in the URL, or the preview page. In glass/paper/wash,
-  dots are three fat pips, stripes three broad diagonal bands, and the body
-  is kept clear of the mark so it reads at 15 px.
-- **Board UI:** pixel coordinates 0–12. Hovering shows a half solid / half
-  pattern ghost stone and highlights that row and column (never over a burning
-  point). A glowing ember marks the last move. Lily pads show a mini split
-  stone in the owner's colors. Warded stones get a turning ring of light and a
-  small lantern. Burning points get a bed of embers and a flame.
+- **Stones:** four looks you can tell apart at a glance — black (ink),
+  white (cream), **gray** (solid slate) and **transparent** (an ink ring with a
+  cream glint and a slate shaded edge, hollow inside so the grid shows
+  through). There is one design; the earlier pattern-stone designs
+  (Plain / Glass / Paper / Wash), the *Stones* button and `#stones=` were
+  removed on 2026-09-20 when dots and stripes became gray and transparent.
+- **Board surface:** flat amber kaya with a cream bevel and the grid, and
+  nothing else (the grain streaks were removed on 2026-09-20).
+- **Board UI:** pixel coordinates 0–12. Hovering shows a half / half ghost of
+  your two stones and highlights that row and column (never over a burning
+  point). A glowing ember marks the last move. Burning points get a bed of
+  embers and a flame.
+- **Timers and owner marks:** every timed piece (lily pad, driftwood, ward,
+  fire) shows a small ink tag with its **rounds left** at the upper right of its
+  point (`ceil((until - turnCount) / players)`; amber on the last round).
+  Lily pads carry their owner's split stone; a ward's first stone carries a
+  haloed mini split stone of the owner at the upper left, plus the tag. Wards
+  turn a ring of light and hang a lantern on every warded stone.
+- **The turn boat:** a small boat drifts back and forth along the wide river
+  under the board with a sign reading "T" and the turn now being played
+  (`turnCount + 1`). It moves on its own clock (frozen by reduced motion), not
+  the game's; only the number follows play. `drawBoat` in `pixelScene.js`.
+- **Sidebar:** exactly 250px wide (`min-width: 0`, so a long name ellipsizes
+  instead of widening it). Each player gets a box with both stones at full
+  board size on a strip of kaya and their names ("black + gray") spelled out;
+  above the wallet is the *Storm* forecast.
 - **Animations:** placement (drop, squash, ripple) and capture (shiver, flash,
   rises as a lantern). Each item has its own: driftwood splashes down and later
   drifts off, the lily pad unfurls, ward lanterns drop in, the flipped stone
@@ -195,11 +242,14 @@ share `localStorage`, so the first-visit welcome screen opens in panel 1 only
   bursts. A burnt stone shrivels and goes up as smoke (`burnAway`), never as a
   captured lantern. `prefers-reduced-motion` freezes ambience, shortens effects
   and drops the rain (dusk and bolts stay).
-- **Storm:** dusk over the whole scene (a dithered shade ramp), painted cloud
+- **Storm:** dusk over the scene (a dithered shade ramp), painted cloud
   masses drifting across, slanting rain, and per bolt a jagged cream channel
   from the top of the scene to the struck point, with two passes of the light
-  ramp blowing the sky out to cream for a frame. Fires are drawn *over* the
-  weather, since they're the one thing the storm doesn't dim.
+  ramp blowing the sky out to cream for a frame. That is the 10 s cloudburst,
+  which also darkens the playing surface a little (peak 0.32); afterwards the
+  weaker lingering weather (see Weather) covers everything *but* the playing
+  surface. Fires are drawn *over* the weather, since they're the one thing the
+  storm doesn't dim.
 - **Performance:** a full calm frame renders in about 0.5 ms; a storm frame
   adds two full-surface passes. The client redraws at up to 30 fps and pauses
   in hidden tabs.
@@ -210,13 +260,13 @@ share `localStorage`, so the first-visit welcome screen opens in panel 1 only
 server/src/
   index.ts               defines rooms "go_custom" and "go_debug"
   rooms/GoRoom.ts        join/leave, turn order, moves, market, items, timed effects,
-                         the weather roll; GoDebugRoom (600 fireflies, storms every 6 turns)
+                         the weather roll; GoDebugRoom (1200 fireflies, storms every 6 turns)
   rules/goRules.ts       two-front captures, suicide, driftwood, flipStone, canPlaceNeutral
   rules/goRules.test.ts  18 rule tests (npm test)
   rules/endgame.ts       area scoring, final score / tie-break / place (pure)
   rules/endgame.test.ts  9 end-game scoring tests
-  rules/storm.ts         when to roll, what a 6 means, where the bolts land
-  rules/storm.test.ts    5 weather tests
+  rules/storm.ts         when to roll, D20 + calm bonus, the forecast, where the bolts land
+  rules/storm.test.ts    9 weather tests
   powerups/definitions.ts  the 7 items (price, removal flag, apply) + marketStock()
   powerups/definitions.test.ts  5 market-stock tests
   powerups/types.ts      PowerupContext / PowerupDefinition
@@ -224,14 +274,15 @@ server/src/
 web/
   index.html, style.css  game page (5-color theme)
   main.js                client: state -> scene, input, sidebar, market, satchel, storms
-  sprites.js             palette, sprites, pattern-stone designs, fonts, icons, rasterizer
+  sprites.js             palette, sprites (four stone looks, boat), fonts, icons, rasterizer
   pixelScene.js          scene renderer, effect timelines, weather, diffTurn (browser + Node)
   debug.html             4 clients in one tab (go_debug), 820x860 panels
-  pixel-preview.html     every sprite and animation, storm demo, design switcher; no server
+  pixel-preview.html     every sprite and animation, storm demo; no server
 ```
 
 **Board codes:** `0` empty · `1–4` a player's solid stone · `5–8` that
-player's grey pattern stone (player + 4) · `9` driftwood.
+player's gray (players 1–2) or transparent (players 3–4) stone (player + 4) ·
+`9` driftwood.
 
 **Synced state (`GoState`):** `size`, `board`, `players` (in join order),
 `turnIndex` (an index into `players`), `status`, `turnCount`, `lastEvent`,
@@ -252,8 +303,8 @@ defines `onUncaughtException`, so a bad message can't crash the process.
 
 ## 6. Testing
 
-**In the repo:** `npm test` in `server/`: **52** tests (Node's built-in test
-runner, no extra dependency) — 18 rules, 9 end-game scoring, 5 weather, 5
+**In the repo:** `npm test` in `server/`: **56** tests (Node's built-in test
+runner, no extra dependency) — 18 rules, 9 end-game scoring, 9 weather, 5
 market stock, 15 bots.
 
 **Outside the repo (temporary!):** everything below lives in Claude's session
@@ -285,9 +336,11 @@ ideas.md, D-T9).
   market stocks five items. A second script (`burn.js`) plays ~130 turns of
   spread-out stones until a bolt lands on one, and checks it burns away three
   rounds later and its owner is paid. `preview.js` drives
-  `pixel-preview.html` for storm and pattern-design screenshots.
+  `pixel-preview.html` for storm screenshots.
 
-All of the above passed locally on 2026-09-20 (production not yet redeployed).
+All of the above passed locally on 2026-09-20. Production (Fly version 8, and
+the GitHub Pages client) was redeployed from `0d8665d` the same day; the pass /
+end-game flow has been played through only locally, not on the live server.
 
 ## 7. Known gaps and limits
 
@@ -311,16 +364,15 @@ All of the above passed locally on 2026-09-20 (production not yet redeployed).
   source of losses — both want playtesting.
 - **Desktop only:** pattern stones need a right click (no touch equivalent),
   and the layout assumes about 800 px of width.
-- **The pattern-stone design is per browser, not per player:** the *Stones*
-  button is a local preference, not something the room knows about, and it
-  isn't remembered between visits.
 - **Name vs theme:** "GoCalypse" and the cozy lantern theme still disagree.
 
 ## 8. Recent history
 
 | Commit | What changed |
 |---|---|
-| (working tree) | Liberty rule fixed (any 0-liberty group dies); thunderstorms and fire; see-through pattern stones in 3 designs; market cut to 5 items / 1 powerful and a 5-item satchel; river all around the board; board scales to the screen |
+| (working tree) | The storm now lasts its full 3 rounds as a weak lingering weather that leaves stones and the board untouched (the all-stones-one-tone blackout is gone); four distinct stones (black, white, gray, transparent) replace dots/stripes and the design switcher; timers and owner marks on timed board items; a turn-number boat; storm odds rise with a D20 + 1 per calm roll, with a forecast meter; up to 3 bots of a kind (3 in all), also from the home screen; all item prices doubled (debug rooms start with 1200 fireflies); board grain removed; larger player boxes |
+| `0d8665d` | Pass move; four passes in a row end the game, scored by area on each front (lower of a player's two sides, higher breaks ties); Results dialog; opt-in bots menu on the welcome screen |
+| `b653abb` | Liberty rule fixed (any 0-liberty group dies); thunderstorms and fire; see-through pattern stones in 3 designs; market cut to 5 items / 1 powerful and a 5-item satchel; river all around the board; board scales to the screen; lantern-keeper bots |
 | `765936d` | Deal color/pattern combos at random each game |
 | `03bc966` | Fixed a server crash from payload-less messages; duplicate colors after a pre-game leave; turn order by color; name validation |
 | `4026f0b` | Pixel client live; fireflies, Night Market, 5 new items; debug room |

@@ -24,6 +24,13 @@
         <input id="name-input" type="text" placeholder="Guest" />
       </label>
 
+      <!-- Bots to bring along, before there is a room; see renderLobbyBots() in main.js. -->
+      <section id="lobby-bots">
+        <h3>Play with bots <span class="hint">(optional)</span></h3>
+        <p class="hint">Bring up to 3 bots, in any mix, even 3 of the same kind, for a table of your own. Leave it at 0 to be matched with other players.</p>
+        <div id="lobby-bot-list"></div>
+      </section>
+
       <button id="join-button">Join Game</button>
       <p id="lobby-status" class="status"></p>
     </section>
@@ -34,7 +41,6 @@
           <div id="room-status"></div>
           <button id="help-button" class="link-button" type="button">How to play</button>
           <button id="bots-button" class="link-button" type="button" hidden>Add bots</button>
-          <button id="stones-button" class="link-button" type="button" title="Try the three pattern-stone designs"></button>
           <button id="result-button" class="link-button" type="button" hidden>Results</button>
         </div>
         <div class="header-right">
@@ -46,13 +52,15 @@
       <div id="game-body">
         <div id="board-wrap">
           <canvas id="board" class="px"></canvas>
-          <p id="board-hint" class="hint">Left click: your color &middot; Right click: your grey pattern stone</p>
+          <p id="board-hint" class="hint">Left click: your black or white stone &middot; Right click: your gray or transparent stone</p>
           <p id="notice" class="status notice"></p>
           <p id="last-event" class="status"></p>
         </div>
 
         <aside id="sidebar">
           <div id="players" class="panel"></div>
+
+          <div id="weather" class="panel"></div>
 
           <div id="wallet" class="panel"></div>
 
@@ -94,10 +102,10 @@
       <p>Four players take turns placing stones. A group whose last free neighbouring point is filled gets captured.</p>
       <p id="welcome-you"></p>
       <ul class="welcome-fronts">
-        <li><span id="welcome-base-icon"></span><span><b>Left click</b>: a solid stone in your color. It fights <b>black against white</b>.</span></li>
-        <li><span id="welcome-pattern-icon"></span><span><b>Right click</b>: a grey stone with your pattern. It fights <b>dots against stripes</b>.</span></li>
+        <li><span id="welcome-base-icon"></span><span><b>Left click</b>: your black or white stone. It fights <b>black against white</b>.</span></li>
+        <li><span id="welcome-pattern-icon"></span><span><b>Right click</b>: your gray or transparent stone. It fights <b>gray against transparent</b>.</span></li>
       </ul>
-      <p>On the other front a stone is just a wall: it blocks, but can't be captured there. Players who share your color, or your pattern, fight on your side.</p>
+      <p>On the other front a stone is just a wall: it blocks, but can't be captured there. Players who hold your black or white, or your gray or transparent, fight on your side.</p>
 
       <h3>Ending the game &amp; scoring</h3>
       <p>On your turn you can <b>Pass</b> (button in the header) instead of placing a stone. When <b>all four players pass in a row</b> the game ends. A stone or an item played in between starts the count again.</p>
@@ -109,6 +117,9 @@
 
       <h3>Powerups</h3>
       <div id="welcome-powerups"></div>
+
+      <h3>Reading the board</h3>
+      <p>Anything that doesn't last shows a small number: the <b>rounds it has left</b> (a lily pad, a ward, driftwood or a fire; the number turns amber on its last round). A lily pad or ward also carries its owner's two stones, so you can see whose it is. The boat drifting on the river is only for orientation: its sign shows the turn being played.</p>
 
       <h3>Weather</h3>
       <p id="welcome-weather"></p>
