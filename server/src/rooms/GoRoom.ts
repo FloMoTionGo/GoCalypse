@@ -5,6 +5,9 @@ import { deleteSnapshot, restoreState, saveSnapshot, takeRestore } from "../stat
 import {
   applyCaptures,
   axisOf,
+  isTwin,
+  twinCode,
+  viewsOf,
   boardIndex,
   DRIFTWOOD,
   findGroup,
@@ -55,6 +58,7 @@ interface MoveMessage {
 interface UsePowerupMessage {
   id: string;
   target?: { x: number; y: number };
+  target2?: { x: number; y: number }; // second point, for items that take two (Ferry)
 }
 
 interface BuyMessage {
@@ -104,6 +108,7 @@ export class GoRoom extends Room<GoState> {
   // Not taken from create options on purpose: Colyseus merges client-supplied
   // options into those, so a client could grant itself fireflies (or weather).
   protected startingFireflies = 0;
+  protected shopAfterMoves = SHOP_AFTER_MOVES;
   protected stormEvery = STORM_EVERY_TURNS;
   private botTimer?: Delayed;
   private botStyles = new Map<string, Style>();
@@ -120,7 +125,7 @@ export class GoRoom extends Room<GoState> {
     const restored = takeRestore(options?.restoreToken);
     const state = new GoState();
     state.size = BOARD_SIZE;
-    state.shopAfter = SHOP_AFTER_MOVES;
+    state.shopAfter = this.shopAfterMoves;
     state.satchelLimit = SATCHEL_LIMIT;
     state.powerfulLimit = POWERFUL_LIMIT;
     state.storm.every = this.stormEvery;
@@ -128,7 +133,7 @@ export class GoRoom extends Room<GoState> {
       state.board.push(0);
     }
     this.positions.record(state.board.toArray());
-    // Five stalls, only one of them selling something powerful (drawn per match).
+    // Six stalls: 3 of tier 1, 2 of tier 2 and 1 of tier 3, drawn per match and the same for everyone at the table.
     for (const def of marketStock()) {
       const item = new MarketItem();
       item.id = def.id;
@@ -136,6 +141,9 @@ export class GoRoom extends Room<GoState> {
       item.description = def.description;
       item.price = def.price;
       item.removal = def.removal;
+      item.tier = def.tier;
+      item.points = def.points ?? 1;
+      item.free = !!def.free;
       state.market.push(item);
     }
     if (restored) {
@@ -448,6 +456,7 @@ export class GoRoom extends Room<GoState> {
   private expireEffects() {
     const { board, size, turnCount } = this.state;
     const lapsedWards: number[] = [];
+    const grownSeeds: { x: number; y: number; owner: number }[] = [];
     for (let i = this.state.effects.length - 1; i >= 0; i--) {
       const e = this.state.effects[i];
       if (e.until > turnCount) continue;
@@ -457,7 +466,19 @@ export class GoRoom extends Room<GoState> {
       // owner gets the same consolation as for a stone removed by an item.
       if (e.kind === "fire" && board[idx] !== 0) this.removePieces([idx], 0);
       if (e.kind === "ward") lapsedWards.push(idx);
+      if (e.kind === "seed") grownSeeds.push({ x: e.x, y: e.y, owner: e.owner });
       this.state.effects.splice(i, 1);
+    }
+
+    // A seed that is still on an empty point grows into its planter's stone, if
+    // that stone would be legal there; otherwise it withers. Placed after the
+    // effects are cleared, so a lily pad or ward that lapsed in the same turn no
+    // longer counts.
+    for (const seed of grownSeeds) {
+      const planter = this.state.players.findIndex((p) => p.color === seed.owner);
+      if (planter === -1) continue;
+      const grew = this.placeStoneFor(planter, seed.x, seed.y, stoneCode(seed.owner, "base"));
+      if (grew !== null) this.state.lastEvent = `A seed of ${this.state.players[planter].name} grows into a stone`;
     }
 
     // A ward can keep a group alive with no liberties left. Once it lapses,
@@ -466,12 +487,15 @@ export class GoRoom extends Room<GoState> {
     for (const idx of lapsedWards) {
       const code = raw[idx];
       if (!isPlayerStone(code) || this.isWarded(idx)) continue;
-      const { group, liberties } = findGroup(raw, size, idx % size, Math.floor(idx / size), axisOf(code));
-      if (liberties > 0 || group.some((p) => this.isWarded(boardIndex(size, p.x, p.y)))) continue;
-      for (const p of group) {
-        const pIdx = boardIndex(size, p.x, p.y);
-        raw[pIdx] = 0;
-        board[pIdx] = 0;
+      for (const view of viewsOf(code)) {
+        if (!isPlayerStone(raw[idx])) break; // already taken with its other group
+        const { group, liberties } = findGroup(raw, size, idx % size, Math.floor(idx / size), view);
+        if (liberties > 0 || group.some((p) => this.isWarded(boardIndex(size, p.x, p.y)))) continue;
+        for (const p of group) {
+          const pIdx = boardIndex(size, p.x, p.y);
+          raw[pIdx] = 0;
+          board[pIdx] = 0;
+        }
       }
     }
   }
@@ -510,6 +534,11 @@ export class GoRoom extends Room<GoState> {
   }
 
   private advanceTurn() {
+    const leaving = this.state.players[this.state.turnIndex];
+    if (leaving) {
+      if (leaving.jar > 0) leaving.jar -= 1;
+      leaving.extra = 0; // an unused second stone is lost with the turn
+    }
     this.state.turnCount += 1;
     const order = this.turnOrder();
     this.state.turnIndex = order[(order.indexOf(this.state.turnIndex) + 1) % order.length];
@@ -703,7 +732,8 @@ export class GoRoom extends Room<GoState> {
     const lily = this.lilyOwnerAt(idx);
     if (lily && lily !== player.color) return "That point is reserved by someone's lily pad.";
 
-    const code = stoneCode(player.color, axis);
+    // Twin Wick: this stone fights on both fronts, whichever button was pressed.
+    const code = player.twin ? twinCode(player.color) : stoneCode(player.color, axis);
     const rawBoard = board.toArray();
 
     rawBoard[idx] = code;
@@ -726,15 +756,64 @@ export class GoRoom extends Room<GoState> {
     if (lily) this.removeEffectsAt("lily", idx);
     player.score += captured.length;
     player.moves += 1;
-    player.fireflies += FIREFLIES_PER_MOVE + FIREFLIES_PER_CAPTURE * captured.length;
+    player.fireflies += FIREFLIES_PER_MOVE + this.captureFireflies(player, captured.length);
     this.clearPasses();
+
+    if (player.twin) player.twin = false;
+    if (player.mist) {
+      player.mist = false;
+      this.addEffect("mist", x, y, player.color, 1);
+    }
 
     this.recordAction("move", "", x, y, player.color);
     this.state.lastEvent = `${player.name} played (${x}, ${y})${
       captured.length ? `, captured ${captured.length}` : ""
     }`;
+    if (player.extra > 0) {
+      // Stepping Stones: this stone was the first of two, so the turn stays put.
+      player.extra -= 1;
+      this.state.lastEvent += " -- and moves again";
+      this.positions.record(this.state.board.toArray());
+      this.scheduleBotTurn(); // a seat taken over by a bot mid-turn still has to play its second stone
+      return null;
+    }
     this.advanceTurn();
     return null;
+  }
+
+  /** Fireflies for `count` captures, doubled while the player's Firefly Jar is lit. */
+  private captureFireflies(player: PlayerState, count: number): number {
+    return FIREFLIES_PER_CAPTURE * count * (player.jar > 0 ? 2 : 1);
+  }
+
+  /**
+   * Puts a stone on an empty point for an item (Ferry, Echo Chime, a growing
+   * seed): captures are made and credited, and it is refused (null, nothing
+   * changed) when the point is burning, reserved by someone else's lily pad, or
+   * the stone would have no liberties. It leaves the turn and the ko history
+   * alone.
+   */
+  private placeStoneFor(playerIndex: number, x: number, y: number, code: number): number | null {
+    const size = this.state.size;
+    if (!isOnBoard(size, x, y)) return null;
+    const idx = boardIndex(size, x, y);
+    const board = this.state.board;
+    if (board[idx] !== 0 || this.isBurning(idx)) return null;
+    const player = this.state.players[playerIndex];
+    const lily = this.lilyOwnerAt(idx);
+    if (lily && lily !== player.color) return null;
+
+    const raw = board.toArray();
+    raw[idx] = code;
+    const captured = applyCaptures(raw, size, x, y, code, (i) => this.isWarded(i));
+    if (captured.length === 0 && isSuicide(raw, size, x, y)) return null;
+
+    board[idx] = code;
+    for (const { point } of captured) board[boardIndex(size, point.x, point.y)] = 0;
+    if (lily) this.removeEffectsAt("lily", idx);
+    player.score += captured.length;
+    player.fireflies += this.captureFireflies(player, captured.length);
+    return captured.length;
   }
 
   /** A stone or an item ends the run of passes: every seat may play on again. */
@@ -814,7 +893,7 @@ export class GoRoom extends Room<GoState> {
 
     const definition = getPowerup(id);
     // Only what this match's market actually stocks: the registry still holds
-    // all seven items, but five are on sale (see marketStock).
+    // every item, but only six are on sale (see marketStock).
     if (!definition || !this.state.market.some((m) => m.id === definition.id)) return "";
 
     if (player.moves < this.state.shopAfter) {
@@ -861,11 +940,17 @@ export class GoRoom extends Room<GoState> {
 
     const t = message.target;
     const target = t && typeof t.x === "number" && typeof t.y === "number" ? { x: t.x, y: t.y } : undefined;
+    const t2 = message.target2;
+    const target2 = t2 && typeof t2.x === "number" && typeof t2.y === "number" ? { x: t2.x, y: t2.y } : undefined;
+    const points = definition.points ?? 1;
+    if (points >= 1 && !target) return `${definition.name} needs a point on the board.`;
+    if (points >= 2 && !target2) return `${definition.name} needs a second point.`;
     const ctx: PowerupContext = {
       state: this.state,
       size: this.state.size,
       playerIndex,
-      target,
+      target: points >= 1 ? target : undefined,
+      target2: points >= 2 ? target2 : undefined,
       isWarded: (idx) => this.isWarded(idx),
       lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
       isBurning: (idx) => this.isBurning(idx),
@@ -873,7 +958,12 @@ export class GoRoom extends Room<GoState> {
       removePieces: (indices, byColor) => this.removePieces(indices, byColor),
       creditCaptures: (count) => {
         player.score += count;
-        player.fireflies += FIREFLIES_PER_CAPTURE * count;
+        player.fireflies += this.captureFireflies(player, count);
+      },
+      placeStone: (x, y, code) => this.placeStoneFor(playerIndex, x, y, code),
+      reveal: (text) => {
+        if (player.bot) return;
+        this.clients.getById(player.sessionId)?.send("reveal", text);
       },
     };
 
@@ -882,8 +972,15 @@ export class GoRoom extends Room<GoState> {
     }
 
     player.powerups.splice(inventoryIndex, 1);
+    if (definition.free) {
+      // Costs nothing but the item: no turn, no reset of the passes, no animation.
+      this.state.lastEvent = `${player.name} used ${definition.name}`;
+      return null;
+    }
     this.clearPasses();
-    this.recordAction("powerup", definition.id, target!.x, target!.y, player.color);
+    // The action's point is where something lands: the destination for a Ferry.
+    const at = (definition.points ?? 1) >= 2 ? target2! : target!;
+    this.recordAction("powerup", definition.id, at.x, at.y, player.color);
     this.state.lastEvent = `${player.name} used ${definition.name}`;
     this.advanceTurn();
     return null;
@@ -897,5 +994,6 @@ export class GoRoom extends Room<GoState> {
  */
 export class GoDebugRoom extends GoRoom {
   protected startingFireflies = 1200;
+  protected shopAfterMoves = 0; // the market is open from the first turn
   protected stormEvery = DEBUG_STORM_EVERY_TURNS;
 }

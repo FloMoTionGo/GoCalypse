@@ -170,7 +170,8 @@
   };
 
   /** Board code -> look. 1/3 black, 2/4 white, 5/6 gray, 7/8 transparent. */
-  const CODE_LOOK = [null, "black", "white", "black", "white", "gray", "gray", "transparent", "transparent"];
+  const CODE_LOOK = [null, "black", "white", "black", "white", "gray", "gray", "transparent", "transparent", null,
+    "black", "white", "black", "white"]; // 10..13: twin stones, which flash like their solid side
   function lookForCode(code) {
     return CODE_LOOK[code] || null;
   }
@@ -222,6 +223,8 @@
   }
   /** Stone sprite for a board code (1..8) and shape ("normal", "squash", ...). */
   function stoneSprite(code, shape = "normal") {
+    // A twin stone (10..13, player + 9) fights on both fronts, so it wears both: the split stone.
+    if (code >= 10 && code <= 13) return splitPreviewSprite(code - 9, shape);
     const look = lookForCode(code);
     return look ? STONES[look][shape] : null;
   }
@@ -258,9 +261,9 @@
     return stoneSprite(code, shape);
   }
 
-  /** True for a player stone's board code (1..8); false for empty, driftwood or anything else. */
+  /** True for a player stone's board code (1..8, or a twin 10..13); false for empty, driftwood or anything else. */
   function isPlayerStoneCode(code) {
-    return code >= 1 && code <= 8;
+    return (code >= 1 && code <= 8) || (code >= 10 && code <= 13);
   }
 
   // ---------------------------------------------------------------------------
@@ -756,6 +759,123 @@
     "..A....C....A..",
     ".......A.......",
   ]);
+  // Icons for the market's newer items, and the two board markers (a seed and a mist).
+  const pad15 = (rows) => rows.map((r) => r.padEnd(15, "."));
+  SPRITES.jarIcon = sprite("jarIcon", pad15([
+    "....SSSSSSS....",
+    "....SSSSSSS....",
+    "...SSCCCCCSS...",
+    "...S.......S...",
+    "...S...A...S...",
+    "...S..ACA..S...",
+    "...S...A...S...",
+    "...S.A.....S...",
+    "...S.......S...",
+    "...SSSSSSSSS...",
+  ]));
+  SPRITES.seedlingIcon = sprite("seedlingIcon", pad15([
+    "...TT..........",
+    "..TCTT....TT...",
+    "..TTTT...TCTT..",
+    "...TT....TTTT..",
+    "....T.....TT...",
+    ".....T...T.....",
+    "......T.T......",
+    ".......T.......",
+    ".......A.......",
+    "..AAAAAAAAAAA..",
+    ".AAAAAAAAAAAAA.",
+  ]));
+  SPRITES.mistIcon = sprite("mistIcon", pad15([
+    "......CCC......",
+    ".....CSSSC.CC..",
+    "..CCCSSSSSCSSC.",
+    ".CSSSSSSSSSSSSC",
+    "CSSSSSSSSSSSSSC",
+    ".CCCCCCCCCCCCC.",
+    "..S..S...S..S..",
+    ".S..S..S...S...",
+  ]));
+  SPRITES.kiteIcon = sprite("kiteIcon", pad15([
+    ".......A.......",
+    "......ACA......",
+    ".....ACCAA.....",
+    "....ACCCAAA....",
+    ".....ACAAA.....",
+    "......AAA......",
+    ".......A.......",
+    ".......S.......",
+    "......S........",
+    ".......S.......",
+    "......S.C......",
+    ".......C.C.....",
+  ]));
+  SPRITES.ferryIcon = sprite("ferryIcon", pad15([
+    ".......S.......",
+    "......SCS......",
+    ".....SCCCS.....",
+    "....SCCCCCS....",
+    ".......S.......",
+    "SSSSSSSSSSSSSSS",
+    ".SAAAAAAAAAAAS.",
+    "..SAAAAAAAAAS..",
+    "...SSSSSSSSS...",
+    "TT.TTT..TT.TTT.",
+  ]));
+  SPRITES.twinWickIcon = sprite("twinWickIcon", pad15([
+    "..A.....A......",
+    ".ACA...ACA.....",
+    ".ACA...ACA.....",
+    "..A.....A......",
+    "..S.....S......",
+    ".SCS...SCS.....",
+    ".SCS...SCS.....",
+    ".SCS...SCS.....",
+    "SSSSS.SSSSS....",
+  ]));
+  SPRITES.currentIcon = sprite("currentIcon", pad15([
+    "...............",
+    ".TT..TT..TT..T.",
+    "T..TT..TT..TT..",
+    "...............",
+    ".TT..TT..TT.TTT",
+    "T..TT..TT..TT..",
+    "...............",
+    "..TT..TT..TT.T.",
+    ".T..TT..TT..TT.",
+  ]));
+  SPRITES.chimeIcon = sprite("chimeIcon", pad15([
+    ".......S.......",
+    "......SAS......",
+    ".....SAAAS.....",
+    "....SACAAAS....",
+    "....SACAAAS....",
+    "...SAACAAAAS...",
+    "..SSSSSSSSSSS..",
+    ".......C.......",
+    "..C.........C..",
+    ".C...........C.",
+  ]));
+  SPRITES.seedBoard = sprite("seedBoard", [
+    "..TT.....",
+    ".TCTT.TT.",
+    ".TTTT.TCT",
+    "..TT..TTT",
+    "...T.TT..",
+    "....TT...",
+    "....A....",
+    "..AAAAA..",
+  ]);
+  SPRITES.mistPuff = sprite("mistPuff", [
+    "....CCCC.....",
+    "..CCSSSSCC.C.",
+    ".CSSSSSSSSCSC",
+    "CSSSSSSSSSSSC",
+    "CSSSSSSSSSSSC",
+    ".CCSSSSSSSCC.",
+    "...CCCCCCC...",
+  ]);
+
   SPRITES.flipArrows = sprite("flipArrows", [
     "....AAAAA......",
     "..AA.....AA.A..",
@@ -1005,12 +1125,45 @@
       case "bomb":
         s.blitCentered(SPRITES.fireworkIcon, c, c);
         break;
+      case "firefly_jar":
+        s.blitCentered(SPRITES.jarIcon, c, c);
+        break;
+      case "seedling":
+        s.blitCentered(SPRITES.seedlingIcon, c, c);
+        break;
+      case "mist":
+        s.blitCentered(SPRITES.mistIcon, c, c);
+        break;
+      case "kite":
+        s.blitCentered(SPRITES.kiteIcon, c, c);
+        break;
+      case "ferry":
+        s.blitCentered(SPRITES.ferryIcon, c, c);
+        break;
+      case "twin_wick":
+        s.blitCentered(SPRITES.twinWickIcon, c, c);
+        break;
+      case "river_current":
+        s.blitCentered(SPRITES.currentIcon, c, c);
+        break;
+      case "echo_chime":
+        s.blitCentered(SPRITES.chimeIcon, c, c);
+        break;
+      case "stepping_stones":
+        // Two stones and a dotted hop between them.
+        s.blitCentered(stoneSprite(5, "icon"), 4, 10);
+        s.blitCentered(stoneSprite(2, "icon"), 10, 4);
+        for (const [x, y] of [[7, 8], [8, 7]]) s.set(x, y, A);
+        break;
       default:
         return (iconCache[id] = null);
     }
     return (iconCache[id] = makeSprite(`icon_${id}`, 15, 15, s.px));
   }
-  const POWERUP_ICON_IDS = ["driftwood", "lily_pad", "lantern_ward", "turn_lantern", "gust", "remove_stone", "bomb"];
+  const POWERUP_ICON_IDS = [
+    "driftwood", "lily_pad", "lantern_ward", "turn_lantern", "gust", "remove_stone", "bomb",
+    "firefly_jar", "seedling", "mist", "kite", "ferry", "twin_wick", "river_current", "echo_chime", "stepping_stones",
+  ];
 
   /** Every sprite and animation, for sprite sheets and previews. */
   function catalog() {

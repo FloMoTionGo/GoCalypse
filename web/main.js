@@ -220,6 +220,7 @@ function attachRoom(joined) {
   room = joined;
   room.onStateChange((state) => onState(state));
   room.onMessage("notice", (text) => showNotice(text));
+  room.onMessage("reveal", (text) => showNotice(text, 15000));
   room.onLeave((code) => {
     if (leaving) {
       leaving = false;
@@ -300,10 +301,10 @@ function showPass(state) {
   lastPasses = state.passes;
 }
 
-function showNotice(text) {
+function showNotice(text, ms = 4000) {
   noticeEl.textContent = text;
   clearTimeout(noticeTimer);
-  noticeTimer = setTimeout(() => (noticeEl.textContent = ""), 4000);
+  noticeTimer = setTimeout(() => (noticeEl.textContent = ""), ms);
 }
 
 // ---- scene & canvas -----------------------------------------------------------
@@ -349,6 +350,21 @@ function reducedMotion() {
   return reducedMotionQuery.matches;
 }
 
+/** A stone under someone else's mist is not to be seen (nor how it landed) until the mist lifts or the game ends. */
+function isVeiled(x, y, list = overlays) {
+  if (!lastState || lastState.status === "finished") return false;
+  return list.some((o) => o.kind === "mist" && o.x === x && o.y === y && (!myPlayer || o.owner !== myPlayer.color));
+}
+
+function veiled(cells, list) {
+  if (!lastState || lastState.status === "finished") return cells;
+  const hidden = list.filter((o) => o.kind === "mist" && (!myPlayer || o.owner !== myPlayer.color));
+  if (!hidden.length) return cells;
+  const out = cells.slice();
+  for (const o of hidden) out[o.y * lastState.size + o.x] = 0;
+  return out;
+}
+
 function frame() {
   requestAnimationFrame(frame);
   if (!scene || !board) return;
@@ -362,12 +378,12 @@ function frame() {
   const snap = viewedSnap();
   scene.render({
     time: now,
-    board: snap ? snap.board : board,
+    board: veiled(snap ? snap.board : board, snap ? snap.overlays : overlays),
     hover: snap ? null : hoverPoint,
     hoverKind: hoverKind(),
     myColor: myPlayer ? myPlayer.color : 0,
     lastMove: snap ? snap.lastMove : lastMove,
-    effects: snap ? [] : effects,
+    effects: snap ? [] : effects.filter((e) => !isVeiled(e.x, e.y)),
     overlays: snap ? snap.overlays : overlays,
     storm: snap ? null : storm,
     round: roundLength > 0 ? Math.floor((snap ? snap.turnCount : turnCount) / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
@@ -418,7 +434,14 @@ function onBoardClick(evt) {
   if (!p) return;
 
   if (selectedPowerup) {
-    room.send("usePowerup", { id: selectedPowerup, target: p });
+    const item = marketItem(selectedPowerup);
+    if (item && item.points >= 2 && !firstTarget) {
+      // Ferry: first the stone, then the empty point beside it.
+      firstTarget = p;
+      setTargetingHint();
+      return;
+    }
+    room.send("usePowerup", { id: selectedPowerup, target: firstTarget || p, target2: firstTarget ? p : undefined });
     setSelectedPowerup(null);
     return;
   }
@@ -439,13 +462,42 @@ function onBoardRightClick(evt) {
   room.send("move", { x: p.x, y: p.y, axis: "pattern" });
 }
 
+let firstTarget = null; // the first point of a two-point item, once picked
+
+/**
+ * Picks an item from the satchel. Items that need no point (Firefly Jar, Mist,
+ * Twin Wick, Stepping Stones) go straight off; the rest wait for a click on the board.
+ */
+function pickPowerup(id) {
+  const item = marketItem(id);
+  if (item && item.points === 0) {
+    if (room) room.send("usePowerup", { id });
+    return;
+  }
+  setSelectedPowerup(selectedPowerup === id ? null : id);
+}
+
 function setSelectedPowerup(id) {
   selectedPowerup = id;
+  firstTarget = null;
   boardEl.classList.toggle("targeting", !!id);
-  const item = id && marketItem(id);
   targetingHintEl.hidden = !id;
-  targetingHintEl.textContent = item ? `Pick a point for ${item.name} -- right click to cancel.` : "";
+  setTargetingHint();
   if (lastState) renderSidebar(lastState);
+}
+
+function setTargetingHint() {
+  const item = selectedPowerup && marketItem(selectedPowerup);
+  if (!item) {
+    targetingHintEl.textContent = "";
+    return;
+  }
+  targetingHintEl.textContent =
+    item.points >= 2
+      ? firstTarget
+        ? `${item.name}: now the empty point beside it -- right click to cancel.`
+        : `${item.name}: pick one of your stones -- right click to cancel.`
+      : `Pick a point for ${item.name} -- right click to cancel.`;
 }
 
 // ---- recall ---------------------------------------------------------------------------
@@ -520,7 +572,7 @@ function onState(state) {
 
   const nextBoard = Array.from(state.board);
   const nextOverlays = Array.from(state.effects)
-    .filter((e) => e.kind === "lily" || e.kind === "ward" || e.kind === "drift" || e.kind === "fire")
+    .filter((e) => ["lily", "ward", "drift", "fire", "seed", "mist"].includes(e.kind))
     .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until }));
   const action = state.action;
   const actionChanged = lastActionSeq !== null && action.seq !== lastActionSeq;
@@ -570,7 +622,10 @@ function onState(state) {
   renderWeather(state);
   if (myPlayer) {
     const [baseName, otherName] = LOOK_NAMES[myPlayer.color] || LOOK_NAMES[1];
-    boardHintEl.textContent = `Left click: your ${baseName} stone · Right click: your ${otherName} stone`;
+    boardHintEl.textContent = myPlayer.twin
+      ? "Twin Wick is lit: your next stone fights on both fronts."
+      : `Left click: your ${baseName} stone · Right click: your ${otherName} stone` +
+        (myPlayer.extra > 0 ? " · Stepping Stones: this move doesn't end your turn" : "");
   }
   lastEventEl.textContent = state.lastEvent || "";
   showPass(state);
@@ -1098,7 +1153,7 @@ function renderPlayers(state) {
   const players = Array.from(state.players);
   const sig = JSON.stringify([
     state.turnIndex, state.status, myPlayer && myPlayer.sessionId,
-    players.map((p) => [p.name, p.color, p.connected, p.bot, p.passed, p.score, p.fireflies, p.finalScore, p.place]),
+    players.map((p) => [p.name, p.color, p.connected, p.bot, p.passed, p.jar, p.mist, p.twin, p.extra, p.score, p.fireflies, p.finalScore, p.place]),
   ]);
   rebuild(playersEl, sig, () => {
     // Listed by color, which is also the turn order (the synced array is join order).
@@ -1143,6 +1198,18 @@ function renderPlayers(state) {
       look.className = "look";
       look.textContent = `${baseName} + ${otherName}`;
       if (top.dataset.passed) look.append(flag);
+      // What the player has lit and not yet used: a jar, a mist, a twin wick, a second stone.
+      const armed = [];
+      if (player.jar > 0) armed.push("jar");
+      if (player.mist) armed.push("mist");
+      if (player.twin) armed.push("twin");
+      if (player.extra > 0) armed.push("+1 stone");
+      if (armed.length && state.status === "playing") {
+        const tags = document.createElement("span");
+        tags.className = "pass-flag";
+        tags.textContent = armed.join(" · ");
+        look.append(tags);
+      }
       const info = document.createElement("span");
       info.className = "info";
       info.append(top, look);
@@ -1193,7 +1260,7 @@ function renderSatchel(state) {
         badge.textContent = String(count);
         button.append(badge);
       }
-      button.addEventListener("click", () => setSelectedPowerup(selectedPowerup === id ? null : id));
+      button.addEventListener("click", () => pickPowerup(id));
       satchelItemsEl.appendChild(button);
     }
   });
@@ -1237,6 +1304,11 @@ function renderMarket(state) {
       title.className = "title";
       const name = document.createElement("span");
       name.textContent = m.name;
+      const tier = document.createElement("span");
+      tier.className = "tier";
+      tier.textContent = ["", "I", "II", "III"][m.tier] || "";
+      tier.title = `Tier ${m.tier}`;
+      name.append(" ", tier);
       title.append(name, soldOut ? tag("bought") : blocked ? tag("no room") : fireflies(m.price));
       const desc = document.createElement("span");
       desc.className = "desc";

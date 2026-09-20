@@ -21,8 +21,9 @@
   // Layout (native pixels)
   // ---------------------------------------------------------------------------
   const SPACING = 16; // native px between grid lines (x2 = today's 32 CSS px)
-  const FRAME = 11; // dark lacquer frame band around the kaya (holds the labels)
-  const KAYA_MARGIN = 8; // kaya between the outer grid line and the frame
+  const FRAME = 12; // dark lacquer frame band around the kaya (holds the labels)
+  const LABEL_GAP = 2; // px between the row/column numbers and the wooden board
+  const KAYA_MARGIN = 6; // kaya between the outer grid line and the frame
   const FRONT = 5; // visible front face of the deck
   // The deck is a pier standing in the river: water runs all the way round it.
   const TOP_BANK = 10; // far bank at the very top (the lantern garland hangs here)
@@ -250,12 +251,10 @@
       }
     }
 
-    // Kaya: flat amber with a cream bevel on the lit edges and nothing else on
+    // Kaya: flat amber, no bevel, and nothing else on
     // it, no grain or specks: the stones and the grid own this surface.
     const kx0 = L.kayaX, ky0 = L.kayaY, kx1 = L.kayaX + L.kayaW - 1, ky1 = L.kayaY + L.kayaH - 1;
     for (let y = ky0; y <= ky1; y++) for (let x = kx0; x <= kx1; x++) s.px[y * W + x] = A;
-    for (let x = kx0; x <= kx1; x++) s.px[ky0 * W + x] = C; // bevel highlight
-    for (let y = ky0; y <= ky1; y++) s.px[y * W + kx0] = C;
 
     // Grid + hoshi (ink, crisp, 1px).
     const last = L.size - 1;
@@ -507,6 +506,18 @@
     if (!prev || prev.length !== next.length) return effects;
     const used = action && action.kind === "powerup" ? action.id : null;
     const isTarget = (x, y) => action && action.x === x && action.y === y;
+    // A Ferry's stone lands on the action's point and leaves the point beside it:
+    // that one goes quietly, it is not a capture.
+    const ferried = new Set();
+    if (used === "ferry") {
+      const landed = next[action.y * size + action.x];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const fx = action.x + dx, fy = action.y + dy;
+        if (fx < 0 || fy < 0 || fx >= size || fy >= size) continue;
+        const fi = fy * size + fx;
+        if (prev[fi] === landed && next[fi] === 0) { ferried.add(fi); break; }
+      }
+    }
     const inBurst = (x, y) => used === "bomb" && Math.abs(x - action.x) <= 1 && Math.abs(y - action.y) <= 1;
     // Cells whose lightning fire just went out: whatever stood there burned up.
     const burntOut = new Set(
@@ -519,6 +530,7 @@
       if (a === 0) {
         effects.push(b === G.DRIFTWOOD ? makeEffect("drop", x, y, { code: b }, time) : placeEffect(x, y, b, time));
       } else if (b === 0) {
+        if (ferried.has(i)) continue;
         if (burntOut.has(i)) effects.push(makeEffect("burnAway", x, y, { code: a }, time));
         else if (a === G.DRIFTWOOD && !inBurst(x, y)) effects.push(makeEffect("driftAway", x, y, { code: a }, time));
         else if (used === "gust" && isTarget(x, y)) effects.push(makeEffect("gust", x, y, { code: a }, time));
@@ -1212,11 +1224,10 @@
         const label = String(i);
         const w = G.textWidth(f, label);
         if (!(hover && hover.x === i)) {
-          G.drawText(surf, f, label, L.gridX + i * SPACING - (w >> 1), L.boardY + ((FRAME - 5) >> 1), A);
+          G.drawText(surf, f, label, L.gridX + i * SPACING - (w >> 1), L.boardY + FRAME - LABEL_GAP - 5, A);
         }
         if (!(hover && hover.y === i)) {
-          const cx = L.boardX + (FRAME >> 1);
-          G.drawText(surf, f, label, cx - (w >> 1), L.gridY + i * SPACING - 2, A);
+          G.drawText(surf, f, label, L.kayaX - LABEL_GAP - w, L.gridY + i * SPACING - 2, A);
         }
       }
     }
@@ -1276,6 +1287,29 @@
       }
     }
 
+    /**
+     * Seedlings sprout on empty points. A mist puffs over the stone it hides: the
+     * others see only the cloud (main.js takes the stone out of what it hands
+     * over), its owner sees their stone through a thinner one.
+     */
+    function drawSeeds(overlays, board, busy) {
+      for (const o of overlays) {
+        if (o.kind !== "seed") continue;
+        const i = o.y * size + o.x;
+        if (board[i]) continue;
+        const p = pointToNative(o.x, o.y);
+        surf.blitCentered(G.SPRITES.seedBoard, p.x, p.y);
+        if (o.owner) blitHaloed(G.splitPreviewSprite(o.owner, "mini"), p.x - 7, p.y - 7);
+      }
+    }
+    function drawMists(overlays, myColor) {
+      for (const o of overlays) {
+        if (o.kind !== "mist") continue;
+        const p = pointToNative(o.x, o.y);
+        surf.blitCentered(G.SPRITES.mistPuff, p.x, p.y, o.owner === myColor ? { coverage: 0.45 } : undefined);
+      }
+    }
+
     // --- timers and owner markers ------------------------------------------------
     /** Rounds an effect has left: 3, 2, 1. A 1 means it ends within the next round. */
     function roundsLeft(o, turnCount, roundLength) {
@@ -1320,7 +1354,7 @@
      * overlay per stone, so only its first stone carries the mark and the tag.
      * (The lily pad's mark is the split stone drawn on the pad itself.)
      */
-    function drawTimers(overlays, board, busy, turnCount, roundLength, pendingFires) {
+    function drawTimers(overlays, board, busy, turnCount, roundLength, pendingFires, myColor) {
       const wardAnchor = new Map();
       for (const o of overlays) {
         if (o.kind !== "ward") continue;
@@ -1335,8 +1369,10 @@
         drawTimerTag(p.x, p.y, roundsLeft(o, turnCount, roundLength));
       }
       for (const o of overlays) {
-        if (o.kind !== "lily" && o.kind !== "drift" && o.kind !== "fire") continue;
+        if (o.kind !== "lily" && o.kind !== "drift" && o.kind !== "fire" && o.kind !== "seed" && o.kind !== "mist") continue;
         const i = o.y * size + o.x;
+        if (o.kind === "seed" && board[i]) continue;
+        if (o.kind === "mist" && o.owner !== myColor) continue; // the others shouldn't be told whose it is
         if (o.kind === "lily" && (board[i] || busy.has("lily:" + i))) continue;
         if (o.kind === "drift" && (board[i] !== G.DRIFTWOOD || busy.has("drop:" + i) || busy.has("driftAway:" + i))) continue;
         if (o.kind === "fire" && (busy.has("burnAway:" + i) || pendingFires.has(i))) continue;
@@ -1491,7 +1527,7 @@
      *   myColor:       1..4, the viewing player (for the split preview),
      *   lastMove:      {x, y} | null,
      *   effects:       [placeEffect(...) | captureEffect(...) | makeEffect(kind, ...)],
-     *   overlays:      [{kind: "lily" | "ward" | "drift" | "fire", x, y, owner, until}] -- timed board
+     *   overlays:      [{kind: "lily" | "ward" | "drift" | "fire" | "seed" | "mist", x, y, owner, until}] -- timed board
      *                  pieces; each shows its rounds left, and owned ones carry their owner's mark,
      *   round:         the number on the boat's signboard: the round being played (scenery: it drifts on its own clock),
      *   passFlash:     time (seconds) a pass happened, to show the PASS sign (omit for none),
@@ -1582,8 +1618,10 @@
       const stormElapsed = st.storm ? time - st.storm.start : STORM_DARK_IN;
       const greyW = Math.min(1, stormLinger(st.turnCount, st.stormUntil, st.roundLength || 0), stormElapsed / STORM_DARK_IN);
       drawLilyPads(overlays, board, busy);
+      drawSeeds(overlays, board, busy);
       drawStones(board, skip, greyW);
       drawWards(overlays, board, busy, time, reduced);
+      drawMists(overlays, st.myColor);
 
       // 7. last-move ember
       if (st.lastMove && !skip.has(st.lastMove.y * size + st.lastMove.x) && board[st.lastMove.y * size + st.lastMove.x]) {
@@ -1655,7 +1693,7 @@
       // 8c. fires burn on top of the weather: they are the one thing the
       // storm doesn't dim, and they keep burning long after it has passed.
       drawFires(overlays, busy, time, reduced, st.turnCount, st.roundLength || 0, pendingFires);
-      drawTimers(overlays, board, busy, st.turnCount, st.roundLength || 0, pendingFires);
+      drawTimers(overlays, board, busy, st.turnCount, st.roundLength || 0, pendingFires, st.myColor);
 
       // 8d. a pass: a quick PASS sign over the board that fades out
       if (st.passFlash !== undefined) drawPassSign(time - st.passFlash);
@@ -1676,8 +1714,8 @@
         } else if (kind === "target") {
           surf.blitCentered(animFrame("reticle", reduced ? 0 : time), p.x, p.y);
         }
-        drawHighlightTag(String(hover.x), L.gridX + hover.x * SPACING, L.boardY + (FRAME >> 1), "down");
-        drawHighlightTag(String(hover.y), L.boardX + (FRAME >> 1), L.gridY + hover.y * SPACING, "right");
+        drawHighlightTag(String(hover.x), L.gridX + hover.x * SPACING, L.boardY + FRAME - LABEL_GAP - 3, "down");
+        drawHighlightTag(String(hover.y), L.kayaX - LABEL_GAP - 4, L.gridY + hover.y * SPACING, "right");
       }
 
       // 10. fireflies (never over the playing surface; they sit the storm out)

@@ -314,3 +314,4 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 
 .player-row.passed { opacity: 0.4; }
 .player-row .pass-flag { margin-left: 8px; color: var(--amber); font-size: 11px; text-transform: uppercase; }
+.item .tier { color: var(--slate); font-size: 10px; font-weight: 400; }

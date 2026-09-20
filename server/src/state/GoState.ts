@@ -7,6 +7,10 @@ export class PlayerState extends Schema {
   @type("boolean") connected: boolean = true;
   @type("boolean") bot: boolean = false; // a seat played by the server, not a socket
   @type("boolean") passed: boolean = false; // passed in the current run of passes (reset by any stone or item)
+  @type("number") jar: number = 0; // turns of double capture fireflies left (Firefly Jar)
+  @type("boolean") mist: boolean = false; // the next stone is played in a mist (Mist)
+  @type("boolean") twin: boolean = false; // the next stone fights on both fronts (Twin Wick)
+  @type("number") extra: number = 0; // 1 while the next stone is a free extra one (Stepping Stones)
   @type("number") score: number = 0; // stones captured
   @type("number") fireflies: number = 0; // market currency, earned this match
   @type("number") moves: number = 0; // stones placed; the market opens after GoState.shopAfter
@@ -27,6 +31,9 @@ export class MarketItem extends Schema {
   @type("string") description: string = "";
   @type("number") price: number = 0;
   @type("boolean") removal: boolean = false; // removes stones: pricey, once per match
+  @type("number") tier: number = 1; // 1 cozy, 2 tactical, 3 powerful
+  @type("number") points: number = 1; // board points the use needs: 0, 1 or 2
+  @type("boolean") free: boolean = false; // using it does not take the turn
 }
 
 /** A timed marker on a board cell. Ends when GoState.turnCount reaches `until`. */

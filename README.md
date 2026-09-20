@@ -121,21 +121,49 @@ consolation. A player's **Night Market** opens after their **5th move**.
 Buying never takes your turn; using an item does. Items that fail (bad
 target) aren't used up.
 
-The market stocks **five of the seven items** per match, of which **at most
-one is a powerful (removal) item** — which one is drawn fresh each match, so
-Gust, Snipe and Firework take turns. Your **satchel holds five items** and
-only **one powerful item** at a time; a purchase past either limit is refused
-with a notice.
+Items come in three **tiers**, and the market stocks **six per match: 3 of
+tier 1, 2 of tier 2 and 1 of tier 3**, drawn fresh each match. The stall is one
+per room, so every player and bot at the table shops from the same six. Only
+tier 3 holds powerful (removal) items, so **at most one** is ever on sale. Your
+**satchel holds five items** and only **one powerful item** at a time; a
+purchase past either limit is refused with a notice.
+
+Some items are **free**: they don't take your turn, you still move afterwards.
+Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400.
+
+**Tier 1**
 
 | Item | Price | Effect |
 |---|---|---|
+| Firefly Jar | 25 | Free. Your captures earn double fireflies for the rest of this turn and your next 3. |
+| Seedling | 30 | Plant a seed on an empty point. After 2 rounds, if the point is still empty and the stone would have a liberty, it grows into your stone. |
+| Mist | 30 | Free. Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on. (The mist is drawn by the client; the game state still holds the stone.) |
 | Driftwood | 30 | Neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Can't smother a group. |
 | Lily Pad | 40 | Reserves an empty point for 3 rounds: only you may play there. |
+
+**Tier 2**
+
+| Item | Price | Effect |
+|---|---|---|
+| Kite | 45 | Free. Fly it over an enemy stone: only you see what its player is holding and how many fireflies they have. |
+| Ferry | 50 | Move one of your stones one step to an empty point beside it (pick the stone, then the point). Captures are judged as if you had played it there. |
 | Lantern Ward | 60 | One of your groups can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. |
+| Twin Wick | 70 | Free. Your next stone fights on **both** fronts: it joins and captures on both, but is lost if either of its groups runs out of liberties. Can't be turned over. |
 | Turn the Lantern | 80 | Flips one of your stones to your other front (black/white <-> gray/transparent); captures count on the new front, and a former group-mate left with no liberties is captured too. Refused only if the flipped stone itself would have none. |
+
+**Tier 3**
+
+| Item | Price | Effect |
+|---|---|---|
+| River Current | 130 | Washes away one enemy stone on the edge of the board. Once per match. |
+| Echo Chime | 160 | Place a stone, and the chime places another for you on the opposite side of the centre point, if that point is free and legal. |
 | Gust | 180 | Removes one enemy stone whose group is in atari. Once per match. |
+| Stepping Stones | 200 | Free. Place two stones this turn: your next move doesn't end your turn. |
 | Snipe | 280 | Removes any single enemy stone. Once per match. |
 | Firework | 400 | Clears a 3x3 area (your stones and driftwood too; warded stones are spared). Once per match. |
+
+The bots don't use the new items yet: they shop from their own lists, which only
+name the older ones, so they simply skip what isn't on sale.
 
 ### Thunderstorms
 
@@ -167,7 +195,7 @@ a client joining mid-storm sees it too (`stormLinger` in `web/pixelScene.js`).
 `go_debug` rooms roll every **6** turns instead, so a storm can actually be
 watched in a test session (`src/rules/storm.ts`, `GoDebugRoom`).
 
-Board code 9 is driftwood (see `goRules.ts`). Timed markers (wards, lily pads,
+Board code 9 is driftwood and codes 10-13 are Twin Wick stones (see `goRules.ts`). Timed markers (wards, lily pads,
 driftwood timers, lightning fires) are `GoState.effects`; `GoState.action`
 records the last move or item so clients can play the matching animation, and
 `GoState.storm` carries the last die roll, the forecast (`calm`, `chance`,

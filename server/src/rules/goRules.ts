@@ -21,6 +21,9 @@
 //   1..4     = that player's BASE-axis stone
 //   5..8     = that player's PATTERN-axis stone (player id + 4)
 //   9        = DRIFTWOOD: a neutral piece owned by no one, a wall on both views
+//   10..13   = that player's TWIN stone (Twin Wick, player id + 9): it fights on
+//              BOTH fronts at once, so it merges and captures on both -- and is
+//              captured when either of its two groups runs out of liberties
 
 export interface Point {
   x: number;
@@ -33,6 +36,13 @@ export type StoneView = "base" | "pattern";
 export type IsProtected = (idx: number) => boolean;
 
 export const DRIFTWOOD = 9;
+/** A twin stone's code: 10..13 for player 1..4. */
+export function twinCode(player: number): number {
+  return player + 9;
+}
+export function isTwin(code: number): boolean {
+  return code >= 10 && code <= 13;
+}
 
 const STONE_BASE: (string | null)[] = [null, "black", "white", "black", "white"];
 const STONE_PATTERN: (string | null)[] = [null, "gray", "gray", "transparent", "transparent"];
@@ -42,18 +52,28 @@ export function stoneCode(player: number, axis: StoneView): number {
 }
 
 export function isPlayerStone(code: number): boolean {
-  return code >= 1 && code <= 8;
+  return (code >= 1 && code <= 8) || isTwin(code);
 }
 
 /** Owning player (1..4) of a player stone; 0 for empty cells and neutral pieces. */
 export function ownerOf(code: number): number {
   if (!isPlayerStone(code)) return 0;
+  if (isTwin(code)) return code - 9;
   return code > 4 ? code - 4 : code;
 }
 
-/** Only meaningful for player stones (1..8). */
+/**
+ * The one front a single-axis stone (1..8) fights on. A twin stone fights on
+ * both, so callers that judge groups use `viewsOf`; this says "base" for a twin
+ * only so that it never returns nonsense.
+ */
 export function axisOf(code: number): StoneView {
-  return code > 4 ? "pattern" : "base";
+  return code > 4 && !isTwin(code) ? "pattern" : "base";
+}
+
+/** Every front this stone fights on: one for a normal stone, both for a twin. */
+export function viewsOf(code: number): StoneView[] {
+  return isTwin(code) ? ["base", "pattern"] : [axisOf(code)];
 }
 
 /** The same player's stone on the other axis (1..4 <-> 5..8). */
@@ -63,7 +83,7 @@ export function flipAxisCode(code: number): number {
 
 /** This code's value on `view`, or null if it's a wall there (neutral pieces are walls on both views). */
 export function viewValue(view: StoneView, code: number): string | null {
-  if (!isPlayerStone(code) || axisOf(code) !== view) return null;
+  if (!isPlayerStone(code) || (!isTwin(code) && axisOf(code) !== view)) return null;
   const player = ownerOf(code);
   return view === "base" ? STONE_BASE[player] : STONE_PATTERN[player];
 }
@@ -161,21 +181,25 @@ export function applyCaptures(
 
   for (const n of neighbors(size, x, y)) {
     const nIdx = index(size, n.x, n.y);
-    const nCode = board[nIdx];
-    if (!isPlayerStone(nCode) || checked.has(nIdx)) continue;
+    // A twin neighbour is judged on each of its two fronts in turn; a group
+    // taken on the first one may already have removed it.
+    for (const view of viewsOf(board[nIdx])) {
+      const nCode = board[nIdx];
+      if (!isPlayerStone(nCode)) break;
+      const key = nIdx + (view === "pattern" ? size * size : 0);
+      if (checked.has(key)) continue;
+      if (sameView(view, nCode, placedCode)) continue; // merged with the placed stone
 
-    const view = axisOf(nCode); // the neighbour's front, not the mover's
-    if (sameView(view, nCode, placedCode)) continue; // merged with the placed stone
+      const { group, liberties } = findGroup(board, size, n.x, n.y, view);
+      group.forEach((p) => checked.add(index(size, p.x, p.y) + (view === "pattern" ? size * size : 0)));
 
-    const { group, liberties } = findGroup(board, size, n.x, n.y, view);
-    group.forEach((p) => checked.add(index(size, p.x, p.y)));
-
-    const shielded = isProtected ? group.some((p) => isProtected(index(size, p.x, p.y))) : false;
-    if (liberties === 0 && !shielded) {
-      for (const p of group) {
-        const pIdx = index(size, p.x, p.y);
-        captured.push({ point: p, color: board[pIdx] });
-        board[pIdx] = 0;
+      const shielded = isProtected ? group.some((p) => isProtected(index(size, p.x, p.y))) : false;
+      if (liberties === 0 && !shielded) {
+        for (const p of group) {
+          const pIdx = index(size, p.x, p.y);
+          captured.push({ point: p, color: board[pIdx] });
+          board[pIdx] = 0;
+        }
       }
     }
   }
@@ -191,7 +215,7 @@ export function applyCaptures(
  */
 export function isSuicide(board: ArrayLike<number>, size: number, x: number, y: number): boolean {
   const code = board[index(size, x, y)];
-  return findGroup(board, size, x, y, axisOf(code)).liberties === 0;
+  return viewsOf(code).some((view) => findGroup(board, size, x, y, view).liberties === 0);
 }
 
 /**
@@ -206,7 +230,7 @@ export function canPlaceNeutral(board: ArrayLike<number>, size: number, x: numbe
   trial[idx] = DRIFTWOOD;
   for (const n of neighbors(size, x, y)) {
     const code = trial[index(size, n.x, n.y)];
-    if (isPlayerStone(code) && findGroup(trial, size, n.x, n.y, axisOf(code)).liberties === 0) return false;
+    if (isPlayerStone(code) && viewsOf(code).some((v) => findGroup(trial, size, n.x, n.y, v).liberties === 0)) return false;
   }
   return true;
 }
@@ -228,14 +252,14 @@ export function flipStone(
 ): { point: Point; color: number }[] | null {
   const idx = index(size, x, y);
   const oldCode = board[idx];
-  if (!isPlayerStone(oldCode)) return null;
+  if (!isPlayerStone(oldCode) || isTwin(oldCode)) return null; // a twin has no other front to turn to
 
   const trial = board.slice();
   const newCode = flipAxisCode(oldCode);
   trial[idx] = newCode;
   const captured = applyCaptures(trial, size, x, y, newCode, isProtected);
 
-  if (findGroup(trial, size, x, y, axisOf(newCode)).liberties === 0) return null;
+  if (isSuicide(trial, size, x, y)) return null;
 
   for (let i = 0; i < board.length; i++) board[i] = trial[i];
   return captured;
