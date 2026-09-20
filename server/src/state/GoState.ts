@@ -43,6 +43,7 @@ export class BoardEffect extends Schema {
   @type("number") y: number = 0;
   @type("number") owner: number = 0; // player color, 0 = nobody
   @type("number") until: number = 0;
+  @type("string") axis: string = "base"; // seeds only: which stone view grows ("base" | "pattern")
 }
 
 /**

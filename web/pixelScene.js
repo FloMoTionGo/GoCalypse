@@ -1302,7 +1302,9 @@
         if (board[i]) continue;
         const p = pointToNative(o.x, o.y);
         surf.blitCentered(G.SPRITES.seedBoard, p.x, p.y);
-        if (o.owner) blitHaloed(G.splitPreviewSprite(o.owner, "mini"), p.x - 7, p.y - 7);
+        // The stone it will grow into: the solid one, or the gray/transparent one for a right-click seed.
+        const mark = o.owner && G.stoneSprite(o.axis === "pattern" ? G.patternCode(o.owner) : o.owner, "mini");
+        if (mark) blitHaloed(mark, p.x - 7, p.y - 7);
       }
     }
     /** A fog is a cloud over every point it covers; the stones under it are taken out by main.js. */

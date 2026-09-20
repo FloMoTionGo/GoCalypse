@@ -9,6 +9,8 @@ export interface PowerupContext {
   target?: { x: number; y: number };
   /** Second point for items that take two (Ferry: where the stone goes). */
   target2?: { x: number; y: number };
+  /** Which stone view the use asks for (Seedling: what the seed grows into). Default "base". */
+  axis?: "base" | "pattern";
   /** Cell is inside an active Lantern Ward: can't be captured or removed. */
   isWarded(idx: number): boolean;
   /** Owner color of an active Lily Pad on this cell, or 0. */
@@ -16,7 +18,7 @@ export interface PowerupContext {
   /** Cell is burning after a lightning strike: nothing may be placed on it. */
   isBurning(idx: number): boolean;
   /** Adds a timed board marker lasting `rounds` full rounds from now. */
-  addEffect(kind: EffectKind, x: number, y: number, owner: number, rounds: number): void;
+  addEffect(kind: EffectKind, x: number, y: number, owner: number, rounds: number, axis?: "base" | "pattern"): void;
   /**
    * Clears these cells (stones or driftwood). Owners of removed player stones
    * other than `byColor` get consolation fireflies. Returns how many were removed.

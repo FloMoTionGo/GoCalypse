@@ -109,6 +109,7 @@ window.addEventListener("keydown", (evt) => {
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
   if (evt.key === "ArrowLeft") stepRecall(1);
   else if (evt.key === "ArrowRight") stepRecall(-1);
+  else if (evt.key === "Escape" && selectedPowerup) setSelectedPowerup(null);
   else if (evt.key === "Escape" || evt.key === "End") setView(0);
   else return;
   evt.preventDefault();
@@ -457,11 +458,22 @@ function onBoardClick(evt) {
   room.send("move", { x: p.x, y: p.y, axis: "base" });
 }
 
-/** Right click places the gray or transparent stone -- or cancels powerup targeting. */
+/**
+ * Right click places the gray or transparent stone. With a powerup armed it
+ * cancels the targeting -- except Seedling, where it plants a seed that grows
+ * the gray or transparent stone (Escape cancels that one).
+ */
 function onBoardRightClick(evt) {
   evt.preventDefault();
   if (!room || !lastState) return;
   if (viewId !== null) return recallBlocked();
+  if (selectedPowerup === "seedling") {
+    const seedPoint = eventPoint(evt);
+    if (!seedPoint) return;
+    room.send("usePowerup", { id: selectedPowerup, target: seedPoint, axis: "pattern" });
+    setSelectedPowerup(null);
+    return;
+  }
   if (selectedPowerup) {
     setSelectedPowerup(null);
     return;
@@ -502,7 +514,9 @@ function setTargetingHint() {
     return;
   }
   targetingHintEl.textContent =
-    item.points >= 2
+    item.id === "seedling"
+      ? "Seedling: click for a solid seed, right click for a gray or transparent one -- Esc to cancel."
+      : item.points >= 2
       ? firstTarget
         ? `${item.name}: now the empty point to move it to -- right click to cancel.`
         : `${item.name}: pick one of your stones -- right click to cancel.`
@@ -582,7 +596,7 @@ function onState(state) {
   const nextBoard = Array.from(state.board);
   const nextOverlays = Array.from(state.effects)
     .filter((e) => ["lily", "ward", "drift", "fire", "seed", "mist", "fog"].includes(e.kind))
-    .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until }));
+    .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until, axis: e.axis }));
   const action = state.action;
   const actionChanged = lastActionSeq !== null && action.seq !== lastActionSeq;
   turnCount = state.turnCount;

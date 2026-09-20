@@ -7,6 +7,7 @@ import {
   stoneCode,
   StoneView,
 } from "../rules/goRules";
+import { areaScore, sidesOf } from "../rules/endgame";
 import { chooseAction, chooseBuy } from "./index";
 import { Rng } from "./rng";
 import { BotView, isPointless, rankMoves, scoreMove } from "./scoring";
@@ -269,6 +270,40 @@ test("a move that only refills its own area is pointless, one that grows it is n
   const open = view(size, 1);
   const first = rankMoves(open, heron())[0];
   assert.equal(isPointless(open, first), false);
+});
+
+test("a stone on a front that already leads, with the score stuck, is pointless", () => {
+  const size = 7;
+  const v = view(size, 1);
+  // Black owns the whole base front (a lone stone claims the empty board) while
+  // the pattern front has nothing: another black stone adds area but no score.
+  v.board[boardIndex(size, 3, 3)] = stoneCode(1, "base");
+  const more = rankMoves(v, heron()).find((c) => c.x === 0 && c.y === 0 && c.axis === "base");
+  assert.ok(more, "the extra stone is a legal point");
+  assert.equal(isPointless(v, more), true);
+  const other = rankMoves(v, heron()).find((c) => c.axis === "pattern");
+  assert.ok(other);
+  assert.equal(isPointless(v, other), false, "the lagging front is worth building");
+});
+
+test("a stone that costs the bot a point on its other front is pointless", () => {
+  // A settled 5x5 found by search: player 1 sits on both fronts, and the gray
+  // point (4,0) walls off a region that gray was already counting, so the stone
+  // leaves the bot a point worse off without taking anything for it.
+  const size = 5;
+  const v = view(size, 1);
+  v.board = [0, 5, 5, 1, 0, 5, 1, 5, 0, 5, 5, 5, 1, 0, 1, 1, 0, 0, 0, 5, 6, 0, 5, 2, 1];
+  const score = (board: number[]) => {
+    const area = areaScore(board, size);
+    const sides = sidesOf(1);
+    return Math.min(area[sides.base], area[sides.pattern]);
+  };
+  const after = v.board.slice();
+  after[boardIndex(size, 4, 0)] = stoneCode(1, "pattern");
+  assert.equal(score(after), score(v.board) - 1, "the move really does cost a point");
+  const drop = rankMoves(v, heron()).find((c) => c.x === 4 && c.y === 0 && c.axis === "pattern");
+  assert.ok(drop, "the stone is a legal point the bot would otherwise rank");
+  assert.equal(isPointless(v, drop), true);
 });
 
 test("a bot with judgement still plays on an open board", () => {

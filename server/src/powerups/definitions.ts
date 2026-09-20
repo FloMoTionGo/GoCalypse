@@ -213,7 +213,7 @@ const seedling: PowerupDefinition = {
     if (owner && owner !== ownColor(ctx)) return false;
     const { x, y } = ctx.target!;
     if (ctx.state.effects.some((e) => e.kind === "seed" && e.x === x && e.y === y)) return false;
-    ctx.addEffect("seed", x, y, ownColor(ctx), 2);
+    ctx.addEffect("seed", x, y, ownColor(ctx), 2, ctx.axis === "pattern" ? "pattern" : "base");
     return true;
   },
 };

@@ -57,8 +57,9 @@ function table(): Harness {
       isWarded: () => false,
       lilyOwnerAt: () => 0,
       isBurning: () => false,
-      addEffect: (kind: EffectKind, x, y, owner, rounds) => {
+      addEffect: (kind: EffectKind, x, y, owner, rounds, axis) => {
         const e = new BoardEffect();
+        if (axis) e.axis = axis;
         e.kind = kind;
         e.x = x;
         e.y = y;
@@ -172,6 +173,16 @@ test("Seedling plants on an empty point for 2 rounds, and not on a stone or a se
   t.put(5, 5, stoneCode(2, "base"));
   assert.equal(use(t, "seedling", { x: 5, y: 5 }), false, "occupied");
   assert.equal(use(t, "seedling", { x: -1, y: 0 }), false, "off the board");
+});
+
+test("Seedling remembers the axis it was planted with", () => {
+  const t = table();
+  assert.equal(use(t, "seedling", { x: 3, y: 3 }), true);
+  assert.equal(t.state.effects[0].axis, "base");
+  assert.equal(t.ctx("seedling", { x: 4, y: 4 }).axis, undefined);
+  const c = { ...t.ctx("seedling", { x: 4, y: 4 }), axis: "pattern" as const };
+  assert.equal(getPowerup("seedling")!.apply(c), true);
+  assert.equal(t.state.effects[1].axis, "pattern");
 });
 
 // ---- tier 2 -----------------------------------------------------------------------

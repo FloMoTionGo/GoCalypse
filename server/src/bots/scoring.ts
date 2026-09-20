@@ -267,14 +267,16 @@ export function chooseMove(view: BotView, style: Style, rng: Rng): Candidate | n
   return ranked.length === 0 ? null : rng.pick(ranked.slice(0, Math.max(1, style.variation)));
 }
 
-// Only what a move takes, saves or threatens; every positional term is zero.
+// What a move must take or save to be worth a turn on its own: captures and
+// rescues only. Atari and cuts are threats, and a threat that gains no area is
+// how a table ends up playing stones for the fireflies alone.
 const TACTICAL: Style = {
   name: "tactical",
   capture: 1,
   save: 1,
-  atari: 1,
+  atari: 0,
   connect: 0,
-  cut: 1,
+  cut: 0,
   contact: 0,
   locality: 0,
   extension: 0,
@@ -289,20 +291,34 @@ const TACTICAL: Style = {
   judgement: false,
 };
 
-/** The bot's two sides added together on the board as it stands. */
-function ownArea(view: BotView, board: number[]): number {
+/**
+ * How far the front a stone goes on may already lead the bot's other front and
+ * still count as progress. The final score is the lower front, so area piled up
+ * on the higher one is only insurance: at 0 a bot builds its leading front only
+ * when doing so also lifts its score. Raise it to let bots bank more insurance
+ * -- in self-play each point of slack puts noticeably more stones on the board
+ * that earn their player fireflies and nothing else.
+ */
+const FRONT_SLACK = 0;
+
+/** The bot's two fronts, by the axis a stone is played on. */
+function frontsOf(view: BotView, board: number[], axis: StoneView): { mine: number; other: number } {
   const area = areaScore(board, view.size);
   const sides = sidesOf(view.color);
-  return area[sides.base] + area[sides.pattern];
+  const base = area[sides.base];
+  const pattern = area[sides.pattern];
+  return axis === "base" ? { mine: base, other: pattern } : { mine: pattern, other: base };
 }
 
 /**
- * Whether a bot with judgement would rather pass than play this move. A move
- * is pointless when it takes, saves, cuts and threatens nothing and does not
- * grow the bot's area (a stone filling its own territory just swaps one
- * counted point for another), or when it is a net loss to begin with. Early in
- * a game every stone grows the area, so this only bites once the board is
- * settled and what is left are the moves nobody profits from.
+ * Whether a bot with judgement would rather pass than play this move. It is
+ * worth a turn when it takes or saves stones, raises the bot's score (the lower
+ * of its two fronts), or grows a front that is not already ahead of the other by
+ * more than FRONT_SLACK. Anything else -- a stone filling its own territory, one
+ * more stone on a front that already leads, or a stone that costs the bot a
+ * point on its other front -- earns fireflies and nothing else, so the bot
+ * passes instead. Early in a game every stone raises one front, so this only
+ * bites once the board is settled.
  */
 export function isPointless(view: BotView, move: Candidate): boolean {
   if (move.score <= 0) return true;
@@ -312,5 +328,13 @@ export function isPointless(view: BotView, move: Candidate): boolean {
   const code = stoneCode(view.color, move.axis);
   after[boardIndex(view.size, move.x, move.y)] = code;
   applyCaptures(after, view.size, move.x, move.y, code, (i) => view.isWarded(i));
-  return ownArea(view, after) <= ownArea(view, view.board);
+  const before = frontsOf(view, view.board, move.axis);
+  const now = frontsOf(view, after, move.axis);
+  const was = Math.min(before.mine, before.other);
+  const is = Math.min(now.mine, now.other);
+  if (is > was) return false; // the score rises: always worth the turn
+  // A stone is a wall on the front it did not pick, so it can take a point off
+  // the bot's other front. Spending a turn to end up behind is never worth it.
+  if (is < was) return true;
+  return !(now.mine > before.mine && before.mine <= before.other + FRONT_SLACK);
 }

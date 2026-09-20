@@ -59,6 +59,7 @@ interface UsePowerupMessage {
   id: string;
   target?: { x: number; y: number };
   target2?: { x: number; y: number }; // second point, for items that take two (Ferry)
+  axis?: StoneView; // Seedling: right click plants a seed that grows the pattern stone
 }
 
 interface BuyMessage {
@@ -436,8 +437,9 @@ export class GoRoom extends Room<GoState> {
     return this.effectAt("fire", idx) !== undefined;
   }
 
-  private addEffect(kind: EffectKind, x: number, y: number, owner: number, rounds: number) {
+  private addEffect(kind: EffectKind, x: number, y: number, owner: number, rounds: number, axis: StoneView = "base") {
     const effect = new BoardEffect();
+    effect.axis = axis;
     effect.kind = kind;
     effect.x = x;
     effect.y = y;
@@ -462,7 +464,7 @@ export class GoRoom extends Room<GoState> {
   private expireEffects() {
     const { board, size, turnCount } = this.state;
     const lapsedWards: number[] = [];
-    const grownSeeds: { x: number; y: number; owner: number }[] = [];
+    const grownSeeds: { x: number; y: number; owner: number; axis: StoneView }[] = [];
     for (let i = this.state.effects.length - 1; i >= 0; i--) {
       const e = this.state.effects[i];
       if (e.until > turnCount) continue;
@@ -472,7 +474,7 @@ export class GoRoom extends Room<GoState> {
       // owner gets the same consolation as for a stone removed by an item.
       if (e.kind === "fire" && board[idx] !== 0) this.removePieces([idx], 0);
       if (e.kind === "ward" || e.kind === "fog") lapsedWards.push(idx);
-      if (e.kind === "seed") grownSeeds.push({ x: e.x, y: e.y, owner: e.owner });
+      if (e.kind === "seed") grownSeeds.push({ x: e.x, y: e.y, owner: e.owner, axis: e.axis === "pattern" ? "pattern" : "base" });
       this.state.effects.splice(i, 1);
     }
 
@@ -483,7 +485,7 @@ export class GoRoom extends Room<GoState> {
     for (const seed of grownSeeds) {
       const planter = this.state.players.findIndex((p) => p.color === seed.owner);
       if (planter === -1) continue;
-      const grew = this.placeStoneFor(planter, seed.x, seed.y, stoneCode(seed.owner, "base"));
+      const grew = this.placeStoneFor(planter, seed.x, seed.y, stoneCode(seed.owner, seed.axis));
       if (grew !== null) this.state.lastEvent = `A seed of ${this.state.players[planter].name} grows into a stone`;
     }
 
@@ -683,6 +685,13 @@ export class GoRoom extends Room<GoState> {
     if (buy) this.applyBuy(playerIndex, buy);
 
     const wanted = chooseAction(this.botView(playerIndex), style, this.rng);
+    // A pass is a decision, not a failure: a bot with judgement hands the turn
+    // on rather than spend it on a stone that gains it nothing. Only an action
+    // the rules refused falls through to the drifter below.
+    if (wanted.kind === "pass") {
+      this.applyPass(playerIndex);
+      return;
+    }
     if (this.takeBotAction(playerIndex, wanted) === null) return;
 
     // The rules had the last word and refused it. Any legal point at all keeps
@@ -958,10 +967,11 @@ export class GoRoom extends Room<GoState> {
       playerIndex,
       target: points >= 1 ? target : undefined,
       target2: points >= 2 ? target2 : undefined,
+      axis: message.axis === "pattern" ? "pattern" : "base",
       isWarded: (idx) => this.isWarded(idx),
       lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
       isBurning: (idx) => this.isBurning(idx),
-      addEffect: (kind, x, y, owner, rounds) => this.addEffect(kind, x, y, owner, rounds),
+      addEffect: (kind, x, y, owner, rounds, axis) => this.addEffect(kind, x, y, owner, rounds, axis),
       removePieces: (indices, byColor) => this.removePieces(indices, byColor),
       creditCaptures: (count) => {
         player.score += count;

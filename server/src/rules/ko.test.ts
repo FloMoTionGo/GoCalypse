@@ -55,5 +55,11 @@ test("the ko is caught even when other seats play in between", () => {
 test("a position that never stood before is fine", () => {
   const history = new PositionHistory();
   history.record(parse(["1...", "....", "....", "...."]));
-  assert.equal(history.repeats(parse(["2...", "....", "....", "...."])), false);
+  assert.equal(history.repeats(parse([".1..", "....", "....", "...."])), false);
+});
+
+test("the same points retaken by another colour count as a repeat", () => {
+  const history = new PositionHistory();
+  history.record(parse(["1...", "....", "....", "...."]));
+  assert.equal(history.repeats(parse(["2...", "....", "....", "...."])), true);
 });
