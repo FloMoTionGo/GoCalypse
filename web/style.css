@@ -89,7 +89,13 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
   margin-bottom: 10px;
   min-height: 24px;
 }
-.header-left { display: flex; align-items: center; gap: 12px; }
+#toolbar { display: flex; align-items: center; flex-wrap: wrap; min-width: 0; }
+#toolbar > :not([hidden]) + :not([hidden]) { margin-left: 10px; padding-left: 10px; border-left: 2px solid var(--slate); }
+#pass-banner {
+  margin: 6px 0 0; padding: 6px 10px; font-weight: 700; color: var(--bg);
+  background: var(--amber); border: 2px solid var(--amber);
+}
+#pass-banner[hidden] { display: none; }
 .header-right { display: flex; align-items: center; gap: 12px; }
 .link-button {
   background: none;
@@ -304,7 +310,7 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .empty { color: var(--slate); font-size: 12px; margin: 0; }
 
 /* Recall: a small pixel strip under the board to look at the last few moves. */
-#recall { display: flex; align-items: center; gap: 4px; margin: 6px 0 0; font-size: 12px; }
+#recall { display: flex; align-items: center; gap: 4px; font-size: 12px; }
 #recall[hidden] { display: none; }
 #recall button {
   font: inherit; line-height: 1; min-width: 22px; padding: 4px 6px;
@@ -314,5 +320,5 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 #recall button.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
 #recall-steps { display: inline-flex; gap: 4px; }
 #recall.looking #recall-live { color: var(--bg); background: var(--teal); border-color: var(--teal); }
-#recall-label { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#recall-label { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 220px; }
 #board.recalling { cursor: not-allowed; filter: sepia(.35) saturate(.8); }

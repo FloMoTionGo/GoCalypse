@@ -127,6 +127,15 @@ botsButton.addEventListener("click", () => {
 });
 welcomeBotsAddButton.addEventListener("click", seatPickedBots);
 passButton.addEventListener("click", () => room && room.send("pass"));
+document.getElementById("leave-button").addEventListener("click", () => {
+  const playing = lastState && lastState.status === "playing";
+  if (playing && !confirm("Leave the game? A random bot takes your seat.")) return;
+  leaving = true;
+  try {
+    sessionStorage.removeItem(PLAYER_KEY_STORE);
+  } catch {}
+  if (room) room.leave(true);
+});
 resultButton.addEventListener("click", () => lastState && openResult(lastState));
 resultCloseButton.addEventListener("click", () => resultEl.close());
 resultEl.addEventListener("click", (evt) => {
@@ -204,11 +213,24 @@ async function rejoinAfterDrop(inGame) {
   joinButton.disabled = false;
 }
 
+let leaving = false;
+let lastPasses = 0;
+let passTimer;
+
 function attachRoom(joined) {
+  lastPasses = 0;
   room = joined;
   room.onStateChange((state) => onState(state));
   room.onMessage("notice", (text) => showNotice(text));
   room.onLeave((code) => {
+    if (leaving) {
+      leaving = false;
+      gameEl.hidden = true;
+      lobbyEl.hidden = false;
+      joinButton.disabled = false;
+      setLobbyStatus("You left the game.", false);
+      return;
+    }
     const inGame = lastState && lastState.status === "playing";
     gameEl.hidden = true;
     lobbyEl.hidden = false;
@@ -270,6 +292,20 @@ if (!hashParams.has("autojoin")) rejoin().catch(() => {});
 function setLobbyStatus(text, isError) {
   lobbyStatus.textContent = text;
   lobbyStatus.classList.toggle("error", !!isError);
+}
+
+/** A pass is easy to miss in the log line: flash a banner when the pass count goes up. */
+function showPass(state) {
+  const banner = document.getElementById("pass-banner");
+  if (state.status === "playing" && state.passes > lastPasses && /passed/.test(state.lastEvent || "")) {
+    banner.textContent = `${state.lastEvent} -- ${state.passes} of ${state.players.length} passes ends the game`;
+    banner.hidden = false;
+    clearTimeout(passTimer);
+    passTimer = setTimeout(() => (banner.hidden = true), 4000);
+  } else if (state.passes === 0 || state.status !== "playing") {
+    banner.hidden = true;
+  }
+  lastPasses = state.passes;
 }
 
 function showNotice(text) {
@@ -550,6 +586,7 @@ function onState(state) {
     boardHintEl.textContent = `Left click: your ${baseName} stone · Right click: your ${otherName} stone`;
   }
   lastEventEl.textContent = state.lastEvent || "";
+  showPass(state);
 
   if (state.status === "finished" && !resultOpened) {
     resultOpened = true;

@@ -316,6 +316,12 @@ export class GoRoom extends Room<GoState> {
     const player = this.state.players[playerIndex];
     player.connected = false;
 
+    if (this.state.status === "playing" && consented) {
+      // Left on purpose: a random bot takes the seat at once (a table of nothing
+      // but bots then closes in scheduleBotTurn).
+      this.seatToBot(player, playerIndex, true);
+      return;
+    }
     if (consented) return;
 
     try {
@@ -334,11 +340,13 @@ export class GoRoom extends Room<GoState> {
    * never move again (ideas.md D-G8). They stay marked disconnected, so the
    * client still shows the seat as theirs.
    */
-  private seatToBot(player: PlayerState, playerIndex: number) {
-    const style = temperamentFor(playerIndex);
+  private seatToBot(player: PlayerState, playerIndex: number, left = false) {
+    const style = left ? randomStyle() : temperamentFor(playerIndex);
     player.bot = true;
     this.botStyles.set(player.sessionId, style);
-    this.state.lastEvent = `${player.name} drifted off; ${style.name} plays the seat`;
+    this.state.lastEvent = left
+      ? `${player.name} left; ${style.name} plays the seat`
+      : `${player.name} drifted off; ${style.name} plays the seat`;
     this.scheduleBotTurn();
   }
 
