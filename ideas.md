@@ -166,7 +166,7 @@ base front (black vs white) or the pattern front (gray vs transparent).
 |---|---|---|---|
 | **Ferry** | Move one of your stones one step to an adjacent empty point. Captures are checked afterward. (Needs a two-step target UI.) | 35 | 💡 |
 | **Anchor Stone** | One of your stones becomes immune to removal items for the rest of the match. The counter to Snipe. | 35 | 💡 |
-| **Turn the Lantern** | Flips one of your stones between solid and grey. Captures count on the new front. Refused if it would leave the stone or a former group-mate without liberties. Animation: the stone lifts, turns edge-on and lands showing its other face. | 80 | ✅ |
+| **Turn the Lantern** | Flips one of your stones between black/white and gray/transparent. Captures count on the new front. Refused if it would leave the stone or a former group-mate without liberties. Animation: the stone lifts, turns edge-on and lands showing its other face. | 80 | ✅ |
 | **Lantern Bridge** | Two of your diagonal stones count as connected for 3 rounds. | 40 | 💡 |
 | **Stepping Stones** | Place two stones this turn. | 45 | 💡 |
 | **Twin Wick** | Your next stone fights on **both** axes: it merges and captures on both fronts, but it's also vulnerable on both. High risk: +3 Flame. | 60 | 💡 |

@@ -82,7 +82,7 @@ const lanternWard: PowerupDefinition = {
 const turnLantern: PowerupDefinition = {
   id: "turn_lantern",
   name: "Turn the Lantern",
-  description: "Flip one of your stones to your other front (solid <-> grey pattern). Captures count on the new front.",
+  description: "Flip one of your stones to your other front (black/white <-> gray/transparent). Captures count on the new front.",
   price: 80,
   removal: false,
   apply(ctx) {

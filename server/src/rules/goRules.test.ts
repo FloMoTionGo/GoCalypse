@@ -46,11 +46,11 @@ test("base-axis stones from different players (1 black, 3 black) merge and are c
   assert.deepEqual(owners, [1, 3]);
 });
 
-test("a pattern-axis (grey) stone is a wall on the base view: blocks, but can't be captured or merged there", () => {
+test("a pattern-axis (gray or transparent) stone is a wall on the base view: blocks, but can't be captured or merged there", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
   board[boardIndex(size, 2, 2)] = stoneCode(1, "base"); // black, the target
-  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // grey wall -- occupies but neutral on base
+  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // pattern-axis wall -- occupies but neutral on base
   board[boardIndex(size, 3, 2)] = stoneCode(2, "base"); // white
   board[boardIndex(size, 2, 1)] = stoneCode(2, "base"); // white
   board[boardIndex(size, 2, 3)] = stoneCode(2, "base"); // white, last move -- all 4 sides now occupied
@@ -63,7 +63,7 @@ test("a pattern-axis (grey) stone is a wall on the base view: blocks, but can't 
 test("a base-axis move DOES smother a pattern group whose last liberty it fills", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
-  // A lone gray stone (player 1) surrounded by grey+transparent (rivals on
+  // A lone gray stone (player 1) surrounded by transparent stones (rivals on
   // pattern) plus one base-axis stone as the actual last move.
   board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // gray
   board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern"); // transparent -- pattern rival
@@ -165,7 +165,7 @@ test("a wall neighbor blocks a liberty without joining the group", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
   board[boardIndex(size, 2, 2)] = stoneCode(1, "base");
-  board[boardIndex(size, 2, 3)] = stoneCode(3, "pattern"); // grey wall, adjacent
+  board[boardIndex(size, 2, 3)] = stoneCode(3, "pattern"); // pattern-axis wall, adjacent
 
   const { group, liberties } = findGroup(board, size, 2, 2, "base");
   assert.equal(group.length, 1); // did not merge
@@ -175,7 +175,7 @@ test("a wall neighbor blocks a liberty without joining the group", () => {
 test("suicide is checked only on the placed stone's own axis", () => {
   const size = 3;
   const board = new Array(size * size).fill(0);
-  // Center surrounded on all 4 sides by pattern-axis (grey) stones -- a
+  // Center surrounded on all 4 sides by pattern-axis (gray/transparent) stones -- a
   // base-axis placement here has 0 real base-view liberties (all neighbors
   // are walls on the base view, so none merge and none are empty).
   board[boardIndex(size, 0, 1)] = stoneCode(3, "pattern");
@@ -249,7 +249,7 @@ test("a protected (warded) group survives with zero liberties", () => {
 test("flipStone moves a stone to its other axis and captures on the new view", () => {
   const size = 3;
   const board = new Array(size * size).fill(0);
-  // Grey gray (player 1) at (0,0), hemmed in by a transparent stone and ...
+  // Gray (player 1) at (0,0), hemmed in by a transparent stone and ...
   board[boardIndex(size, 0, 0)] = stoneCode(1, "pattern");
   board[boardIndex(size, 1, 0)] = stoneCode(3, "pattern");
   // ... player 3's solid black stone at (0,1), which flips to transparent.

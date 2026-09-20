@@ -4,7 +4,7 @@ import { areaScore, finalResults, sidesOf } from "./endgame";
 
 /**
  * A board from rows of text: "." is empty, 1-4 a player's solid stone, 5-8 a
- * player's grey pattern stone, 9 driftwood. Player 1 is black+gray, 2 white+gray,
+ * player's gray or transparent stone, 9 driftwood. Player 1 is black+gray, 2 white+gray,
  * 3 black+transparent, 4 white+transparent.
  */
 function parse(rows: string[]): { board: number[]; size: number } {

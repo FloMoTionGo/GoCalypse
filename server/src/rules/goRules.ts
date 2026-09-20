@@ -10,7 +10,7 @@
 // which front that particular stone fights on:
 //   - left click  -> a solid stone in their BASE color (black/white),
 //                    fighting only in the base-view war (black vs white).
-//   - right click -> a grey stone in their PATTERN (gray/transparent),
+//   - right click -> their gray or transparent stone, on the PATTERN axis,
 //                    fighting only in the pattern-view war (gray vs transparent).
 // A stone is neutral ("a wall") on the axis it didn't commit to: it still
 // occupies the cell (so it blocks a liberty there), but it never merges
