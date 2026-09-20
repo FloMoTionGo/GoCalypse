@@ -67,6 +67,15 @@ let effects = []; // animations in flight
 let lastMove = null;
 let lastActionSeq = null;
 let lastFrameAt = 0;
+// Recall: the last RECALL_STEPS boards before the live one, kept in the browser.
+// Anyone can step back to look (bots move fast); nothing is sent to the server.
+const RECALL_STEPS = 5;
+let history = []; // [{id, seq, board, overlays, lastMove, event, turnCount, stormUntil}], oldest first, live is last
+let nextSnapId = 1;
+let viewId = null; // id of the snapshot on screen, or null while live
+const recallEl = document.getElementById("recall");
+const recallStepsEl = document.getElementById("recall-steps");
+const recallLabelEl = document.getElementById("recall-label");
 let noticeTimer = null;
 let welcomeChecked = false;
 let resultOpened = false; // the final scores open by themselves once, when the game ends
@@ -93,6 +102,19 @@ if (hashParams.has("autojoin")) {
 joinButton.addEventListener("click", connect);
 boardEl.addEventListener("mousemove", (evt) => (hoverPoint = eventPoint(evt)));
 boardEl.addEventListener("mouseleave", () => (hoverPoint = null));
+document.getElementById("recall-back").addEventListener("click", () => stepRecall(1));
+document.getElementById("recall-fwd").addEventListener("click", () => stepRecall(-1));
+document.getElementById("recall-live").addEventListener("click", () => setView(0));
+window.addEventListener("keydown", (evt) => {
+  if (evt.altKey || evt.ctrlKey || evt.metaKey || document.querySelector("dialog[open]")) return;
+  const t = evt.target && evt.target.tagName;
+  if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
+  if (evt.key === "ArrowLeft") stepRecall(1);
+  else if (evt.key === "ArrowRight") stepRecall(-1);
+  else if (evt.key === "Escape" || evt.key === "End") setView(0);
+  else return;
+  evt.preventDefault();
+});
 boardEl.addEventListener("click", onBoardClick);
 boardEl.addEventListener("contextmenu", onBoardRightClick);
 window.addEventListener("resize", sizeCanvas);
@@ -309,20 +331,21 @@ function frame() {
   const reduced = reducedMotion();
   effects = P.pruneEffects(effects, now, reduced);
   if (storm && now - storm.start >= P.STORM_SECONDS) storm = null;
+  const snap = viewedSnap();
   scene.render({
     time: now,
-    board,
-    hover: hoverPoint,
+    board: snap ? snap.board : board,
+    hover: snap ? null : hoverPoint,
     hoverKind: hoverKind(),
     myColor: myPlayer ? myPlayer.color : 0,
-    lastMove,
-    effects,
-    overlays,
-    storm,
-    round: roundLength > 0 ? Math.floor(turnCount / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
-    turnCount,
+    lastMove: snap ? snap.lastMove : lastMove,
+    effects: snap ? [] : effects,
+    overlays: snap ? snap.overlays : overlays,
+    storm: snap ? null : storm,
+    round: roundLength > 0 ? Math.floor((snap ? snap.turnCount : turnCount) / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
+    turnCount: snap ? snap.turnCount : turnCount,
     roundLength,
-    stormUntil,
+    stormUntil: snap ? snap.stormUntil : stormUntil,
     reducedMotion: reduced,
   });
   imageData.data.set(scene.rgba);
@@ -340,7 +363,7 @@ function burningAt(x, y) {
 
 /** What the hovered point shows: a powerup reticle, the split stone preview, or just the coordinates. */
 function hoverKind() {
-  if (!hoverPoint) return "none";
+  if (!hoverPoint || viewId !== null) return "none";
   if (selectedPowerup) return "target";
   if (!isMyTurn || !myPlayer) return "none";
   if (burningAt(hoverPoint.x, hoverPoint.y)) return "none"; // nothing can be played into a fire
@@ -360,6 +383,7 @@ function eventPoint(evt) {
 
 function onBoardClick(evt) {
   if (!room || !lastState) return;
+  if (viewId !== null) return recallBlocked();
   const p = eventPoint(evt);
   if (!p) return;
 
@@ -375,6 +399,7 @@ function onBoardClick(evt) {
 function onBoardRightClick(evt) {
   evt.preventDefault();
   if (!room || !lastState) return;
+  if (viewId !== null) return recallBlocked();
   if (selectedPowerup) {
     setSelectedPowerup(null);
     return;
@@ -391,6 +416,77 @@ function setSelectedPowerup(id) {
   targetingHintEl.hidden = !id;
   targetingHintEl.textContent = item ? `Pick a point for ${item.name} -- right click to cancel.` : "";
   if (lastState) renderSidebar(lastState);
+}
+
+// ---- recall ---------------------------------------------------------------------------
+
+/** Keep one snapshot per action (a re-sync of the same action just refreshes it). */
+function recordHistory(state, action) {
+  const snap = {
+    id: 0,
+    seq: action.seq,
+    board,
+    overlays,
+    lastMove,
+    event: state.lastEvent || "",
+    turnCount: state.turnCount,
+    stormUntil: state.storm.until,
+  };
+  const last = history[history.length - 1];
+  if (last && last.seq === action.seq) {
+    snap.id = last.id;
+    history[history.length - 1] = snap;
+  } else {
+    snap.id = nextSnapId++;
+    history.push(snap);
+    if (history.length > RECALL_STEPS + 1) history.shift();
+  }
+  if (viewId !== null && viewId < history[0].id) viewId = history[0].id; // fell off the end: stay on the oldest
+  if (viewId === history[history.length - 1].id) viewId = null;
+  renderRecall();
+}
+
+function viewedSnap() {
+  return viewId === null ? null : history.find((h) => h.id === viewId) || null;
+}
+
+/** Steps behind live for the snapshot on screen (0 = live). */
+function viewOffset() {
+  return viewId === null ? 0 : history[history.length - 1].id - viewId;
+}
+
+function setView(offset) {
+  const o = Math.max(0, Math.min(history.length - 1, offset));
+  viewId = o === 0 ? null : history[history.length - 1 - o].id;
+  renderRecall();
+}
+
+function stepRecall(delta) {
+  if (history.length > 1) setView(viewOffset() + delta);
+}
+
+function recallBlocked() {
+  showNotice("You are looking back -- press Live (Esc) to play.");
+}
+
+function renderRecall() {
+  const back = history.length - 1;
+  recallEl.hidden = back < 1;
+  const off = viewOffset();
+  recallStepsEl.replaceChildren();
+  for (let i = back; i >= 1; i--) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = String(i);
+    b.title = `${i} move${i === 1 ? "" : "s"} back`;
+    b.classList.toggle("on", i === off);
+    b.addEventListener("click", () => setView(i));
+    recallStepsEl.append(b);
+  }
+  recallEl.classList.toggle("looking", off > 0);
+  const snap = viewedSnap();
+  recallLabelEl.textContent = snap ? `${off} back: ${snap.event}` : "";
+  boardEl.classList.toggle("recalling", off > 0);
 }
 
 // ---- state --------------------------------------------------------------------------
@@ -432,6 +528,7 @@ function onState(state) {
   lastActionSeq = action.seq;
   board = nextBoard;
   overlays = nextOverlays;
+  recordHistory(state, action);
 
   const players = Array.from(state.players);
   myPlayer = players.find((p) => p.sessionId === room.sessionId) || null;

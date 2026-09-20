@@ -52,6 +52,13 @@
       <div id="game-body">
         <div id="board-wrap">
           <canvas id="board" class="px"></canvas>
+          <div id="recall" hidden>
+            <button id="recall-back" type="button" aria-label="One move back" title="One move back (left arrow)">&#9664;</button>
+            <span id="recall-steps"></span>
+            <button id="recall-fwd" type="button" aria-label="One move forward" title="One move forward (right arrow)">&#9654;</button>
+            <button id="recall-live" type="button" title="Back to the live board (Esc)">Live</button>
+            <span id="recall-label"></span>
+          </div>
           <p id="board-hint" class="hint">Left click: your black or white stone &middot; Right click: your gray or transparent stone</p>
           <p id="notice" class="status notice"></p>
           <p id="last-event" class="status"></p>

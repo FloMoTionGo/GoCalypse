@@ -302,3 +302,17 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 }
 .item .tag { color: var(--amber); font-weight: 700; }
 .empty { color: var(--slate); font-size: 12px; margin: 0; }
+
+/* Recall: a small pixel strip under the board to look at the last few moves. */
+#recall { display: flex; align-items: center; gap: 4px; margin: 6px 0 0; font-size: 12px; }
+#recall[hidden] { display: none; }
+#recall button {
+  font: inherit; line-height: 1; min-width: 22px; padding: 4px 6px;
+  color: var(--text); background: var(--bg); border: 2px solid var(--border); border-radius: 0; cursor: pointer;
+}
+#recall button:hover { border-color: var(--accent); }
+#recall button.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+#recall-steps { display: inline-flex; gap: 4px; }
+#recall.looking #recall-live { color: var(--bg); background: var(--teal); border-color: var(--teal); }
+#recall-label { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#board.recalling { cursor: not-allowed; filter: sepia(.35) saturate(.8); }
