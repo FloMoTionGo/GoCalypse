@@ -287,3 +287,47 @@ test("Stepping Stones grants one extra stone, once", () => {
   assert.ok(getPowerup("stepping_stones")!.free);
   assert.ok(!getPowerup("stepping_stones")!.removal, "upgraded to tier 3 for its power, but it is not a removal item");
 });
+
+// ---- fog (tier 1) and skiff (tier 2) --------------------------------------------------
+
+test("Fog covers a 3x3 area for 2 rounds, clipped at the edge of the board", () => {
+  const t = table();
+  assert.equal(use(t, "fog", { x: 4, y: 4 }), true);
+  const cells = Array.from(t.state.effects).filter((e) => e.kind === "fog");
+  assert.equal(cells.length, 9);
+  assert.ok(cells.every((e) => e.owner === 1 && e.until === 2 * 4));
+  assert.equal(new Set(cells.map((e) => `${e.x},${e.y}`)).size, 9);
+
+  const corner = table();
+  assert.equal(use(corner, "fog", { x: 0, y: 0 }), true);
+  assert.equal(Array.from(corner.state.effects).filter((e) => e.kind === "fog").length, 4);
+  assert.equal(use(corner, "fog", { x: -1, y: 3 }), false, "off the board");
+  assert.ok(!getPowerup("fog")!.free && getPowerup("fog")!.tier === 1);
+});
+
+test("Skiff slides your stone along a clear row or column to an empty point", () => {
+  const t = table();
+  const mine = stoneCode(1, "pattern");
+  t.put(1, 4, mine);
+  assert.equal(use(t, "skiff", { x: 1, y: 4 }, { x: 6, y: 4 }), true, "along the row");
+  assert.equal(t.at(1, 4), 0);
+  assert.equal(t.at(6, 4), mine, "the stone keeps its front");
+  assert.equal(use(t, "skiff", { x: 6, y: 4 }, { x: 6, y: 0 }), true, "along the column");
+  assert.equal(t.at(6, 0), mine);
+});
+
+test("Skiff refuses a diagonal, a blocked way, an occupied point and a stone that isn't yours", () => {
+  const t = table();
+  const mine = stoneCode(1, "base");
+  t.put(2, 2, mine);
+  t.put(2, 5, stoneCode(2, "base")); // in the way down the column
+  t.put(5, 2, stoneCode(3, "base")); // at the end of the row
+  assert.equal(use(t, "skiff", { x: 2, y: 2 }, { x: 4, y: 4 }), false, "diagonal");
+  assert.equal(use(t, "skiff", { x: 2, y: 2 }, { x: 2, y: 7 }), false, "blocked way");
+  assert.equal(use(t, "skiff", { x: 2, y: 2 }, { x: 5, y: 2 }), false, "occupied point");
+  assert.equal(use(t, "skiff", { x: 2, y: 2 }, { x: 2, y: 2 }), false, "no move at all");
+  assert.equal(use(t, "skiff", { x: 2, y: 5 }, { x: 2, y: 6 }), false, "not your stone");
+  assert.equal(use(t, "skiff", { x: 2, y: 2 }), false, "no destination");
+  assert.equal(t.at(2, 2), mine, "the stone never moved");
+  assert.equal(use(t, "skiff", { x: 2, y: 2 }, { x: 2, y: 4 }), true, "a clear stretch up to the blocker works");
+});

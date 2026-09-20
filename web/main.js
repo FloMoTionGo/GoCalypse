@@ -350,18 +350,38 @@ function reducedMotion() {
   return reducedMotionQuery.matches;
 }
 
-/** A stone under someone else's mist is not to be seen (nor how it landed) until the mist lifts or the game ends. */
-function isVeiled(x, y, list = overlays) {
+/** The player a board code belongs to: stones 1..8, twin stones 10..13; 0 for empty points and driftwood. */
+function codeOwner(code) {
+  if (code >= 10 && code <= 13) return code - 9;
+  if (code >= 5 && code <= 8) return code - 4;
+  return code >= 1 && code <= 4 ? code : 0;
+}
+
+/**
+ * A stone under someone else's mist is not to be seen (nor how it landed) until
+ * the mist lifts or the game ends. A fog hides the stones under it from everyone
+ * but the player who rolled it and the stones' own owners.
+ */
+function isVeiled(x, y, code, list = overlays) {
   if (!lastState || lastState.status === "finished") return false;
-  return list.some((o) => o.kind === "mist" && o.x === x && o.y === y && (!myPlayer || o.owner !== myPlayer.color));
+  const mine = myPlayer ? myPlayer.color : 0;
+  return list.some(
+    (o) =>
+      o.x === x &&
+      o.y === y &&
+      ((o.kind === "mist" && o.owner !== mine) ||
+        (o.kind === "fog" && o.owner !== mine && (code === undefined || codeOwner(code) !== mine)))
+  );
 }
 
 function veiled(cells, list) {
   if (!lastState || lastState.status === "finished") return cells;
-  const hidden = list.filter((o) => o.kind === "mist" && (!myPlayer || o.owner !== myPlayer.color));
-  if (!hidden.length) return cells;
   const out = cells.slice();
-  for (const o of hidden) out[o.y * lastState.size + o.x] = 0;
+  for (const o of list) {
+    if (o.kind !== "mist" && o.kind !== "fog") continue;
+    const i = o.y * lastState.size + o.x;
+    if (out[i] && isVeiled(o.x, o.y, out[i], list)) out[i] = 0;
+  }
   return out;
 }
 
@@ -383,7 +403,7 @@ function frame() {
     hoverKind: hoverKind(),
     myColor: myPlayer ? myPlayer.color : 0,
     lastMove: snap ? snap.lastMove : lastMove,
-    effects: snap ? [] : effects.filter((e) => !isVeiled(e.x, e.y)),
+    effects: snap ? [] : effects.filter((e) => !isVeiled(e.x, e.y, e.code)),
     overlays: snap ? snap.overlays : overlays,
     storm: snap ? null : storm,
     round: roundLength > 0 ? Math.floor((snap ? snap.turnCount : turnCount) / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
@@ -495,7 +515,7 @@ function setTargetingHint() {
   targetingHintEl.textContent =
     item.points >= 2
       ? firstTarget
-        ? `${item.name}: now the empty point beside it -- right click to cancel.`
+        ? `${item.name}: now the empty point to move it to -- right click to cancel.`
         : `${item.name}: pick one of your stones -- right click to cancel.`
       : `Pick a point for ${item.name} -- right click to cancel.`;
 }
@@ -572,7 +592,7 @@ function onState(state) {
 
   const nextBoard = Array.from(state.board);
   const nextOverlays = Array.from(state.effects)
-    .filter((e) => ["lily", "ward", "drift", "fire", "seed", "mist"].includes(e.kind))
+    .filter((e) => ["lily", "ward", "drift", "fire", "seed", "mist", "fog"].includes(e.kind))
     .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until }));
   const action = state.action;
   const actionChanged = lastActionSeq !== null && action.seq !== lastActionSeq;

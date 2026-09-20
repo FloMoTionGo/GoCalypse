@@ -419,7 +419,8 @@ export class GoRoom extends Room<GoState> {
   }
 
   private isWarded(idx: number): boolean {
-    return this.effectAt("ward", idx) !== undefined;
+    // A fog shields the stones under it just as a ward does.
+    return this.effectAt("ward", idx) !== undefined || this.effectAt("fog", idx) !== undefined;
   }
 
   private lilyOwnerAt(idx: number): number {
@@ -465,7 +466,7 @@ export class GoRoom extends Room<GoState> {
       // The fire goes out and the stone it was eating is gone with it. Its
       // owner gets the same consolation as for a stone removed by an item.
       if (e.kind === "fire" && board[idx] !== 0) this.removePieces([idx], 0);
-      if (e.kind === "ward") lapsedWards.push(idx);
+      if (e.kind === "ward" || e.kind === "fog") lapsedWards.push(idx);
       if (e.kind === "seed") grownSeeds.push({ x: e.x, y: e.y, owner: e.owner });
       this.state.effects.splice(i, 1);
     }

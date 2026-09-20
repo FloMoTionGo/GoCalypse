@@ -1,6 +1,6 @@
 import { GoState } from "../state/GoState";
 
-export type EffectKind = "ward" | "lily" | "drift" | "fire" | "seed" | "mist";
+export type EffectKind = "ward" | "lily" | "drift" | "fire" | "seed" | "mist" | "fog";
 
 export interface PowerupContext {
   state: GoState;

@@ -236,6 +236,29 @@ const mist: PowerupDefinition = {
   },
 };
 
+/** Rounds a Fog lies over the board. */
+const FOG_ROUNDS = 2;
+
+const fog: PowerupDefinition = {
+  id: "fog",
+  tier: 1,
+  name: "Fog",
+  description:
+    "Roll a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed, and the other players can't see them. Anyone may still play there.",
+  price: 35,
+  removal: false,
+  apply(ctx) {
+    if (targetIndex(ctx) === -1) return false;
+    const { x, y } = ctx.target!;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (isOnBoard(ctx.size, x + dx, y + dy)) ctx.addEffect("fog", x + dx, y + dy, ownColor(ctx), FOG_ROUNDS);
+      }
+    }
+    return true;
+  },
+};
+
 // ---- tier 2 ---------------------------------------------------------------------
 
 const kite: PowerupDefinition = {
@@ -275,6 +298,38 @@ const ferry: PowerupDefinition = {
     const code = ctx.state.board[from];
     if (!isPlayerStone(code) || ownerOf(code) !== ownColor(ctx) || ctx.isWarded(from)) return false;
     if (Math.abs(target!.x - target2.x) + Math.abs(target!.y - target2.y) !== 1) return false;
+    ctx.state.board[from] = 0;
+    if (ctx.placeStone(target2.x, target2.y, code) === null) {
+      ctx.state.board[from] = code; // refused: the stone stays where it was
+      return false;
+    }
+    return true;
+  },
+};
+
+const skiff: PowerupDefinition = {
+  id: "skiff",
+  tier: 2,
+  name: "Skiff",
+  description:
+    "Send one of your stones gliding along its row or column to an empty point, as far as the way is clear. Captures are judged as if you had played it there.",
+  price: 65,
+  removal: false,
+  points: 2,
+  apply(ctx) {
+    const from = targetIndex(ctx);
+    const { target, target2, size } = ctx;
+    if (from === -1 || !target2 || !isOnBoard(size, target2.x, target2.y)) return false;
+    const code = ctx.state.board[from];
+    if (!isPlayerStone(code) || ownerOf(code) !== ownColor(ctx) || ctx.isWarded(from)) return false;
+    const dx = Math.sign(target2.x - target!.x);
+    const dy = Math.sign(target2.y - target!.y);
+    if ((dx === 0) === (dy === 0)) return false; // neither the same row nor the same column, or no move at all
+    // Every point on the way, and the landing point, must be empty.
+    for (let x = target!.x + dx, y = target!.y + dy; ; x += dx, y += dy) {
+      if (ctx.state.board[boardIndex(size, x, y)] !== 0) return false;
+      if (x === target2.x && y === target2.y) break;
+    }
     ctx.state.board[from] = 0;
     if (ctx.placeStone(target2.x, target2.y, code) === null) {
       ctx.state.board[from] = code; // refused: the stone stays where it was
@@ -362,8 +417,8 @@ const steppingStones: PowerupDefinition = {
 // Cheap to dear within each tier, tier 1 first: the order the stall reads in.
 const REGISTRY = new Map<string, PowerupDefinition>(
   [
-    fireflyJar, seedling, mist, driftwood, lilyPad, // tier 1
-    kite, ferry, lanternWard, twinWick, turnLantern, // tier 2
+    fireflyJar, seedling, mist, fog, driftwood, lilyPad, // tier 1
+    kite, ferry, skiff, lanternWard, twinWick, turnLantern, // tier 2
     riverCurrent, echoChime, gust, steppingStones, removeStone, bomb, // tier 3
   ]
     .sort((a, b) => a.tier - b.tier || a.price - b.price)

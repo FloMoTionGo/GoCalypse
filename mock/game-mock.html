@@ -170,6 +170,7 @@
     { kind: "seed", x: 6, y: 2, owner: 1, until: 19 },
     { kind: "mist", x: 8, y: 6, owner: 2, until: 19 }, // someone else's: the stone under it is hidden from us
     { kind: "mist", x: 2, y: 8, owner: 1, until: 19 }, // ours: we still see our own stone
+    ...[3, 4, 5].flatMap((x) => [10, 11, 12].map((y) => ({ kind: "fog", x, y, owner: 3, until: 19 }))), // a fog someone else rolled
   ];
   const T0 = 20; // a fixed moment, so the boats sit still
   function draw(state) {

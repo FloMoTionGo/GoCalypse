@@ -506,16 +506,19 @@
     if (!prev || prev.length !== next.length) return effects;
     const used = action && action.kind === "powerup" ? action.id : null;
     const isTarget = (x, y) => action && action.x === x && action.y === y;
-    // A Ferry's stone lands on the action's point and leaves the point beside it:
+    // A Ferry's or Skiff's stone lands on the action's point and leaves a point in line with it:
     // that one goes quietly, it is not a capture.
     const ferried = new Set();
-    if (used === "ferry") {
+    if (used === "ferry" || used === "skiff") {
       const landed = next[action.y * size + action.x];
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const fx = action.x + dx, fy = action.y + dy;
-        if (fx < 0 || fy < 0 || fx >= size || fy >= size) continue;
-        const fi = fy * size + fx;
-        if (prev[fi] === landed && next[fi] === 0) { ferried.add(fi); break; }
+        // Nearest first: a Ferry steps once, a Skiff glides as far as the way is clear.
+        for (let fx = action.x + dx, fy = action.y + dy; fx >= 0 && fy >= 0 && fx < size && fy < size; fx += dx, fy += dy) {
+          const fi = fy * size + fx;
+          if (prev[fi] === landed && next[fi] === 0) { ferried.add(fi); break; }
+          if (prev[fi] !== 0) break; // something stood in the way: not this line
+        }
+        if (ferried.size) break;
       }
     }
     const inBurst = (x, y) => used === "bomb" && Math.abs(x - action.x) <= 1 && Math.abs(y - action.y) <= 1;
@@ -1302,6 +1305,21 @@
         if (o.owner) blitHaloed(G.splitPreviewSprite(o.owner, "mini"), p.x - 7, p.y - 7);
       }
     }
+    /** A fog is a cloud over every point it covers; the stones under it are taken out by main.js. */
+    function drawFogs(overlays) {
+      for (const o of overlays) {
+        if (o.kind !== "fog") continue;
+        const p = pointToNative(o.x, o.y);
+        // A grey wash over the whole square of the board that belongs to this point, then the cloud.
+        const half = SPACING >> 1;
+        for (let dy = -half; dy < half; dy++) {
+          for (let dx = -half; dx < half; dx++) {
+            if (inKaya(p.x + dx, p.y + dy) && G.ditherOn(p.x + dx, p.y + dy, 0.4)) surf.set(p.x + dx, p.y + dy, S);
+          }
+        }
+        surf.blitCentered(G.SPRITES.mistPuff, p.x, p.y, { coverage: 0.7 });
+      }
+    }
     function drawMists(overlays, myColor) {
       for (const o of overlays) {
         if (o.kind !== "mist") continue;
@@ -1367,6 +1385,21 @@
         const p = pointToNative(o.x, o.y);
         if (o.owner) blitHaloed(G.splitPreviewSprite(o.owner, "mini"), p.x - 7, p.y - 7);
         drawTimerTag(p.x, p.y, roundsLeft(o, turnCount, roundLength));
+      }
+      const fogs = new Map();
+      for (const o of overlays) {
+        if (o.kind !== "fog") continue;
+        const key = o.owner + ":" + o.until;
+        if (!fogs.has(key)) fogs.set(key, []);
+        fogs.get(key).push(o);
+      }
+      for (const cells of fogs.values()) {
+        // A fog is a 3x3 square clipped by the board: its tag sits on the point nearest the middle.
+        const mx = cells.reduce((a, c) => a + c.x, 0) / cells.length;
+        const my = cells.reduce((a, c) => a + c.y, 0) / cells.length;
+        const mid = cells.reduce((best, c) => (Math.hypot(c.x - mx, c.y - my) < Math.hypot(best.x - mx, best.y - my) ? c : best));
+        const p = pointToNative(mid.x, mid.y);
+        drawTimerTag(p.x, p.y, roundsLeft(mid, turnCount, roundLength));
       }
       for (const o of overlays) {
         if (o.kind !== "lily" && o.kind !== "drift" && o.kind !== "fire" && o.kind !== "seed" && o.kind !== "mist") continue;
@@ -1527,7 +1560,7 @@
      *   myColor:       1..4, the viewing player (for the split preview),
      *   lastMove:      {x, y} | null,
      *   effects:       [placeEffect(...) | captureEffect(...) | makeEffect(kind, ...)],
-     *   overlays:      [{kind: "lily" | "ward" | "drift" | "fire" | "seed" | "mist", x, y, owner, until}] -- timed board
+     *   overlays:      [{kind: "lily" | "ward" | "drift" | "fire" | "seed" | "mist" | "fog", x, y, owner, until}] -- timed board
      *                  pieces; each shows its rounds left, and owned ones carry their owner's mark,
      *   round:         the number on the boat's signboard: the round being played (scenery: it drifts on its own clock),
      *   passFlash:     time (seconds) a pass happened, to show the PASS sign (omit for none),
@@ -1622,6 +1655,7 @@
       drawStones(board, skip, greyW);
       drawWards(overlays, board, busy, time, reduced);
       drawMists(overlays, st.myColor);
+      drawFogs(overlays);
 
       // 7. last-move ember
       if (st.lastMove && !skip.has(st.lastMove.y * size + st.lastMove.x) && board[st.lastMove.y * size + st.lastMove.x]) {

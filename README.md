@@ -129,7 +129,7 @@ tier 3 holds powerful (removal) items, so **at most one** is ever on sale. Your
 purchase past either limit is refused with a notice.
 
 Some items are **free**: they don't take your turn, you still move afterwards.
-Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400.
+Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400. (Within a tier the tables below read in the order the stall shows them, cheap to dear.)
 
 **Tier 1**
 
@@ -138,6 +138,7 @@ Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400.
 | Firefly Jar | 25 | Free. Your captures earn double fireflies for the rest of this turn and your next 3. |
 | Seedling | 30 | Plant a seed on an empty point. After 2 rounds, if the point is still empty and the stone would have a liberty, it grows into your stone. |
 | Mist | 30 | Free. Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on. (The mist is drawn by the client; the game state still holds the stone.) |
+| Fog | 35 | Rolls a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed (like a ward over the whole area), and the other players can't see them (drawn by the client). Anyone may still play there. |
 | Driftwood | 30 | Neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Can't smother a group. |
 | Lily Pad | 40 | Reserves an empty point for 3 rounds: only you may play there. |
 
@@ -147,6 +148,7 @@ Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400.
 |---|---|---|
 | Kite | 45 | Free. Fly it over an enemy stone: only you see what its player is holding and how many fireflies they have. |
 | Ferry | 50 | Move one of your stones one step to an empty point beside it (pick the stone, then the point). Captures are judged as if you had played it there. |
+| Skiff | 65 | Send one of your stones gliding along its row or column to an empty point, as far as the way is clear (pick the stone, then the point). |
 | Lantern Ward | 60 | One of your groups can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. |
 | Twin Wick | 70 | Free. Your next stone fights on **both** fronts: it joins and captures on both, but is lost if either of its groups runs out of liberties. Can't be turned over. |
 | Turn the Lantern | 80 | Flips one of your stones to your other front (black/white <-> gray/transparent); captures count on the new front, and a former group-mate left with no liberties is captured too. Refused only if the flipped stone itself would have none. |

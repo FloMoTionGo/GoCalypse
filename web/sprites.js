@@ -856,6 +856,16 @@
     "..C.........C..",
     ".C...........C.",
   ]));
+  SPRITES.fogIcon = sprite("fogIcon", pad15([
+    "..CC...CC......",
+    ".CSSC.CSSC.....",
+    "CSSSSCSSSSC....",
+    ".CCCCCCCCCC....",
+    "...............",
+    ".S.S.S.S.S.S...",
+    "..S.S.S.S.S....",
+    ".S.S.S.S.S.S...",
+  ]));
   SPRITES.seedBoard = sprite("seedBoard", [
     "..TT.....",
     ".TCTT.TT.",
@@ -1149,6 +1159,16 @@
       case "echo_chime":
         s.blitCentered(SPRITES.chimeIcon, c, c);
         break;
+      case "fog":
+        s.blitCentered(SPRITES.fogIcon, c, c);
+        break;
+      case "skiff":
+        // A stone gliding right, with its wake behind it.
+        s.blitCentered(stoneSprite(2, "icon"), 10, 7);
+        for (const x of [1, 2, 4, 5]) s.set(x, 7, A);
+        for (const x of [2, 3]) s.set(x, 5, S);
+        for (const x of [2, 3]) s.set(x, 9, S);
+        break;
       case "stepping_stones":
         // Two stones and a dotted hop between them.
         s.blitCentered(stoneSprite(5, "icon"), 4, 10);
@@ -1163,6 +1183,7 @@
   const POWERUP_ICON_IDS = [
     "driftwood", "lily_pad", "lantern_ward", "turn_lantern", "gust", "remove_stone", "bomb",
     "firefly_jar", "seedling", "mist", "kite", "ferry", "twin_wick", "river_current", "echo_chime", "stepping_stones",
+    "fog", "skiff",
   ];
 
   /** Every sprite and animation, for sprite sheets and previews. */
