@@ -1,6 +1,6 @@
 import { GoState } from "../state/GoState";
 
-export type EffectKind = "ward" | "lily" | "drift";
+export type EffectKind = "ward" | "lily" | "drift" | "fire";
 
 export interface PowerupContext {
   state: GoState;
@@ -11,6 +11,8 @@ export interface PowerupContext {
   isWarded(idx: number): boolean;
   /** Owner color of an active Lily Pad on this cell, or 0. */
   lilyOwnerAt(idx: number): number;
+  /** Cell is burning after a lightning strike: nothing may be placed on it. */
+  isBurning(idx: number): boolean;
   /** Adds a timed board marker lasting `rounds` full rounds from now. */
   addEffect(kind: EffectKind, x: number, y: number, owner: number, rounds: number): void;
   /**

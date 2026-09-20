@@ -114,6 +114,22 @@
         </div>
 
         <div class="panel">
+          <h2>Pattern stones</h2>
+          <p class="hint" id="pattern-note"></p>
+          <div class="row" style="margin-top:8px" id="pattern-styles" role="group" aria-label="Pattern stone design"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Weather</h2>
+          <p class="hint">A thunderstorm: 10 s of cloud and rain, up to three bolts, and a fire on every point they hit.</p>
+          <div class="row" style="margin-top:8px">
+            <button id="storm-demo">Thunderstorm</button>
+            <button class="secondary" id="storm-clear">Put the fires out</button>
+            <button class="secondary" id="storm-advance">Skip to fires-out turn</button>
+          </div>
+        </div>
+
+        <div class="panel">
           <h2>Palette (5 colours)</h2>
           <div class="palette" id="palette"></div>
         </div>
@@ -210,6 +226,11 @@
         myColor: 1,
         lastMove: { x: 7, y: 6 },
         effects: [],
+        overlays: [],
+        storm: null,
+        turnCount: 0,
+        roundLength: 4,
+        stormUntil: 0,
         reducedMotion: !!(reducedQuery && reducedQuery.matches),
       };
       const reducedBox = document.getElementById("reduced");
@@ -330,6 +351,75 @@
       document.getElementById("clear").addEventListener("click", () => {
         state.board = new Array(SIZE * SIZE).fill(0); state.lastMove = null; state.effects = [];
         lastAction = "cleared"; updateStatus(); dirty = true;
+      });
+
+      // ---------------------------------------------------------------- pattern stones
+      // The grey pattern stones are see-through, in one of three designs
+      // (GoSprites.PATTERN_STYLES). Everything that caches a stone sprite has
+      // to be repainted when the design changes.
+      const patternNote = document.getElementById("pattern-note");
+      const patternRow = document.getElementById("pattern-styles");
+      G.PATTERN_STYLE_IDS.forEach((id) => {
+        const b = document.createElement("button");
+        b.className = "secondary";
+        b.dataset.style = id;
+        b.textContent = G.PATTERN_STYLES[id].label;
+        b.addEventListener("click", () => applyPatternStyle(id));
+        patternRow.appendChild(b);
+      });
+      function applyPatternStyle(id) {
+        G.setPatternStyle(id);
+        patternNote.textContent = G.PATTERN_STYLES[id].note;
+        patternRow.querySelectorAll("button").forEach((b) =>
+          b.setAttribute("aria-pressed", String(b.dataset.style === id))
+        );
+        updateTurn();
+        sheetCards.forEach((e) => paintCard(e, now()));
+        dirty = true;
+      }
+
+      // ---------------------------------------------------------------- weather
+      document.getElementById("storm-demo").addEventListener("click", () => {
+        const spots = [];
+        while (spots.length < 3) {
+          const p = { x: Math.floor(Math.random() * SIZE), y: Math.floor(Math.random() * SIZE) };
+          if (!spots.some((s) => s.x === p.x && s.y === p.y)) spots.push(p);
+        }
+        // Fires (and the board-wide blackout) run for 3 rounds from now,
+        // matching FIRE_ROUNDS * players on the server (rooms/GoRoom.ts).
+        const until = state.turnCount + 3 * state.roundLength;
+        state.storm = { start: now(), seq: (state.storm ? state.storm.seq : 0) + 1, strikes: spots };
+        state.stormUntil = until;
+        state.overlays = state.overlays
+          .filter((o) => o.kind !== "fire")
+          .concat(spots.map((p) => ({ kind: "fire", x: p.x, y: p.y, owner: 0, until })));
+        lastAction = `thunderstorm: ${spots.map((p) => `(${p.x}, ${p.y})`).join(" ")}`;
+        updateStatus();
+        dirty = true;
+      });
+      document.getElementById("storm-clear").addEventListener("click", () => {
+        const fires = state.overlays.filter((o) => o.kind === "fire");
+        const t = now();
+        fires.forEach((o) => {
+          const i = o.y * SIZE + o.x;
+          if (state.board[i]) {
+            state.effects.push(P.makeEffect("burnAway", o.x, o.y, { code: state.board[i] }, t));
+            state.board[i] = 0;
+          }
+        });
+        state.overlays = state.overlays.filter((o) => o.kind !== "fire");
+        state.storm = null;
+        state.stormUntil = state.turnCount; // the blackout ends immediately too
+        lastAction = `${fires.length} fire${fires.length === 1 ? "" : "s"} burnt out`;
+        updateStatus();
+        dirty = true;
+      });
+      // Advances the clock past a storm's blackout without waiting it out by hand.
+      document.getElementById("storm-advance").addEventListener("click", () => {
+        state.turnCount = state.stormUntil;
+        lastAction = `turnCount advanced to ${state.turnCount} -- the blackout lifts`;
+        updateStatus();
+        dirty = true;
       });
 
       // ---------------------------------------------------------------- turn swatches
@@ -481,6 +571,9 @@
         }, true);
       }
 
+      // Now that the sprite sheet exists, settle on a pattern design.
+      applyPatternStyle(G.getPatternStyle());
+
       // ---------------------------------------------------------------- loop
       function frame(ms) {
         // rAF timestamps can precede t0 on the first frame; a negative time gave a
@@ -489,7 +582,9 @@
         if (lastNow !== null && !state.reducedMotion) ambient += t - lastNow;
         lastNow = t;
         state.effects = P.pruneEffects(state.effects, t, state.reducedMotion);
-        const animating = !state.reducedMotion || state.effects.length > 0;
+        if (state.storm && t - state.storm.start >= P.STORM_SECONDS) state.storm = null;
+        const animating =
+          !state.reducedMotion || state.effects.length > 0 || !!state.storm || state.overlays.length > 0;
         const key = Math.floor(t * 30);
         if (dirty || (animating && key !== lastFrameKey)) {
           lastFrameKey = key;
@@ -503,6 +598,11 @@
             myColor: state.myColor,
             lastMove: state.lastMove,
             effects: state.effects,
+            overlays: state.overlays,
+            storm: state.storm,
+            turnCount: state.turnCount,
+            roundLength: state.roundLength,
+            stormUntil: state.stormUntil,
             reducedMotion: state.reducedMotion,
           });
           image.data.set(scene.rgba);

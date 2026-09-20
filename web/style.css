@@ -23,7 +23,9 @@ body {
   color: var(--text);
 }
 
-#app { max-width: 900px; margin: 0 auto; padding: 16px; }
+/* Wide enough for the board to grow to whatever the screen allows; the
+   canvas itself is sized to fit in main.js (sizeCanvas). */
+#app { max-width: 1800px; margin: 0 auto; padding: 16px; }
 
 h1 { margin: 0 0 4px; color: var(--amber); }
 .tagline { color: var(--slate); margin-top: 0; }
@@ -140,7 +142,8 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .welcome-footer { margin-top: 16px !important; color: var(--slate); font-size: 12px; text-align: center; }
 #turn-indicator.my-turn { color: var(--amber); }
 
-#game-body { display: flex; gap: 20px; }
+/* Centred, so a board scaled up to the screen doesn't sit in one corner. */
+#game-body { display: flex; gap: 20px; justify-content: center; align-items: flex-start; }
 #board-wrap { flex: 0 0 auto; }
 
 #board {
@@ -158,6 +161,8 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
   padding: 8px 10px;
 }
 .panel h3 { margin: 0 0 6px; font-size: 13px; color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
+.count-tag { color: var(--slate); font-size: 11px; letter-spacing: 0; }
+.count-tag.full { color: var(--amber); }
 
 .player-row {
   display: flex;

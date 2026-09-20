@@ -241,17 +241,35 @@ Ticked items can still be revisited; they just describe what's live now.
       because dots and stripes on an ink+cream dither were too noisy. The cost:
       grass and lily pads are teal or dark, never green.
 - [x] **D-A4 Native resolution & scale.** 16 native px per grid spacing,
-      15 px stones, integer 2x scale.
+      15 px stones. The scale is no longer fixed at 2x: the client picks the
+      largest whole number of *device* pixels per native pixel that still fits
+      the window beside the sidebar (1x–6x), so the board fills the screen and
+      every sprite pixel stays square.
 - [x] **D-A5 Perspective.** Straight top-down.
 - [x] **D-A6 Outline style.** Ink outlines on stones and props; the scene
       itself is mostly outline-free.
 - [x] **D-A7 Lighting.** Dithered light pools around lanterns and fireflies;
       the playing surface is never lit.
-- [x] **D-A8 Scene composition.** The board is a wooden deck; a river flows
-      along the bottom and a stream down the right, both touching the deck.
-      Hanging and floating lanterns, a stone lantern, reeds, lily pads, fireflies.
+- [x] **D-A8 Scene composition.** The board is a wooden pier standing *in*
+      the river: water runs all the way round it (a channel above, one down
+      each side, the wide river below), with a far bank at the top carrying
+      the lantern garland and a near bank at the bottom. Floating lanterns
+      ride the current along the top, down the right-hand channel and out
+      along the river. Hanging lanterns, a stone lantern, reeds, lily pads,
+      fireflies.
 - [ ] **D-A9 Time of day.** Fixed night today. A slow cycle during a match
-      (dusk → night → festival) is open.
+      (dusk → night → festival) is open. Weather now varies within a match
+      (see D-G7), which is a first step toward it.
+- [x] **D-A13 Pattern stones.** The grey pattern stones are **see-through**,
+      so the grid reads straight through them and they can never be taken for
+      a solid stone. Four designs ship — **Plain** (white, black, grey,
+      transparent, no glyph at all, **the default** as of 2026-09-20; dots and
+      stripes render pixel-identical, which trades away telling the two
+      pattern teams apart by colour), **Glass** (cream pattern inlaid in a
+      clear marble), **Paper** (pale wash, grey pattern) and **Wash** (frosted
+      body, pattern cut out) — switchable from the header, the URL or the
+      preview page. Open: whether to keep all four, and whether the choice
+      should be remembered per browser.
 - [ ] **D-A10 UI chrome.** The sidebar uses the 5 colors with a system font;
       only the board has a pixel font. Open: pixel font for all UI, wooden
       panels, paper-lantern buttons.
@@ -308,9 +326,12 @@ Ticked items can still be revisited; they just describe what's live now.
       whether a between-match market replaces or adds to it.
 - [ ] **D-G2 Permanent power.** Rec: keepsakes never affect the board, only
       the economy and convenience, so matches stay fair.
-- [x] **D-G3 Removal limits.** Each removal item can be bought once per match
-      per player (so one player can own one Gust, one Snipe and one Firework).
-      Tighten to one removal item in total?
+- [x] **D-G3 Removal limits.** Tightened on 2026-09-20: the market stocks
+      **five of the seven items, at most one of them a removal item** (drawn
+      fresh per match, so Gust, Snipe and Firework take turns), and a player's
+      satchel holds **five items with only one powerful one** at a time. Each
+      removal item is still once per match on top of that. Open: whether a
+      fixed nightly stock would be better than a random draw.
 - [x] **D-G4 Firework hits your own stones.** Kept as a risk element; warded
       stones are spared. Open: give Flame for it once Flame exists.
 - [ ] **D-G5 Match end condition.** 🔴 The biggest gap. `status: "finished"`
@@ -328,6 +349,24 @@ Ticked items can still be revisited; they just describe what's live now.
       the owner gets 2 turns to use it. Extend it through that third turn?
 - [ ] **D-G10 Gust scope.** It removes only the targeted stone of a group in
       atari. Should it take the whole group (much stronger, maybe pricier)?
+- [x] **D-G11 Liberties.** A group dies when it has no liberties, **whoever
+      filled them** — a wall of one colour smothers a pattern group, and your
+      own stone can smother your own group on the other front. Before
+      2026-09-20 captures were only checked on the placed stone's own front,
+      which left dead groups sitting on the board. Suicide (the group the new
+      stone joins) is still refused rather than removed.
+- [x] **D-G12 Weather.** Every 20 turns the room rolls a die; a six brings a
+      **thunderstorm**: up to 3 bolts set fire to random points, a burning
+      point can't be played on for 3 rounds, and whatever stood there burns
+      away when the fire dies (3 fireflies consolation, no score). Fires don't
+      take liberties. For those same 3 rounds every stone on the board also
+      loses its colour, rendering as one shared dithered tone between ink and
+      slate regardless of team or pattern-stone design (added 2026-09-20,
+      tied to `GoState.storm.until` so it outlasts the ~10s cloud/rain
+      animation and survives a client joining mid-storm). Open: should a
+      storm also *end* something (a round bonus?), are three bolts on a
+      13x13 board too many, and does blacking out every stone (rather than
+      just the pattern ones) make a storm too disorienting in a long game?
 - [ ] **D-G11 Consolation for item captures.** Stones captured by Turn the
       Lantern pay no consolation (they count as normal captures). Keep?
 

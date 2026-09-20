@@ -33,6 +33,7 @@
         <div class="header-left">
           <div id="room-status"></div>
           <button id="help-button" class="link-button" type="button">How to play</button>
+          <button id="stones-button" class="link-button" type="button" title="Try the three pattern-stone designs"></button>
         </div>
         <div id="turn-indicator"></div>
       </header>
@@ -51,7 +52,7 @@
           <div id="wallet" class="panel"></div>
 
           <div id="satchel" class="panel">
-            <h3>Satchel</h3>
+            <h3>Satchel <span id="satchel-count" class="count-tag"></span></h3>
             <div id="satchel-items"></div>
             <p id="targeting-hint" class="hint" hidden></p>
           </div>
@@ -87,6 +88,9 @@
 
       <h3>Powerups</h3>
       <div id="welcome-powerups"></div>
+
+      <h3>Weather</h3>
+      <p id="welcome-weather"></p>
 
       <p class="welcome-footer">Click anywhere outside this window to start.</p>
     </div>

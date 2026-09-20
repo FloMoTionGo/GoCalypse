@@ -122,34 +122,25 @@
     ".....ooooo.....",
   ];
 
-  // Pattern marks for the grey (pattern-axis) stones, in 15x15 space.
-  const DOTS_15 = [
-    "...............",
-    "...............",
-    "...............",
-    "....#.....#....",
-    "...###...###...",
-    "....#.....#....",
-    ".......#.......",
-    "......###......",
-    ".......#.......",
-    "....#.....#....",
-    "...###...###...",
-    "....#.....#....",
-    "...............",
-    "...............",
-    "...............",
-  ];
-  function stripeMark(x, y) {
-    const d = x - y; // "\" diagonals, like the vector client's 45-degree stripes
-    return d === -7 || d === -6 || d === -1 || d === 0 || d === 5 || d === 6;
+  // Pattern marks for the grey (pattern-axis) stones, in 15x15 space. These
+  // stones are see-through (see PATTERN_STYLES), so the mark -- not the body
+  // -- is what identifies them: three fat pips against three broad bands, two
+  // shapes nobody can confuse at 15 pixels.
+  function markGrid(hit) {
+    const rows = [];
+    for (let y = 0; y < 15; y++) {
+      let r = "";
+      for (let x = 0; x < 15; x++) r += hit(x, y) ? "#" : ".";
+      rows.push(r);
+    }
+    return rows;
   }
-  const STRIPES_15 = [];
-  for (let y = 0; y < 15; y++) {
-    let r = "";
-    for (let x = 0; x < 15; x++) r += stripeMark(x, y) ? "#" : ".";
-    STRIPES_15.push(r);
-  }
+  const DOT_CENTERS = [{ x: 4, y: 5 }, { x: 10, y: 5 }, { x: 7, y: 10 }];
+  const DOTS_15 = markGrid((x, y) =>
+    DOT_CENTERS.some((c) => (x - c.x) * (x - c.x) + (y - c.y) * (y - c.y) <= 4.4)
+  );
+  // "\" diagonals: 3 px of band, 3 px of gap.
+  const STRIPES_15 = markGrid((x, y) => (((x - y) % 6) + 6) % 6 < 3);
 
   /** Procedural zone template for an ellipse of w x h (squash/stretch/shrink frames). */
   function stoneZones(w, h) {
@@ -191,6 +182,101 @@
     // Brightest flash frame: pure cream, no outline, so it reads as light.
     glow: { o: "C", m: "C", h: "C", g: "C", s: "C", x: "C", mark: null },
   };
+
+  // ---------------------------------------------------------------------------
+  // Pattern stones (the grey, pattern-axis pieces) are see-through: the kaya
+  // and the grid lines read straight through them, so they can never be
+  // mistaken for a solid stone. Four designs, switchable at runtime:
+  //
+  //   plain  the default: no pattern at all, just white, black, grey and
+  //          transparent -- an ink rim, a cream highlight, a grey haze, the
+  //          rest see-through. Dots and stripes render identically; nothing
+  //          distinguishes the two pattern teams by colour.
+  //   glass  a clear marble: ink rim over a sparse haze, with the pattern
+  //          inlaid in bright cream.
+  //   paper  a washi lantern: the faintest cream wash with the pattern
+  //          printed in grey. The quietest of the three patterned looks.
+  //   wash   a frosted half-tone body with the pattern CUT OUT of it and
+  //          lined in ink, so the board shows through the pattern itself.
+  //
+  // glass/paper/wash render dots and stripes differently enough to tell apart
+  // at a glance: round pips versus diagonal bands, solid versus cut out.
+  // ---------------------------------------------------------------------------
+  const PATTERN_STYLES = {
+    plain: {
+      label: "Plain",
+      note: "White, black, grey, transparent -- no pattern mark at all.",
+      noMark: true, // skip the dots/stripes glyph entirely: every pixel is body
+      body: (zone, x, y) => {
+        if (zone === "h") return ditherOn(x, y, 0.5) ? C : TRANSPARENT; // white: lit rim
+        return ditherOn(x, y, 0.5) ? S : TRANSPARENT; // grey body, half see-through
+      },
+    },
+    glass: {
+      label: "Glass",
+      note: "Clear marble with the pattern inlaid in bright cream.",
+      halo: "clear", // keep the body off the pattern so it reads crisply
+      body: (zone, x, y) => {
+        if (zone === "h") return ditherOn(x, y, 0.5) ? C : TRANSPARENT; // lit rim
+        if (zone === "s" || zone === "x") return ditherOn(x, y, 0.25) ? S : TRANSPARENT;
+        return ditherOn(x, y, 0.125) ? S : TRANSPARENT; // faint haze
+      },
+      // Cream, the brightest thing in the palette: never mistakable for ink.
+      mark: () => C,
+    },
+    paper: {
+      label: "Paper",
+      note: "Washi lantern: a pale wash with the pattern printed in grey.",
+      halo: "clear",
+      body: (zone, x, y) => {
+        if (zone === "h" || zone === "g") return ditherOn(x, y, 0.5) ? C : TRANSPARENT;
+        return ditherOn(x, y, 0.125) ? C : TRANSPARENT; // a pale wash of paper
+      },
+      mark: () => S,
+    },
+    wash: {
+      label: "Wash",
+      note: "Frosted half-tone with the pattern cut clean out of it.",
+      halo: "ink", // an ink lining round the hole, so the cut-out reads as a shape
+      body: (zone, x, y) => {
+        if (zone === "h") return ditherOn(x, y, 0.5) ? C : TRANSPARENT;
+        if (zone === "g") return C;
+        return ditherOn(x, y, 0.5) ? S : TRANSPARENT;
+      },
+      mark: () => TRANSPARENT, // the pattern is a hole: the board shows through
+    },
+  };
+  const PATTERN_STYLE_IDS = Object.keys(PATTERN_STYLES);
+  const DEFAULT_PATTERN_STYLE = "plain";
+  let patternStyle = DEFAULT_PATTERN_STYLE;
+
+  /**
+   * Paint one see-through pattern stone: the outline always stays ink (it is
+   * what holds the shape together on the amber board). For a style with a
+   * dots/stripes glyph, the body is dithered per design and the mark is
+   * stamped (or punched) on top; a `noMark` style (Plain) skips the glyph
+   * entirely and paints every non-outline pixel as body.
+   */
+  function paintPatternStone(name, template, mark, styleName) {
+    const style = PATTERN_STYLES[styleName] || PATTERN_STYLES[DEFAULT_PATTERN_STYLE];
+    const h = template.length, w = template[0].length;
+    const px = new Uint8Array(w * h).fill(TRANSPARENT);
+    const onMark = (x, y) => !style.noMark && markAt(mark, x, y, w, h);
+    const touchesMark = (x, y) =>
+      onMark(x - 1, y) || onMark(x + 1, y) || onMark(x, y - 1) || onMark(x, y + 1);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const z = template[y][x];
+        if (z === ".") continue;
+        if (z === "o") { px[y * w + x] = K; continue; }
+        if (onMark(x, y)) px[y * w + x] = style.mark(z, x, y);
+        else if (style.halo && touchesMark(x, y)) {
+          px[y * w + x] = style.halo === "ink" ? K : TRANSPARENT; // line or clear the mark's edge
+        } else px[y * w + x] = style.body(z, x, y);
+      }
+    }
+    return makeSprite(name, w, h, px);
+  }
 
   /** Board code -> look. 1/3 black, 2/4 white, 5/6 grey dots, 7/8 grey stripes. */
   const CODE_LOOK = [null, "black", "white", "black", "white", "dots", "dots", "stripes", "stripes"];
@@ -246,12 +332,46 @@
     thin3: stoneZones(3, 15), // ...until only its edge shows
     mini: stoneZones(7, 7), // owner mark sitting on a lily pad
   };
+  const PATTERN_LOOKS = { dots: DOTS_15, stripes: STRIPES_15 };
   const STONES = {};
   for (const look of LOOKS.concat(["flash", "glow"])) {
     STONES[look] = {};
     for (const shape of Object.keys(TEMPLATES)) {
       STONES[look][shape] = paintStone(`stone_${look}_${shape}`, TEMPLATES[shape], look);
     }
+  }
+  buildPatternStones(patternStyle);
+
+  /** (Re)paint the dots and stripes stones in one of the PATTERN_STYLES. */
+  function buildPatternStones(styleName) {
+    for (const look of Object.keys(PATTERN_LOOKS)) {
+      for (const shape of Object.keys(TEMPLATES)) {
+        STONES[look][shape] = paintPatternStone(
+          `stone_${look}_${shape}`,
+          TEMPLATES[shape],
+          PATTERN_LOOKS[look],
+          styleName
+        );
+      }
+    }
+  }
+
+  /**
+   * Switch the pattern-stone design ("glass" | "paper" | "wash"). Repaints the
+   * stones in place and drops the caches that hold copies of them, so callers
+   * keep using GoSprites.STONES / stoneSprite() as before.
+   */
+  function setPatternStyle(styleName) {
+    if (!PATTERN_STYLES[styleName] || styleName === patternStyle) return patternStyle;
+    patternStyle = styleName;
+    buildPatternStones(patternStyle);
+    for (const k of Object.keys(splitCache)) delete splitCache[k];
+    for (const k of Object.keys(iconCache)) delete iconCache[k];
+    return patternStyle;
+  }
+
+  function getPatternStyle() {
+    return patternStyle;
   }
 
   /** Stone sprite for a board code (1..8) and shape ("normal", "squash", ...). */
@@ -290,6 +410,37 @@
   function pieceSprite(code, shape = "normal") {
     if (code === DRIFTWOOD) return SPRITES.driftwood;
     return stoneSprite(code, shape);
+  }
+
+  /** True for a player stone's board code (1..8); false for empty, driftwood or anything else. */
+  function isPlayerStoneCode(code) {
+    return code >= 1 && code <= 8;
+  }
+
+  /**
+   * While a thunderstorm's fires still burn, every player stone on the board
+   * loses its colour: black, white and every pattern-stone design all render
+   * as this one shape, a checkerboard dither exactly halfway between ink and
+   * slate -- "a different black between the chosen grey and the chosen
+   * black." One sprite per shape, shared by every code, so the storm truly
+   * erases which team a stone belongs to rather than just muting it.
+   */
+  const stormStoneCache = {};
+  function stormStoneSprite(shape = "normal") {
+    if (stormStoneCache[shape]) return stormStoneCache[shape];
+    const template = TEMPLATES[shape] || TEMPLATES.normal;
+    const h = template.length, w = template[0].length;
+    const px = new Uint8Array(w * h).fill(TRANSPARENT);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const z = template[y][x];
+        if (z === ".") continue;
+        // A crisp ink rim, like every other look; the body dithers 50/50
+        // between ink and slate rather than reading as either on its own.
+        px[y * w + x] = z === "o" ? K : ditherOn(x, y, 0.5) ? K : S;
+      }
+    }
+    return (stormStoneCache[shape] = makeSprite(`storm_stone_${shape}`, w, h, px));
   }
 
   // ---------------------------------------------------------------------------
@@ -594,6 +745,80 @@
     return makeSprite(name, size, size, px);
   }
   anim("ripple", 12, [9, 11, 13].map((r, i) => ringSprite(`ripple_${i}`, r, C)), { loop: false });
+
+  // ---------------------------------------------------------------------------
+  // Thunderstorm: lightning fires burning on a board point. The ink outline
+  // and cream core are what make a flame read on the amber kaya -- amber alone
+  // would vanish into the board.
+  // ---------------------------------------------------------------------------
+  anim("flame", 8, [
+    sprite("flame_0", [
+      "....K....",
+      "...KCK...",
+      "...KCK...",
+      "..KCAK...",
+      "..KCAAK..",
+      ".KCAAAK..",
+      ".KCAACAK.",
+      "KCAACCAK.",
+      "KAACCCAK.",
+      ".KAAAAK..",
+      "..KKKK...",
+    ]),
+    sprite("flame_1", [
+      "...K.....",
+      "..KCK....",
+      "..KCK.K..",
+      "..KCAKCK.",
+      ".KCAAKAK.",
+      ".KCAAAK..",
+      "KCAACAK..",
+      "KCAACCAK.",
+      "KAACCCAK.",
+      ".KAAAAK..",
+      "..KKKK...",
+    ]),
+    sprite("flame_2", [
+      ".....K...",
+      "....KCK..",
+      "...KCCK..",
+      "...KCAK..",
+      "..KCAAK..",
+      "..KCAAAK.",
+      ".KCAACAK.",
+      ".KCACCAK.",
+      "KAACCCAK.",
+      ".KAAAAK..",
+      "..KKKK...",
+    ]),
+    sprite("flame_3", [
+      "....K....",
+      "...KAK...",
+      "...KCK...",
+      "..KCCK...",
+      "..KCAK.K.",
+      ".KCAAKCK.",
+      ".KCAACAK.",
+      "KCAACCAK.",
+      "KAACCCAK.",
+      ".KAAAAK..",
+      "..KKKK...",
+    ]),
+  ]);
+  // The last round of a fire: guttering down to embers.
+  anim("flameLow", 6, [
+    sprite("flameLow_0", ["..K..", ".KCK.", ".KAK.", "KACAK", ".KAK.", "..K.."]),
+    sprite("flameLow_1", ["..K..", ".KAK.", "KACAK", "KACAK", ".KAK.", "..K.."]),
+    sprite("flameLow_2", ["..K..", ".KCK.", "KACAK", ".KAK.", "..K..", "....."]),
+  ]);
+  // A struck point once the fire is out: soot on the board.
+  SPRITES.scorch = sprite("scorch", [
+    "..K.K..",
+    ".K.K.K.",
+    "K.KKK.K",
+    ".K.K.K.",
+    "..K.K..",
+  ]);
 
   // ---------------------------------------------------------------------------
   // Powerups: board pieces, markers and Night Market icons
@@ -995,12 +1220,19 @@
     STONE_TEMPLATE_15,
     TEMPLATES,
     LOOKS,
+    PATTERN_STYLES,
+    PATTERN_STYLE_IDS,
+    DEFAULT_PATTERN_STYLE,
+    setPatternStyle,
+    getPatternStyle,
     lookForCode,
     patternCode,
     stoneSprite,
     splitPreviewSprite,
     DRIFTWOOD,
     pieceSprite,
+    isPlayerStoneCode,
+    stormStoneSprite,
     powerupIcon,
     POWERUP_ICON_IDS,
     SPRITES,

@@ -40,7 +40,7 @@ const driftwood: PowerupDefinition = {
   removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
-    if (idx === -1 || ctx.lilyOwnerAt(idx)) return false;
+    if (idx === -1 || ctx.lilyOwnerAt(idx) || ctx.isBurning(idx)) return false;
     if (!canPlaceNeutral(ctx.state.board.toArray(), ctx.size, ctx.target!.x, ctx.target!.y)) return false;
     ctx.state.board[idx] = DRIFTWOOD;
     ctx.addEffect("drift", ctx.target!.x, ctx.target!.y, 0, 3);
@@ -56,7 +56,7 @@ const lilyPad: PowerupDefinition = {
   removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
-    if (idx === -1 || ctx.state.board[idx] !== 0 || ctx.lilyOwnerAt(idx)) return false;
+    if (idx === -1 || ctx.state.board[idx] !== 0 || ctx.lilyOwnerAt(idx) || ctx.isBurning(idx)) return false;
     ctx.addEffect("lily", ctx.target!.x, ctx.target!.y, ownColor(ctx), 3);
     return true;
   },
@@ -161,10 +161,41 @@ const REGISTRY = new Map<string, PowerupDefinition>(
   [driftwood, lilyPad, lanternWard, turnLantern, gust, removeStone, bomb].map((p) => [p.id, p])
 );
 
+/** How many items the Night Market stocks in one match, and how many of them may be removal items. */
+export const MARKET_SLOTS = 5;
+export const MARKET_REMOVAL_SLOTS = 1;
+
 export function getPowerup(id: string): PowerupDefinition | undefined {
   return REGISTRY.get(id);
 }
 
 export function allPowerups(): PowerupDefinition[] {
   return Array.from(REGISTRY.values());
+}
+
+/**
+ * The stock for one match: MARKET_SLOTS items, of which at most
+ * MARKET_REMOVAL_SLOTS are removal ("powerful") items. Which powerful item
+ * is on sale is drawn fresh per match, so Gust, Snipe and Firework take
+ * turns rather than all three being available at once. Registry order is
+ * kept, so the stall always reads cheap to dear.
+ */
+export function marketStock(random: () => number = Math.random): PowerupDefinition[] {
+  const all = allPowerups();
+  const removal = all.filter((p) => p.removal);
+  const chosen = new Set(
+    removal.length ? [removal[Math.floor(random() * removal.length) % removal.length].id] : []
+  );
+  const stock: PowerupDefinition[] = [];
+  for (const p of all) {
+    if (p.removal && !chosen.has(p.id)) continue;
+    stock.push(p);
+  }
+  // Trim from the plain items if the registry ever outgrows the stall.
+  while (stock.length > MARKET_SLOTS) {
+    const cut = stock.map((p, i) => ({ p, i })).filter((e) => !e.p.removal).pop();
+    if (!cut) break;
+    stock.splice(cut.i, 1);
+  }
+  return stock;
 }

@@ -62,14 +62,14 @@ export function flipAxisCode(code: number): number {
 }
 
 /** This code's value on `view`, or null if it's a wall there (neutral pieces are walls on both views). */
-function viewValue(view: StoneView, code: number): string | null {
+export function viewValue(view: StoneView, code: number): string | null {
   if (!isPlayerStone(code) || axisOf(code) !== view) return null;
   const player = ownerOf(code);
   return view === "base" ? STONE_BASE[player] : STONE_PATTERN[player];
 }
 
 /** Whether two (non-empty) codes are on the same side for this view. Never true if either is a wall on this view. */
-function sameView(view: StoneView, a: number, b: number): boolean {
+export function sameView(view: StoneView, a: number, b: number): boolean {
   const va = viewValue(view, a);
   const vb = viewValue(view, b);
   return va !== null && va === vb;
@@ -83,7 +83,7 @@ function inBounds(size: number, x: number, y: number): boolean {
   return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && x < size && y >= 0 && y < size;
 }
 
-function neighbors(size: number, x: number, y: number): Point[] {
+export function neighbors(size: number, x: number, y: number): Point[] {
   return [
     { x: x - 1, y },
     { x: x + 1, y },
@@ -134,12 +134,18 @@ export function findGroup(
 }
 
 /**
- * After a stone lands on (x, y), remove any adjacent rival groups left with
- * zero liberties -- checked ONLY on the view this stone actually committed
- * to (a base-axis stone only fights the base war; a pattern-axis stone only
- * fights the pattern war). Walls (neutral neighbors on this view) are never
- * examined as capture targets, and neighbors that share this stone's value
- * on this view are skipped too -- they merge into the mover's own group.
+ * After a stone lands on (x, y), remove any adjacent group left with zero
+ * liberties. A group is always judged on ITS OWN front -- a liberty is a
+ * liberty whoever filled it, so a solid black stone can smother a grey dots
+ * group just by occupying its last free point, even though the two never
+ * fight each other. (The front a stone commits to decides who it *merges*
+ * with and who can be captured *together with* it, not who can suffocate it.)
+ *
+ * The only neighbouring group skipped is one that merges with the stone just
+ * placed: that group now contains the new stone, so it isn't a capture but a
+ * suicide, which `isSuicide` decides separately. Driftwood is never a target
+ * (it isn't a player stone and owns no front).
+ *
  * Returns the list of captured points, tagged with the code that was removed.
  */
 export function applyCaptures(
@@ -151,20 +157,15 @@ export function applyCaptures(
   isProtected?: IsProtected
 ): { point: Point; color: number }[] {
   const captured: { point: Point; color: number }[] = [];
-  const view = axisOf(placedCode);
   const checked = new Set<number>();
 
   for (const n of neighbors(size, x, y)) {
     const nIdx = index(size, n.x, n.y);
     const nCode = board[nIdx];
-    if (
-      nCode === 0 ||
-      viewValue(view, nCode) === null || // wall on this view -- not a valid target
-      sameView(view, nCode, placedCode) ||
-      checked.has(nIdx)
-    ) {
-      continue;
-    }
+    if (!isPlayerStone(nCode) || checked.has(nIdx)) continue;
+
+    const view = axisOf(nCode); // the neighbour's front, not the mover's
+    if (sameView(view, nCode, placedCode)) continue; // merged with the placed stone
 
     const { group, liberties } = findGroup(board, size, n.x, n.y, view);
     group.forEach((p) => checked.add(index(size, p.x, p.y)));
@@ -212,10 +213,11 @@ export function canPlaceNeutral(board: ArrayLike<number>, size: number, x: numbe
 
 /**
  * Flips the player stone at (x, y) to its owner's other axis, as if it had
- * just been placed there on the new axis: rival groups on the new view left
- * without liberties are captured. The flip is illegal (returns null, board
- * untouched) if afterwards the flipped stone has no liberties, or if leaving
- * its old view split off a former group-mate that now has none.
+ * just been placed there on the new axis: every neighbouring group left
+ * without liberties is captured, including a former group-mate the flip just
+ * split off (the stone stops merging with it, and what's left has nowhere to
+ * breathe). The flip is illegal (returns null, board untouched) only if
+ * afterwards the flipped stone itself has no liberties.
  */
 export function flipStone(
   board: number[],
@@ -234,13 +236,6 @@ export function flipStone(
   const captured = applyCaptures(trial, size, x, y, newCode, isProtected);
 
   if (findGroup(trial, size, x, y, axisOf(newCode)).liberties === 0) return null;
-  const oldView = axisOf(oldCode);
-  for (const n of neighbors(size, x, y)) {
-    const code = trial[index(size, n.x, n.y)];
-    if (sameView(oldView, code, oldCode) && findGroup(trial, size, n.x, n.y, oldView).liberties === 0) {
-      return null;
-    }
-  }
 
   for (let i = 0; i < board.length; i++) board[i] = trial[i];
   return captured;

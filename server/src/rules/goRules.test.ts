@@ -60,7 +60,7 @@ test("a pattern-axis (grey) stone is a wall on the base view: blocks, but can't 
   assert.equal(ownerOf(captured[0].color), 1);
 });
 
-test("a base-axis move never triggers a pattern-view capture, even against a real pattern rival", () => {
+test("a base-axis move DOES smother a pattern group whose last liberty it fills", () => {
   const size = 5;
   const board = new Array(size * size).fill(0);
   // A lone grey+dots stone (player 1) surrounded by grey+stripes (rivals on
@@ -71,10 +71,79 @@ test("a base-axis move never triggers a pattern-view capture, even against a rea
   board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern"); // grey stripes
   board[boardIndex(size, 2, 3)] = stoneCode(2, "base"); // white, last move -- a base-axis move
 
-  // The base-axis move only fights the base war; it must not reach into the
-  // pattern-view capture even though the target has 0 pattern-view liberties.
+  // No liberties left is no liberties left, whoever filled the last one.
   const captured = applyCaptures(board, size, 2, 3, stoneCode(2, "base"));
+  assert.equal(captured.length, 1);
+  assert.equal(ownerOf(captured[0].color), 1);
+  assert.equal(board[boardIndex(size, 2, 2)], 0);
+});
+
+test("a group hemmed in by one single colour dies: four white base stones kill a dots stone", () => {
+  const size = 5;
+  const board = new Array(size * size).fill(0);
+  // The reported case: only ONE colour around a stone of another pattern.
+  // None of these white stones fights the pattern war at all -- they just
+  // occupy every free point the dots stone had.
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern"); // grey dots
+  board[boardIndex(size, 1, 2)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 3, 2)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 2, 1)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 2, 3)] = stoneCode(2, "base"); // white, last move
+
+  const captured = applyCaptures(board, size, 2, 3, stoneCode(2, "base"));
+  assert.equal(captured.length, 1);
+  assert.equal(ownerOf(captured[0].color), 1);
+  assert.equal(axisOf(captured[0].color), "pattern");
+});
+
+test("a mixed ring of walls and rivals kills a multi-stone group", () => {
+  const size = 5;
+  const board = new Array(size * size).fill(0);
+  // Black chain (1,1)-(2,1) surrounded by a mixture: white base stones (rivals
+  // on its own front), a grey dots stone and a grey stripes stone (walls that
+  // fight a different war entirely), and driftwood.
+  board[boardIndex(size, 1, 1)] = stoneCode(1, "base"); // black
+  board[boardIndex(size, 2, 1)] = stoneCode(3, "base"); // black, merges
+  board[boardIndex(size, 0, 1)] = stoneCode(2, "pattern"); // grey dots wall
+  board[boardIndex(size, 1, 0)] = DRIFTWOOD;
+  board[boardIndex(size, 2, 0)] = stoneCode(4, "pattern"); // grey stripes wall
+  board[boardIndex(size, 3, 1)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 1, 2)] = stoneCode(4, "base"); // white
+  board[boardIndex(size, 2, 2)] = stoneCode(2, "base"); // white, last move
+
+  const captured = applyCaptures(board, size, 2, 2, stoneCode(2, "base"));
+  assert.equal(captured.length, 2);
+  assert.deepEqual(captured.map((c) => ownerOf(c.color)).sort(), [1, 3]);
+});
+
+test("your own stone can smother your own group on the other front", () => {
+  const size = 3;
+  const board = new Array(size * size).fill(0);
+  // Player 1's grey dots stone in the corner, with player 1's own solid black
+  // stone about to take its last liberty. It dies all the same.
+  board[boardIndex(size, 0, 0)] = stoneCode(1, "pattern"); // grey dots
+  board[boardIndex(size, 1, 0)] = stoneCode(1, "base"); // own black stone
+  board[boardIndex(size, 0, 1)] = stoneCode(1, "base"); // own black stone, last move
+
+  const captured = applyCaptures(board, size, 0, 1, stoneCode(1, "base"));
+  assert.equal(captured.length, 1);
+  assert.equal(ownerOf(captured[0].color), 1);
+  assert.equal(board[boardIndex(size, 0, 0)], 0);
+});
+
+test("allies on the same front are never smothered by each other's placements", () => {
+  const size = 3;
+  const board = new Array(size * size).fill(0);
+  // Player 1 and player 3 are both black: (0,0) has no liberties of its own,
+  // but it merges with the stone just placed, so this is the suicide question,
+  // not a capture. applyCaptures must leave it alone.
+  board[boardIndex(size, 0, 0)] = stoneCode(1, "base");
+  board[boardIndex(size, 1, 0)] = stoneCode(2, "base"); // white
+  board[boardIndex(size, 0, 1)] = stoneCode(3, "base"); // black, last move -- merges with (0,0)
+
+  const captured = applyCaptures(board, size, 0, 1, stoneCode(3, "base"));
   assert.equal(captured.length, 0);
+  assert.equal(board[boardIndex(size, 0, 0)], stoneCode(1, "base"));
 });
 
 test("that same pattern-view kill DOES happen when the last move is itself pattern-axis", () => {
@@ -205,15 +274,19 @@ test("flipStone refuses a flip that leaves the flipped stone without liberties",
   assert.deepEqual(board, before);
 });
 
-test("flipStone refuses a flip that strands a former group-mate", () => {
+test("flipStone captures a former group-mate the flip strands", () => {
   const size = 3;
   const board = new Array(size * size).fill(0);
   // Black chain (0,0)-(1,0) whose only liberties come through (1,0).
   board[boardIndex(size, 0, 0)] = stoneCode(1, "base");
   board[boardIndex(size, 1, 0)] = stoneCode(3, "base");
   board[boardIndex(size, 0, 1)] = stoneCode(2, "base");
-  // Flipping (1,0) to pattern turns it into a wall on the base view, leaving (0,0) with none.
-  const before = board.slice();
-  assert.equal(flipStone(board, size, 1, 0), null);
-  assert.deepEqual(board, before);
+  // Flipping (1,0) to pattern turns it into a wall on the base view, so (0,0)
+  // is left with nothing to breathe -- and no liberties means dead.
+  const captured = flipStone(board, size, 1, 0);
+  assert.ok(captured);
+  assert.equal(captured!.length, 1);
+  assert.equal(ownerOf(captured![0].color), 1);
+  assert.equal(board[boardIndex(size, 0, 0)], 0);
+  assert.equal(board[boardIndex(size, 1, 0)], stoneCode(3, "pattern"));
 });

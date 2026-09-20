@@ -8,7 +8,8 @@
 const G = window.GoSprites;
 const P = window.GoPixelScene;
 
-const SCALE = 2; // CSS pixels per native pixel (before devicePixelRatio snapping)
+const MIN_SCALE = 1; // native pixel -> device pixels; the real scale fits the window
+const MAX_SCALE = 6;
 const FRAME_INTERVAL = 1 / 30;
 
 const lobbyEl = document.getElementById("lobby");
@@ -26,6 +27,8 @@ const lastEventEl = document.getElementById("last-event");
 const playersEl = document.getElementById("players");
 const walletEl = document.getElementById("wallet");
 const satchelItemsEl = document.getElementById("satchel-items");
+const satchelCountEl = document.getElementById("satchel-count");
+const stonesButton = document.getElementById("stones-button");
 const targetingHintEl = document.getElementById("targeting-hint");
 const marketStatusEl = document.getElementById("market-status");
 const marketItemsEl = document.getElementById("market-items");
@@ -47,13 +50,18 @@ let hoverPoint = null; // {x, y} intersection under the mouse, or null
 let scene = null;
 let imageData = null;
 let board = null; // latest board as a plain array
-let overlays = []; // lily pads and wards: [{kind, x, y, owner}]
+let overlays = []; // lily pads, wards and lightning fires: [{kind, x, y, owner, until}]
 let effects = []; // animations in flight
 let lastMove = null;
 let lastActionSeq = null;
 let lastFrameAt = 0;
 let noticeTimer = null;
 let welcomeChecked = false;
+let storm = null; // {start, seq, strikes: [{x, y}]} while a thunderstorm plays
+let lastStormSeq = null;
+let turnCount = 0;
+let roundLength = 0;
+let stormUntil = 0; // turnCount when the current storm's fires go out; stones stay blacked out until then
 
 // A URL hash lets debug.html drive this page from inside an <iframe>
 // (prefill, auto-join, debug room) without touching the manual-join flow.
@@ -65,6 +73,30 @@ if (hashParams.has("server")) serverInput.value = hashParams.get("server");
 if (hashParams.has("name")) nameInput.value = hashParams.get("name");
 if (hashParams.has("autojoin")) {
   setTimeout(connect, Number(hashParams.get("delay")) || 0);
+}
+
+// Pattern stones come in four see-through designs (sprites.js), Plain by
+// default. Pick one with #stones=plain|glass|paper|wash, or cycle them from
+// the header to compare in play.
+if (hashParams.has("stones")) G.setPatternStyle(hashParams.get("stones"));
+updateStonesButton();
+stonesButton.addEventListener("click", () => {
+  const ids = G.PATTERN_STYLE_IDS;
+  G.setPatternStyle(ids[(ids.indexOf(G.getPatternStyle()) + 1) % ids.length]);
+  // Sidebar icons are cached as data URLs, and every panel caches what it drew.
+  spriteUrlCache.clear();
+  for (const el of [playersEl, satchelItemsEl, marketItemsEl]) delete el.dataset.sig;
+  updateStonesButton();
+  if (lastState) {
+    renderSidebar(lastState);
+    if (welcomeEl.open) openWelcome(lastState);
+  }
+});
+
+function updateStonesButton() {
+  const style = G.PATTERN_STYLES[G.getPatternStyle()];
+  stonesButton.textContent = `Stones: ${style.label}`;
+  stonesButton.title = `${style.note} Click for the next design.`;
 }
 
 joinButton.addEventListener("click", connect);
@@ -142,13 +174,32 @@ function ensureScene(size) {
   sizeCanvas();
 }
 
-/** Integer device pixels per native pixel, so every sprite pixel stays crisp. */
+/**
+ * Make the scene as large as it can be while the whole page still fits on one
+ * screen: the largest whole number of device pixels per native pixel that
+ * leaves room for the sidebar and the lines under the board. Whole device
+ * pixels (not CSS pixels) keep every sprite pixel crisp on fractional-DPI
+ * displays.
+ */
 function sizeCanvas() {
   if (!scene) return;
   const dpr = window.devicePixelRatio || 1;
-  const cssScale = Math.max(1, Math.round(SCALE * dpr)) / dpr;
-  boardEl.style.width = `${scene.width * cssScale}px`;
-  boardEl.style.height = `${scene.height * cssScale}px`;
+  const sidebar = document.getElementById("sidebar");
+  const body = document.getElementById("game-body");
+  const gap = 20;
+  const sideW = sidebar ? sidebar.getBoundingClientRect().width : 220;
+  const bodyLeft = body ? body.getBoundingClientRect().left : 16;
+  const availW = Math.max(120, window.innerWidth - bodyLeft * 2 - sideW - gap);
+  // Room for the header above and the hint / notice / last-event lines below.
+  const top = body ? body.getBoundingClientRect().top : 60;
+  const availH = Math.max(120, window.innerHeight - top - 78);
+
+  const scale = Math.min(
+    MAX_SCALE,
+    Math.max(MIN_SCALE, Math.floor(Math.min((availW * dpr) / scene.width, (availH * dpr) / scene.height)))
+  );
+  boardEl.style.width = `${(scene.width * scale) / dpr}px`;
+  boardEl.style.height = `${(scene.height * scale) / dpr}px`;
 }
 
 function reducedMotion() {
@@ -164,6 +215,7 @@ function frame() {
 
   const reduced = reducedMotion();
   effects = P.pruneEffects(effects, now, reduced);
+  if (storm && now - storm.start >= P.STORM_SECONDS) storm = null;
   scene.render({
     time: now,
     board,
@@ -173,6 +225,10 @@ function frame() {
     lastMove,
     effects,
     overlays,
+    storm,
+    turnCount,
+    roundLength,
+    stormUntil,
     reducedMotion: reduced,
   });
   imageData.data.set(scene.rgba);
@@ -184,11 +240,16 @@ function lilyOwnerAt(x, y) {
   return pad ? pad.owner : 0;
 }
 
+function burningAt(x, y) {
+  return overlays.some((o) => o.kind === "fire" && o.x === x && o.y === y);
+}
+
 /** What the hovered point shows: a powerup reticle, the split stone preview, or just the coordinates. */
 function hoverKind() {
   if (!hoverPoint) return "none";
   if (selectedPowerup) return "target";
   if (!isMyTurn || !myPlayer) return "none";
+  if (burningAt(hoverPoint.x, hoverPoint.y)) return "none"; // nothing can be played into a fire
   const owner = lilyOwnerAt(hoverPoint.x, hoverPoint.y);
   return owner && owner !== myPlayer.color ? "none" : "stone";
 }
@@ -246,16 +307,30 @@ function onState(state) {
 
   const nextBoard = Array.from(state.board);
   const nextOverlays = Array.from(state.effects)
-    .filter((e) => e.kind === "lily" || e.kind === "ward")
-    .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner }));
+    .filter((e) => e.kind === "lily" || e.kind === "ward" || e.kind === "fire")
+    .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until }));
   const action = state.action;
   const actionChanged = lastActionSeq !== null && action.seq !== lastActionSeq;
+  turnCount = state.turnCount;
+  roundLength = state.players.length;
+  // Synced, not derived from the ~10s cloudburst animation: a client that
+  // joins mid-storm gets the blacked-out stones without ever seeing the flash.
+  stormUntil = state.storm.until;
+
+  // A fresh die roll of 6: the sky opens. Only a change in seq starts the
+  // animation, so joining mid-match never replays an old storm.
+  if (state.storm && lastStormSeq !== null && state.storm.seq !== lastStormSeq) {
+    startStorm(state);
+  }
+  if (state.storm) lastStormSeq = state.storm.seq;
 
   if (board) {
     const known = new Set(overlays.map(overlayKey));
+    const nextKeys = new Set(nextOverlays.map(overlayKey));
     const fresh = nextOverlays.filter((o) => !known.has(overlayKey(o)));
+    const gone = overlays.filter((o) => !nextKeys.has(overlayKey(o)));
     const act = actionChanged ? { kind: action.kind, id: action.id, x: action.x, y: action.y } : null;
-    effects = effects.concat(P.diffTurn(board, nextBoard, state.size, act, fresh, clock()));
+    effects = effects.concat(P.diffTurn(board, nextBoard, state.size, act, fresh, clock(), gone));
   }
   if ((actionChanged || lastActionSeq === null) && action.kind === "move") {
     lastMove = { x: action.x, y: action.y };
@@ -331,8 +406,14 @@ function openWelcome(state) {
   document.getElementById("welcome-economy").textContent =
     `You earn fireflies: 3 for every stone you place and 5 for every stone you capture. ` +
     `If someone's item removes one of your stones, you get 3 back. ` +
-    `Once you've placed ${state.shopAfter} stones, the Night Market opens in the sidebar. Buying doesn't use your turn; ` +
-    `using an item does: pick it in your Satchel, then click a point on the board (right click cancels).`;
+    `Once you've placed ${state.shopAfter} stones, the Night Market opens in the sidebar. It stocks five items a night, ` +
+    `only one of them a powerful one. Your satchel holds ${state.satchelLimit} items and just ${state.powerfulLimit} powerful item at a time. ` +
+    `Buying doesn't use your turn; using an item does: pick it in your Satchel, then click a point on the board (right click cancels).`;
+
+  document.getElementById("welcome-weather").textContent =
+    `Every 20 turns a die is rolled behind the clouds. On a six a thunderstorm breaks: the night goes dark, ` +
+    `rain sweeps the board and up to three bolts come down on random points. Whatever stands there catches fire ` +
+    `and burns away three rounds later, and nobody can play on a burning point until the fire goes out.`;
 
   const list = document.getElementById("welcome-powerups");
   list.replaceChildren();
@@ -358,6 +439,24 @@ function openWelcome(state) {
 
 function overlayKey(o) {
   return `${o.kind}:${o.x},${o.y}`;
+}
+
+/**
+ * Start the 10-second cloudburst for the storm in `state`. The server picked
+ * the strike points (board indices) when it rolled a 6; the client only plays
+ * them out, one bolt at a time, and lights each fire as its bolt lands.
+ */
+function startStorm(state) {
+  const size = state.size;
+  const indices = [state.storm.strike0, state.storm.strike1, state.storm.strike2]
+    .slice(0, Math.max(0, state.storm.strikes))
+    .filter((i) => i >= 0 && i < size * size);
+  storm = {
+    start: clock(),
+    seq: state.storm.seq,
+    strikes: indices.map((i) => ({ x: i % size, y: Math.floor(i / size) })),
+  };
+  showNotice("Thunder overhead -- lightning is coming down on the board.");
 }
 
 function renderStatus(state, players) {
@@ -491,10 +590,21 @@ function renderWallet(state) {
   });
 }
 
+/** Removal ("powerful") items the viewing player is carrying right now. */
+function powerfulHeld() {
+  if (!myPlayer) return 0;
+  return Array.from(myPlayer.powerups).filter((id) => {
+    const item = marketItem(id);
+    return item && item.removal;
+  }).length;
+}
+
 function renderSatchel(state) {
   const owned = myPlayer ? Array.from(myPlayer.powerups) : [];
   const counts = new Map();
   owned.forEach((id) => counts.set(id, (counts.get(id) || 0) + 1));
+  satchelCountEl.textContent = `${owned.length}/${state.satchelLimit}`;
+  satchelCountEl.classList.toggle("full", owned.length >= state.satchelLimit);
   const sig = JSON.stringify([Array.from(counts), isMyTurn, selectedPowerup]);
   rebuild(satchelItemsEl, sig, () => {
     if (counts.size === 0) {
@@ -533,19 +643,30 @@ function renderMarket(state) {
   const bought = me ? Array.from(me.bought) : [];
   const wallet = me ? me.fireflies : 0;
 
+  const held = me ? Array.from(me.powerups).length : 0;
+  const full = held >= state.satchelLimit;
+  const powerfulFull = powerfulHeld() >= state.powerfulLimit;
+
   marketStatusEl.textContent = open
-    ? "Items take your turn when used. Removal items: once per match."
+    ? `Five stalls tonight. Your satchel holds ${state.satchelLimit}, and only ${state.powerfulLimit} powerful item at a time.`
     : `Opens after ${state.shopAfter} moves (${Math.min(moves, state.shopAfter)}/${state.shopAfter}).`;
 
   const items = Array.from(state.market);
-  const sig = JSON.stringify([open, wallet, bought, items.map((m) => m.id)]);
+  const sig = JSON.stringify([open, wallet, bought, held, powerfulFull, items.map((m) => m.id)]);
   rebuild(marketItemsEl, sig, () => {
     for (const m of items) {
       const soldOut = m.removal && bought.includes(m.id);
+      const blocked = full || (m.removal && powerfulFull);
       const button = document.createElement("button");
       button.className = "item";
-      button.title = m.description;
-      button.disabled = !open || soldOut || wallet < m.price;
+      button.title = soldOut
+        ? `${m.name} has already been bought this match.`
+        : full
+        ? `Your satchel is full (${state.satchelLimit} items).`
+        : m.removal && powerfulFull
+        ? `You can only carry ${state.powerfulLimit} powerful item at a time.`
+        : m.description;
+      button.disabled = !open || soldOut || blocked || wallet < m.price;
 
       const text = document.createElement("span");
       text.className = "text";
@@ -553,7 +674,7 @@ function renderMarket(state) {
       title.className = "title";
       const name = document.createElement("span");
       name.textContent = m.name;
-      title.append(name, soldOut ? tag("bought") : fireflies(m.price));
+      title.append(name, soldOut ? tag("bought") : blocked ? tag("no room") : fireflies(m.price));
       const desc = document.createElement("span");
       desc.className = "desc";
       desc.textContent = m.description;

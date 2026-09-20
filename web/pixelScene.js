@@ -24,11 +24,13 @@
   const FRAME = 9; // dark lacquer frame band around the kaya (holds the labels)
   const KAYA_MARGIN = 8; // kaya between the outer grid line and the frame
   const FRONT = 5; // visible front face of the deck
-  const TOP = 16; // bank strip above the board (lantern garland)
-  const LEFT = 1; // bank sliver left of the board
-  const STREAM = 11; // side stream right of the board
-  const RIGHT_BANK = 2;
-  const RIVER = 32; // river below the board (incl. the far bank strip)
+  // The deck is a pier standing in the river: water runs all the way round it.
+  const TOP_BANK = 10; // far bank at the very top (the lantern garland hangs here)
+  const TOP_WATER = 13; // river above the deck
+  const LEFT = 13; // river left of the deck, running off the left edge
+  const STREAM = 13; // river right of the deck
+  const RIGHT_BANK = 2; // bank sliver at the right edge (reeds)
+  const RIVER = 30; // river below the deck (incl. the near bank strip)
   const FAR_BANK = 4; // near-camera bank at the very bottom
   const AMBIENT_FPS = 10;
 
@@ -39,7 +41,7 @@
     const grid = (size - 1) * SPACING;
     const kaya = grid + 2 * KAYA_MARGIN;
     const board = kaya + 2 * FRAME;
-    const boardX = LEFT, boardY = TOP;
+    const boardX = LEFT, boardY = TOP_BANK + TOP_WATER;
     const kayaX = boardX + FRAME, kayaY = boardY + FRAME;
     const gridX = kayaX + KAYA_MARGIN, gridY = kayaY + KAYA_MARGIN;
     const boardRight = boardX + board; // exclusive
@@ -48,6 +50,7 @@
     const streamX0 = boardRight, streamX1 = streamX0 + STREAM;
     const width = streamX1 + RIGHT_BANK;
     const riverY0 = frontBottom;
+    const topWaterY0 = TOP_BANK; // first water row above the deck
     const height = riverY0 + RIVER;
     return {
       size, spacing: SPACING, frame: FRAME, kayaMargin: KAYA_MARGIN,
@@ -55,7 +58,7 @@
       boardX, boardY, boardW: board, boardH: board, boardRight, boardBottom, frontBottom,
       kayaX, kayaY, kayaW: kaya, kayaH: kaya,
       gridX, gridY, gridSpan: grid,
-      streamX0, streamX1, riverY0,
+      streamX0, streamX1, riverY0, topWaterY0, topBank: TOP_BANK, farBank: FAR_BANK,
     };
   }
 
@@ -102,14 +105,21 @@
     const region = new Uint8Array(W * H);
     const setR = (x, y, r) => { if (x >= 0 && y >= 0 && x < W && y < H) region[y * W + x] = r; };
 
-    // Regions.
+    // Regions. The river is everything that isn't bank or deck: a channel
+    // above the board, one down each side and the wide river below, so the
+    // deck stands in the water on all four sides.
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
-        let r = R_BANK;
-        const bankTop = H - FAR_BANK + Math.round(Math.sin(x * 0.09 + 1) * 1.2 + Math.sin(x * 0.23) * 0.6);
-        if (y >= L.riverY0) r = y < bankTop ? R_WATER : R_BANK;
-        else if (x >= L.streamX0 && x < L.streamX1) r = R_WATER;
-        else if (x >= L.streamX1 && y >= L.riverY0 - 3 && x - L.streamX1 + (y - (L.riverY0 - 3)) >= 1) r = R_WATER; // rounded bank corner
+        // Wavy bank lips, so no shoreline is a ruled line.
+        const topLip = L.topBank + Math.round(Math.sin(x * 0.11) * 1.2 + Math.sin(x * 0.27 + 2) * 0.6);
+        const nearLip = H - FAR_BANK + Math.round(Math.sin(x * 0.09 + 1) * 1.2 + Math.sin(x * 0.23) * 0.6);
+        const rightLip = L.streamX1 + Math.round(Math.sin(y * 0.13 + 1) * 0.8);
+        let r;
+        if (y < topLip) r = R_BANK;
+        else if (y >= nearLip) r = R_BANK;
+        else if (x >= rightLip) r = R_BANK;
+        else r = R_WATER;
+
         if (x >= L.boardX && x < L.boardRight && y >= L.boardY && y < L.boardBottom) {
           const inKaya = x >= L.kayaX && x < L.kayaX + L.kayaW && y >= L.kayaY && y < L.kayaY + L.kayaH;
           r = inKaya ? R_KAYA : R_FRAME;
@@ -120,55 +130,84 @@
       }
     }
 
-    // Bank: night grass -- ink ground, teal tufts in a band along the deck,
-    // a few pebbles and tiny flowers. Kept sparse so it stays calm.
+    // Bank: night grass -- ink ground with a soft teal "lawn" dither along
+    // every waterline, a few pebbles and tiny flowers. Kept sparse so it
+    // stays calm.
+    const isWaterAt = (x, y) => x >= 0 && y >= 0 && x < W && y < H && region[y * W + x] === R_WATER;
+    /** Chebyshev distance from a bank pixel to the nearest water, capped at `max`. */
+    function toWater(x, y, max) {
+      for (let d = 1; d <= max; d++) {
+        for (let k = -d; k <= d; k++) {
+          if (isWaterAt(x + k, y - d) || isWaterAt(x + k, y + d) || isWaterAt(x - d, y + k) || isWaterAt(x + d, y + k)) {
+            return d;
+          }
+        }
+      }
+      return max + 1;
+    }
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         if (region[y * W + x] !== R_BANK) continue;
-        // a soft teal "lawn" band right above the deck (1/8 then 1/4 dither)
+        const d = toWater(x, y, 4);
         let c = K;
-        const toDeck = L.boardY - 1 - y;
-        if (y < L.boardY && toDeck < 2 && G.ditherOn(x, y, 0.25)) c = T;
-        else if (y < L.boardY && toDeck < 4 && G.ditherOn(x, y, 0.125)) c = T;
+        if (d <= 2 && G.ditherOn(x, y, 0.25)) c = T;
+        else if (d <= 4 && G.ditherOn(x, y, 0.125)) c = T;
         s.px[y * W + x] = c;
       }
     }
+    /** First bank row above the water at column x (the top bank's lip). */
+    function topLipAt(x) {
+      let y = 0;
+      while (y < H && !isWaterAt(x, y)) y++;
+      return y - 1;
+    }
+    /** First bank row below the water at column x (the near bank's lip). */
+    function nearLipAt(x) {
+      let y = H - 1;
+      while (y > 0 && !isWaterAt(x, y)) y--;
+      return y + 1;
+    }
     const rb = rng(1234);
-    for (let x = 2 + Math.floor(rb() * 6); x < L.streamX0 - 8; x += 7 + Math.floor(rb() * 9)) {
-      const y = L.boardY - 3 - Math.floor(rb() * 2);
-      s.blit(rb() < 0.55 ? G.SPRITES.grassTuft : G.SPRITES.grassTuftSmall, x, y);
+    // Tufts, flowers and pebbles along the top bank.
+    for (let x = 2 + Math.floor(rb() * 6); x < W - 8; x += 9 + Math.floor(rb() * 11)) {
+      s.blit(rb() < 0.55 ? G.SPRITES.grassTuft : G.SPRITES.grassTuftSmall, x, topLipAt(x) - 1);
     }
-    for (let i = 0; i < 4; i++) s.blit(G.SPRITES.flower, 20 + i * 52 + Math.floor(rb() * 20), L.boardY - 5 + Math.floor(rb() * 2));
-    for (let i = 0; i < 4; i++) s.blit(G.SPRITES.pebble, 44 + i * 50 + Math.floor(rb() * 16), L.boardY - 3);
-    for (let y = 20; y < L.riverY0 - 8; y += 14 + Math.floor(rb() * 16)) s.set(L.streamX1 + (y & 1), y, T);
-    // Far bank along the bottom: teal tufts on its lip.
+    for (let i = 0; i < 4; i++) {
+      const x = 16 + i * 56 + Math.floor(rb() * 20);
+      s.blit(G.SPRITES.flower, x, Math.max(0, topLipAt(x) - 4));
+    }
+    for (let i = 0; i < 4; i++) {
+      const x = 40 + i * 52 + Math.floor(rb() * 16);
+      s.blit(G.SPRITES.pebble, x, topLipAt(x) - 1);
+    }
+    // Teal lip along the near bank at the bottom, and tufts standing on it.
     for (let x = 0; x < W; x++) {
-      for (let y = L.riverY0; y < H; y++) {
-        if (region[y * W + x] !== R_BANK) continue;
-        if (region[(y - 1) * W + x] === R_WATER && (hash2(x, 0, 11) < 0.45)) s.px[y * W + x] = T;
-        break;
-      }
+      const y = nearLipAt(x);
+      if (y < H && hash2(x, 0, 11) < 0.45) s.px[y * W + x] = T;
     }
-    for (let x = 30 + Math.floor(rb() * 8); x < W - 6; x += 18 + Math.floor(rb() * 20)) {
-      let y = L.riverY0;
-      while (y < H && region[y * W + x] !== R_BANK) y++;
-      s.blit(G.SPRITES.grassTuft, x, y - 1);
+    for (let x = 12 + Math.floor(rb() * 8); x < W - 6; x += 18 + Math.floor(rb() * 20)) {
+      s.blit(G.SPRITES.grassTuft, x, nearLipAt(x) - 1);
     }
+    for (let y = L.topBank + 8; y < L.riverY0 - 8; y += 14 + Math.floor(rb() * 16)) s.set(L.streamX1 + (y & 1), y, T);
 
-    // Water base: teal, darker under the deck and toward the bottom edge.
+    // Water base: teal, darkest in the deck's shadow (which now runs all the
+    // way round the pier) and along the far lip of each bank.
+    /** Chebyshev distance from a water pixel to the deck, capped at `max`. */
+    function toDeck(x, y, max) {
+      const dx = x < L.boardX ? L.boardX - x : x >= L.boardRight ? x - (L.boardRight - 1) : 0;
+      const dy = y < L.boardY ? L.boardY - y : y >= L.frontBottom ? y - (L.frontBottom - 1) : 0;
+      const d = Math.max(dx, dy);
+      return d > max ? max + 1 : d;
+    }
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         if (region[y * W + x] !== R_WATER) continue;
         let c = T;
-        const du = y - L.riverY0; // depth below the deck
-        const dl = x - L.streamX0; // distance from the deck's right side
-        const underDeck = (y >= L.riverY0 && x < L.boardRight + 1 && du < 3) || (x < L.streamX0 + 2 && y < L.riverY0 + 2);
-        if (underDeck && ((du >= 0 ? du : dl) < 2 || G.ditherOn(x, y, 0.5))) {
-          if (G.ditherOn(x, y, (du >= 0 && x < L.boardRight + 1 ? du : dl) < 1 ? 0.75 : 0.5)) c = K;
-        }
-        // shade along the far bank's lip
-        if (y + 1 < H && region[(y + 1) * W + x] === R_BANK && y >= L.riverY0 + 4 && G.ditherOn(x, y, 0.5)) c = K;
-        else if (y + 2 < H && region[(y + 2) * W + x] === R_BANK && y >= L.riverY0 + 4 && G.ditherOn(x, y, 0.125)) c = K;
+        const d = toDeck(x, y, 3);
+        if (d <= 3 && G.ditherOn(x, y, d <= 1 ? 0.5 : d === 2 ? 0.25 : 0.125)) c = K;
+        // shade along a bank's lip
+        if (y + 1 < H && region[(y + 1) * W + x] === R_BANK && G.ditherOn(x, y, 0.5)) c = K;
+        else if (y + 2 < H && region[(y + 2) * W + x] === R_BANK && G.ditherOn(x, y, 0.125)) c = K;
         s.px[y * W + x] = c;
       }
     }
@@ -370,8 +409,24 @@
     { ms: 80, kind: "burst", r: 24, embers: 2 },
   ];
 
+  // A stone the lightning set alight, three rounds on: it shrivels in the
+  // flame and goes up as smoke (nobody captured it, so no lantern rises).
+  const BURN_AWAY_TIMELINE = [
+    { ms: 70, kind: "burn", shape: "normal", cov: 1, flame: 0 },
+    { ms: 70, kind: "burn", shape: "squash", cov: 0.75, flame: 1 },
+    { ms: 70, kind: "burn", shape: "small", cov: 0.5, flame: 2, spark: 0, sparkR: 7 },
+    { ms: 80, kind: "burn", shape: "icon", cov: 0.3, flame: 3, spark: 1, sparkR: 9 },
+    { ms: 90, kind: "burn", cov: 0, smoke: 0 },
+    { ms: 90, kind: "burn", cov: 0, smoke: 1 },
+    { ms: 110, kind: "burn", cov: 0, smoke: 2 },
+  ];
+
   const TIMELINES = {
     place: [PLACE_TIMELINE, []],
+    burnAway: [BURN_AWAY_TIMELINE, [
+      { ms: 130, kind: "burn", shape: "small", cov: 0.5, flame: 1 },
+      { ms: 130, kind: "burn", cov: 0, smoke: 1 },
+    ]],
     capture: [CAPTURE_TIMELINE, REDUCED_CAPTURE_TIMELINE],
     drop: [DROP_TIMELINE, []],
     driftAway: [DRIFT_AWAY_TIMELINE, [
@@ -463,12 +518,16 @@
    * drifts away, a flipped stone turns over, the Gust/Snipe target gets its
    * own exit, everything else that vanished is captured (Firework included).
    */
-  function diffTurn(prev, next, size, action, newOverlays, time) {
+  function diffTurn(prev, next, size, action, newOverlays, time, goneOverlays) {
     const effects = [];
     if (!prev || prev.length !== next.length) return effects;
     const used = action && action.kind === "powerup" ? action.id : null;
     const isTarget = (x, y) => action && action.x === x && action.y === y;
     const inBurst = (x, y) => used === "bomb" && Math.abs(x - action.x) <= 1 && Math.abs(y - action.y) <= 1;
+    // Cells whose lightning fire just went out: whatever stood there burned up.
+    const burntOut = new Set(
+      (goneOverlays || []).filter((o) => o.kind === "fire").map((o) => o.y * size + o.x)
+    );
     for (let i = 0; i < next.length; i++) {
       const a = prev[i], b = next[i];
       if (a === b) continue;
@@ -476,7 +535,8 @@
       if (a === 0) {
         effects.push(b === G.DRIFTWOOD ? makeEffect("drop", x, y, { code: b }, time) : placeEffect(x, y, b, time));
       } else if (b === 0) {
-        if (a === G.DRIFTWOOD && !inBurst(x, y)) effects.push(makeEffect("driftAway", x, y, { code: a }, time));
+        if (burntOut.has(i)) effects.push(makeEffect("burnAway", x, y, { code: a }, time));
+        else if (a === G.DRIFTWOOD && !inBurst(x, y)) effects.push(makeEffect("driftAway", x, y, { code: a }, time));
         else if (used === "gust" && isTarget(x, y)) effects.push(makeEffect("gust", x, y, { code: a }, time));
         else if (used === "remove_stone" && isTarget(x, y)) effects.push(makeEffect("snipe", x, y, { code: a }, time));
         else effects.push(captureEffect(x, y, a, time));
@@ -614,6 +674,27 @@
         }
         return null;
       }
+      case "burn": {
+        if (f.cov > 0 && effect.code) {
+          surf.blitCentered(G.pieceSprite(effect.code, f.shape), cx, cy, { coverage: f.cov });
+        }
+        if (f.flame !== undefined) {
+          surf.blitCentered(ANIMS.flame.frames[f.flame % ANIMS.flame.frames.length], cx, cy - 3);
+        }
+        if (f.spark !== undefined) drawSparkRing(surf, cx, cy, f.sparkR, f.spark);
+        if (f.smoke !== undefined) {
+          // Puffs lifting off the empty point.
+          for (let k = 0; k <= f.smoke; k++) {
+            const d = f.smoke - k;
+            const y = cy - 2 - k * 4;
+            const x = cx + Math.round(Math.sin(k * 1.7 + f.smoke) * 2);
+            surf.set(x, y, d === 0 ? S : K);
+            surf.set(x + 1, y, S);
+            surf.set(x - 1, y + 1, K);
+          }
+        }
+        return f.flame !== undefined ? { x: cx, y: cy - 3, r: 7 } : null;
+      }
       case "burst": {
         if (f.flash) {
           surf.blitCentered(G.STONES.glow.big, cx, cy);
@@ -649,6 +730,155 @@
 
   const WARD_LANTERN_DX = 5, WARD_LANTERN_DY = -6;
   const SWAP_CREAM_AMBER = new Uint8Array(256).map((_, i) => (i === C ? A : i === A ? C : i));
+
+  // ---------------------------------------------------------------------------
+  // Thunderstorm. Every 20 turns the server rolls a die; on a 6 the sky opens
+  // (see server/src/rooms/GoRoom.ts). The client plays it out over
+  // STORM_SECONDS: clouds roll over the scene, rain falls across the board,
+  // and up to three bolts come down on the points the server picked. Each bolt
+  // lights its fire, which then burns for three rounds.
+  // ---------------------------------------------------------------------------
+  const STORM_SECONDS = 10;
+  const STORM_DARK_IN = 1.4; // dusk ramps up over this
+  const STORM_DARK_OUT = 1.6; // ... and clears again at the end
+  const STORM_DARKNESS = 0.5; // peak dither coverage of the shade ramp
+  const STORM_FIRST_BOLT = 2.4; // when the first bolt lands
+  const STORM_BOLT_GAP = 2.0; // and how far apart the rest fall
+  const BOLT_FLASH = 0.5; // how long one bolt's flash lasts
+
+  /** When bolt `i` of a storm lands, in seconds from the storm's start. */
+  function boltTime(i) {
+    return STORM_FIRST_BOLT + i * STORM_BOLT_GAP;
+  }
+
+  /**
+   * What the storm looks like right now. `elapsed` is seconds since it broke.
+   * Returns null once it's over. `bolts[i]` is 0..1 through bolt i's flash, or
+   * -1 if that bolt hasn't fallen yet; `landed[i]` says its fire is alight.
+   */
+  function stormPhase(elapsed, strikeCount, reduced) {
+    if (elapsed < 0 || elapsed >= STORM_SECONDS) return null;
+    const fadeIn = Math.min(1, elapsed / STORM_DARK_IN);
+    const fadeOut = Math.min(1, (STORM_SECONDS - elapsed) / STORM_DARK_OUT);
+    const weight = Math.min(fadeIn, fadeOut);
+    const bolts = [];
+    const landed = [];
+    for (let i = 0; i < strikeCount; i++) {
+      const dt = elapsed - boltTime(i);
+      bolts.push(dt >= 0 && dt < BOLT_FLASH ? dt / BOLT_FLASH : -1);
+      landed.push(dt >= 0);
+    }
+    return {
+      darkness: STORM_DARKNESS * weight,
+      rain: reduced ? 0 : weight,
+      clouds: weight,
+      bolts,
+      landed,
+      elapsed,
+    };
+  }
+
+  /** A bolt's jagged path from the top of the scene down to (x1, y1). */
+  function boltPath(x1, y1, seed) {
+    const steps = 7;
+    const x0 = x1 + Math.round((hash2(seed, 3, 91) - 0.5) * 60);
+    const pts = [{ x: x0, y: 0 }];
+    for (let k = 1; k < steps; k++) {
+      const u = k / steps;
+      const jitter = (hash2(seed, k, 17) - 0.5) * 16 * (1 - u * 0.6);
+      pts.push({ x: Math.round(x0 + (x1 - x0) * u + jitter), y: Math.round(y1 * u) });
+    }
+    pts.push({ x: x1, y: y1 });
+    return pts;
+  }
+
+  function drawSegment(surf, x0, y0, x1, y1, color) {
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    for (;;) {
+      surf.set(x0, y0, color);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx) { err += dx; y0 += sy; }
+    }
+  }
+
+  /**
+   * One lightning bolt, `u` (0..1) through its flash: a cream channel with an
+   * ink edge so it reads over water, bank and board alike, plus a fork or two.
+   */
+  function drawBolt(surf, x1, y1, seed, u) {
+    const pts = boltPath(x1, y1, seed);
+    const flicker = u < 0.25 || (u > 0.4 && u < 0.5);
+    if (!flicker) return;
+    const fat = u < 0.25;
+    for (let k = 0; k < pts.length - 1; k++) {
+      const a = pts[k], b = pts[k + 1];
+      if (fat) {
+        drawSegment(surf, a.x - 1, a.y, b.x - 1, b.y, K);
+        drawSegment(surf, a.x + 1, a.y, b.x + 1, b.y, K);
+      }
+      drawSegment(surf, a.x, a.y, b.x, b.y, C);
+    }
+    // A fork peeling off the middle of the bolt.
+    const f = pts[Math.floor(pts.length / 2)];
+    const fx = f.x + Math.round((hash2(seed, 5, 23) - 0.5) * 30);
+    const fy = f.y + Math.round(y1 * 0.25);
+    drawSegment(surf, f.x, f.y, fx, fy, C);
+  }
+
+  /** Rolling cloud cover: soft ink masses drifting right, lit along their tops. */
+  function drawClouds(surf, W, H, t, weight) {
+    const count = 5;
+    for (let i = 0; i < count; i++) {
+      const speed = 9 + i * 2.5;
+      const span = W + 120;
+      const cx = (((i * 83 + t * speed) % span) + span) % span - 60;
+      const cy = 4 + hash2(i, 1, 5) * (H * 0.75);
+      const rx = 34 + hash2(i, 2, 5) * 26;
+      const ry = 9 + hash2(i, 3, 5) * 6;
+      const cov = (0.4 + 0.2 * hash2(i, 4, 5)) * weight;
+      for (let y = Math.max(0, Math.floor(cy - ry)); y <= Math.min(H - 1, Math.ceil(cy + ry)); y++) {
+        for (let x = Math.max(0, Math.floor(cx - rx)); x <= Math.min(W - 1, Math.ceil(cx + rx)); x++) {
+          const dx = (x - cx) / rx, dy = (y - cy) / ry;
+          const d = dx * dx + dy * dy;
+          if (d > 1) continue;
+          // Lumpy edge: puffs rather than one smooth ellipse.
+          const lump = 0.72 + 0.28 * Math.sin(x * 0.27 + i) * Math.sin(y * 0.4 + i * 2);
+          if (d > lump) continue;
+          const i0 = y * W + x;
+          // Painted, not shaded: over an already dusky scene a shade ramp
+          // would do nothing, and a cloud you can't see isn't weather.
+          if (d > lump - 0.14) {
+            if (G.ditherOn(x, y, 0.5 * weight)) surf.px[i0] = dy < 0 ? S : K;
+          } else if (G.ditherOn(x, y, cov)) {
+            surf.px[i0] = K;
+          }
+        }
+      }
+    }
+  }
+
+  /** Slanting rain over the whole scene, with drops bouncing where they land. */
+  function drawRain(surf, W, H, t, weight) {
+    const drops = Math.round(200 * weight);
+    for (let i = 0; i < drops; i++) {
+      const seedX = hash2(i, 0, 31), seedY = hash2(i, 1, 31);
+      const speed = 150 + seedY * 90;
+      const len = 4 + Math.floor(seedX * 3);
+      const span = H + 40;
+      const y = (((seedY * span + t * speed) % span) + span) % span - 20;
+      const x = seedX * (W + 80) - 40 + y * 0.35; // the whole curtain slants
+      for (let k = 0; k < len; k++) {
+        const px = Math.round(x - k * 0.35), py = Math.round(y - k);
+        surf.set(px, py, k === 0 || G.ditherOn(px, py, 0.5) ? C : S);
+      }
+    }
+  }
+
+  const FIRE_LIGHT_R = 7;
 
   /** Little teal and cream droplets thrown up around a landing piece. */
   function drawSplash(surf, cx, cy, step) {
@@ -710,15 +940,26 @@
     // --- ambient actors -----------------------------------------------------
     const r = rng(99);
     const streamCx = L.streamX0 + (STREAM >> 1);
+    const topLaneY = L.topWaterY0 + (TOP_WATER >> 1);
     const laneY = L.riverY0 + 13;
     const CORNER = 8;
-    const seg1 = laneY - CORNER + 12;
+    // The lanterns ride the current all the way round the pier: in along the
+    // top channel, down the right one, then out along the wide river below.
     const arcLen = (Math.PI / 2) * CORNER;
-    const seg3 = streamCx - CORNER + 12;
-    const pathLen = seg1 + arcLen + seg3;
+    const segTop = streamCx - CORNER + 12; // from off-screen left to the first bend
+    const segSide = laneY - CORNER - (topLaneY + CORNER); // down the right channel
+    const segRiver = streamCx - CORNER + 12; // back out to the left
+    const pathLen = segTop + arcLen + segSide + arcLen + segRiver;
     function lanternPath(s) {
-      if (s < seg1) return { x: streamCx, y: -12 + s, river: 0 };
-      s -= seg1;
+      if (s < segTop) return { x: -12 + s, y: topLaneY, river: 0 };
+      s -= segTop;
+      if (s < arcLen) {
+        const a = s / CORNER - Math.PI / 2;
+        return { x: streamCx - CORNER + Math.cos(a) * CORNER, y: topLaneY + CORNER + Math.sin(a) * CORNER, river: 0 };
+      }
+      s -= arcLen;
+      if (s < segSide) return { x: streamCx, y: topLaneY + CORNER + s, river: 0 };
+      s -= segSide;
       if (s < arcLen) {
         const a = s / CORNER;
         return { x: streamCx - CORNER + Math.cos(a) * CORNER, y: laneY - CORNER + Math.sin(a) * CORNER, river: 0 };
@@ -734,61 +975,79 @@
     const LANTERN_SPEED = 6; // px per second
 
     const garland = [];
-    for (let x = 10; x < L.streamX0 - 8; x += 25) garland.push({ x, phase: r() * 6.28, cream: garland.length % 2 === 1 });
+    for (let x = 10; x < W - 12; x += 25) garland.push({ x, phase: r() * 6.28, cream: garland.length % 2 === 1 });
 
     const fireflies = [];
     const addFly = (cx, cy, ax, ay) =>
       fireflies.push({ cx, cy, ax, ay, fx: 0.25 + r() * 0.35, fy: 0.3 + r() * 0.4, p1: r() * 6.28, p2: r() * 6.28, period: 3 + r() * 3, phase: r() });
     const rv = L.riverY0;
-    addFly(40, 8, 26, 4); addFly(120, 7, 30, 4); addFly(190, 9, 20, 4);
-    addFly(60, rv + 13, 24, 7); addFly(120, rv + 18, 30, 6); addFly(175, rv + 11, 22, 7); addFly(28, rv + 8, 10, 5);
-    addFly(streamCx, 70, 3, 22); addFly(streamCx, 170, 3, 26); addFly(214, rv + 19, 12, 5);
+    addFly(40, 5, 26, 3); addFly(120, 4, 30, 3); addFly(196, 6, 20, 3);
+    addFly(60, rv + 13, 24, 7); addFly(120, rv + 18, 30, 6); addFly(180, rv + 11, 22, 7); addFly(28, rv + 8, 10, 5);
+    addFly(streamCx, 90, 3, 26); addFly(streamCx, 190, 3, 26);
+    addFly(6, 110, 3, 24); addFly(6, 210, 3, 22);
 
     const reeds = [
-      { anim: "reedsTall", x: L.streamX1 - 7, y: 40 - 15, phase: 0.3 },
-      { anim: "reedsShort", x: L.streamX1 - 6, y: 118 - 15, phase: 1.3 },
-      { anim: "reedsTall", x: L.streamX1 - 7, y: 206 - 15, phase: 2.1 },
+      { anim: "reedsTall", x: L.streamX1 - 7, y: 60 - 15, phase: 0.3 },
+      { anim: "reedsShort", x: L.streamX1 - 6, y: 140 - 15, phase: 1.3 },
+      { anim: "reedsTall", x: L.streamX1 - 7, y: 220 - 15, phase: 2.1 },
       { anim: "reedsTall", x: 60, y: H - 18, phase: 0.8 },
-      { anim: "reedsShort", x: 144, y: H - 17, phase: 1.9 },
-      { anim: "reedsTall", x: 198, y: H - 17, phase: 2.7 },
+      { anim: "reedsShort", x: 150, y: H - 17, phase: 1.9 },
+      { anim: "reedsTall", x: 206, y: H - 17, phase: 2.7 },
       { anim: "reedsShort", x: 17, y: H - 17, phase: 0.1 },
-      { anim: "reedsTall", x: 120, y: H - 17, phase: 1.1 },
+      { anim: "reedsTall", x: 124, y: H - 17, phase: 1.1 },
+      // Short reeds on the far bank at the top, their tips just clearing it.
+      { anim: "reedsShort", x: 34, y: L.topBank - 15, phase: 2.3 },
+      { anim: "reedsShort", x: 166, y: L.topBank - 15, phase: 0.6 },
     ];
 
     const pads = [
       { spr: G.SPRITES.lilyPad, x: 84, y: H - 11 },
       { spr: G.SPRITES.lilyPadSmall, x: 101, y: H - 7 },
-      { spr: G.SPRITES.lilyPad, x: 158, y: L.riverY0 + 4 },
+      { spr: G.SPRITES.lilyPad, x: 164, y: L.riverY0 + 4 },
       { spr: G.SPRITES.lilyPadSmall, x: 40, y: L.riverY0 + 5 },
+      // A couple more in the quieter side channels.
+      { spr: G.SPRITES.lilyPadSmall, x: 2, y: L.boardY + 60 },
+      { spr: G.SPRITES.lilyPadSmall, x: L.streamX0 + 3, y: L.boardY + 132 },
     ];
     const lotus = { x: 86, y: H - 14 };
 
-    // Flow streaks in the river and stream.
-    const riverStreaks = [];
-    for (let i = 0; i < 38; i++) {
-      riverStreaks.push({
-        x0: r() * (W + 12), y: L.riverY0 + 4 + Math.floor(r() * (RIVER - 7)),
-        speed: 4 + r() * 6, period: 1.2 + r() * 1.8, phase: r(), len: 2 + Math.floor(r() * 4),
-      });
+    /**
+     * Flow streaks, one set per channel of the river. `axis` is the direction
+     * the water runs; `dir` which way along it. Positions are seeded inside
+     * the channel's band and wrap around it.
+     */
+    function makeStreaks(count, axis, dir, x0, x1, y0, y1, speed) {
+      const out = [];
+      for (let i = 0; i < count; i++) {
+        out.push({
+          axis, dir,
+          x0, x1, y0, y1,
+          across: axis === "h" ? y0 + Math.floor(r() * Math.max(1, y1 - y0)) : x0 + Math.floor(r() * Math.max(1, x1 - x0)),
+          along: r(),
+          speed: speed * (0.7 + r() * 0.6),
+          period: 1.1 + r() * 1.8,
+          phase: r(),
+          len: 2 + Math.floor(r() * 4),
+        });
+      }
+      return out;
     }
-    const streamStreaks = [];
-    for (let i = 0; i < 16; i++) {
-      streamStreaks.push({
-        x: L.streamX0 + 2 + Math.floor(r() * (STREAM - 4)), y0: r() * L.riverY0,
-        speed: 9 + r() * 6, period: 1 + r() * 1.5, phase: r(), len: 2 + Math.floor(r() * 2),
-      });
-    }
+    const currents = [
+      // top channel: running right, into the bend
+      ...makeStreaks(16, "h", 1, -6, W + 6, L.topWaterY0 + 1, L.boardY - 1, 7),
+      // right channel: running down
+      ...makeStreaks(14, "v", 1, L.streamX0 + 2, L.streamX1 - 2, -6, L.riverY0 + 6, 9),
+      // left channel: running down
+      ...makeStreaks(12, "v", 1, 1, L.boardX - 2, -6, L.riverY0 + 6, 8),
+      // the wide river below: running left, back out of the scene
+      ...makeStreaks(30, "h", -1, -6, W + 6, L.riverY0 + 4, H - FAR_BANK - 2, 6),
+    ];
     const foamSpecks = [];
     for (let i = 0; i < 14; i++) foamSpecks.push({ x0: r() * W, row: 1 + (i % 3), speed: 5 + r() * 4, period: 2 + r() * 2, phase: r() });
-    // Glints of lantern light twinkling on the water.
+    // Glints of lantern light twinkling on the water, anywhere it runs.
     const twinkles = [];
-    for (let i = 0; i < 9; i++) {
-      const inStream = i < 2;
-      twinkles.push({
-        x: inStream ? L.streamX0 + 3 + Math.floor(r() * (STREAM - 6)) : 24 + Math.floor(r() * (W - 40)),
-        y: inStream ? 30 + Math.floor(r() * (L.riverY0 - 60)) : L.riverY0 + 6 + Math.floor(r() * (RIVER - FAR_BANK - 10)),
-        period: 2.5 + r() * 3, phase: r(),
-      });
+    for (let i = 0; i < 12; i++) {
+      twinkles.push({ x: 2 + Math.floor(r() * (W - 4)), y: L.topWaterY0 + Math.floor(r() * (H - L.topWaterY0 - FAR_BANK)), period: 2.5 + r() * 3, phase: r() });
     }
 
     const toro = { x: 3, y: H - 2 - 22, lightX: 9, lightY: H - 2 - 22 + 9 };
@@ -826,52 +1085,51 @@
 
     // --- ambient passes -------------------------------------------------------
     function drawWater(t) {
-      for (const st of riverStreaks) {
+      for (const st of currents) {
         const life = frac(t / st.period + st.phase);
         const len = Math.round(st.len * Math.sin(Math.PI * life));
         if (len <= 0) continue;
-        const span = W + 12;
-        const x = Math.floor(((((st.x0 - st.speed * t) % span) + span) % span) - 6);
-        for (let k = 0; k < len; k++) waterSet(x + k, st.y, S);
+        if (st.axis === "h") {
+          const span = st.x1 - st.x0;
+          const x = st.x0 + Math.floor(((((st.along * span + st.dir * st.speed * t) % span) + span) % span));
+          for (let k = 0; k < len; k++) waterSet(x + k, st.across, S);
+        } else {
+          const span = st.y1 - st.y0;
+          const y = st.y0 + Math.floor(((((st.along * span + st.dir * st.speed * t) % span) + span) % span));
+          for (let k = 0; k < len; k++) waterSet(st.across, y + k, S);
+        }
       }
-      for (const st of streamStreaks) {
-        const life = frac(t / st.period + st.phase);
-        const len = Math.round(st.len * Math.sin(Math.PI * life));
-        if (len <= 0) continue;
-        const y = Math.floor((st.y0 + st.speed * t) % (L.riverY0 + 4));
-        for (let k = 0; k < len; k++) waterSet(st.x, y + k, S);
+    }
+
+    /**
+     * Water lapping against one edge of the deck. `deckDelta` points from the
+     * first water pixel toward the deck, so the same code does all four sides.
+     */
+    function foamEdge(t, horizontal, fixed, from, to, deckDelta, speed) {
+      const at = (i, off) => (horizontal ? { x: i, y: fixed + off } : { x: fixed + off, y: i });
+      for (let i = from; i <= to; i++) {
+        const w = Math.sin(i * 0.42 + t * speed) + 0.7 * Math.sin(i * 0.15 - t * 1.1 + 1);
+        const p0 = at(i, 0);
+        if (w > 1.05) {
+          const onDeck = at(i, deckDelta), deeper = at(i, -deckDelta);
+          surf.set(onDeck.x, onDeck.y, C);
+          waterSet(p0.x, p0.y, C);
+          if (G.ditherOn(deeper.x, deeper.y, 0.5)) waterSet(deeper.x, deeper.y, C);
+        } else if (w > 0.1) {
+          waterSet(p0.x, p0.y, C);
+        } else if (w > -0.7 && (i + Math.floor(t * 4)) & 1) {
+          waterSet(p0.x, p0.y, C);
+        }
       }
     }
 
     function drawFoam(t) {
-      // Lapping along the deck's front face (river flows left).
       const y0 = L.riverY0;
-      for (let x = L.boardX; x <= L.boardRight; x++) {
-        const w = Math.sin(x * 0.42 + t * 2.4) + 0.7 * Math.sin(x * 0.15 - t * 1.1 + 1);
-        if (w > 1.05) {
-          surf.set(x, y0 - 1, C);
-          waterSet(x, y0, C);
-          if (G.ditherOn(x, y0 + 1, 0.5)) waterSet(x, y0 + 1, C);
-        } else if (w > 0.1) {
-          waterSet(x, y0, C);
-        } else if (w > -0.7) {
-          if ((x + Math.floor(t * 4)) & 1) waterSet(x, y0, C);
-        }
-      }
-      // Along the deck's right side (stream flows down).
-      const x0 = L.streamX0;
-      for (let y = L.boardY; y < L.riverY0; y++) {
-        const w = Math.sin(y * 0.42 - t * 3.0) + 0.7 * Math.sin(y * 0.17 - t * 1.3 + 2);
-        if (w > 1.05) {
-          surf.set(x0 - 1, y, C);
-          waterSet(x0, y, C);
-          if (G.ditherOn(x0 + 1, y, 0.5)) waterSet(x0 + 1, y, C);
-        } else if (w > 0.1) {
-          waterSet(x0, y, C);
-        } else if (w > -0.7) {
-          if ((y + Math.floor(t * 4)) & 1) waterSet(x0, y, C);
-        }
-      }
+      // All four sides of the pier, each with its own rhythm.
+      foamEdge(t, true, y0, L.boardX, L.boardRight, -1, 2.4); // below, river flowing left
+      foamEdge(t, true, L.boardY - 1, L.boardX, L.boardRight - 1, 1, -2.1); // above
+      foamEdge(t, false, L.streamX0, L.boardY, L.riverY0 - 1, -1, 3.0); // right channel
+      foamEdge(t, false, L.boardX - 1, L.boardY, L.riverY0 - 1, 1, 2.7); // left channel
       // Foam around the deck posts.
       for (const px of [L.boardX + 12, L.boardRight - 15]) {
         const ph = Math.floor(t * 3) & 1;
@@ -977,19 +1235,27 @@
       }
     }
 
-    function drawStones(board, skip) {
+    /**
+     * `stormActive`: while a thunderstorm's fires still burn, every player
+     * stone (codes 1..8) loses its colour to one shared dithered tone,
+     * regardless of black/white or which pattern-stone design is in use --
+     * the storm erases whose stone is whose, not just how it's drawn.
+     * Driftwood keeps its own look; it isn't anyone's stone.
+     */
+    function drawStones(board, skip, stormActive) {
+      const spriteFor = (code) => (stormActive && G.isPlayerStoneCode(code) ? G.stormStoneSprite() : G.pieceSprite(code));
       // Shadows first so they never cover a neighbour.
       for (let i = 0; i < board.length; i++) {
         const code = board[i];
         if (!code || skip.has(i)) continue;
         const p = pointToNative(i % size, (i / size) | 0);
-        surf.blitCentered(G.pieceSprite(code), p.x + 1, p.y + 1, { color: K, coverage: 0.5 });
+        surf.blitCentered(spriteFor(code), p.x + 1, p.y + 1, { color: K, coverage: 0.5 });
       }
       for (let i = 0; i < board.length; i++) {
         const code = board[i];
         if (!code || skip.has(i)) continue;
         const p = pointToNative(i % size, (i / size) | 0);
-        surf.blitCentered(G.pieceSprite(code), p.x, p.y);
+        surf.blitCentered(spriteFor(code), p.x, p.y);
       }
     }
 
@@ -1002,6 +1268,56 @@
         const p = pointToNative(o.x, o.y);
         surf.blitCentered(G.SPRITES.lilyBoard, p.x, p.y + 1);
         if (o.owner) surf.blitCentered(G.splitPreviewSprite(o.owner, "mini"), p.x, p.y + 1);
+      }
+    }
+
+    /**
+     * Lightning fires: a flame on every burning point (guttering down to
+     * embers in its last round), drawn over whatever stands there. A fire
+     * whose bolt hasn't landed yet in the storm animation is held back, so
+     * the flame never beats the lightning to the board.
+     */
+    function drawFires(overlays, busy, time, reduced, turnCount, roundLength, pending) {
+      for (const o of overlays) {
+        if (o.kind !== "fire") continue;
+        const i = o.y * size + o.x;
+        if (busy.has("burnAway:" + i) || pending.has(i)) continue;
+        const p = pointToNative(o.x, o.y);
+        // One round left: the fire has eaten what it can and is dying down.
+        const lastRound =
+          o.until !== undefined && turnCount !== undefined && roundLength > 0 && o.until - turnCount <= roundLength;
+        const phase = (o.x * 7 + o.y * 3) / 16;
+        const t = reduced ? 0 : time;
+        // A bed of embers first: it is what marks the point as unplayable,
+        // and it reads on the bare amber board as well as in the dark.
+        drawEmberBed(p.x, p.y, t + phase, lastRound);
+        surf.blitCentered(animFrame(lastRound ? "flameLow" : "flame", t, phase), p.x, p.y - (lastRound ? 1 : 3));
+        if (!lastRound) {
+          // A second, smaller tongue, out of step with the first.
+          surf.blitCentered(animFrame("flameLow", t, phase + 0.5), p.x + 4, p.y + 1);
+        }
+      }
+    }
+
+    /** Scorched ground with embers glowing through it, under a fire. */
+    function drawEmberBed(cx, cy, t, low) {
+      const rx = low ? 5 : 7, ry = low ? 3 : 4;
+      for (let dy = -ry; dy <= ry; dy++) {
+        for (let dx = -rx; dx <= rx; dx++) {
+          const d = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+          if (d > 1) continue;
+          const x = cx + dx, y = cy + dy;
+          if (G.ditherOn(x, y, 0.75 - d * 0.35)) surf.set(x, y, K);
+        }
+      }
+      // Embers breathing in the ash.
+      for (let k = 0; k < 5; k++) {
+        const a = k * 1.3 + t * 1.6;
+        const x = cx + Math.round(Math.cos(a) * (rx - 2));
+        const y = cy + 1 + Math.round(Math.sin(a * 1.7) * (ry - 2));
+        const hot = Math.sin(t * 3 + k * 2) > 0.2;
+        surf.set(x, y, hot ? A : K);
+        if (hot && k === 0) surf.set(x, y - 1, C);
       }
     }
 
@@ -1031,7 +1347,13 @@
      *   myColor:       1..4, the viewing player (for the split preview),
      *   lastMove:      {x, y} | null,
      *   effects:       [placeEffect(...) | captureEffect(...) | makeEffect(kind, ...)],
-     *   overlays:      [{kind: "lily" | "ward", x, y, owner}] -- lasting board markers,
+     *   overlays:      [{kind: "lily" | "ward" | "fire", x, y, owner, until}] -- lasting board markers,
+     *   turnCount:     the room's turn counter (lets a fire show its last round),
+     *   roundLength:   players in the room (how many turns make one round),
+     *   storm:         {start: seconds, seq, strikes: [{x, y}, ...]} while a storm plays,
+     *   stormUntil:    turnCount when the storm's fires go out; while turnCount is below
+     *                  this, every stone on the board renders as one shared dithered tone
+     *                  (see drawStones) -- lasts the full 3 rounds, not just the ~10s flash,
      *   reducedMotion: boolean,
      * }
      * Returns the RGBA buffer (Uint8ClampedArray, width*height*4).
@@ -1092,8 +1414,25 @@
         busy.add(e.kind + ":" + (e.y * size + e.x));
       }
       const overlays = st.overlays || [];
+      // A storm in flight: its bolts haven't all landed, so hold back the
+      // fires that belong to bolts still on their way.
+      const storm = st.storm
+        ? stormPhase(time - st.storm.start, (st.storm.strikes || []).length, reduced)
+        : null;
+      const pendingFires = new Set();
+      if (storm) {
+        (st.storm.strikes || []).forEach((s, i) => {
+          if (!storm.landed[i]) pendingFires.add(s.y * size + s.x);
+        });
+      }
+      // The longer, mechanical half of the storm: every stone stays blacked
+      // out for as long as its fires burn (until GoState.turnCount reaches
+      // stormUntil), independent of the ~10s cloudburst animation above --
+      // a client that joins mid-storm gets this without ever seeing the flash.
+      const stormActive =
+        st.turnCount !== undefined && st.stormUntil !== undefined && st.turnCount < st.stormUntil;
       drawLilyPads(overlays, board, busy);
-      drawStones(board, skip);
+      drawStones(board, skip, stormActive);
       drawWards(overlays, board, busy, time, reduced);
 
       // 7. last-move ember
@@ -1108,6 +1447,46 @@
         const glow = drawEffect(surf, e, time - e.start, p.x, p.y, reduced);
         if (glow) surf.ramp(G.LIGHT, glow.x, glow.y, glow.r, 0.6, 1, noLight);
       }
+
+      // 8b. weather: dusk, cloud cover, rain and the bolts themselves. Drawn
+      // over the whole scene (the board included) but under the hover UI, so
+      // you can still see where you are about to play.
+      if (storm) {
+        if (storm.darkness > 0) {
+          for (let i = 0; i < surf.px.length; i++) {
+            if (G.ditherOn(i % W, (i / W) | 0, storm.darkness)) surf.px[i] = G.SHADE[surf.px[i]];
+          }
+        }
+        if (!reduced) drawClouds(surf, W, H, ambientRaw, storm.clouds);
+        if (storm.rain > 0) drawRain(surf, W, H, time, storm.rain);
+        (st.storm.strikes || []).forEach((s, i) => {
+          const u = storm.bolts[i];
+          if (u < 0) return;
+          const p = pointToNative(s.x, s.y);
+          // The whole sky lights up for the first instant of each bolt.
+          if (u < 0.12) {
+            // Two passes of the light ramp take ink all the way to cream, so
+            // the sky blows out white rather than merely turning warm.
+            const passes = u < 0.06 ? 2 : 1;
+            for (let n = 0; n < passes; n++) {
+              for (let k = 0; k < surf.px.length; k++) {
+                if (G.ditherOn(k % W, (k / W) | 0, n === 0 ? 1 : 0.75)) surf.px[k] = G.LIGHT[surf.px[k]];
+              }
+            }
+          }
+          drawBolt(surf, p.x, p.y, i + st.storm.seq * 7, u);
+          if (u < 0.35) {
+            surf.blitCentered(G.STONES.glow[u < 0.15 ? "big" : "normal"], p.x, p.y);
+            surf.ramp(G.LIGHT, p.x, p.y, 16 * (1 - u), 0.8, 1, null);
+          } else {
+            drawSparkRing(surf, p.x, p.y, 8, Math.min(2, Math.floor((u - 0.35) * 8)));
+          }
+        });
+      }
+
+      // 8c. fires burn on top of the weather: they are the one thing the
+      // storm doesn't dim, and they keep burning long after it has passed.
+      drawFires(overlays, busy, time, reduced, st.turnCount, st.roundLength || 0, pendingFires);
 
       // 9. hover: split preview or powerup reticle, then the highlighted labels
       if (hover) {
@@ -1129,10 +1508,12 @@
         drawHighlightTag(String(hover.y), L.boardX + (FRAME >> 1), L.gridY + hover.y * SPACING, "right");
       }
 
-      // 10. fireflies (never over the playing surface)
-      for (const ff of flies) {
-        if (ff.frame < 0 || inKaya(ff.x, ff.y)) continue;
-        surf.blitCentered(ANIMS.firefly.frames[ff.frame], ff.x, ff.y);
+      // 10. fireflies (never over the playing surface; they sit the storm out)
+      if (!storm || storm.darkness < STORM_DARKNESS * 0.5) {
+        for (const ff of flies) {
+          if (ff.frame < 0 || inKaya(ff.x, ff.y)) continue;
+          surf.blitCentered(ANIMS.firefly.frames[ff.frame], ff.x, ff.y);
+        }
       }
 
       return surf.toRGBA(rgba);
@@ -1155,9 +1536,9 @@
     }
 
     function drawGarland(t) {
-      const ropeEnd = L.streamX0 - 3;
-      // post on the stream bank
-      for (let y = 0; y < TOP - 2; y++) { surf.set(ropeEnd, y, K); surf.set(ropeEnd + 1, y, S); surf.set(ropeEnd + 2, y, K); }
+      const ropeEnd = W - 5;
+      // post on the far bank, at the right end of the rope
+      for (let y = 0; y < L.topBank - 1; y++) { surf.set(ropeEnd, y, K); surf.set(ropeEnd + 1, y, S); surf.set(ropeEnd + 2, y, K); }
       surf.set(ropeEnd + 1, 0, C);
       // rope sagging between hooks
       const hooks = [-10].concat(garland.map((g) => g.x), [ropeEnd]);
@@ -1193,6 +1574,9 @@
   return {
     SPACING,
     AMBIENT_FPS,
+    STORM_SECONDS,
+    boltTime,
+    stormPhase,
     REGION: { BANK: R_BANK, WATER: R_WATER, FRAME: R_FRAME, KAYA: R_KAYA, FRONT: R_FRONT },
     computeLayout,
     createScene,
