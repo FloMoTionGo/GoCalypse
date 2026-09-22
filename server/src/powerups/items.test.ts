@@ -71,7 +71,7 @@ function table(): Harness {
         for (const i of indices) state.board[i] = 0;
         return indices.length;
       },
-      creditCaptures: (n) => credited.push(n),
+      creditCaptures: (c) => credited.push(c.length),
       placeStone: (x, y, code) => {
         if (at(x, y) !== 0) return null;
         const raw = state.board.toArray();

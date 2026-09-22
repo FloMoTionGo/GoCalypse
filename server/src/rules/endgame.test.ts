@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { areaScore, finalResults, sidesOf } from "./endgame";
+import { finalResults, Prisoners, sidesOf, territoryScore } from "./endgame";
 
 /**
  * A board from rows of text: "." is empty, 1-4 a player's solid stone, 5-8 a
@@ -13,68 +13,77 @@ function parse(rows: string[]): { board: number[]; size: number } {
   return { board: rows.join("").split("").map((c) => (c === "." ? 0 : Number(c))), size };
 }
 
-function area(rows: string[]) {
+function territory(rows: string[]) {
   const { board, size } = parse(rows);
-  return areaScore(board, size);
+  return territoryScore(board, size);
 }
 
+const NONE: Prisoners = { base: 0, pattern: 0 };
+
 test("an empty board scores nothing for anyone, and everyone shares first place", () => {
-  const a = area(["...", "...", "..."]);
-  assert.deepEqual(a, { black: 0, white: 0, gray: 0, transparent: 0 });
-  const results = finalResults(a, [1, 2, 3, 4]);
+  const t = territory(["...", "...", "..."]);
+  assert.deepEqual(t, { black: 0, white: 0, gray: 0, transparent: 0 });
+  const results = finalResults(t, [1, 2, 3, 4]);
   assert.deepEqual(results.map((r) => r.place), [1, 1, 1, 1]);
   assert.deepEqual(results.map((r) => r.score), [0, 0, 0, 0]);
 });
 
-test("stones count, empty points count for the one side that walls them in, shared points count for no one", () => {
-  const a = area([
+test("a stone is worth the ground it surrounds, not itself", () => {
+  // One black stone in the corner of a 3x3. Under area scoring this was 9:
+  // eight empty points plus the stone. Territory scoring pays only the eight.
+  assert.equal(territory(["1..", "...", "..."]).black, 8);
+});
+
+test("empty points count for the one side that walls them in, shared points count for no one", () => {
+  const t = territory([
     "1.2.",
     "1.2.",
     "1.2.",
     "1.2.",
   ]);
   // Column 1 touches black and white: nobody's. Column 3 touches only white.
-  assert.equal(a.black, 4);
-  assert.equal(a.white, 4 + 4);
-  // All of these are base stones, i.e. walls on the pattern front.
-  assert.equal(a.gray, 0);
-  assert.equal(a.transparent, 0);
+  // The stones themselves are worth nothing, so black -- who walls in no empty
+  // point at all -- comes away with nothing despite four stones on the board.
+  assert.equal(t.black, 0);
+  assert.equal(t.white, 4);
+  // All of these are base stones, i.e. walls on the pattern front. Columns 1
+  // and 3 are separate regions there (column 2 is occupied), and neither
+  // borders a pattern stone, so neither counts for anyone.
+  assert.equal(t.gray, 0);
+  assert.equal(t.transparent, 0);
 });
 
 test("a stone on the other front is a wall: it scores nothing here, and does not spoil a region", () => {
-  // The gray stone counts on the pattern front only.
-  const onlyPattern = area(["5..", "...", "..."]);
-  assert.deepEqual(onlyPattern, { black: 0, white: 0, gray: 9, transparent: 0 });
+  // The gray stone walls its region in on the pattern front and is invisible on
+  // the base front, where the region is left bordering nothing at all.
+  assert.deepEqual(territory(["5..", "...", "..."]), { black: 0, white: 0, gray: 8, transparent: 0 });
 
-  // A solid black stone beside a gray stone: the black front sees a black
-  // stone and one wall, so the whole empty region is black's; the pattern front
-  // sees the mirror image and hands the same region to gray.
-  const both = area(["15.", "...", "..."]);
-  assert.deepEqual(both, { black: 1 + 7, white: 0, gray: 1 + 7, transparent: 0 });
+  // A solid black stone beside a gray one: the base front sees a black stone
+  // and one wall, so the seven empty points are black's; the pattern front sees
+  // the mirror image and hands the same seven to gray.
+  assert.deepEqual(territory(["15.", "...", "..."]), { black: 7, white: 0, gray: 7, transparent: 0 });
 });
 
 test("driftwood is a wall on both fronts", () => {
-  const a = area(["19.", "...", "..."]);
-  assert.deepEqual(a, { black: 8, white: 0, gray: 0, transparent: 0 });
+  assert.deepEqual(territory(["19.", "...", "..."]), { black: 7, white: 0, gray: 0, transparent: 0 });
 });
 
 test("the two fronts are counted independently on the same points", () => {
-  // Columns: black solid stones, transparent stones, white solid stones, then
-  // an empty column.
-  const a = area([
-    "172.",
-    "172.",
-    "172.",
-    "172.",
+  // Column 0 black solid stones, column 2 gray stones, columns 1 and 3 empty.
+  const t = territory([
+    "1.5.",
+    "1.5.",
+    "1.5.",
+    "1.5.",
   ]);
-  // Base front: black 4 (col 0), white 4 (col 2), and the empty column touches
-  // only white, so it is white's too. The transparent stones are walls here.
-  assert.equal(a.black, 4);
-  assert.equal(a.white, 8);
-  // Pattern front: only col 1 has stones that count. The empty column touches
-  // nothing but walls there, so it is nobody's.
-  assert.equal(a.transparent, 4);
-  assert.equal(a.gray, 0);
+  // Base front: the gray stones are walls, so column 1 borders black alone and
+  // column 3 borders nothing. Black takes four points.
+  assert.equal(t.black, 4);
+  assert.equal(t.white, 0);
+  // Pattern front: the black stones are walls, so both empty columns border
+  // gray alone. The same board is worth twice as much on this front.
+  assert.equal(t.gray, 8);
+  assert.equal(t.transparent, 0);
 });
 
 test("everyone belongs to one side on each front", () => {
@@ -107,6 +116,56 @@ test("a player's final score is the lower of their two sides, and the higher one
 
   // Players 2 and 4 both score 6; the higher side (12 against 8) puts 4 ahead.
   assert.deepEqual([1, 2, 3, 4].map((c) => byColor.get(c)!.place), [2, 4, 1, 3]);
+});
+
+// ---- prisoners ---------------------------------------------------------------
+//
+// Territory belongs to a side and is shared by the two seats that hold it.
+// Prisoners belong to the player who played the capturing move, which is why
+// taking a group yourself beats leaving it to the ally on your front.
+
+test("prisoners are added to the front the dead group was judged on", () => {
+  const [p1] = finalResults({ black: 10, white: 0, gray: 4, transparent: 0 }, [1], [
+    { base: 3, pattern: 5 },
+  ]);
+  assert.deepEqual([p1.baseTerritory, p1.basePrisoners, p1.base], [10, 3, 13]);
+  assert.deepEqual([p1.patternTerritory, p1.patternPrisoners, p1.pattern], [4, 5, 9]);
+  assert.equal(p1.score, 9); // the lower front, prisoners included
+  assert.equal(p1.tiebreak, 13);
+});
+
+test("two players on one side share its territory but not its prisoners", () => {
+  // 1 and 3 are both black; only 1 did the capturing there.
+  const results = finalResults({ black: 10, white: 10, gray: 10, transparent: 10 }, [1, 3], [
+    { base: 4, pattern: 0 },
+    NONE,
+  ]);
+  assert.deepEqual(results.map((r) => r.baseTerritory), [10, 10]);
+  assert.deepEqual(results.map((r) => r.base), [14, 10]);
+  // Both fronts are level at 10, so the prisoners show up only in the tiebreak.
+  assert.deepEqual(results.map((r) => r.score), [10, 10]);
+  assert.deepEqual(results.map((r) => r.tiebreak), [14, 10]);
+  assert.deepEqual(results.map((r) => r.place), [1, 2]);
+});
+
+test("prisoners can lift the front that was holding a score down", () => {
+  // Both players hold the same ground. One took five stones on the front that
+  // was its lower one, and that is the whole difference between them.
+  const territoryOnly = finalResults({ black: 6, white: 6, gray: 2, transparent: 2 }, [1, 2]);
+  assert.deepEqual(territoryOnly.map((r) => r.score), [2, 2]);
+
+  const withPrisoners = finalResults({ black: 6, white: 6, gray: 2, transparent: 2 }, [1, 2], [
+    { base: 0, pattern: 5 },
+    NONE,
+  ]);
+  assert.deepEqual(withPrisoners.map((r) => r.score), [6, 2]);
+  assert.deepEqual(withPrisoners.map((r) => r.place), [1, 2]);
+});
+
+test("no prisoners given is the same as none taken", () => {
+  const given = finalResults({ black: 3, white: 4, gray: 5, transparent: 6 }, [1, 2, 3, 4], [NONE, NONE, NONE, NONE]);
+  const omitted = finalResults({ black: 3, white: 4, gray: 5, transparent: 6 }, [1, 2, 3, 4]);
+  assert.deepEqual(given, omitted);
 });
 
 test("players level on score and tiebreak share a place, and the next place is skipped", () => {

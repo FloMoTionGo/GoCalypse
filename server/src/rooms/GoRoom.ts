@@ -5,6 +5,7 @@ import { deleteSnapshot, restoreState, saveSnapshot, takeRestore } from "../stat
 import {
   applyCaptures,
   axisOf,
+  Captured,
   isTwin,
   twinCode,
   viewsOf,
@@ -18,7 +19,7 @@ import {
   stoneCode,
   StoneView,
 } from "../rules/goRules";
-import { areaScore, finalResults } from "../rules/endgame";
+import { finalResults, territoryScore } from "../rules/endgame";
 import { PositionHistory } from "../rules/ko";
 import { getPowerup, marketStock } from "../powerups/definitions";
 import { EffectKind, PowerupContext } from "../powerups/types";
@@ -627,6 +628,9 @@ export class GoRoom extends Room<GoState> {
       lastMove: action.seq > 0 && action.x >= 0 ? { x: action.x, y: action.y } : null,
       fireflies: player.fireflies,
       moves: player.moves,
+      seats: this.state.players.length,
+      passes: this.state.passes,
+      prisoners: { base: player.basePrisoners, pattern: player.patternPrisoners },
       powerups: Array.from(player.powerups),
       bought: Array.from(player.bought),
       shopAfter: this.state.shopAfter,
@@ -679,6 +683,13 @@ export class GoRoom extends Room<GoState> {
 
     const style = this.botStyles.get(player.sessionId) ?? temperamentFor(playerIndex);
 
+    // Nothing left to play for: the rest of the table has passed in a row, so
+    // this turn ends the game. No sense shopping on the way out.
+    if (this.state.passes >= this.state.players.length - 1) {
+      this.applyPass(playerIndex);
+      return;
+    }
+
     // Buying never takes the turn, so it happens first and the action is then
     // chosen from a satchel that already holds what was bought.
     const buy = chooseBuy(this.botView(playerIndex), style);
@@ -686,8 +697,10 @@ export class GoRoom extends Room<GoState> {
 
     const wanted = chooseAction(this.botView(playerIndex), style, this.rng);
     // A pass is a decision, not a failure: a bot with judgement hands the turn
-    // on rather than spend it on a stone that gains it nothing. Only an action
-    // the rules refused falls through to the drifter below.
+    // on rather than spend it on a stone that gains it nothing, and every bot,
+    // the drifter included, passes once the rest of the table has passed in a
+    // row -- the game ends here rather than on whatever is still legal. Only an
+    // action the rules refused falls through to the drifter below.
     if (wanted.kind === "pass") {
       this.applyPass(playerIndex);
       return;
@@ -771,6 +784,7 @@ export class GoRoom extends Room<GoState> {
 
     if (lily) this.removeEffectsAt("lily", idx);
     player.score += captured.length;
+    this.creditPrisoners(player, captured);
     player.moves += 1;
     player.fireflies += FIREFLIES_PER_MOVE + this.captureFireflies(player, captured.length);
     this.clearPasses();
@@ -795,6 +809,20 @@ export class GoRoom extends Room<GoState> {
     }
     this.advanceTurn();
     return null;
+  }
+
+  /**
+   * Books each captured stone as a prisoner of the player who took it, on the
+   * front its group was judged on -- so a twin stone counts on whichever of its
+   * two fronts actually ran out of liberties. Stones swept off by a removal
+   * item are not prisoners: their owner is already paid consolation fireflies,
+   * and nobody surrounded them.
+   */
+  private creditPrisoners(player: PlayerState, captured: Captured[]) {
+    for (const c of captured) {
+      if (c.view === "pattern") player.patternPrisoners += 1;
+      else player.basePrisoners += 1;
+    }
   }
 
   /** Fireflies for `count` captures, doubled while the player's Firefly Jar is lit. */
@@ -828,6 +856,7 @@ export class GoRoom extends Room<GoState> {
     for (const { point } of captured) board[boardIndex(size, point.x, point.y)] = 0;
     if (lily) this.removeEffectsAt("lily", idx);
     player.score += captured.length;
+    this.creditPrisoners(player, captured);
     player.fireflies += this.captureFireflies(player, captured.length);
     return captured.length;
   }
@@ -866,19 +895,20 @@ export class GoRoom extends Room<GoState> {
     return null;
   }
 
-  /** Scores the board as it stands (rules/endgame.ts) and closes the game. */
+  /** Scores the board as it stands -- territory plus prisoners, rules/endgame.ts -- and closes the game. */
   private finishGame() {
     const state = this.state;
     this.botTimer?.clear();
     this.botTimer = undefined;
 
     const results = finalResults(
-      areaScore(state.board.toArray(), state.size),
-      state.players.map((p) => p.color)
+      territoryScore(state.board.toArray(), state.size),
+      state.players.map((p) => p.color),
+      state.players.map((p) => ({ base: p.basePrisoners, pattern: p.patternPrisoners }))
     );
     state.players.forEach((player, i) => {
-      player.baseArea = results[i].base;
-      player.patternArea = results[i].pattern;
+      player.baseTerritory = results[i].baseTerritory;
+      player.patternTerritory = results[i].patternTerritory;
       player.finalScore = results[i].score;
       player.tiebreak = results[i].tiebreak;
       player.place = results[i].place;
@@ -973,9 +1003,10 @@ export class GoRoom extends Room<GoState> {
       isBurning: (idx) => this.isBurning(idx),
       addEffect: (kind, x, y, owner, rounds, axis) => this.addEffect(kind, x, y, owner, rounds, axis),
       removePieces: (indices, byColor) => this.removePieces(indices, byColor),
-      creditCaptures: (count) => {
-        player.score += count;
-        player.fireflies += this.captureFireflies(player, count);
+      creditCaptures: (captured) => {
+        player.score += captured.length;
+        this.creditPrisoners(player, captured);
+        player.fireflies += this.captureFireflies(player, captured.length);
       },
       placeStone: (x, y, code) => this.placeStoneFor(playerIndex, x, y, code),
       reveal: (text) => {

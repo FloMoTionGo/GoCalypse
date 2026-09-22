@@ -88,30 +88,58 @@ On your turn you can **pass** (the *Pass* button in the header) instead of
 placing a stone. When **all four players pass in a row** the game ends; a stone
 or an item played in between starts the count again.
 
-The board is then scored the normal Go way (**area scoring**), once on each
+The board is then counted the **Japanese way — territory only**, once on each
 front:
 
-- every stone counts one point for its side (black, white, gray or transparent),
-- and so does every empty point whose empty region touches only that side's
-  stones.
+- **a stone is worth nothing in itself**, only the ground it surrounds,
+- every **empty** point whose empty region touches only one side's stones counts
+  one point for that side.
 
 A stone that is a wall on a front (its owner committed it to the other front,
 or it is driftwood) counts for no one there and doesn't spoil a region for
-anyone, like the edge of the board. Nothing is removed first, since nobody is
-there to agree what is dead: capture what should go before you pass. Stones
-standing on a burning point still count.
+anyone, like the edge of the board. Nothing is removed as dead first, since
+nobody is there to agree what is dead: **capture what should go before you
+pass**, or it lives and keeps its ground. Stones standing on a burning point
+still wall a region in.
 
-That leaves four totals: black, white, gray and transparent. Every player
-belongs to one side on each front (player 1, black + gray, to black and to gray), so
-each has two totals of their own. **A player's final score is the lower of the
-two; the higher one only breaks ties.** Players who share a side share its
-total, and players level on both numbers share a place. The welcome screen
-explains this too, and a *Results* window opens when the game ends.
+On top of its side's territory each player counts its own **prisoners**: the
+stones *it* captured on that front over the match. Territory belongs to a side,
+so the two seats holding it share it; prisoners belong to whoever played the
+capturing move, the same way fireflies do — so take the capture rather than
+leave it to the ally who shares your front. Stones swept off by a removal item
+are not prisoners: their owner is already paid consolation fireflies, and nobody
+surrounded them.
 
-Bots pass by judgement: a bot with nothing left worth playing (no capture, no
-rescue, no threat, no growth of its own area, or a move that is plain self-atari)
-passes rather than fill in its own territory. The drifter, the fallback that
-keeps a stalled table moving, never passes while a legal point exists.
+That gives every player two totals, territory + prisoners on each of its two
+fronts. **A player's final score is the lower of the two; the higher one only
+breaks ties.** Players level on both numbers share a place. The welcome screen
+explains this too, and a *Results* window opens when the game ends, showing each
+front as `total (territory+prisoners)`.
+
+### How bots play it out
+
+Bots play the board out and then stop. A move is worth a turn when it takes or
+saves stones, when it raises the bot's score (the lower of its two fronts), or
+when it is simply still open or contested ground. That last one is what fills
+every dame: a bot keeps playing to the very end rather than passing on a board
+that still has something on it.
+
+What it won't do is spend a turn on **settled territory** — a small region
+walled in by a single side. Its own, because under this count filling your own
+ground just hands the point back; anyone else's, because a stone dropped into a
+surrounded region is a gift, and a prisoner for them on top.
+
+"Small" is doing real work there. By the letter of the rule a single stone on an
+empty board walls in every point it faces, so a bot reading the count literally
+believes the game is already decided and passes on move two. A region only
+counts as territory once it is no bigger than two rows (`isSettled` in
+`rules/endgame.ts`). It's the one number in the endgame not derived from the
+rules — nothing in the scoring depends on it, only a bot's decision to stop.
+
+And whatever is still legal, a bot that comes to a table where every other seat
+has passed in a row **passes too**, so the game ends there — the drifter, the
+fallback that keeps a stalled table moving, included (`everyoneElsePassed` in
+`bots/index.ts`).
 
 ### Fireflies & the Night Market
 

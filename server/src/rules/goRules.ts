@@ -153,6 +153,13 @@ export function findGroup(
   return { group, liberties };
 }
 
+/** One stone lifted off the board, and the front its group was judged on. */
+export interface Captured {
+  point: Point;
+  color: number; // the board code that was removed
+  view: StoneView; // the front the dead group was judged on
+}
+
 /**
  * After a stone lands on (x, y), remove any adjacent group left with zero
  * liberties. A group is always judged on ITS OWN front -- a liberty is a
@@ -166,7 +173,10 @@ export function findGroup(
  * suicide, which `isSuicide` decides separately. Driftwood is never a target
  * (it isn't a player stone and owns no front).
  *
- * Returns the list of captured points, tagged with the code that was removed.
+ * Returns the list of captured points, each tagged with the code that was
+ * removed and the front its group was judged on. The front matters for a twin
+ * stone, which fights on both and can die on either: it decides which front
+ * the prisoner is credited to (rules/endgame.ts).
  */
 export function applyCaptures(
   board: number[],
@@ -175,8 +185,8 @@ export function applyCaptures(
   y: number,
   placedCode: number,
   isProtected?: IsProtected
-): { point: Point; color: number }[] {
-  const captured: { point: Point; color: number }[] = [];
+): Captured[] {
+  const captured: Captured[] = [];
   const checked = new Set<number>();
 
   for (const n of neighbors(size, x, y)) {
@@ -197,7 +207,7 @@ export function applyCaptures(
       if (liberties === 0 && !shielded) {
         for (const p of group) {
           const pIdx = index(size, p.x, p.y);
-          captured.push({ point: p, color: board[pIdx] });
+          captured.push({ point: p, color: board[pIdx], view });
           board[pIdx] = 0;
         }
       }
@@ -249,7 +259,7 @@ export function flipStone(
   x: number,
   y: number,
   isProtected?: IsProtected
-): { point: Point; color: number }[] | null {
+): Captured[] | null {
   const idx = index(size, x, y);
   const oldCode = board[idx];
   if (!isPlayerStone(oldCode) || isTwin(oldCode)) return null; // a twin has no other front to turn to

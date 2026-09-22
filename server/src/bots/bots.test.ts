@@ -7,11 +7,12 @@ import {
   stoneCode,
   StoneView,
 } from "../rules/goRules";
-import { areaScore, sidesOf } from "../rules/endgame";
+import { isSettled, regionAt, sidesOf, territoryScore } from "../rules/endgame";
 import { chooseAction, chooseBuy } from "./index";
+import { playMatch } from "./selfplay";
 import { Rng } from "./rng";
 import { BotView, isPointless, rankMoves, scoreMove } from "./scoring";
-import { heron, magpie, moth, oldToad, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
+import { heron, magpie, moth, oldToad, randomStyle, RECRUIT_IDS, recruitStyle, reed, Style, tanuki, temperamentFor } from "./styles";
 
 // The players are pure functions over a plain board, so everything below runs
 // without a room, a socket or a clock. Seat 1 is black+gray throughout.
@@ -24,6 +25,9 @@ function view(size: number, color: number, over: Partial<BotView> = {}): BotView
     lastMove: null,
     fireflies: 0,
     moves: 0,
+    seats: 4,
+    passes: 0,
+    prisoners: { base: 0, pattern: 0 },
     powerups: [],
     bought: [],
     shopAfter: 5,
@@ -140,32 +144,79 @@ test("someone else's lily pad is not on the board either", () => {
   assert.ok(scoreMove(theirs, 2, 2, "base", heron()) !== null); // the owner may still play it
 });
 
-/** Four bots play the board out, which is the cheapest fuzzer goRules will ever get. */
-function selfPlay(seed: number, plies: number): number[] {
-  const size = 13;
-  const board = new Array(size * size).fill(0);
-  const rng = new Rng(seed);
-  let last: { x: number; y: number } | null = null;
+// A whole match, driven by bots/selfplay.ts -- the same engine tools/tune runs
+// on, so what the tuner measures is what the tests check. playMatch throws on an
+// occupied point or a suicide, which makes it the cheapest fuzzer goRules will
+// ever get.
+const TABLE = [0, 1, 2, 3].map((seat) => temperamentFor(seat));
 
-  for (let ply = 0; ply < plies; ply++) {
-    const color = (ply % 4) + 1;
-    const v = view(size, color, { board, lastMove: last, moves: Math.floor(ply / 4) });
-    const action = chooseAction(v, temperamentFor(color - 1), rng);
-    if (action.kind !== "move") break; // no satchel in this harness, so it is always a stone
-    play(board, size, action.x, action.y, action.axis, color);
-    last = { x: action.x, y: action.y };
-  }
-  return board;
-}
+test("four bots play a 13x13 out to four passes", () => {
+  const match = playMatch(20260920, TABLE);
+  assert.ok(match.finished, "the game ended on passes, not on the turn cap");
+  assert.ok(match.stones > 100, `only ${match.stones} stones went down`);
+  assert.ok(match.board.some((c) => c !== 0));
+});
 
-test("four bots play 240 legal moves without stalling", () => {
-  const board = selfPlay(20260920, 240);
-  assert.ok(board.some((c) => c !== 0));
+test("a finished board leaves territory standing, not just prisoners", () => {
+  // The point of the territory count: if bots fill the board in to the last
+  // point there is nothing left to score, and the game is only a capture race.
+  const match = playMatch(20260920, TABLE);
+  const empty = match.board.filter((c) => c === 0).length;
+  assert.ok(empty > 20, `only ${empty} points left empty`);
+  assert.ok(
+    match.results.some((r) => r.baseTerritory > 0 && r.patternTerritory > 0),
+    "somebody should hold ground on both fronts"
+  );
 });
 
 test("the same seed replays the same match", () => {
-  assert.deepEqual(selfPlay(7, 120), selfPlay(7, 120));
-  assert.notDeepEqual(selfPlay(7, 120), selfPlay(8, 120));
+  assert.deepEqual(playMatch(7, TABLE).board, playMatch(7, TABLE).board);
+  assert.notDeepEqual(playMatch(7, TABLE).board, playMatch(8, TABLE).board);
+});
+
+/**
+ * A frozen Style, on purpose. Pinning a match played by the shipped recruits
+ * would mean re-pinning it every time tools/tune moves a weight, and a pin that
+ * is routinely rewritten catches nothing. These numbers belong to this test and
+ * nothing else reads them, so the hash below moves only when the engine does --
+ * the scorer, the pass judgement, the rules or the count.
+ */
+const PINNED: Style = {
+  name: "pinned",
+  capture: 1400,
+  save: 1000,
+  atari: 500,
+  connect: 250,
+  cut: 300,
+  contact: 120,
+  locality: 500,
+  extension: 350,
+  line: 200,
+  selfAtari: 1600,
+  hemmed: 100,
+  axisBias: 0,
+  prefers: "base",
+  itemBias: -1_000_000,
+  shopping: [],
+  variation: 3,
+  judgement: true,
+};
+
+function digest(board: number[]): string {
+  let h = 0x811c9dc5;
+  for (const c of board) {
+    h ^= c + 1;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
+test("a match by a frozen style still comes out move for move the same", () => {
+  // Update this only with a note saying which change to the engine moved it,
+  // and why that change was wanted.
+  const match = playMatch(20260922, [PINNED, PINNED, PINNED, PINNED]);
+  assert.equal(digest(match.board), "d8fcccc2");
+  assert.deepEqual([match.turns, match.stones, match.finished], [258, 254, true]);
 });
 
 test("the drifter still only offers legal points", () => {
@@ -175,6 +226,55 @@ test("the drifter still only offers legal points", () => {
   const ranked = rankMoves(v, randomStyle());
   assert.equal(new Set(ranked.map((c) => c.score)).size, 1); // every point equal: a flat draw
   assert.ok(ranked.length > 0);
+});
+
+// ---- the last pass ---------------------------------------------------------------
+//
+// Whatever is still legal, a bot that comes to a table where everyone else has
+// passed in a row passes too: one more pass ends the game, and playing on would
+// leave a seat alone in a game nobody else is still in.
+
+/** The capture fixture from above: seat 1 to play at (2, 3) and lift a white stone. */
+function captureOffered(over: Partial<BotView> = {}): BotView {
+  const size = 5;
+  const v = view(size, 1, over);
+  v.board[boardIndex(size, 2, 2)] = stoneCode(2, "base");
+  for (const [x, y] of [[1, 2], [3, 2], [2, 1]]) {
+    v.board[boardIndex(size, x, y)] = stoneCode(1, "base");
+  }
+  return v;
+}
+
+test("every bot passes once the rest of the table has passed in a row", () => {
+  for (const make of [reed, tanuki, magpie, heron, moth, oldToad, randomStyle]) {
+    const v = captureOffered({ passes: 3 });
+    const action = chooseAction(v, make(), new Rng(4242));
+    assert.equal(action.kind, "pass", `${make().name} played on after three passes`);
+  }
+});
+
+test("a capture waiting in front of it does not buy a bot one more turn", () => {
+  // The same board with nobody passing: the bot takes the stone, as it should.
+  const playing = chooseAction(captureOffered(), tanuki(), new Rng(4242));
+  assert.deepEqual(
+    playing.kind === "move" ? { x: playing.x, y: playing.y } : null,
+    { x: 2, y: 3 }
+  );
+  const ending = chooseAction(captureOffered({ passes: 3 }), tanuki(), new Rng(4242));
+  assert.equal(ending.kind, "pass");
+});
+
+test("a run of passes short of the table plays on as before", () => {
+  for (const passes of [0, 1, 2]) {
+    const action = chooseAction(captureOffered({ passes }), tanuki(), new Rng(4242));
+    assert.equal(action.kind, "move", `passed on ${passes} of 4 passes`);
+  }
+});
+
+test("the count is against the seats at the table, not against four", () => {
+  // A table that lost a seat ends on its own number of passes.
+  assert.equal(chooseAction(captureOffered({ seats: 3, passes: 2 }), tanuki(), new Rng(1)).kind, "pass");
+  assert.equal(chooseAction(captureOffered({ seats: 5, passes: 3 }), tanuki(), new Rng(1)).kind, "move");
 });
 
 // ---- the bots a player can seat from the welcome screen ---------------------------
@@ -272,18 +372,43 @@ test("a move that only refills its own area is pointless, one that grows it is n
   assert.equal(isPointless(open, first), false);
 });
 
-test("a stone on a front that already leads, with the score stuck, is pointless", () => {
+test("a lone stone does not own the board, whatever the count says", () => {
+  // By the letter of the territory rule one black stone on an empty 7x7 walls
+  // in all 48 remaining points, so black "leads" the base front and every
+  // further black stone reads as giving a point back. Believed, that argument
+  // makes all four seats pass on move two -- so isSettled sizes the region and
+  // refuses to call the open board anybody's territory.
   const size = 7;
   const v = view(size, 1);
-  // Black owns the whole base front (a lone stone claims the empty board) while
-  // the pattern front has nothing: another black stone adds area but no score.
   v.board[boardIndex(size, 3, 3)] = stoneCode(1, "base");
+  assert.equal(territoryScore(v.board, size).black, 48, "the count really does say this");
+
   const more = rankMoves(v, heron()).find((c) => c.x === 0 && c.y === 0 && c.axis === "base");
   assert.ok(more, "the extra stone is a legal point");
-  assert.equal(isPointless(v, more), true);
+  assert.equal(isPointless(v, more), false, "there is still a whole board to play on");
   const other = rankMoves(v, heron()).find((c) => c.axis === "pattern");
   assert.ok(other);
   assert.equal(isPointless(v, other), false, "the lagging front is worth building");
+});
+
+test("a small region walled in by one side is territory, and filling it is pointless", () => {
+  // The same shape, shrunk until it is real territory rather than open board:
+  // a black wall across a 5x5 with driftwood behind it, leaving ten points that
+  // only black borders. Ten is inside the 2 x size the endgame allows, so the
+  // bot leaves them alone instead of spending its own ground.
+  const size = 5;
+  const v = view(size, 1);
+  for (let x = 0; x < size; x++) v.board[boardIndex(size, x, 2)] = stoneCode(1, "base");
+  for (let x = 0; x < size; x++) v.board[boardIndex(size, x, 3)] = stoneCode(1, "pattern");
+  for (let x = 0; x < size; x++) v.board[boardIndex(size, x, 4)] = 9;
+
+  const { region, borders } = regionAt(v.board, size, "base", boardIndex(size, 2, 1));
+  assert.deepEqual([region, [...borders]], [10, ["black"]]);
+  assert.equal(isSettled(size, region, borders), true);
+
+  const fill = rankMoves(v, heron()).find((c) => c.x === 2 && c.y === 1 && c.axis === "base");
+  assert.ok(fill, "the fill is a legal point");
+  assert.equal(isPointless(v, fill), true);
 });
 
 test("a stone that costs the bot a point on its other front is pointless", () => {
@@ -294,7 +419,7 @@ test("a stone that costs the bot a point on its other front is pointless", () =>
   const v = view(size, 1);
   v.board = [0, 5, 5, 1, 0, 5, 1, 5, 0, 5, 5, 5, 1, 0, 1, 1, 0, 0, 0, 5, 6, 0, 5, 2, 1];
   const score = (board: number[]) => {
-    const area = areaScore(board, size);
+    const area = territoryScore(board, size);
     const sides = sidesOf(1);
     return Math.min(area[sides.base], area[sides.pattern]);
   };

@@ -31,6 +31,7 @@ export type BotAction =
  * Style behind the scores, are what make four seats read as four people.
  */
 export function chooseAction(view: BotView, style: Style, rng: Rng): BotAction {
+  if (everyoneElsePassed(view)) return { kind: "pass" };
   const ranked = rankMoves(view, style);
   const move = pickMove(view, style, rng, ranked);
   const item = planItem(view, style, ranked);
@@ -40,6 +41,16 @@ export function chooseAction(view: BotView, style: Style, rng: Rng): BotAction {
   }
   if (move) return { kind: "move", x: move.x, y: move.y, axis: move.axis };
   return { kind: "pass" };
+}
+
+/**
+ * Whether the whole rest of the table has passed in a row. One more pass ends
+ * the game, and a bot always gives it: however many points are still legal,
+ * the others have called the board finished, and a seat that played on would
+ * be alone in a game nobody else is still playing.
+ */
+function everyoneElsePassed(view: BotView): boolean {
+  return view.seats > 1 && view.passes >= view.seats - 1;
 }
 
 /**

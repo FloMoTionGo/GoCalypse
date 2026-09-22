@@ -10,7 +10,7 @@ import {
   stoneCode,
   StoneView,
 } from "../rules/goRules";
-import { areaScore, sidesOf } from "../rules/endgame";
+import { isSettled, Prisoners, regionAt, sidesOf, territoryScore } from "../rules/endgame";
 import { Rng } from "./rng";
 import { Style } from "./styles";
 
@@ -34,6 +34,11 @@ export interface BotView {
   lastMove: { x: number; y: number } | null;
   fireflies: number;
   moves: number;
+  /** Seats at this table, and how many of them have passed in a row already. */
+  seats: number;
+  passes: number;
+  /** Stones this bot has captured so far, by front: they count at the end. */
+  prisoners: Prisoners;
   powerups: string[];
   bought: string[];
   shopAfter: number;
@@ -292,49 +297,96 @@ const TACTICAL: Style = {
 };
 
 /**
- * How far the front a stone goes on may already lead the bot's other front and
- * still count as progress. The final score is the lower front, so area piled up
- * on the higher one is only insurance: at 0 a bot builds its leading front only
- * when doing so also lifts its score. Raise it to let bots bank more insurance
- * -- in self-play each point of slack puts noticeably more stones on the board
- * that earn their player fireflies and nothing else.
+ * The bot's two fronts, by the axis a stone is played on. Each is what the
+ * final count would give it there: its side's territory plus the prisoners it
+ * took on that front. Prisoners are not a constant that cancels out of the
+ * comparison below -- they decide WHICH front is the lower one, and the lower
+ * front is the score.
  */
-const FRONT_SLACK = 0;
-
-/** The bot's two fronts, by the axis a stone is played on. */
-function frontsOf(view: BotView, board: number[], axis: StoneView): { mine: number; other: number } {
-  const area = areaScore(board, view.size);
+function frontsOf(
+  view: BotView,
+  board: number[],
+  axis: StoneView,
+  took: Prisoners
+): { mine: number; other: number } {
+  const territory = territoryScore(board, view.size);
   const sides = sidesOf(view.color);
-  const base = area[sides.base];
-  const pattern = area[sides.pattern];
+  const base = territory[sides.base] + took.base;
+  const pattern = territory[sides.pattern] + took.pattern;
   return axis === "base" ? { mine: base, other: pattern } : { mine: pattern, other: base };
 }
 
+// Not cached, deliberately. Judging a turn counts the board before the move
+// once per candidate and gets the same answer every time, so a WeakMap keyed on
+// the board array looks like free speed. It is not: a caller is free to hand the
+// same array back after playing on it -- selfplay.ts keeps one board for a whole
+// match and mutates it -- and the cache then answers with the position as it was
+// several moves ago. Tried, and it quietly changed how the bots played before it
+// changed how fast they played.
+
 /**
- * Whether a bot with judgement would rather pass than play this move. It is
- * worth a turn when it takes or saves stones, raises the bot's score (the lower
- * of its two fronts), or grows a front that is not already ahead of the other by
- * more than FRONT_SLACK. Anything else -- a stone filling its own territory, one
- * more stone on a front that already leads, or a stone that costs the bot a
- * point on its other front -- earns fireflies and nothing else, so the bot
- * passes instead. Early in a game every stone raises one front, so this only
- * bites once the board is settled.
+ * Whether a bot with judgement would rather pass than play this move. This is
+ * the whole endgame: under territory scoring a stone is worth nothing but the
+ * ground it surrounds, so a bot that keeps playing after the board is settled
+ * hands away a point a turn, and one that stops too early leaves the dame
+ * unfilled and its dead stones standing.
+ *
+ * A move is worth a turn when any of these holds:
+ *
+ *  1. it takes or saves stones (the TACTICAL probe) -- prisoners count, and a
+ *     group left standing is a group that counts against nobody;
+ *  2. it raises the bot's score, the lower of its two fronts, each of them that
+ *     side's territory plus the prisoners this bot took there;
+ *  3. the point is still open ground -- the empty region it sits in is walled in
+ *     by no one, or contested between two sides -- and playing it does not cost
+ *     the bot anything.
+ *
+ * Rule 3 is what makes a bot play the game out: every dame, every contested
+ * point, right to the end. It stops firing exactly when the region a point
+ * belongs to is walled in by a single side, because then the point is settled
+ * territory and there is nothing there left to win -- the bot's own, which it
+ * would only be filling in, or somebody else's, where a stone is a gift.
+ *
+ * A stone is a wall on the front it did not pick, so it can also take a point
+ * off the bot's OTHER front. Spending a turn to end up behind is never worth it,
+ * whatever else the move does.
  */
 export function isPointless(view: BotView, move: Candidate): boolean {
   if (move.score <= 0) return true;
   const tactical = scoreMove(view, move.x, move.y, move.axis, TACTICAL);
-  if (tactical === null || tactical > 0) return false;
+  if (tactical === null || tactical > 0) return false; // takes or saves: always worth it
+
+  // Nothing is captured past this point: TACTICAL pays for a capture, so any
+  // move that takes a stone has already returned above. That is why the same
+  // prisoner count is used on both sides of the comparison -- this move cannot
+  // add to it, and the two fronts move only with the ground.
   const after = view.board.slice();
   const code = stoneCode(view.color, move.axis);
   after[boardIndex(view.size, move.x, move.y)] = code;
   applyCaptures(after, view.size, move.x, move.y, code, (i) => view.isWarded(i));
-  const before = frontsOf(view, view.board, move.axis);
-  const now = frontsOf(view, after, move.axis);
+  const before = frontsOf(view, view.board, move.axis, view.prisoners);
+  const now = frontsOf(view, after, move.axis, view.prisoners);
   const was = Math.min(before.mine, before.other);
   const is = Math.min(now.mine, now.other);
   if (is > was) return false; // the score rises: always worth the turn
-  // A stone is a wall on the front it did not pick, so it can take a point off
-  // the bot's other front. Spending a turn to end up behind is never worth it.
-  if (is < was) return true;
-  return !(now.mine > before.mine && before.mine <= before.other + FRONT_SLACK);
+  if (is < was) return true; // and ending up behind never is
+
+  // The score holds, so it comes down to the ground this point sits on. Open or
+  // contested ground is reason enough to play: that is how the dame get filled
+  // and how a bot keeps going to the very end. Settled territory is not:
+  //
+  //  - ours, and a stone there only eats into what we had already won. The
+  //    score above cannot always see that -- it is the LOWER front, and the
+  //    front being spent may be the higher one -- so it is caught here;
+  //  - somebody else's, and a stone there is a gift rather than a reduction,
+  //    because it is surrounded before it lands. Under this count it hands them
+  //    a prisoner as well.
+  const { region, borders } = regionAt(
+    view.board,
+    view.size,
+    move.axis,
+    boardIndex(view.size, move.x, move.y)
+  );
+  return isSettled(view.size, region, borders);
 }
+

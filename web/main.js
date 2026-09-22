@@ -736,11 +736,16 @@ function openWelcome(state) {
     `three rounds, and for those rounds every stone turns the same grey: the rules still know whose is whose, so remember. The forecast in the sidebar (unlikely, likely, very likely) ` +
     `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll.`;
 
-  // Mirrors areaScore / finalResults in server/src/rules/endgame.ts.
+  // Mirrors territoryScore / finalResults in server/src/rules/endgame.ts.
   document.getElementById("welcome-scoring").textContent =
-    `You play ${base} with ${pattern}, so your score is the lower of the ${base} total and the ${pattern} total; ` +
-    `the higher one only breaks ties. Players who also hold ${base} share the ${base} total, ` +
-    `and players who also hold ${pattern} share the ${pattern} total.`;
+    `The board is counted the Japanese way: only territory, the empty points your side walls in on its own. ` +
+    `A stone is worth nothing in itself, only the ground it surrounds. On top of that you count your ` +
+    `prisoners: the stones you captured yourself on that side. ` +
+    `You play ${base} with ${pattern}, so your score is the lower of your ${base} total and your ${pattern} total; ` +
+    `the higher one only breaks ties. Players who also hold ${base} share the ${base} territory, and players ` +
+    `who also hold ${pattern} share the ${pattern} territory -- but prisoners are yours alone, so take the ` +
+    `capture rather than leave it to them. Nothing is taken off as dead at the end: capture what should go ` +
+    `before you pass.`;
 
   renderWelcomeBots(state);
 
@@ -1090,11 +1095,14 @@ function openResult(state) {
       player.name + (room && player.sessionId === room.sessionId ? " (you)" : player.bot ? " (bot)" : "");
     who.append(swatches, name);
 
-    // The lower total is the score; the higher one is only the tie-break.
-    const side = (label, area) => {
+    // One front: the side's territory plus the prisoners this player took there.
+    // The lower of the two totals is the score; the higher one is only the tie-break.
+    const side = (label, territory, prisoners) => {
+      const total = territory + prisoners;
       const cell = document.createElement("span");
-      cell.className = "side" + (area === player.finalScore ? " low" : "");
-      cell.textContent = `${label} ${area}`;
+      cell.className = "side" + (total === player.finalScore ? " low" : "");
+      cell.textContent = prisoners > 0 ? `${label} ${total} (${territory}+${prisoners})` : `${label} ${total}`;
+      cell.title = `${territory} territory + ${prisoners} prisoner${prisoners === 1 ? "" : "s"}`;
       return cell;
     };
 
@@ -1102,7 +1110,13 @@ function openResult(state) {
     score.className = "final";
     score.textContent = String(player.finalScore);
 
-    row.append(place, who, side(baseName, player.baseArea), side(patternName, player.patternArea), score);
+    row.append(
+      place,
+      who,
+      side(baseName, player.baseTerritory, player.basePrisoners),
+      side(patternName, player.patternTerritory, player.patternPrisoners),
+      score
+    );
     table.appendChild(row);
   }
 

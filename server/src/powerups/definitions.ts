@@ -110,7 +110,7 @@ const turnLantern: PowerupDefinition = {
     for (let i = 0; i < raw.length; i++) {
       if (ctx.state.board[i] !== raw[i]) ctx.state.board[i] = raw[i];
     }
-    ctx.creditCaptures(captured.length);
+    ctx.creditCaptures(captured);
     return true;
   },
 };

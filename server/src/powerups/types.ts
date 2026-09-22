@@ -1,3 +1,4 @@
+import { Captured } from "../rules/goRules";
 import { GoState } from "../state/GoState";
 
 export type EffectKind = "ward" | "lily" | "drift" | "fire" | "seed" | "mist" | "fog";
@@ -24,8 +25,11 @@ export interface PowerupContext {
    * other than `byColor` get consolation fireflies. Returns how many were removed.
    */
   removePieces(indices: number[], byColor: number): number;
-  /** Credits captures made by this powerup to the user (score + fireflies). */
-  creditCaptures(count: number): void;
+  /**
+   * Credits captures made by this powerup to the user: score, fireflies, and a
+   * prisoner on each dead group's own front (rules/endgame.ts).
+   */
+  creditCaptures(captured: Captured[]): void;
   /**
    * Puts a stone with this board code on an empty point as if it had been
    * played: captures are made and credited to the user, and it is refused

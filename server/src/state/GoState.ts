@@ -12,12 +12,17 @@ export class PlayerState extends Schema {
   @type("boolean") twin: boolean = false; // the next stone fights on both fronts (Twin Wick)
   @type("number") extra: number = 0; // 1 while the next stone is a free extra one (Stepping Stones)
   @type("number") score: number = 0; // stones captured
+  // Prisoners: stones this player captured, split by the front the dead group
+  // was judged on. Counted all match (not just at the end) and added to that
+  // front total when the board is scored (rules/endgame.ts).
+  @type("number") basePrisoners: number = 0;
+  @type("number") patternPrisoners: number = 0;
   @type("number") fireflies: number = 0; // market currency, earned this match
   @type("number") moves: number = 0; // stones placed; the market opens after GoState.shopAfter
   // Filled in once when the game ends (rules/endgame.ts); all 0 until then.
-  @type("number") baseArea: number = 0; // area of this player's base side (black or white)
-  @type("number") patternArea: number = 0; // area of this player's pattern side (gray or transparent)
-  @type("number") finalScore: number = 0; // the lower of the two
+  @type("number") baseTerritory: number = 0; // territory of this player's base side (black or white)
+  @type("number") patternTerritory: number = 0; // territory of this player's pattern side (gray or transparent)
+  @type("number") finalScore: number = 0; // the lower of (territory + prisoners) on each front
   @type("number") tiebreak: number = 0; // the higher of the two
   @type("number") place: number = 0; // 1 = winner; players level on both numbers share a place
   @type(["string"]) powerups = new ArraySchema<string>(); // owned, unused items (bought at the market)
