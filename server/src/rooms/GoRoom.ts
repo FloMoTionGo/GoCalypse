@@ -19,7 +19,7 @@ import {
   stoneCode,
   StoneView,
 } from "../rules/goRules";
-import { finalResults, territoryScore } from "../rules/endgame";
+import { finalResults, territoryOwners, territoryScore } from "../rules/endgame";
 import { PositionHistory } from "../rules/ko";
 import { getPowerup, marketStock } from "../powerups/definitions";
 import { EffectKind, PowerupContext } from "../powerups/types";
@@ -901,8 +901,9 @@ export class GoRoom extends Room<GoState> {
     this.botTimer?.clear();
     this.botTimer = undefined;
 
+    const board = state.board.toArray();
     const results = finalResults(
-      territoryScore(state.board.toArray(), state.size),
+      territoryScore(board, state.size),
       state.players.map((p) => p.color),
       state.players.map((p) => ({ base: p.basePrisoners, pattern: p.patternPrisoners }))
     );
@@ -913,6 +914,8 @@ export class GoRoom extends Room<GoState> {
       player.tiebreak = results[i].tiebreak;
       player.place = results[i].place;
     });
+    for (const owner of territoryOwners(board, state.size, "base")) state.baseTerritoryOwner.push(owner);
+    for (const owner of territoryOwners(board, state.size, "pattern")) state.patternTerritoryOwner.push(owner);
 
     // Turns stop here, so a storm still in its three rounds would leave its
     // weather hanging over the final board for good.

@@ -29,6 +29,9 @@ import { boardIndex, neighbors, StoneView, stoneCode, viewValue } from "./goRule
 export type Side = "black" | "white" | "gray" | "transparent";
 export type Territory = Record<Side, number>;
 
+/** Wire encoding for a side, used by GoState's per-point territory maps: 0 means "no side". */
+export const SIDE_CODE: Record<Side, number> = { black: 1, white: 2, gray: 3, transparent: 4 };
+
 /** Prisoners one player took, by the front the dead group was judged on. */
 export interface Prisoners {
   base: number;
@@ -60,14 +63,14 @@ function flood(
   view: StoneView,
   start: number,
   seen: Set<number>
-): { region: number; borders: Set<Side> } {
-  let region = 0;
+): { points: number[]; borders: Set<Side> } {
+  const points: number[] = [];
   const borders = new Set<Side>();
   const stack = [start];
   seen.add(start);
   while (stack.length > 0) {
     const idx = stack.pop()!;
-    region += 1;
+    points.push(idx);
     for (const n of neighbors(size, idx % size, Math.floor(idx / size))) {
       const nIdx = boardIndex(size, n.x, n.y);
       const nCode = board[nIdx];
@@ -82,7 +85,7 @@ function flood(
       }
     }
   }
-  return { region, borders };
+  return { points, borders };
 }
 
 /**
@@ -97,7 +100,8 @@ export function regionAt(
   start: number
 ): { region: number; borders: Set<Side> } {
   if (board[start] !== 0) return { region: 0, borders: new Set() };
-  return flood(board, size, view, start, new Set());
+  const { points, borders } = flood(board, size, view, start, new Set());
+  return { region: points.length, borders };
 }
 
 /**
@@ -128,8 +132,8 @@ function scoreFront(board: ArrayLike<number>, size: number, view: StoneView, tot
     // though: the flood still reads it as a border, so it keeps every point it
     // surrounds.
     if (board[start] !== 0 || seen.has(start)) continue;
-    const { region, borders } = flood(board, size, view, start, seen);
-    if (borders.size === 1) totals[borders.values().next().value as Side] += region;
+    const { points, borders } = flood(board, size, view, start, seen);
+    if (borders.size === 1) totals[borders.values().next().value as Side] += points.length;
   }
 }
 
@@ -139,6 +143,26 @@ export function territoryScore(board: ArrayLike<number>, size: number): Territor
   scoreFront(board, size, "base", totals);
   scoreFront(board, size, "pattern", totals);
   return totals;
+}
+
+/**
+ * Which side owns each point on one front, as SIDE_CODE values (0 where the
+ * point is a stone, dame, or open board). Same regions and the same
+ * single-border rule as scoreFront -- this just keeps the "who" per point
+ * instead of folding it into a total, so a client can mark the board.
+ */
+export function territoryOwners(board: ArrayLike<number>, size: number, view: StoneView): number[] {
+  const owners = new Array<number>(size * size).fill(0);
+  const seen = new Set<number>();
+
+  for (let start = 0; start < size * size; start++) {
+    if (board[start] !== 0 || seen.has(start)) continue;
+    const { points, borders } = flood(board, size, view, start, seen);
+    if (borders.size !== 1) continue;
+    const code = SIDE_CODE[borders.values().next().value as Side];
+    for (const p of points) owners[p] = code;
+  }
+  return owners;
 }
 
 /** The two sides a player (combo 1..4) belongs to. */

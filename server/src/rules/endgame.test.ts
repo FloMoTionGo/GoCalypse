@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { finalResults, Prisoners, sidesOf, territoryScore } from "./endgame";
+import { finalResults, Prisoners, sidesOf, SIDE_CODE, territoryOwners, territoryScore } from "./endgame";
 
 /**
  * A board from rows of text: "." is empty, 1-4 a player's solid stone, 5-8 a
@@ -66,6 +66,39 @@ test("a stone on the other front is a wall: it scores nothing here, and does not
 
 test("driftwood is a wall on both fronts", () => {
   assert.deepEqual(territory(["19.", "...", "..."]), { black: 7, white: 0, gray: 0, transparent: 0 });
+});
+
+// ---- per-point ownership (territoryOwners) -------------------------------------
+//
+// Same regions and the same single-border rule as territoryScore, but kept per
+// point rather than folded into a total, so the client can mark the board.
+
+test("territoryOwners marks each settled point with the side that walls it in", () => {
+  const { board, size } = parse(["15.", "...", "..."]);
+  const base = territoryOwners(board, size, "base");
+  const pattern = territoryOwners(board, size, "pattern");
+  assert.equal(base[0], 0); // the black stone itself scores nothing
+  assert.equal(base[1], 0); // the gray stone is a wall on this front, not territory
+  assert.equal(base.filter((c) => c === SIDE_CODE.black).length, 7);
+  // The pattern front sees the mirror image: gray owns the same seven points.
+  assert.equal(pattern.filter((c) => c === SIDE_CODE.gray).length, 7);
+});
+
+test("territoryOwners sums to the same totals as territoryScore", () => {
+  const { board, size } = parse(["1.2.", "1.2.", "1.2.", "1.2."]);
+  const totals = territoryScore(board, size);
+  const base = territoryOwners(board, size, "base");
+  assert.equal(base.filter((c) => c === SIDE_CODE.black).length, totals.black);
+  assert.equal(base.filter((c) => c === SIDE_CODE.white).length, totals.white);
+  // Column 1 (indices 1, 5, 9, 13) touches both black and white: nobody's.
+  assert.deepEqual([base[1], base[5], base[9], base[13]], [0, 0, 0, 0]);
+});
+
+test("territoryOwners leaves a driftwood point unowned, same as any other wall", () => {
+  const { board, size } = parse(["19.", "...", "..."]);
+  const base = territoryOwners(board, size, "base");
+  assert.equal(base[1], 0); // the driftwood point itself
+  assert.equal(base.filter((c) => c === SIDE_CODE.black).length, 7);
 });
 
 test("the two fronts are counted independently on the same points", () => {

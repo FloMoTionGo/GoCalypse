@@ -86,6 +86,12 @@ export class LastAction extends Schema {
 export class GoState extends Schema {
   @type("number") size: number = 13; // board is size x size
   @type(["number"]) board = new ArraySchema<number>(); // flattened; codes documented in rules/goRules.ts
+  // Filled in once when the game ends (rules/endgame.ts territoryOwners), one entry
+  // per board point: 0 (none/stone/dame), else the SIDE_CODE of the side that
+  // settled it on that front (base: black 1 / white 2; pattern: gray 3 / transparent 4).
+  // Empty (length 0) until then.
+  @type(["number"]) baseTerritoryOwner = new ArraySchema<number>();
+  @type(["number"]) patternTerritoryOwner = new ArraySchema<number>();
   @type([PlayerState]) players = new ArraySchema<PlayerState>();
   @type("number") turnIndex: number = 0; // index into players (turn order)
   @type("string") status: "waiting" | "playing" | "finished" = "waiting";

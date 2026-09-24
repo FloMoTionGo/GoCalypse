@@ -1097,11 +1097,22 @@ function openResult(state) {
 
     // One front: the side's territory plus the prisoners this player took there.
     // The lower of the two totals is the score; the higher one is only the tie-break.
+    // Spelled out on its own line (not "10+2") so it's clear at a glance which
+    // number is captured stones and which is territory.
     const side = (label, territory, prisoners) => {
       const total = territory + prisoners;
       const cell = document.createElement("span");
       cell.className = "side" + (total === player.finalScore ? " low" : "");
-      cell.textContent = prisoners > 0 ? `${label} ${total} (${territory}+${prisoners})` : `${label} ${total}`;
+      const totalLine = document.createElement("span");
+      totalLine.className = "side-total";
+      totalLine.textContent = `${label} ${total}`;
+      cell.appendChild(totalLine);
+      if (prisoners > 0) {
+        const breakdown = document.createElement("span");
+        breakdown.className = "side-breakdown";
+        breakdown.textContent = `${territory} territory + ${prisoners} captured`;
+        cell.appendChild(breakdown);
+      }
       cell.title = `${territory} territory + ${prisoners} prisoner${prisoners === 1 ? "" : "s"}`;
       return cell;
     };
@@ -1120,7 +1131,102 @@ function openResult(state) {
     table.appendChild(row);
   }
 
+  renderResultTerritory(state);
+
   if (!resultEl.open) resultEl.showModal();
+}
+
+// rules/endgame.ts SIDE_CODE (sent as GoState.base/patternTerritoryOwner): 0 none,
+// 1 black, 2 white, 3 gray, 4 transparent -- mapped here to a board code sharing
+// that look, so G.stoneSprite can draw it.
+const TERRITORY_LOOK_CODE = { 1: 1, 2: 2, 3: 5, 4: 7 };
+
+/**
+ * Two small board diagrams under the score table -- one per front -- marking
+ * which points settled as whose territory. A full-size square is the real
+ * stone at that point (so twins and driftwood look like themselves); a small
+ * dot is an owner mark on an empty point that side walled in.
+ *
+ * Needs a server new enough to send baseTerritoryOwner / patternTerritoryOwner;
+ * an older one leaves those undefined (see the deploy-skew gotcha in
+ * state.md), so this just skips the diagrams rather than showing "undefined".
+ */
+function renderResultTerritory(state) {
+  const container = document.getElementById("result-territory");
+  container.replaceChildren();
+  if (!state.baseTerritoryOwner || !state.patternTerritoryOwner || !state.baseTerritoryOwner.length) return;
+
+  const board = Array.from(state.board);
+  const fronts = [
+    ["Base front: black vs white", Array.from(state.baseTerritoryOwner)],
+    ["Pattern front: gray vs transparent", Array.from(state.patternTerritoryOwner)],
+  ];
+  for (const [label, owners] of fronts) {
+    const wrap = document.createElement("div");
+    wrap.className = "territory-board";
+    const caption = document.createElement("div");
+    caption.className = "territory-label";
+    caption.textContent = label;
+    const canvas = territoryBoardCanvas(board, state.size, owners);
+    const img = document.createElement("img");
+    img.className = "px";
+    img.alt = label;
+    img.src = canvas.toDataURL();
+    img.width = canvas.width * 2;
+    img.height = canvas.height * 2;
+    wrap.append(caption, img);
+    container.appendChild(wrap);
+  }
+}
+
+/** One point per cell: the real stone if occupied, else a small owner mark if the point settled as territory. */
+function territoryBoardCanvas(board, size, owners) {
+  const cell = 9; // stones draw at "icon" size (9x9); territory marks ("mini", 7x7) sit centered in the same cell
+  const w = size * cell, h = size * cell;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(w, h);
+  const [ar, ag, ab] = G.PALETTE_RGB[G.INDEX.A]; // kaya amber background
+  for (let i = 0; i < w * h; i++) {
+    img.data[i * 4] = ar;
+    img.data[i * 4 + 1] = ag;
+    img.data[i * 4 + 2] = ab;
+    img.data[i * 4 + 3] = 255;
+  }
+  // Bounds-checked per pixel: driftwood's sprite is wider than a cell, and this
+  // keeps it from corrupting neighbouring rows instead of just spilling over them.
+  const blit = (spr, ox, oy) => {
+    if (!spr) return;
+    const dx = ox + ((cell - spr.w) >> 1), dy = oy + ((cell - spr.h) >> 1);
+    for (let y = 0; y < spr.h; y++) {
+      const py = dy + y;
+      if (py < 0 || py >= h) continue;
+      for (let x = 0; x < spr.w; x++) {
+        const px = dx + x;
+        if (px < 0 || px >= w) continue;
+        const v = spr.px[y * spr.w + x];
+        if (v === G.TRANSPARENT) continue;
+        const [r, g, b] = G.PALETTE_RGB[v];
+        const di = (py * w + px) * 4;
+        img.data[di] = r;
+        img.data[di + 1] = g;
+        img.data[di + 2] = b;
+        img.data[di + 3] = 255;
+      }
+    }
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const idx = y * size + x;
+      const code = board[idx];
+      if (code) blit(G.pieceSprite(code, "icon"), x * cell, y * cell);
+      else if (owners[idx]) blit(G.stoneSprite(TERRITORY_LOOK_CODE[owners[idx]], "mini"), x * cell, y * cell);
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
 }
 
 function marketItem(id) {
