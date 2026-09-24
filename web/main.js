@@ -384,10 +384,14 @@ function frame() {
   effects = P.pruneEffects(effects, now, reduced);
   if (storm && now - storm.start >= P.STORM_SECONDS) storm = null;
   const snap = viewedSnap();
+  // The recall strip must not give away what a fog hides: a fog on the board now covers the older boards too.
+  const displayBoard = veiled(
+    snap ? snap.board : board,
+    snap ? snap.overlays.concat(overlays.filter((o) => o.kind === "fog")) : overlays
+  );
   scene.render({
     time: now,
-    // The recall strip must not give away what a fog hides: a fog on the board now covers the older boards too.
-    board: veiled(snap ? snap.board : board, snap ? snap.overlays.concat(overlays.filter((o) => o.kind === "fog")) : overlays),
+    board: displayBoard,
     hover: snap ? null : hoverPoint,
     hoverKind: hoverKind(),
     myColor: myPlayer ? myPlayer.color : 0,
@@ -402,6 +406,7 @@ function frame() {
     roundLength,
     stormUntil: snap ? snap.stormUntil : stormUntil,
     reducedMotion: reduced,
+    highlightMine: snap ? null : ownStoneHighlight(displayBoard),
   });
   imageData.data.set(scene.rgba);
   boardCtx.putImageData(imageData, 0, 0);
@@ -485,6 +490,29 @@ function onBoardRightClick(evt) {
 
 let firstTarget = null; // the first point of a two-point item, once picked
 
+// Items whose target must be one of your own stones -- Ferry and Skiff only for
+// their first target, since the second is the empty point you're moving it to.
+// Mirrors the ownerOf() check each of these runs server-side in
+// server/src/powerups/definitions.ts; keep the two in sync.
+const OWN_STONE_TARGET_ITEMS = new Set(["lantern_ward", "turn_lantern", "ferry", "skiff"]);
+
+/** True if board code `code` is a stone this player placed (mirrors ownerOf() in goRules.ts). */
+function isMyStoneCode(code, myColor) {
+  if (!code || !myColor) return false;
+  if (code <= 8) return (code > 4 ? code - 4 : code) === myColor;
+  return code >= 10 && code <= 13 && code - 9 === myColor;
+}
+
+/** Every point on `boardArr` that's my own stone, while an item that needs one is armed and waiting for it. */
+function ownStoneHighlight(boardArr) {
+  if (!myPlayer || firstTarget || !selectedPowerup || !OWN_STONE_TARGET_ITEMS.has(selectedPowerup)) return null;
+  const points = [];
+  for (let i = 0; i < boardArr.length; i++) {
+    if (isMyStoneCode(boardArr[i], myPlayer.color)) points.push(i);
+  }
+  return points;
+}
+
 /**
  * Picks an item from the satchel. Items that need no point (Firefly Jar, Mist,
  * Twin Wick, Stepping Stones) go straight off; the rest wait for a click on the board.
@@ -513,13 +541,16 @@ function setTargetingHint() {
     targetingHintEl.textContent = "";
     return;
   }
+  const ownStone = OWN_STONE_TARGET_ITEMS.has(item.id) && !firstTarget;
   targetingHintEl.textContent =
     item.id === "seedling"
       ? "Seedling: click for a solid seed, right click for a gray or transparent one -- Esc to cancel."
       : item.points >= 2
       ? firstTarget
         ? `${item.name}: now the empty point to move it to -- right click to cancel.`
-        : `${item.name}: pick one of your stones -- right click to cancel.`
+        : `${item.name}: pick one of your stones, ringed in amber -- right click to cancel.`
+      : ownStone
+      ? `${item.name}: pick one of your stones, ringed in amber -- right click to cancel.`
       : `Pick a point for ${item.name} -- right click to cancel.`;
 }
 

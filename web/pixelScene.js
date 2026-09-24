@@ -1734,6 +1734,19 @@
       // 8d. a pass: a quick PASS sign over the board that fades out
       if (st.passFlash !== undefined) drawPassSign(time - st.passFlash);
 
+      // 8e. an item armed that needs one of your own stones (Lantern Ward, Turn
+      // the Lantern, Ferry, Skiff before its first target): ring every stone of
+      // yours on the board, so you don't have to work out which ones are yours
+      // by memory. main.js decides which points qualify; this just draws them.
+      if (st.highlightMine) {
+        for (const i of st.highlightMine) {
+          const code = board[i];
+          if (!code) continue; // hidden under a fog, or no longer there
+          const p = pointToNative(i % size, (i / size) | 0);
+          outlineGlow(G.pieceSprite(code), p.x, p.y, A);
+        }
+      }
+
       // 9. hover: split preview or powerup reticle, then the highlighted labels
       if (hover) {
         const p = pointToNative(hover.x, hover.y);
@@ -1765,8 +1778,8 @@
       return surf.toRGBA(rgba);
     }
 
-    /** Amber rim around a sprite's outline (hover pulse). */
-    function outlineGlow(spr, cx, cy) {
+    /** A colour rim traced around a sprite's outline (cream by default: the hover pulse). */
+    function outlineGlow(spr, cx, cy, color = C) {
       const x0 = cx - ((spr.w - 1) >> 1), y0 = cy - ((spr.h - 1) >> 1);
       for (let y = 0; y < spr.h; y++) {
         for (let x = 0; x < spr.w; x++) {
@@ -1776,7 +1789,7 @@
             x === 0 || y === 0 || x === spr.w - 1 || y === spr.h - 1 ||
             spr.px[y * spr.w + x - 1] === G.TRANSPARENT || spr.px[y * spr.w + x + 1] === G.TRANSPARENT ||
             spr.px[(y - 1) * spr.w + x] === G.TRANSPARENT || spr.px[(y + 1) * spr.w + x] === G.TRANSPARENT;
-          if (edge) surf.set(x0 + x, y0 + y, C);
+          if (edge) surf.set(x0 + x, y0 + y, color);
         }
       }
     }
