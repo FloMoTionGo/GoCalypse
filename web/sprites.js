@@ -284,6 +284,21 @@
     sprite("ember_2", ["..K..", ".KAK.", "KACAK", ".KAK.", "..K.."]),
     sprite("ember_3", [".....", "..K..", ".KAK.", "..K..", "....."]),
   ]);
+  // The same ember, grown to fill a stone: marks each of your stones when an
+  // item armed needs one of them as its target. Flickers like the small one.
+  const EMBER_BIG = [
+    "....K....", "...KAK...", "..KAAAK..", ".KAACAAK.", "KAACCCAAK", ".KAACAAK.", "..KAAAK..", "...KAK...", "....K....",
+  ];
+  anim("emberBig", 6, [
+    sprite("emberBig_0", EMBER_BIG),
+    sprite("emberBig_1", [
+      "....K....", "...KCK...", "..KACAK..", ".KACCCAK.", "KACCCCCAK", ".KACCCAK.", "..KACAK..", "...KCK...", "....K....",
+    ]),
+    sprite("emberBig_2", EMBER_BIG),
+    sprite("emberBig_3", [
+      ".........", "....K....", "...KAK...", "..KAAAK..", ".KAACAAK.", "..KAAAK..", "...KAK...", "....K....", ".........",
+    ]),
+  ]);
 
   // Firefly blink cycle (scene decides when each firefly is lit).
   anim("firefly", 8, [
@@ -1187,36 +1202,40 @@
   ];
 
   // ---------------------------------------------------------------------------
-  // Item cards: a bought item is a square card in the player's hand under the
+  // Item cards: a bought item is a portrait card in the player's hand under the
   // board. An ink card with a frame in its tier's colour (I teal, II amber, III
   // cream), one gem per tier on the top edge, the item's icon in a night-sky
-  // window, and an empty ink strip at the bottom where the page writes the name
-  // (the pixel fonts only have digits).
+  // window, then two empty ink panels where the page writes the text (the pixel
+  // fonts only have digits): the item's name, and under a dotted rule its
+  // description, small in the hand and read when the card is shown enlarged.
   // ---------------------------------------------------------------------------
-  const CARD_SIZE = 32;
-  const CARD_ART = { x: 3, y: 5, w: 26, h: 15 }; // the icon's window
-  const CARD_NAME_Y = 21; // first row of the name strip (rows 21..29)
+  const CARD_W = 36;
+  const CARD_H = 52;
+  const CARD_ART = { x: 3, y: 5, w: 30, h: 14 }; // the icon's window
+  const CARD_NAME_Y = 20; // first row of the name panel (rows 20..28)
+  const CARD_RULE_Y = 29; // the dotted rule between name and description
+  const CARD_TEXT_Y = 31; // first row of the description panel (rows 31..48)
   const CARD_FRAME = { 1: T, 2: A, 3: C };
 
-  /** The card's silhouette: a square with two pixels cut off each corner. */
+  /** The card's silhouette: a rectangle with two pixels cut off each corner. */
   function inCard(x, y) {
-    const n = CARD_SIZE - 1;
-    if (x < 0 || y < 0 || x > n || y > n) return false;
-    const cx = Math.min(x, n - x), cy = Math.min(y, n - y);
+    const w = CARD_W - 1, h = CARD_H - 1;
+    if (x < 0 || y < 0 || x > w || y > h) return false;
+    const cx = Math.min(x, w - x), cy = Math.min(y, h - y);
     return cx + cy >= 2;
   }
 
-  /** Card-face sprite for an item: CARD_SIZE square, tier 1..3 (anything else reads as 1). */
+  /** Card-face sprite for an item: CARD_W x CARD_H, tier 1..3 (anything else reads as 1). */
   const cardCache = {};
   function itemCard(id, tier) {
     const t = tier === 2 || tier === 3 ? tier : 1;
     const key = `${id}:${t}`;
     if (key in cardCache) return cardCache[key];
-    const N = CARD_SIZE, frame = CARD_FRAME[t];
-    const s = new Surface(N, N);
+    const W = CARD_W, H = CARD_H, frame = CARD_FRAME[t];
+    const s = new Surface(W, H);
     s.fill(TRANSPARENT);
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
         if (!inCard(x, y)) continue;
         const edge = !inCard(x - 1, y) || !inCard(x + 1, y) || !inCard(x, y - 1) || !inCard(x, y + 1);
         const ring = !inCard(x - 2, y) || !inCard(x + 2, y) || !inCard(x, y - 2) || !inCard(x, y + 2);
@@ -1234,12 +1253,14 @@
         s.set(x, y, border ? S : water && ditherOn(x, y, y === a.y + a.h - 3 ? 0.25 : 0.5) ? T : K);
       }
     }
-    for (const [x, y] of [[a.x + 3, a.y + 2], [a.x + 21, a.y + 1], [a.x + 23, a.y + 6], [a.x + 1, a.y + 8]]) s.set(x, y, S);
+    for (const [x, y] of [[a.x + 3, a.y + 2], [a.x + 24, a.y + 1], [a.x + 26, a.y + 6], [a.x + 1, a.y + 8]]) s.set(x, y, S);
     const icon = powerupIcon(id) || SPRITES.fireflyIcon;
     s.blitCentered(icon, a.x + (a.w >> 1), a.y + (a.h >> 1));
+    // The rule under the name: slate dots, fading out towards the frame.
+    for (let x = 6; x < W - 6; x += 2) s.set(x, CARD_RULE_Y, S);
     // Tier gems on the top edge: amber diamonds set in ink, each with a cream glint.
     for (let i = 0; i < t; i++) {
-      const gx = (N >> 1) + Math.round((i - (t - 1) / 2) * 6), gy = 2;
+      const gx = (W >> 1) + Math.round((i - (t - 1) / 2) * 6), gy = 2;
       for (let dy = -2; dy <= 2; dy++) {
         for (let dx = -2; dx <= 2; dx++) {
           const d = Math.abs(dx) + Math.abs(dy);
@@ -1247,24 +1268,24 @@
         }
       }
     }
-    return (cardCache[key] = makeSprite(`card_${id}_${t}`, N, N, s.px));
+    return (cardCache[key] = makeSprite(`card_${id}_${t}`, W, H, s.px));
   }
 
   /** An empty place in the hand: the card's outline, dotted in slate. */
   let cardSlotSprite = null;
   function cardSlot() {
     if (cardSlotSprite) return cardSlotSprite;
-    const N = CARD_SIZE;
-    const s = new Surface(N, N);
+    const W = CARD_W, H = CARD_H;
+    const s = new Surface(W, H);
     s.fill(TRANSPARENT);
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
         if (!inCard(x, y)) continue;
         const edge = !inCard(x - 1, y) || !inCard(x + 1, y) || !inCard(x, y - 1) || !inCard(x, y + 1);
         if (edge && ((x + y) & 3) < 2) s.set(x, y, S);
       }
     }
-    return (cardSlotSprite = makeSprite("card_slot", N, N, s.px));
+    return (cardSlotSprite = makeSprite("card_slot", W, H, s.px));
   }
 
   /** Every sprite and animation, for sprite sheets and previews. */
@@ -1317,8 +1338,10 @@
     isPlayerStoneCode,
     powerupIcon,
     POWERUP_ICON_IDS,
-    CARD_SIZE,
+    CARD_W,
+    CARD_H,
     CARD_NAME_Y,
+    CARD_TEXT_Y,
     itemCard,
     cardSlot,
     SPRITES,

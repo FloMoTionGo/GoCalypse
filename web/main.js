@@ -355,6 +355,7 @@ function sizeCanvas() {
   // No room for the recall strip beside the cards: it goes under them, so the cards
   // don't jump down when the strip first shows up.
   document.getElementById("board-foot").classList.toggle("stacked", !hand.oneRow);
+  hideCardZoom(); // drawn at the old card size
 }
 
 // The hand of cards under the board, in card pixels (see #board-foot / #hand in style.css).
@@ -373,11 +374,11 @@ const RECALL_ROW = 34; // ... or the row it takes under them when the two don't 
 function handLayout(scale, dpr) {
   const places = (lastState && lastState.satchelLimit) || 5;
   const boardW = (scene.width * scale) / dpr;
-  const handW = (k) => ((places * G.CARD_SIZE + (places - 1) * CARD_GAP) * k) / dpr;
+  const handW = (k) => ((places * G.CARD_W + (places - 1) * CARD_GAP) * k) / dpr;
   let k = Math.max(1, Math.round(Math.min(3 * dpr, Math.max(2 * dpr, scale))));
   while (k > 1 && handW(k) > boardW) k--;
   const oneRow = handW(k) + RECALL_W <= boardW;
-  return { k, oneRow, height: ((G.CARD_SIZE + CARD_ROW_GAP) * k) / dpr + (oneRow ? 0 : RECALL_ROW) };
+  return { k, oneRow, height: ((G.CARD_H + CARD_ROW_GAP) * k) / dpr + (oneRow ? 0 : RECALL_ROW) };
 }
 
 function reducedMotion() {
@@ -591,9 +592,9 @@ function targetingText() {
     : item.points >= 2
     ? firstTarget
       ? `${item.name}: now the empty point to move it to -- right click to cancel.`
-      : `${item.name}: pick one of your stones, ringed in amber -- right click to cancel.`
+      : `${item.name}: pick one of your stones, each marked with an ember -- right click to cancel.`
     : ownStone
-    ? `${item.name}: pick one of your stones, ringed in amber -- right click to cancel.`
+    ? `${item.name}: pick one of your stones, each marked with an ember -- right click to cancel.`
     : `Pick a point for ${item.name} -- right click to cancel.`;
 }
 
@@ -1358,12 +1359,13 @@ function fireflies(amount) {
   return span;
 }
 
-/** Rebuild an element only when what it shows changed (keeps buttons stable under the cursor). */
+/** Rebuild an element only when what it shows changed (keeps buttons stable under the cursor); true if it did. */
 function rebuild(el, signature, build) {
-  if (el.dataset.sig === signature) return;
+  if (el.dataset.sig === signature) return false;
   el.dataset.sig = signature;
   el.replaceChildren();
   build();
+  return true;
 }
 
 function renderSidebar(state) {
@@ -1459,7 +1461,7 @@ let armedCard = -1; // hand position of the card picked last (two copies of one 
 const incoming = new Set(); // hand positions whose card is still flying in from the market
 
 /**
- * The satchel as a hand of square cards under the board, one per item held and
+ * The satchel as a hand of portrait cards under the board, one per item held and
  * a dotted place for each free one. A card bought since the last state flies
  * in from its Night Market stall first. Only the buyer sees that: every client
  * draws its own player's hand.
@@ -1479,7 +1481,7 @@ function renderHand(state) {
     `Satchel: ${owned.length} of ${state.satchelLimit} items, at most ${state.powerfulLimit} of them powerful. ` +
     `Buy them at the Night Market, and on your turn pick a card to use it.`;
   const sig = JSON.stringify([owned, places, isMyTurn, shown, Array.from(incoming)]);
-  rebuild(handEl, sig, () => {
+  const rebuilt = rebuild(handEl, sig, () => {
     for (let i = 0; i < places; i++) {
       if (i >= owned.length) {
         const place = document.createElement("span");
@@ -1503,24 +1505,96 @@ function renderHand(state) {
       handEl.appendChild(empty);
     }
   });
+  if (rebuilt) refreshCardZoom();
   for (let i = owned.length - fresh; i < owned.length; i++) flyCard(i);
 }
 
-/** A card: the pixel card face (sprites.js itemCard) with the item's name in its bottom strip. */
+/** A card: the pixel card face (sprites.js itemCard) with the item's name and description in its panels. */
 function itemCard(id) {
   const item = marketItem(id) || { name: id, description: "", tier: 1 };
   const card = document.createElement("button");
   card.type = "button";
   card.className = "card";
   card.dataset.id = id;
-  card.setAttribute("aria-label", item.name);
-  card.title = `${item.name} (tier ${["", "I", "II", "III"][item.tier] || item.tier}): ${item.description}`;
+  card.setAttribute("aria-label", `${item.name} (tier ${["", "I", "II", "III"][item.tier] || item.tier}): ${item.description}`);
+  card.title = ""; // hovering shows the card enlarged instead; "" also keeps the satchel's tooltip off it
   const name = document.createElement("span");
   name.className = "card-name";
   name.textContent = item.name;
-  card.append(spriteImg(`card_${id}_${item.tier}`, G.itemCard(id, item.tier), 1), name);
+  const text = document.createElement("span");
+  text.className = "card-text";
+  text.textContent = item.description;
+  card.append(spriteImg(`card_${id}_${item.tier}`, G.itemCard(id, item.tier), 1), name, text);
   return card;
 }
+
+// ---- a card shown enlarged over the board while the pointer rests on it (or it has keyboard focus)
+
+const CARD_ZOOM = 4;
+let zoomedCard = null; // the hand's card on show, or null
+
+/**
+ * Shows a copy of `card` at CARD_ZOOM times its size, centred over the board and
+ * kept on screen, so its description can be read. It only looks: the pointer
+ * passes through it to the hand below.
+ */
+function showCardZoom(card) {
+  if (zoomedCard === card) return;
+  hideCardZoom();
+  if (!card.isConnected || card.classList.contains("incoming")) return;
+  const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-px")) || 2;
+  const b = boardEl.getBoundingClientRect();
+  const margin = 8;
+  // As large as asked, unless the window is too small for that; whole device pixels per card pixel.
+  const dpr = window.devicePixelRatio || 1;
+  const fit = Math.min(CARD_ZOOM * px, (window.innerWidth - 2 * margin) / G.CARD_W, (window.innerHeight - 2 * margin) / G.CARD_H);
+  const zpx = Math.max(px, Math.floor(fit * dpr) / dpr);
+  const w = G.CARD_W * zpx, h = G.CARD_H * zpx;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+  const left = clamp(b.left + (b.width - w) / 2, margin, window.innerWidth - margin - w);
+  const top = clamp(b.top + (b.height - h) / 2, margin, window.innerHeight - margin - h);
+
+  const zoom = card.cloneNode(true);
+  zoom.classList.remove("active", "landed");
+  zoom.classList.add("zoom");
+  zoom.disabled = false; // shown bright even off-turn: it's there to be read
+  zoom.removeAttribute("aria-label");
+  zoom.setAttribute("aria-hidden", "true");
+  zoom.tabIndex = -1;
+  zoom.style.setProperty("--card-px", `${zpx}px`);
+  Object.assign(zoom.style, { left: `${left}px`, top: `${top}px` });
+  document.body.appendChild(zoom);
+  zoomedCard = card;
+}
+
+function hideCardZoom() {
+  zoomedCard = null;
+  for (const el of document.querySelectorAll(".card.zoom")) el.remove();
+}
+
+/** After the hand is rebuilt: show the new card under the pointer (or in focus), if any. */
+function refreshCardZoom() {
+  if (!zoomedCard) return;
+  const under = handEl.querySelector(".card:hover") || handEl.querySelector(".card:focus-visible");
+  hideCardZoom();
+  if (under) showCardZoom(under);
+}
+
+handEl.addEventListener("pointerover", (e) => {
+  const card = e.target.closest(".card");
+  if (card && e.pointerType !== "touch") showCardZoom(card);
+});
+handEl.addEventListener("pointerout", (e) => {
+  const card = e.target.closest(".card");
+  if (card && card === zoomedCard && !card.contains(e.relatedTarget)) hideCardZoom();
+});
+handEl.addEventListener("focusin", (e) => {
+  const card = e.target.closest(".card");
+  if (card && card.matches(":focus-visible")) showCardZoom(card);
+});
+handEl.addEventListener("focusout", () => {
+  if (zoomedCard && !zoomedCard.matches(":hover")) hideCardZoom();
+});
 
 /** Picking a second copy of the armed item only moves the highlight; picking the same card again disarms it. */
 function pickCard(id, index) {

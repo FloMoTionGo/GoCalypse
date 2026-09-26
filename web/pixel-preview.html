@@ -61,10 +61,10 @@
     .card .meta { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--slate); }
     /* Item cards, drawn as in the game's hand (web/style.css .card) at 3 CSS px per card pixel. */
     .item-cards { display: flex; flex-wrap: wrap; gap: 14px 12px; }
-    .item-card { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 96px; }
-    .item-card .face { position: relative; width: 96px; height: 96px; }
+    .item-card { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 108px; }
+    .item-card .face { position: relative; width: 108px; height: 156px; }
     .item-card .face span {
-      position: absolute; left: 6px; right: 6px; top: 63px; height: 27px;
+      position: absolute; left: 9px; right: 9px; top: 60px; height: 27px;
       display: flex; align-items: center; justify-content: center; overflow: hidden;
       text-align: center; font-size: 12.3px; font-weight: 700; line-height: 1.05; letter-spacing: -0.01em; color: var(--cream);
     }
@@ -147,7 +147,7 @@
 
     <section class="sheet">
       <h2>Item cards</h2>
-      <p>What a bought item becomes: a square card that flies from its Night Market stall into the player's hand under the board. The frame and the gems give the tier (I teal, II amber, III cream). The face is <code>itemCard()</code> in sprites.js; the name is page text in its bottom strip. Every item, cheap to dear within each tier, then an empty place in the hand.</p>
+      <p>What a bought item becomes: a portrait card that flies from its Night Market stall into the player's hand under the board. The frame and the gems give the tier (I teal, II amber, III cream). The face is <code>itemCard()</code> in sprites.js; the name is page text in the panel under the art (in the game the description goes under the dotted rule, read when the card is shown enlarged on hover). Every item, cheap to dear within each tier, then an empty place in the hand.</p>
       <div id="item-cards" class="item-cards"></div>
     </section>
 
@@ -436,12 +436,12 @@
       (function buildItemCards() {
         const list = document.getElementById("item-cards");
         const add = (spr, name, meta) => {
-          const s = new G.Surface(G.CARD_SIZE, G.CARD_SIZE);
+          const s = new G.Surface(G.CARD_W, G.CARD_H);
           s.fill(K);
           s.blit(spr, 0, 0);
           const c = document.createElement("canvas");
           c.className = "px";
-          sizeCanvas(c, G.CARD_SIZE, G.CARD_SIZE, 3);
+          sizeCanvas(c, G.CARD_W, G.CARD_H, 3);
           blitSurface(c, s);
           const face = document.createElement("div");
           face.className = "face";

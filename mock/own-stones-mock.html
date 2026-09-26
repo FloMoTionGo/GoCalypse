@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>GoCalypse mock: own-stone markers</title>
+<link rel="stylesheet" href="../web/style.css" />
+<script src="../web/sprites.js"></script>
+<script src="../web/pixelScene.js"></script>
+<style>
+  #picker { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+  #picker button.on { background: var(--amber); color: var(--ink); }
+  .note { color: var(--slate); font-size: 13px; max-width: 900px; margin: 0 0 12px; }
+  .boards { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .boards figure { margin: 0; }
+  .boards figcaption { color: var(--cream); font-size: 13px; margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <p class="note">Static mock of the own-stone markers. When an armed item needs one of your own stones as its target
+  (Lantern Ward, Turn the Lantern, Ferry, Skiff), each of your stones gets the last-move ember, enlarged to 9x9, in its centre.
+  Before this change they only had an amber rim. You play black + gray. The other players' stones stay unmarked, even
+  where they look like yours (the black stone at 6-6). The small ember at 5-5 is the real last move, which is yours
+  too, so there the big ember covers it.
+  Sample data only, no server. <code>?frame=0..3</code> freezes the flicker.</p>
+  <div id="picker"></div>
+  <div class="boards">
+    <figure><figcaption>No item armed</figcaption><canvas id="plain" class="px"></canvas></figure>
+    <figure><figcaption>Lantern Ward armed: your stones marked</figcaption><canvas id="armed" class="px"></canvas></figure>
+  </div>
+  <p class="hint targeting" style="color: var(--amber)">Lantern Ward: pick one of your stones, each marked with an ember -- right click to cancel.</p>
+</div>
+<script>
+(function () {
+  const P = window.GoPixelScene;
+  const SIZE = 13, SCALE = 3;
+  // [x, y, code]: 1/5 are yours (black / gray); the rest belong to the other three players.
+  const STONES = [
+    [3,3,1],[3,4,5],[4,4,2],[5,3,6],[6,6,3],[7,6,7],[8,8,4],[9,3,7],[6,9,1],[5,5,5],
+    [2,9,1],[2,10,5],[10,10,1],[11,10,2],[10,2,8],[7,8,6],[4,7,5],
+  ];
+  const MINE = [[3,3],[3,4],[6,9],[5,5],[2,9],[2,10],[10,10],[4,7]];
+  const board = new Array(SIZE * SIZE).fill(0);
+  for (const [x, y, c] of STONES) board[y * SIZE + x] = c;
+  const mine = MINE.map(([x, y]) => y * SIZE + x);
+
+  function setup(id) {
+    const scene = P.createScene({ size: SIZE });
+    const canvas = document.getElementById(id);
+    canvas.width = scene.width; canvas.height = scene.height;
+    canvas.style.width = scene.width * SCALE + "px"; canvas.style.height = scene.height * SCALE + "px";
+    const ctx = canvas.getContext("2d");
+    return { scene, ctx, image: ctx.createImageData(scene.width, scene.height) };
+  }
+  const views = [[setup("plain"), null], [setup("armed"), mine]];
+
+  const frameParam = new URLSearchParams(location.search).get("frame");
+  let frozen = frameParam === null ? null : Number(frameParam);
+  function draw(time) {
+    for (const [v, highlightMine] of views) {
+      v.scene.render({
+        time, board, hover: null, hoverKind: "none", myColor: 1, lastMove: { x: 5, y: 5 },
+        effects: [], storm: null, round: 4, fireflies: 12, turnCount: 15, roundLength: 4, stormUntil: 0,
+        reducedMotion: false, overlays: [], highlightMine,
+      });
+      v.image.data.set(v.scene.rgba);
+      v.ctx.putImageData(v.image, 0, 0);
+    }
+  }
+  // The embers run at 6 fps: frame n sits at time n / 6 (+ a hair).
+  function loop(ms) {
+    draw(frozen === null ? ms / 1000 : 20 + frozen / 6 + 0.01);
+    requestAnimationFrame(loop);
+  }
+
+  const picker = document.getElementById("picker");
+  const pick = (f) => {
+    frozen = f;
+    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("on", String(f) === b.dataset.f));
+  };
+  for (const [f, label] of [[null, "flicker"], [0, "frame 0"], [1, "frame 1 (bright)"], [3, "frame 3 (dim)"]]) {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.f = String(f); b.textContent = label;
+    b.addEventListener("click", () => pick(f));
+    picker.append(b);
+  }
+  pick(frozen);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

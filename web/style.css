@@ -269,13 +269,14 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 #board-foot.stacked #recall { flex-basis: 100%; }
 #board-hint.targeting { color: var(--amber); }
 
-/* A card: the pixel face from sprites.js itemCard (32x32 card pixels), its name in the bottom strip (rows 21-29). */
+/* A card: the pixel face from sprites.js itemCard (36x52 card pixels), its name in the panel under
+   the art (rows 20-28) and its description in the one under the rule (rows 31-48). */
 .card, .card-place {
   position: relative;
   display: block;
   flex: 0 0 auto;
-  width: calc(32 * var(--card-px));
-  height: calc(32 * var(--card-px));
+  width: calc(36 * var(--card-px));
+  height: calc(52 * var(--card-px));
   padding: 0;
   margin: 0;
   border: 0;
@@ -289,12 +290,12 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 /* Armed: lifted clear of the others, in a glow that follows the card's cut corners. */
 .card.active { transform: translateY(calc(-2 * var(--card-px))); filter: drop-shadow(0 0 calc(2 * var(--card-px)) var(--amber)); }
 .card:disabled { cursor: default; background: none; }
-.card:disabled img, .card:disabled .card-name { opacity: 0.55; }
+.card:disabled img, .card:disabled .card-name, .card:disabled .card-text { opacity: 0.55; }
 .card-name {
   position: absolute;
-  left: calc(2 * var(--card-px));
-  right: calc(2 * var(--card-px));
-  top: calc(21 * var(--card-px));
+  left: calc(3 * var(--card-px));
+  right: calc(3 * var(--card-px));
+  top: calc(20 * var(--card-px));
   height: calc(9 * var(--card-px));
   display: flex;
   align-items: center;
@@ -306,6 +307,33 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.01em;
+}
+/* Too small to read in the hand; hovering shows the card enlarged over the board (showCardZoom). */
+.card-text {
+  position: absolute;
+  left: calc(3 * var(--card-px));
+  right: calc(3 * var(--card-px));
+  top: calc(31 * var(--card-px));
+  height: calc(18 * var(--card-px));
+  overflow: hidden;
+  text-align: center;
+  color: var(--cream);
+  font-size: calc(1.95 * var(--card-px));
+  font-weight: 400;
+  line-height: 1.16;
+  opacity: 0.85;
+}
+.card.zoom {
+  position: fixed;
+  z-index: 70;
+  pointer-events: none;
+  transform: none;
+  filter: drop-shadow(0 calc(2 * var(--card-px)) calc(4 * var(--card-px)) rgba(0, 0, 0, 0.6));
+  animation: card-zoom 110ms ease-out;
+}
+@keyframes card-zoom {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: none; }
 }
 .hand-empty {
   position: absolute;
@@ -335,7 +363,7 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 }
 @media (prefers-reduced-motion: reduce) {
   .card { transition: none; }
-  .card.landed { animation: none; }
+  .card.landed, .card.zoom { animation: none; }
 }
 
 .item {

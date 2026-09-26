@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>GoCalypse mock: item cards</title>
+<link rel="stylesheet" href="../web/style.css" />
+<script src="../web/sprites.js"></script>
+<script src="../web/pixelScene.js"></script>
+<style>
+  #picker { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+  #picker button.on { background: var(--amber); color: var(--ink); }
+  .note { color: var(--slate); font-size: 13px; max-width: 900px; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <p class="note">Static mock of the portrait item cards (36x52 card pixels: art, name, description) and the
+  enlarged card shown over the board while the pointer rests on one (400%, kept on screen). Hover a card, or pin one
+  below (<code>?zoom=&lt;id&gt;</code>). Sample data only, no server. The last card is dimmed as off-turn.</p>
+  <div id="picker"></div>
+
+  <section id="game">
+    <div id="game-body">
+      <div id="board-wrap">
+        <canvas id="board" class="px"></canvas>
+        <div id="board-foot">
+          <div id="hand" role="group" aria-label="Satchel"></div>
+        </div>
+        <p id="board-hint" class="hint">Pick a card to use its item, then click a point on the board.</p>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+(function () {
+  const G = window.GoSprites, P = window.GoPixelScene;
+  const urlCache = {};
+  function img(key, spr) {
+    if (!urlCache[key]) {
+      const c = document.createElement("canvas");
+      c.width = spr.w; c.height = spr.h;
+      const ctx = c.getContext("2d"), d = ctx.createImageData(spr.w, spr.h);
+      for (let i = 0; i < spr.px.length; i++) {
+        const v = spr.px[i];
+        if (v === G.TRANSPARENT) continue;
+        const rgb = G.PALETTE_RGB[v];
+        d.data.set([rgb[0], rgb[1], rgb[2], 255], i * 4);
+      }
+      ctx.putImageData(d, 0, 0);
+      urlCache[key] = c.toDataURL();
+    }
+    const el = document.createElement("img");
+    el.className = "px"; el.alt = ""; el.src = urlCache[key]; el.width = spr.w; el.height = spr.h;
+    return el;
+  }
+
+  // ---- scene -----------------------------------------------------------------
+  const SIZE = 13, SCALE = 3, scene = P.createScene({ size: SIZE });
+  const canvas = document.getElementById("board");
+  canvas.width = scene.width; canvas.height = scene.height;
+  canvas.style.width = scene.width * SCALE + "px"; canvas.style.height = scene.height * SCALE + "px";
+  const ctx = canvas.getContext("2d"), image = ctx.createImageData(scene.width, scene.height);
+  const board = new Array(SIZE * SIZE).fill(0);
+  [[0,0,1],[12,0,6],[0,12,3],[12,12,8],[3,3,1],[3,4,5],[4,4,2],[5,3,6],[6,6,3],[7,6,7],[8,8,4],[9,3,8],[6,9,1],[5,5,2]].forEach((s) => (board[s[1] * SIZE + s[0]] = s[2]));
+  scene.render({
+    time: 20, board, hover: null, hoverKind: "none", myColor: 1, lastMove: { x: 5, y: 5 },
+    effects: [], storm: null, round: 4, fireflies: 12, turnCount: 15, roundLength: 4, stormUntil: 0,
+    reducedMotion: true, overlays: [],
+  });
+  image.data.set(scene.rgba);
+  ctx.putImageData(image, 0, 0);
+
+  // Card pixels as in main.js handLayout: 2..3 CSS px each, the hand never wider than the board.
+  const places = 5;
+  let k = 3;
+  while (k > 1 && (places * G.CARD_W + (places - 1) * 2) * k > scene.width * SCALE) k--;
+  document.documentElement.style.setProperty("--card-px", k + "px");
+
+  // ---- the hand ----------------------------------------------------------------
+  const HAND = [
+    ["fog", "Fog", 1, "Roll a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed, and nobody can see them, not even you or their owners, nor in the move recall. No stone can be placed inside it."],
+    ["turn_lantern", "Turn the Lantern", 2, "Flip one of your stones to your other front (black/white <-> gray/transparent). Captures count on the new front."],
+    ["twin_wick", "Twin Wick", 2, "Your next stone fights on both fronts at once: it joins and captures on both, but is lost if either of its groups runs out of liberties. Doesn't use up your turn."],
+    ["stepping_stones", "Stepping Stones", 3, "Place two stones this turn: your next move doesn't end your turn. Doesn't use up your turn."],
+  ];
+  const handEl = document.getElementById("hand");
+  HAND.forEach(([id, name, tier, desc], i) => {
+    const card = document.createElement("button");
+    card.type = "button"; card.className = "card"; card.dataset.id = id; card.title = "";
+    if (i === 1) card.classList.add("active");
+    const n = document.createElement("span"); n.className = "card-name"; n.textContent = name;
+    const t = document.createElement("span"); t.className = "card-text"; t.textContent = desc;
+    card.append(img(`card_${id}_${tier}`, G.itemCard(id, tier)), n, t);
+    handEl.append(card);
+  });
+  handEl.lastElementChild.disabled = true;
+  const place = document.createElement("span");
+  place.className = "card-place";
+  place.append(img("card_slot", G.cardSlot()));
+  handEl.append(place);
+
+  // ---- the enlarged card (as showCardZoom in main.js) --------------------------------
+  let zoomed = null;
+  function show(card) {
+    if (zoomed === card) return;
+    hide();
+    const px = k, margin = 8, b = canvas.getBoundingClientRect();
+    const zpx = Math.max(px, Math.floor(Math.min(4 * px, (innerWidth - 2 * margin) / G.CARD_W, (innerHeight - 2 * margin) / G.CARD_H)));
+    const w = G.CARD_W * zpx, h = G.CARD_H * zpx;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+    const zoom = card.cloneNode(true);
+    zoom.classList.remove("active");
+    zoom.classList.add("zoom");
+    zoom.disabled = false;
+    zoom.style.setProperty("--card-px", zpx + "px");
+    zoom.style.left = clamp(b.left + (b.width - w) / 2, margin, innerWidth - margin - w) + "px";
+    zoom.style.top = clamp(b.top + (b.height - h) / 2, margin, innerHeight - margin - h) + "px";
+    document.body.append(zoom);
+    zoomed = card;
+  }
+  function hide() {
+    zoomed = null;
+    document.querySelectorAll(".card.zoom").forEach((el) => el.remove());
+  }
+  handEl.addEventListener("pointerover", (e) => { const c = e.target.closest(".card"); if (c) show(c); });
+  handEl.addEventListener("pointerout", (e) => {
+    const c = e.target.closest(".card");
+    if (c && c === zoomed && !c.contains(e.relatedTarget)) hide();
+  });
+
+  const picker = document.getElementById("picker");
+  const pin = (id) => {
+    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.id === id));
+    hide();
+    const c = id && handEl.querySelector(`.card[data-id="${id}"]`);
+    if (c) show(c);
+  };
+  for (const [id, name] of [["", "hand only"], ...HAND]) {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.id = id; b.textContent = id ? `zoom: ${name}` : name;
+    b.addEventListener("click", () => pin(id));
+    picker.append(b);
+  }
+  requestAnimationFrame(() => pin(new URLSearchParams(location.search).get("zoom") || ""));
+})();
+</script>
+</body>
+</html>

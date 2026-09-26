@@ -1735,15 +1735,16 @@
       if (st.passFlash !== undefined) drawPassSign(time - st.passFlash);
 
       // 8e. an item armed that needs one of your own stones (Lantern Ward, Turn
-      // the Lantern, Ferry, Skiff before its first target): ring every stone of
-      // yours on the board, so you don't have to work out which ones are yours
-      // by memory. main.js decides which points qualify; this just draws them.
+      // the Lantern, Ferry, Skiff before its first target): the last-move ember,
+      // enlarged, in the centre of every stone of yours on the board, so you
+      // don't have to work out which ones are yours by memory. main.js decides
+      // which points qualify; this just draws them.
       if (st.highlightMine) {
+        const ember = animFrame("emberBig", reduced ? 0 : time);
         for (const i of st.highlightMine) {
-          const code = board[i];
-          if (!code) continue; // hidden under a fog, or no longer there
+          if (!board[i]) continue; // hidden under a fog, or no longer there
           const p = pointToNative(i % size, (i / size) | 0);
-          outlineGlow(G.pieceSprite(code), p.x, p.y, A);
+          surf.blitCentered(ember, p.x, p.y);
         }
       }
 
