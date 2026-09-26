@@ -2,6 +2,7 @@ import {
   applyCaptures,
   axisOf,
   boardIndex,
+  Captured,
   findGroup,
   isOnBoard,
   isPlayerStone,
@@ -11,6 +12,7 @@ import {
   StoneView,
 } from "../rules/goRules";
 import { isSettled, Prisoners, regionAt, sidesOf, territoryScore } from "../rules/endgame";
+import { koOpenedBy } from "../rules/ko";
 import { Rng } from "./rng";
 import { Style } from "./styles";
 
@@ -19,6 +21,9 @@ export interface MarketRow {
   id: string;
   price: number;
   removal: boolean;
+  /** Copies still for sale to the table, and the most one player may buy. Absent means no limit. */
+  left?: number;
+  share?: number;
 }
 
 /**
@@ -50,6 +55,8 @@ export interface BotView {
   isBurning(idx: number): boolean;
   /** Whether a board would repeat an earlier position (the ko rule). Absent means nothing does. */
   repeats?(board: number[]): boolean;
+  /** Whether a stone on `idx` lifting `captured` would take back a ko held for the round. Absent means none is. */
+  retakesKo?(idx: number, captured: Captured[]): boolean;
 }
 
 export interface Candidate {
@@ -105,11 +112,20 @@ function distanceToOwnSide(view: BotView, x: number, y: number, code: number, ax
   return best;
 }
 
-/** Every neighbour already on our side of this front: filling it gains nothing and usually costs a liberty. */
+/**
+ * Every neighbour already on our side of this front: filling it gains nothing
+ * and usually costs a liberty. Unless one of them is down to its last liberty
+ * -- then the point is no eye but the one move that saves it. That is exactly
+ * what a ko looks like to the stone that just took it, and a bot that never
+ * fills there leaves every ko it wins open for the other side to take back.
+ */
 function isOwnEye(view: BotView, x: number, y: number, code: number, axis: StoneView): boolean {
   for (const n of neighbors(view.size, x, y)) {
     const c = view.board[boardIndex(view.size, n.x, n.y)];
     if (c === 0 || !sameView(axis, c, code)) return false;
+  }
+  for (const n of neighbors(view.size, x, y)) {
+    if (findGroup(view.board, view.size, n.x, n.y, axis).liberties === 1) return false;
   }
   return true;
 }
@@ -148,6 +164,7 @@ export function scoreMove(
   const mine = findGroup(after, size, x, y, axis);
   if (captured.length === 0 && mine.liberties === 0) return null; // suicide
   if (view.repeats?.(after)) return null; // ko
+  if (view.retakesKo?.(idx, captured)) return null; // and a ko is held for a round
 
   // ---- what the move took -------------------------------------------------
   // Paid in full to the mover: the room credits captures per player, so taking
@@ -200,9 +217,15 @@ export function scoreMove(
   // ---- the position it leaves behind --------------------------------------
   if (mine.liberties >= 2) {
     score += style.save * rescued;
-  } else if (captured.length === 0) {
-    // One liberty and nothing to show for it. Scaled by what is being given
-    // away, so a lone stone thrown in is a smaller mistake than a whole group.
+  } else if (captured.length === 0 || !holdsKo(after, size, idx, captured, axis)) {
+    // One liberty left, and nothing taken for it -- or a take the other side
+    // simply takes back. With three other seats a stone in atari rarely lives
+    // to see its owner's next turn, so a capture that leaves one there is a
+    // trade rather than a gain, and a table of bots trading like that keeps the
+    // same few points changing hands all night. The exception is a ko the rules
+    // hold for a round (rules/ko.ts) that this stone can fill when its turn
+    // comes back. Scaled by what is being given away, so a lone stone thrown in
+    // is a smaller mistake than a whole group.
     score -= style.selfAtari * Math.min(mine.group.length, 6);
   }
 
@@ -237,6 +260,21 @@ export function scoreMove(
   if (axis === style.prefers) score += style.axisBias;
 
   return score;
+}
+
+/**
+ * Whether a take that leaves its stone on one liberty is a ko this side keeps:
+ * one the rules hold shut for a round, on a point the stone's own side can fill
+ * once its turn comes back and come out with room to breathe. `board` is the
+ * board after the take.
+ */
+function holdsKo(board: number[], size: number, idx: number, captured: Captured[], axis: StoneView): boolean {
+  const ko = koOpenedBy(board, size, idx, captured);
+  if (!ko) return false;
+  const filled = board.slice();
+  filled[ko.point] = board[idx];
+  const { x, y } = pointOf(size, ko.point);
+  return findGroup(filled, size, x, y, axis).liberties >= 2;
 }
 
 /**

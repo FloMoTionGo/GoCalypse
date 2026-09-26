@@ -279,12 +279,13 @@ export function chooseBuy(view: BotView, style: Style): string | null {
 
   for (const id of style.shopping) {
     if (view.powerups.indexOf(id) !== -1) continue; // one of each in hand is plenty
-    // Only five of the seven stalls open in any match, and the shopping list
-    // is written without knowing which: an item that isn't on sale is skipped,
-    // not waited for.
+    // Only six of the stalls open in any match, and the shopping list is
+    // written without knowing which: an item that isn't on sale, is sold out
+    // or already had its share from this bot is skipped, not waited for.
     const row = held(id);
     if (!row) continue;
-    if (row.removal && view.bought.indexOf(id) !== -1) continue; // once a match
+    if (row.left !== undefined && row.left <= 0) continue;
+    if (row.share !== undefined && view.bought.filter((b) => b === id).length >= row.share) continue;
     if (row.removal && powerfulInHand >= view.powerfulLimit) continue;
     if (view.fireflies < row.price) continue;
     return id;

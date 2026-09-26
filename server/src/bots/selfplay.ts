@@ -14,6 +14,7 @@
 
 import { applyCaptures, boardIndex, isSuicide, stoneCode } from "../rules/goRules";
 import { finalResults, PlayerResult, Prisoners, territoryScore } from "../rules/endgame";
+import { KoWatch, PositionHistory } from "../rules/ko";
 import { chooseAction } from "./index";
 import { Rng } from "./rng";
 import { BotView } from "./scoring";
@@ -47,8 +48,11 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
   const rng = new Rng(seed);
   const took: Prisoners[] = styles.map(() => ({ base: 0, pattern: 0 }));
 
-  // Positional superko, the same rule rules/ko.ts enforces in the room.
-  const seen = new Set<string>();
+  // The ko rule exactly as the room enforces it (rules/ko.ts): superko over
+  // occupied points, and every ko held shut for a round.
+  const positions = new PositionHistory();
+  positions.record(board);
+  const kos = new KoWatch(size);
   let passes = 0;
   let last: { x: number; y: number } | null = null;
   let stones = 0;
@@ -78,7 +82,8 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
       isWarded: () => false,
       lilyOwnerAt: () => 0,
       isBurning: () => false,
-      repeats: (next) => seen.has(next.join(",")),
+      repeats: (next) => positions.repeats(next),
+      retakesKo: (idx, captured) => kos.blocks(idx, captured, turns),
     };
 
     const action = chooseAction(view, styles[seat], rng);
@@ -103,7 +108,8 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
     }
     for (const c of captured) took[seat][c.view] += 1;
 
-    seen.add(board.join(","));
+    positions.record(board);
+    kos.open(board, idx, captured, turns, turns + SEATS);
     last = { x: action.x, y: action.y };
     moves[seat] += 1;
     passes = 0;

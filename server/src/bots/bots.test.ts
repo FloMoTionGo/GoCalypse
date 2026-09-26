@@ -214,9 +214,16 @@ function digest(board: number[]): string {
 test("a match by a frozen style still comes out move for move the same", () => {
   // Update this only with a note saying which change to the engine moved it,
   // and why that change was wanted.
+  //
+  // 2026-09-25, d8fcccc2 -> 773a7fb0: bots kept trading the same few points --
+  // a take left its stone in atari, the next seat took it back, round and round.
+  // Kos are now held for a round (rules/ko.ts, and selfplay.ts uses the room's
+  // occupied-points superko instead of colour-exact keys), a take that leaves
+  // its stone in atari pays the self-atari penalty unless it is a ko the bot can
+  // fill, and a point that saves a group in atari is no longer mistaken for an eye.
   const match = playMatch(20260922, [PINNED, PINNED, PINNED, PINNED]);
-  assert.equal(digest(match.board), "d8fcccc2");
-  assert.deepEqual([match.turns, match.stones, match.finished], [258, 254, true]);
+  assert.equal(digest(match.board), "773a7fb0");
+  assert.deepEqual([match.turns, match.stones, match.finished], [253, 248, true]);
 });
 
 test("the drifter still only offers legal points", () => {
@@ -447,4 +454,51 @@ test("a move that would repeat a board position is not offered", () => {
   const ranked = rankMoves(w, heron());
   assert.ok(ranked.length > 0);
   assert.ok(ranked.every((c) => boardIndex(size, c.x, c.y) !== only));
+});
+
+// A ko on 5x5: black (1) takes white's (1,1) by playing (2,1). In KO_WALLED the
+// points around (1,1) are white's gray stones instead -- walls on the base front
+// -- so black could never fill there, and white takes the stone straight back.
+const KO_OPEN = [".12..", "12.2.", ".12..", ".....", "....."];
+const KO_WALLED = [".62..", "62.2.", ".62..", ".....", "....."];
+
+function board(rows: string[]): number[] {
+  return rows.join("").split("").map((c) => (c === "." ? 0 : Number(c)));
+}
+
+// Every weight but the two a take is judged on set to zero, so the score says only that.
+const TAKES_ONLY: Style = {
+  ...reed(),
+  atari: 0,
+  connect: 0,
+  cut: 0,
+  contact: 0,
+  locality: 0,
+  extension: 0,
+  line: 0,
+  hemmed: 0,
+  axisBias: 0,
+};
+
+test("a take the next seat simply takes back is paid for like a self-atari", () => {
+  const s = TAKES_ONLY;
+  assert.equal(scoreMove(view(5, 1, { board: board(KO_OPEN) }), 2, 1, "base", s), s.capture);
+  assert.equal(scoreMove(view(5, 1, { board: board(KO_WALLED) }), 2, 1, "base", s), s.capture - s.selfAtari);
+});
+
+test("a bot fills the ko it took instead of calling the point its own eye", () => {
+  const b = board(KO_OPEN);
+  play(b, 5, 2, 1, "base", 1);
+  const ranked = rankMoves(view(5, 1, { board: b }), reed());
+  assert.ok(ranked.some((c) => c.x === 1 && c.y === 1 && c.axis === "base"));
+});
+
+test("a ko the rules hold for the round is not offered", () => {
+  const b = board(KO_OPEN);
+  play(b, 5, 2, 1, "base", 1);
+  const retake = boardIndex(5, 1, 1);
+  const free = rankMoves(view(5, 2, { board: b }), reed());
+  assert.ok(free.some((c) => boardIndex(5, c.x, c.y) === retake));
+  const held = rankMoves(view(5, 2, { board: b, retakesKo: (idx) => idx === retake }), reed());
+  assert.ok(held.every((c) => boardIndex(5, c.x, c.y) !== retake));
 });

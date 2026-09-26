@@ -20,8 +20,8 @@ import {
   StoneView,
 } from "../rules/goRules";
 import { finalResults, territoryOwners, territoryScore } from "../rules/endgame";
-import { PositionHistory } from "../rules/ko";
-import { getPowerup, marketStock } from "../powerups/definitions";
+import { KoWatch, PositionHistory } from "../rules/ko";
+import { copiesBought, fairShare, getPowerup, marketStock, stallCopies, stallRefusal } from "../powerups/definitions";
 import { EffectKind, PowerupContext } from "../powerups/types";
 import {
   BotAction,
@@ -119,6 +119,8 @@ export class GoRoom extends Room<GoState> {
   private shuttingDown = false;
   // Every board position so far, for the ko rule (rules/ko.ts).
   private positions = new PositionHistory();
+  // And every ko taken in the last round, held shut until its taker's next turn.
+  private kos = new KoWatch(BOARD_SIZE);
   // Seeded per room, so two tables never play out the same. Tests drive the
   // bot functions directly with a seed of their own.
   private rng = new Rng((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
@@ -146,10 +148,20 @@ export class GoRoom extends Room<GoState> {
       item.tier = def.tier;
       item.points = def.points ?? 1;
       item.free = !!def.free;
+      item.stock = item.left = stallCopies(def.tier, MAX_PLAYERS);
+      item.share = fairShare(item.stock, MAX_PLAYERS);
       state.market.push(item);
     }
     if (restored) {
       restoreState(state, restored.state);
+      // A game saved before stalls had stock: stock them now, less what was already bought.
+      for (const item of state.market) {
+        if (item.stock > 0) continue;
+        item.stock = stallCopies(item.tier as 1 | 2 | 3, MAX_PLAYERS);
+        item.share = fairShare(item.stock, MAX_PLAYERS);
+        const sold = state.players.reduce((n, p) => n + copiesBought(p.bought, item.id), 0);
+        item.left = Math.max(0, item.stock - sold);
+      }
       // Earlier positions are not saved, so ko only remembers from here on.
       this.positions.record(state.board.toArray());
       for (const [color, key] of Object.entries(restored.keys)) this.seatKeys.set(Number(color), key);
@@ -638,6 +650,8 @@ export class GoRoom extends Room<GoState> {
         id: m.id,
         price: m.price,
         removal: m.removal,
+        left: m.left,
+        share: m.share,
       })),
       satchelLimit: SATCHEL_LIMIT,
       powerfulLimit: POWERFUL_LIMIT,
@@ -645,6 +659,7 @@ export class GoRoom extends Room<GoState> {
       lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
       isBurning: (idx) => this.isBurning(idx),
       repeats: (board) => this.positions.repeats(board),
+      retakesKo: (idx, captured) => this.kos.blocks(idx, captured, this.state.turnCount),
     };
   }
 
@@ -776,6 +791,9 @@ export class GoRoom extends Room<GoState> {
     if (this.positions.repeats(rawBoard)) {
       return "Ko: that would bring back a board position that has stood before.";
     }
+    if (this.kos.blocks(idx, captured, this.state.turnCount)) {
+      return "Ko: that stone was only just taken in a ko -- it can't be taken back until its taker has moved again.";
+    }
 
     board[idx] = code;
     captured.forEach(({ point }) => {
@@ -795,6 +813,8 @@ export class GoRoom extends Room<GoState> {
       this.addEffect("mist", x, y, player.color, 1);
     }
 
+    const turn = this.state.turnCount;
+    this.kos.open(rawBoard, idx, captured, turn, turn + this.state.players.length);
     this.recordAction("move", "", x, y, player.color);
     this.state.lastEvent = `${player.name} played (${x}, ${y})${
       captured.length ? `, captured ${captured.length}` : ""
@@ -943,14 +963,15 @@ export class GoRoom extends Room<GoState> {
     const definition = getPowerup(id);
     // Only what this match's market actually stocks: the registry still holds
     // every item, but only six are on sale (see marketStock).
-    if (!definition || !this.state.market.some((m) => m.id === definition.id)) return "";
+    const stall = definition && this.state.market.find((m) => m.id === definition.id);
+    if (!definition || !stall) return "";
 
     if (player.moves < this.state.shopAfter) {
       return `The Night Market opens after ${this.state.shopAfter} moves.`;
     }
-    if (definition.removal && player.bought.indexOf(definition.id) !== -1) {
-      return `${definition.name} can only be bought once per match.`;
-    }
+    // The stall's copies are shared by the table, and nobody may take more than their share.
+    const refused = stallRefusal(stall, copiesBought(player.bought, definition.id));
+    if (refused) return refused;
     if (player.powerups.length >= SATCHEL_LIMIT) {
       return `Your satchel only holds ${SATCHEL_LIMIT} items. Use something first.`;
     }
@@ -963,8 +984,10 @@ export class GoRoom extends Room<GoState> {
 
     player.fireflies -= definition.price;
     player.powerups.push(definition.id);
-    if (definition.removal) player.bought.push(definition.id);
-    this.state.lastEvent = `${player.name} bought ${definition.name}`;
+    player.bought.push(definition.id);
+    stall.left -= 1;
+    this.state.lastEvent =
+      stall.left === 0 ? `${player.name} bought the last ${definition.name}` : `${player.name} bought ${definition.name}`;
     return null;
   }
 

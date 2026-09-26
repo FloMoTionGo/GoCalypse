@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allPowerups, getPowerup, MARKET_SLOTS, MARKET_TIER_SLOTS, marketStock } from "./definitions";
+import {
+  allPowerups,
+  copiesBought,
+  fairShare,
+  getPowerup,
+  MARKET_SLOTS,
+  MARKET_TIER_SLOTS,
+  marketStock,
+  stallCopies,
+  stallRefusal,
+} from "./definitions";
 
 const NEW_TIER_1 = ["firefly_jar", "seedling", "mist"];
 const NEW_TIER_2 = ["twin_wick", "ferry", "kite"];
@@ -72,4 +82,37 @@ test("a seeded draw is repeatable, and a different seed can give a different sta
   const others = new Set<string>();
   for (let seed = 2; seed < 30; seed++) others.add(marketStock(seeded(seed)).map((p) => p.id).join());
   assert.ok(others.size > 1);
+});
+
+test("stalls hold 6 / 3 / 1 copies for a table of 4, and each player may buy 2 / 1 / 1", () => {
+  assert.deepEqual([1, 2, 3].map((t) => stallCopies(t as 1 | 2 | 3, 4)), [6, 3, 1]);
+  assert.deepEqual([6, 3, 1].map((c) => fairShare(c, 4)), [2, 1, 1]);
+});
+
+test("stall copies follow the number of seats, and tier 3 always has just one", () => {
+  for (let seats = 2; seats <= 6; seats++) {
+    assert.equal(stallCopies(3, seats), 1);
+    assert.equal(stallCopies(2, seats), seats - 1, `tier 2 at ${seats}`);
+    assert.ok(stallCopies(1, seats) > stallCopies(2, seats), `tier 1 is the most plentiful at ${seats}`);
+    // A fair share never lets one player empty a stall of more than one copy.
+    for (const tier of [1, 2] as const) {
+      const copies = stallCopies(tier, seats);
+      if (copies > 1) assert.ok(fairShare(copies, seats) < copies, `tier ${tier} at ${seats}`);
+    }
+  }
+});
+
+test("copies bought are counted per item", () => {
+  assert.equal(copiesBought(["fog", "gust", "fog"], "fog"), 2);
+  assert.equal(copiesBought(["fog"], "gust"), 0);
+  assert.equal(copiesBought([], "fog"), 0);
+});
+
+test("a stall refuses when it is sold out or the player has had their share", () => {
+  const stall = { name: "Fog", left: 6, share: 2 };
+  assert.equal(stallRefusal(stall, 0), null);
+  assert.equal(stallRefusal(stall, 1), null);
+  assert.match(stallRefusal(stall, 2)!, /share of Fog \(2 to a player\)/);
+  assert.match(stallRefusal({ ...stall, left: 0 }, 0)!, /sold out/);
+  assert.match(stallRefusal({ name: "Gust", left: 1, share: 1 }, 1)!, /one to a player/);
 });

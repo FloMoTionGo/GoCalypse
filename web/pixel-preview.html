@@ -59,6 +59,16 @@
     .card .views { display: flex; gap: 8px; align-items: flex-end; }
     .card .name { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--cream); }
     .card .meta { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--slate); }
+    /* Item cards, drawn as in the game's hand (web/style.css .card) at 3 CSS px per card pixel. */
+    .item-cards { display: flex; flex-wrap: wrap; gap: 14px 12px; }
+    .item-card { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 96px; }
+    .item-card .face { position: relative; width: 96px; height: 96px; }
+    .item-card .face span {
+      position: absolute; left: 6px; right: 6px; top: 63px; height: 27px;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+      text-align: center; font-size: 12.3px; font-weight: 700; line-height: 1.05; letter-spacing: -0.01em; color: var(--cream);
+    }
+    .item-card .meta { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--slate); text-align: center; }
     .facts { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--slate); margin: 0; }
     .facts b { color: var(--cream); font-weight: 600; }
   </style>
@@ -134,6 +144,12 @@
         </div>
       </aside>
     </div>
+
+    <section class="sheet">
+      <h2>Item cards</h2>
+      <p>What a bought item becomes: a square card that flies from its Night Market stall into the player's hand under the board. The frame and the gems give the tier (I teal, II amber, III cream). The face is <code>itemCard()</code> in sprites.js; the name is page text in its bottom strip. Every item, cheap to dear within each tier, then an empty place in the hand.</p>
+      <div id="item-cards" class="item-cards"></div>
+    </section>
 
     <section class="sheet">
       <h2>Sprite sheet</h2>
@@ -405,6 +421,44 @@
         drawStoneIcon(document.getElementById("sw-pattern"), G.patternCode(state.myColor));
       }
       updateTurn();
+
+      // ---------------------------------------------------------------- item cards
+      // Mirrors the REGISTRY in server/src/powerups/definitions.ts (the game itself
+      // takes names and tiers from the synced market; this page has no server).
+      const ITEM_CARDS = [
+        ["firefly_jar", "Firefly Jar", 1], ["seedling", "Seedling", 1], ["mist", "Mist", 1],
+        ["fog", "Fog", 1], ["driftwood", "Driftwood", 1], ["lily_pad", "Lily Pad", 1],
+        ["kite", "Kite", 2], ["ferry", "Ferry", 2], ["skiff", "Skiff", 2],
+        ["lantern_ward", "Lantern Ward", 2], ["twin_wick", "Twin Wick", 2], ["turn_lantern", "Turn the Lantern", 2],
+        ["river_current", "River Current", 3], ["echo_chime", "Echo Chime", 3], ["gust", "Gust", 3],
+        ["stepping_stones", "Stepping Stones", 3], ["remove_stone", "Snipe", 3], ["bomb", "Firework", 3],
+      ];
+      (function buildItemCards() {
+        const list = document.getElementById("item-cards");
+        const add = (spr, name, meta) => {
+          const s = new G.Surface(G.CARD_SIZE, G.CARD_SIZE);
+          s.fill(K);
+          s.blit(spr, 0, 0);
+          const c = document.createElement("canvas");
+          c.className = "px";
+          sizeCanvas(c, G.CARD_SIZE, G.CARD_SIZE, 3);
+          blitSurface(c, s);
+          const face = document.createElement("div");
+          face.className = "face";
+          const label = document.createElement("span");
+          label.textContent = name;
+          face.append(c, label);
+          const mt = document.createElement("div");
+          mt.className = "meta";
+          mt.textContent = meta;
+          const card = document.createElement("div");
+          card.className = "item-card";
+          card.append(face, mt);
+          list.appendChild(card);
+        };
+        for (const [id, name, tier] of ITEM_CARDS) add(G.itemCard(id, tier), name, `${id} · tier ${"I".repeat(tier)}`);
+        add(G.cardSlot(), "", "empty place");
+      })();
 
       // ---------------------------------------------------------------- sprite sheet
       const sheetCards = [];

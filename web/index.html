@@ -53,11 +53,16 @@
       <div id="game-body">
         <div id="board-wrap">
           <canvas id="board" class="px"></canvas>
-          <div id="recall" hidden>
-            <button id="recall-back" type="button" aria-label="One move back" title="One move back (left arrow)">&#9664;</button>
-            <span id="recall-steps" title="Moves back from the live board"></span>
-            <button id="recall-fwd" type="button" aria-label="One move forward" title="One move forward (right arrow)">&#9654;</button>
-            <button id="recall-live" type="button" title="Back to the live board (Esc)">Live</button>
+          <!-- Under the board, never over it (the river carries the round and firefly boats):
+               the recall strip, and the satchel as a hand of item cards (renderHand() in main.js). -->
+          <div id="board-foot">
+            <div id="recall" hidden>
+              <button id="recall-back" type="button" aria-label="One move back" title="One move back (left arrow)">&#9664;</button>
+              <span id="recall-steps" title="Moves back from the live board"></span>
+              <button id="recall-fwd" type="button" aria-label="One move forward" title="One move forward (right arrow)">&#9654;</button>
+              <button id="recall-live" type="button" title="Back to the live board (Esc)">Live</button>
+            </div>
+            <div id="hand" role="group" aria-label="Satchel"></div>
           </div>
           <p id="board-hint" class="hint">Left click: your black or white stone &middot; Right click: your gray or transparent stone</p>
           <p id="notice" class="status notice"></p>
@@ -68,12 +73,6 @@
           <div id="players" class="panel"></div>
 
           <div id="weather" class="panel"></div>
-
-          <div id="satchel" class="panel">
-            <h3>Satchel <span id="satchel-count" class="count-tag"></span></h3>
-            <div id="satchel-items"></div>
-            <p id="targeting-hint" class="hint" hidden></p>
-          </div>
 
           <div id="market" class="panel">
             <h3>Night Market</h3>

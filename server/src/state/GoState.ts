@@ -26,7 +26,7 @@ export class PlayerState extends Schema {
   @type("number") tiebreak: number = 0; // the higher of the two
   @type("number") place: number = 0; // 1 = winner; players level on both numbers share a place
   @type(["string"]) powerups = new ArraySchema<string>(); // owned, unused items (bought at the market)
-  @type(["string"]) bought = new ArraySchema<string>(); // removal items already bought this match (once each)
+  @type(["string"]) bought = new ArraySchema<string>(); // every item bought this match, one entry per copy (for the fair share)
 }
 
 /** One item the Night Market sells. Filled from the powerup registry on room creation. */
@@ -35,10 +35,14 @@ export class MarketItem extends Schema {
   @type("string") name: string = "";
   @type("string") description: string = "";
   @type("number") price: number = 0;
-  @type("boolean") removal: boolean = false; // removes stones: pricey, once per match
+  @type("boolean") removal: boolean = false; // removes stones: pricey, and always tier 3
   @type("number") tier: number = 1; // 1 cozy, 2 tactical, 3 powerful
   @type("number") points: number = 1; // board points the use needs: 0, 1 or 2
   @type("boolean") free: boolean = false; // using it does not take the turn
+  // Shared by the whole table (definitions.ts stallCopies / fairShare).
+  @type("number") stock: number = 0; // copies the stall opened with
+  @type("number") left: number = 0; // copies still for sale
+  @type("number") share: number = 0; // the most copies one player may buy
 }
 
 /** A timed marker on a board cell. Ends when GoState.turnCount reaches `until`. */

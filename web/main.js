@@ -25,9 +25,7 @@ const boardEl = document.getElementById("board");
 const noticeEl = document.getElementById("notice");
 const lastEventEl = document.getElementById("last-event");
 const playersEl = document.getElementById("players");
-const satchelItemsEl = document.getElementById("satchel-items");
-const satchelCountEl = document.getElementById("satchel-count");
-const targetingHintEl = document.getElementById("targeting-hint");
+const handEl = document.getElementById("hand");
 const marketStatusEl = document.getElementById("market-status");
 const marketItemsEl = document.getElementById("market-items");
 const helpButton = document.getElementById("help-button");
@@ -218,6 +216,7 @@ let passFlashAt;
 
 function attachRoom(joined) {
   lastPasses = 0;
+  handBought = null; // a new room: its first state is the satchel as it stands, nothing flies in
   room = joined;
   room.onStateChange((state) => onState(state));
   room.onMessage("notice", (text) => showNotice(text));
@@ -335,16 +334,50 @@ function sizeCanvas() {
   const sideW = sidebar ? sidebar.getBoundingClientRect().width : 220;
   const bodyLeft = body ? body.getBoundingClientRect().left : 16;
   const availW = Math.max(120, window.innerWidth - bodyLeft * 2 - sideW - gap);
-  // Room for the header above and the hint / notice / last-event lines below.
+  // Room for the header above and, below, the row of cards (with the recall strip)
+  // and the hint / notice / last-event lines. The cards grow with the board.
   const top = body ? body.getBoundingClientRect().top : 60;
-  const availH = Math.max(120, window.innerHeight - top - 78);
+  const availH = Math.max(120, window.innerHeight - top - 66);
 
-  const scale = Math.min(
-    MAX_SCALE,
-    Math.max(MIN_SCALE, Math.floor(Math.min((availW * dpr) / scene.width, (availH * dpr) / scene.height)))
-  );
+  let scale = MIN_SCALE;
+  for (let s = MAX_SCALE; s > MIN_SCALE; s--) {
+    if ((scene.width * s) / dpr <= availW && (scene.height * s) / dpr + handLayout(s, dpr).height <= availH) {
+      scale = s;
+      break;
+    }
+  }
   boardEl.style.width = `${(scene.width * scale) / dpr}px`;
   boardEl.style.height = `${(scene.height * scale) / dpr}px`;
+  // One card pixel in CSS px: a whole number of device pixels, so the cards stay as crisp as the board.
+  // Set on the root, since a card in flight lives outside the board's column.
+  const hand = handLayout(scale, dpr);
+  document.documentElement.style.setProperty("--card-px", `${hand.k / dpr}px`);
+  // No room for the recall strip beside the cards: it goes under them, so the cards
+  // don't jump down when the strip first shows up.
+  document.getElementById("board-foot").classList.toggle("stacked", !hand.oneRow);
+}
+
+// The hand of cards under the board, in card pixels (see #board-foot / #hand in style.css).
+const CARD_ROW_GAP = 3; // between the board and the cards
+const CARD_GAP = 2; // between two cards
+const RECALL_W = 160; // CSS px the recall strip takes beside the cards, its gap included
+const RECALL_ROW = 34; // ... or the row it takes under them when the two don't fit side by side
+
+/**
+ * For a board at `scale` device pixels per native pixel: `k`, the device pixels
+ * per card pixel, and the CSS height the row(s) under the board take. The cards
+ * follow the board between 2 and 3 CSS px per card pixel (below that the names
+ * can't be read, above it the cards eat the screen), but never grow wider than
+ * the board; the recall strip goes under them when there's no room beside.
+ */
+function handLayout(scale, dpr) {
+  const places = (lastState && lastState.satchelLimit) || 5;
+  const boardW = (scene.width * scale) / dpr;
+  const handW = (k) => ((places * G.CARD_SIZE + (places - 1) * CARD_GAP) * k) / dpr;
+  let k = Math.max(1, Math.round(Math.min(3 * dpr, Math.max(2 * dpr, scale))));
+  while (k > 1 && handW(k) > boardW) k--;
+  const oneRow = handW(k) + RECALL_W <= boardW;
+  return { k, oneRow, height: ((G.CARD_SIZE + CARD_ROW_GAP) * k) / dpr + (oneRow ? 0 : RECALL_ROW) };
 }
 
 function reducedMotion() {
@@ -530,28 +563,38 @@ function setSelectedPowerup(id) {
   selectedPowerup = id;
   firstTarget = null;
   boardEl.classList.toggle("targeting", !!id);
-  targetingHintEl.hidden = !id;
   setTargetingHint();
   if (lastState) renderSidebar(lastState);
 }
 
+/** The line under the cards: how to aim the armed item, or else what your two clicks play. */
 function setTargetingHint() {
+  boardHintEl.textContent = targetingText() || stoneHint();
+  boardHintEl.classList.toggle("targeting", !!selectedPowerup);
+}
+
+function stoneHint() {
+  if (!myPlayer) return boardHintEl.textContent;
+  const [baseName, otherName] = LOOK_NAMES[myPlayer.color] || LOOK_NAMES[1];
+  return myPlayer.twin
+    ? "Twin Wick is lit: your next stone fights on both fronts."
+    : `Left click: your ${baseName} stone · Right click: your ${otherName} stone` +
+      (myPlayer.extra > 0 ? " · Stepping Stones: this move doesn't end your turn" : "");
+}
+
+function targetingText() {
   const item = selectedPowerup && marketItem(selectedPowerup);
-  if (!item) {
-    targetingHintEl.textContent = "";
-    return;
-  }
+  if (!item) return "";
   const ownStone = OWN_STONE_TARGET_ITEMS.has(item.id) && !firstTarget;
-  targetingHintEl.textContent =
-    item.id === "seedling"
-      ? "Seedling: click for a solid seed, right click for a gray or transparent one -- Esc to cancel."
-      : item.points >= 2
-      ? firstTarget
-        ? `${item.name}: now the empty point to move it to -- right click to cancel.`
-        : `${item.name}: pick one of your stones, ringed in amber -- right click to cancel.`
-      : ownStone
-      ? `${item.name}: pick one of your stones, ringed in amber -- right click to cancel.`
-      : `Pick a point for ${item.name} -- right click to cancel.`;
+  return item.id === "seedling"
+    ? "Seedling: click for a solid seed, right click for a gray or transparent one -- Esc to cancel."
+    : item.points >= 2
+    ? firstTarget
+      ? `${item.name}: now the empty point to move it to -- right click to cancel.`
+      : `${item.name}: pick one of your stones, ringed in amber -- right click to cancel.`
+    : ownStone
+    ? `${item.name}: pick one of your stones, ringed in amber -- right click to cancel.`
+    : `Pick a point for ${item.name} -- right click to cancel.`;
 }
 
 // ---- recall ---------------------------------------------------------------------------
@@ -674,13 +717,7 @@ function onState(state) {
   renderBotMenu(state);
   renderPass(state);
   renderWeather(state);
-  if (myPlayer) {
-    const [baseName, otherName] = LOOK_NAMES[myPlayer.color] || LOOK_NAMES[1];
-    boardHintEl.textContent = myPlayer.twin
-      ? "Twin Wick is lit: your next stone fights on both fronts."
-      : `Left click: your ${baseName} stone · Right click: your ${otherName} stone` +
-        (myPlayer.extra > 0 ? " · Stepping Stones: this move doesn't end your turn" : "");
-  }
+  setTargetingHint();
   lastEventEl.textContent = state.lastEvent || "";
   showPass(state);
 
@@ -751,12 +788,24 @@ function openWelcome(state) {
   document.getElementById("welcome-pattern-icon").replaceChildren(stoneChip(color + 4));
 
   // Rates mirror FIREFLIES_PER_MOVE / _PER_CAPTURE / CONSOLATION_PER_STONE in server/src/rooms/GoRoom.ts.
+  // Stock and shares are synced per stall (stallCopies / fairShare in server/src/powerups/definitions.ts).
+  const stalls = Array.from(state.market);
+  const perTier = [1, 2, 3].map((tier) => stalls.filter((m) => m.tier === tier));
+  const [cozy, tactical, powerful] = perTier.map((list) => list.find((m) => m.stock > 0));
+  const stockText =
+    cozy && tactical && powerful
+      ? `The whole table shares the stock: ${cozy.stock} copies of each cozy item, ${tactical.stock} of each tactical ` +
+        `one and ${powerful.stock === 1 ? "a single" : powerful.stock} powerful one, and nobody may buy more than ` +
+        `their share (${cozy.share}, ${tactical.share} and ${powerful.share}). A sold-out stall stays empty for the night. `
+      : "";
   document.getElementById("welcome-economy").textContent =
     `You earn fireflies: 3 for every stone you place and 5 for every stone you capture. ` +
     `If someone's item removes one of your stones, you get 3 back. ` +
-    `Once you've placed ${state.shopAfter} stones, the Night Market opens in the sidebar. It stocks five items a night, ` +
-    `only one of them a powerful one. Your satchel holds ${state.satchelLimit} items and just ${state.powerfulLimit} powerful item at a time. ` +
-    `Buying doesn't use your turn; using an item does: pick it in your Satchel, then click a point on the board (right click cancels).`;
+    `Once you've placed ${state.shopAfter} stones, the Night Market opens in the sidebar. It has ${stalls.length} stalls ` +
+    `a night: ${perTier[0].length} cozy, ${perTier[1].length} tactical and ${perTier[2].length} powerful. ` +
+    stockText +
+    `Your satchel holds ${state.satchelLimit} items: every item you buy flies into it as a card under the board. ` +
+    `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels).`;
 
   // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
   document.getElementById("welcome-weather").textContent =
@@ -1319,8 +1368,8 @@ function rebuild(el, signature, build) {
 
 function renderSidebar(state) {
   renderPlayers(state);
-  renderSatchel(state);
   renderMarket(state);
+  renderHand(state); // after the market: a card just bought flies out of its stall
 }
 
 function renderPlayers(state) {
@@ -1403,41 +1452,169 @@ function powerfulHeld() {
   }).length;
 }
 
-function renderSatchel(state) {
+// ---- satchel: the hand of item cards under the board ---------------------------------
+
+let handBought = null; // my `bought` count at the last render; null until this room's first state
+let armedCard = -1; // hand position of the card picked last (two copies of one item are two cards)
+const incoming = new Set(); // hand positions whose card is still flying in from the market
+
+/**
+ * The satchel as a hand of square cards under the board, one per item held and
+ * a dotted place for each free one. A card bought since the last state flies
+ * in from its Night Market stall first. Only the buyer sees that: every client
+ * draws its own player's hand.
+ */
+function renderHand(state) {
   const owned = myPlayer ? Array.from(myPlayer.powerups) : [];
-  const counts = new Map();
-  owned.forEach((id) => counts.set(id, (counts.get(id) || 0) + 1));
-  satchelCountEl.textContent = `${owned.length}/${state.satchelLimit}`;
-  satchelCountEl.classList.toggle("full", owned.length >= state.satchelLimit);
-  const sig = JSON.stringify([Array.from(counts), isMyTurn, selectedPowerup]);
-  rebuild(satchelItemsEl, sig, () => {
-    if (counts.size === 0) {
-      const p = document.createElement("p");
-      p.className = "empty";
-      p.textContent = "Empty. Buy items at the Night Market.";
-      satchelItemsEl.appendChild(p);
-      return;
-    }
-    for (const [id, count] of counts) {
-      const item = marketItem(id) || { name: id, description: "" };
-      const button = document.createElement("button");
-      button.className = "slot";
-      button.dataset.id = id;
-      button.setAttribute("aria-label", item.name);
-      button.title = `${item.name}: ${item.description}`;
-      button.disabled = !isMyTurn;
-      button.classList.toggle("active", selectedPowerup === id);
-      button.append(spriteImg(`icon_${id}`, G.powerupIcon(id) || G.SPRITES.fireflyIcon, 2));
-      if (count > 1) {
-        const badge = document.createElement("span");
-        badge.className = "count";
-        badge.textContent = String(count);
-        button.append(badge);
+  const bought = myPlayer ? myPlayer.bought.length : 0;
+  // A purchase appends to both `bought` and `powerups` (GoRoom.applyBuy), so the
+  // last `fresh` cards are the ones just bought.
+  const fresh = handBought === null ? 0 : Math.max(0, Math.min(owned.length, bought - handBought));
+  handBought = myPlayer ? bought : null;
+  for (let i = owned.length - fresh; i < owned.length; i++) incoming.add(i); // until flyCard lands it
+
+  const places = Math.max(state.satchelLimit, owned.length);
+  const shown = selectedPowerup ? (owned[armedCard] === selectedPowerup ? armedCard : owned.indexOf(selectedPowerup)) : -1;
+  handEl.title =
+    `Satchel: ${owned.length} of ${state.satchelLimit} items, at most ${state.powerfulLimit} of them powerful. ` +
+    `Buy them at the Night Market, and on your turn pick a card to use it.`;
+  const sig = JSON.stringify([owned, places, isMyTurn, shown, Array.from(incoming)]);
+  rebuild(handEl, sig, () => {
+    for (let i = 0; i < places; i++) {
+      if (i >= owned.length) {
+        const place = document.createElement("span");
+        place.className = "card-place";
+        place.append(spriteImg("card_slot", G.cardSlot(), 1));
+        handEl.appendChild(place);
+        continue;
       }
-      button.addEventListener("click", () => pickPowerup(id));
-      satchelItemsEl.appendChild(button);
+      const card = itemCard(owned[i]);
+      card.dataset.index = String(i);
+      card.disabled = !isMyTurn;
+      card.classList.toggle("active", i === shown);
+      card.classList.toggle("incoming", incoming.has(i));
+      card.addEventListener("click", () => pickCard(owned[i], i));
+      handEl.appendChild(card);
+    }
+    if (owned.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "hand-empty";
+      empty.textContent = "Items you buy land here";
+      handEl.appendChild(empty);
     }
   });
+  for (let i = owned.length - fresh; i < owned.length; i++) flyCard(i);
+}
+
+/** A card: the pixel card face (sprites.js itemCard) with the item's name in its bottom strip. */
+function itemCard(id) {
+  const item = marketItem(id) || { name: id, description: "", tier: 1 };
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "card";
+  card.dataset.id = id;
+  card.setAttribute("aria-label", item.name);
+  card.title = `${item.name} (tier ${["", "I", "II", "III"][item.tier] || item.tier}): ${item.description}`;
+  const name = document.createElement("span");
+  name.className = "card-name";
+  name.textContent = item.name;
+  card.append(spriteImg(`card_${id}_${item.tier}`, G.itemCard(id, item.tier), 1), name);
+  return card;
+}
+
+/** Picking a second copy of the armed item only moves the highlight; picking the same card again disarms it. */
+function pickCard(id, index) {
+  const other = selectedPowerup === id && armedCard !== index;
+  armedCard = index;
+  if (other) renderSidebar(lastState);
+  else pickPowerup(id);
+}
+
+const CARD_FLIGHT_MS = 650;
+
+/**
+ * Flies the card at hand position `index` in from its Night Market stall: from
+ * the stall's icon, growing to full size and settling from a tilt. The card in
+ * the hand stays hidden until it lands.
+ */
+function flyCard(index) {
+  const land = () => {
+    incoming.delete(index);
+    const card = handEl.querySelector(`.card[data-index="${index}"]`);
+    if (card) {
+      card.classList.remove("incoming");
+      card.classList.add("landed");
+    }
+  };
+  const target = handEl.querySelector(`.card[data-index="${index}"]`);
+  // renderMarket builds one button per stall, in state.market order.
+  const stall = target && Array.from(lastState.market).findIndex((m) => m.id === target.dataset.id);
+  const source = stall >= 0 ? marketItemsEl.children[stall] : null;
+  if (!target || !source || reducedMotion() || !target.animate) return land();
+
+  const to = target.getBoundingClientRect();
+  const from = (source.querySelector("img") || source).getBoundingClientRect();
+  if (!to.width || !from.width) return land();
+  const flier = target.cloneNode(true);
+  flier.classList.remove("incoming", "active");
+  flier.classList.add("flying");
+  flier.disabled = false; // the hand's cards are dimmed off-turn; the one in flight shouldn't be
+  flier.removeAttribute("title");
+  flier.setAttribute("aria-hidden", "true");
+  flier.tabIndex = -1;
+  Object.assign(flier.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px` });
+  document.body.appendChild(flier);
+
+  // Centre to centre, never across the board: first straight down (or up) beside
+  // it to the hand's height, then along under the board into its place, the two
+  // legs overlapping a little for a rounded corner. The sidebar is always to the
+  // right of the board, so the first leg runs in the gap or over the sidebar.
+  // All relative to the card's place in the hand, as the transform is.
+  const cx = to.left + to.width / 2, cy = to.top + to.height / 2;
+  const x0 = from.left + from.width / 2 - cx;
+  const y0 = from.top + from.height / 2 - cy;
+  const s0 = Math.min(1, from.width / to.width);
+  const b = boardEl.getBoundingClientRect();
+  const boardBox = { left: b.left - cx, right: b.right - cx, top: b.top - cy, bottom: b.bottom - cy };
+  const smooth = (a, z, v) => {
+    const k = Math.min(1, Math.max(0, (v - a) / (z - a)));
+    return k * k * (3 - 2 * k);
+  };
+  const frames = [];
+  const STEPS = 24;
+  for (let k = 0; k <= STEPS; k++) {
+    const u = k / STEPS;
+    const t = 1 - Math.pow(1 - u, 1.6); // ease out: quick off the stall, gentle into the hand
+    const x = x0 * (1 - smooth(0.34, 1, t));
+    let y = y0 * (1 - smooth(0, 0.45, t));
+    const tilt = -16 * (1 - t) + 7 * Math.sin(Math.PI * t);
+    // Half the card's box at a scale, a tilted card's corners included.
+    const spread = 1 + Math.abs(Math.sin((tilt * Math.PI) / 180));
+    const half = (sc) => (to.width / 2) * sc * spread + 1;
+    let scale = s0 + (1 - s0) * smooth(0, 0.6, t);
+    // Wherever it is, the card keeps clear of the board: it grows only as far as the
+    // gap beside or below the board allows, and at its smallest drops below it.
+    const clear = (sc) =>
+      x - half(sc) >= boardBox.right || y - half(sc) >= boardBox.bottom ||
+      x + half(sc) <= boardBox.left || y + half(sc) <= boardBox.top;
+    if (!clear(scale)) {
+      const room = Math.max((x - boardBox.right) / half(1), (y - boardBox.bottom) / half(1));
+      scale = Math.max(s0, Math.min(scale, room));
+      if (!clear(scale)) y = Math.max(y, boardBox.bottom + half(scale));
+    }
+    frames.push({
+      offset: u,
+      transform: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${tilt.toFixed(1)}deg) scale(${scale.toFixed(3)})`,
+      opacity: Math.min(1, u * 6),
+    });
+  }
+  const flight = flier.animate(frames, { duration: CARD_FLIGHT_MS, easing: "linear", fill: "forwards" });
+  const finish = () => {
+    flier.remove();
+    land();
+  };
+  flight.onfinish = finish;
+  flight.oncancel = finish;
 }
 
 function renderMarket(state) {
@@ -1451,26 +1628,40 @@ function renderMarket(state) {
   const full = held >= state.satchelLimit;
   const powerfulFull = powerfulHeld() >= state.powerfulLimit;
 
+  const items = Array.from(state.market);
   marketStatusEl.textContent = open
-    ? "Five stalls tonight."
+    ? `${items.length} stalls tonight, shared by the table.`
     : `Opens after ${state.shopAfter} moves (${Math.min(moves, state.shopAfter)}/${state.shopAfter}).`;
 
-  const items = Array.from(state.market);
-  const sig = JSON.stringify([open, wallet, bought, held, powerfulFull, items.map((m) => m.id)]);
+  const sig = JSON.stringify([open, wallet, bought, held, powerfulFull, items.map((m) => [m.id, m.left])]);
   rebuild(marketItemsEl, sig, () => {
     for (const m of items) {
-      const soldOut = m.removal && bought.includes(m.id);
+      // Each stall's copies are shared by the table and capped per player (stallCopies / fairShare
+      // in server/src/powerups/definitions.ts). A server from before stalls had stock sends none:
+      // there only removal items are limited, once each.
+      const counted = m.stock > 0;
+      const mine = bought.filter((id) => id === m.id).length;
+      const soldOut = counted && m.left <= 0;
+      const hadShare = counted ? mine >= m.share : m.removal && mine > 0;
       const blocked = full || (m.removal && powerfulFull);
       const button = document.createElement("button");
       button.className = "item";
       button.title = soldOut
-        ? `${m.name} has already been bought this match.`
+        ? `${m.name} is sold out tonight.`
+        : hadShare
+        ? !counted
+          ? `${m.name} has already been bought this match.`
+          : m.share === 1
+          ? `${m.name} is one to a player, and you've had yours.`
+          : `You've bought your share of ${m.name} (${m.share} to a player).`
         : full
         ? `Your satchel is full (${state.satchelLimit} items).`
         : m.removal && powerfulFull
         ? `You can only carry ${state.powerfulLimit} powerful item at a time.`
+        : counted
+        ? `${m.left} of ${m.stock} left tonight, ${m.share} to a player. ${m.description}`
         : m.description;
-      button.disabled = !open || soldOut || blocked || wallet < m.price;
+      button.disabled = !open || soldOut || hadShare || blocked || wallet < m.price;
 
       const text = document.createElement("span");
       text.className = "text";
@@ -1483,7 +1674,17 @@ function renderMarket(state) {
       tier.textContent = ["", "I", "II", "III"][m.tier] || "";
       tier.title = `Tier ${m.tier}`;
       name.append(" ", tier);
-      title.append(name, soldOut ? tag("bought") : blocked ? tag("no room") : fireflies(m.price));
+      if (counted && !soldOut) {
+        const left = document.createElement("span");
+        left.className = "left";
+        left.classList.toggle("last", m.left === 1);
+        left.textContent = `${m.left} left`;
+        name.append(" ", left);
+      }
+      title.append(
+        name,
+        soldOut ? tag("sold out") : hadShare ? tag("bought") : blocked ? tag("no room") : fireflies(m.price)
+      );
       const desc = document.createElement("span");
       desc.className = "desc";
       desc.textContent = m.description;

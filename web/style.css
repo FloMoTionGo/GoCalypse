@@ -251,34 +251,91 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 
 
 #market-items { display: flex; flex-direction: column; gap: 4px; }
-#satchel-items { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Under the board: the recall strip on the left, the satchel's hand of cards on the right.
+   Sized in card pixels (--card-px, set by sizeCanvas in main.js) so the cards scale in whole
+   device pixels like the board. width 0 + min-width 100%: the row never widens the board's column. */
+:root { --card-px: 2px; }
+#board-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  width: 0;
+  min-width: 100%;
+  margin-top: calc(3 * var(--card-px)); /* CARD_ROW_GAP in main.js */
+}
+#hand { position: relative; display: flex; gap: calc(2 * var(--card-px)); margin-left: auto; } /* CARD_GAP */
+#board-foot.stacked #hand { order: -1; }
+#board-foot.stacked #recall { flex-basis: 100%; }
+#board-hint.targeting { color: var(--amber); }
 
-.slot {
+/* A card: the pixel face from sprites.js itemCard (32x32 card pixels), its name in the bottom strip (rows 21-29). */
+.card, .card-place {
   position: relative;
-  width: 40px;
-  height: 40px;
-  padding: 3px;
+  display: block;
+  flex: 0 0 auto;
+  width: calc(32 * var(--card-px));
+  height: calc(32 * var(--card-px));
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  line-height: 0;
+}
+.card img, .card-place img { display: block; width: 100%; height: 100%; }
+.card { transition: transform 120ms ease-out; }
+.card:hover:not(:disabled) { background: none; transform: translateY(calc(-1 * var(--card-px))); }
+/* Armed: lifted clear of the others, in a glow that follows the card's cut corners. */
+.card.active { transform: translateY(calc(-2 * var(--card-px))); filter: drop-shadow(0 0 calc(2 * var(--card-px)) var(--amber)); }
+.card:disabled { cursor: default; background: none; }
+.card:disabled img, .card:disabled .card-name { opacity: 0.55; }
+.card-name {
+  position: absolute;
+  left: calc(2 * var(--card-px));
+  right: calc(2 * var(--card-px));
+  top: calc(21 * var(--card-px));
+  height: calc(9 * var(--card-px));
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--ink);
-  border: 2px solid var(--slate);
-}
-.slot:hover:not(:disabled) { background: var(--ink); border-color: var(--amber); }
-.slot.active { border-color: var(--amber); background: var(--teal); }
-.slot:disabled img { opacity: 0.45; }
-.slot .count {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  min-width: 14px;
-  padding: 0 3px;
-  background: var(--amber);
-  color: var(--ink);
-  font-size: 10px;
+  overflow: hidden;
+  text-align: center;
+  color: var(--cream);
+  font-size: calc(4.1 * var(--card-px));
   font-weight: 700;
-  line-height: 14px;
-  border-radius: 2px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.hand-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 3px 8px;
+  background: var(--ink);
+  color: var(--slate);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* A card just bought: hidden in the hand while its copy flies in from the market (flyCard), then set down. */
+.card.incoming { visibility: hidden; }
+.card.landed { animation: card-land 200ms ease-out; }
+@keyframes card-land {
+  from { transform: translateY(calc(-2 * var(--card-px))) scale(1.06); }
+  to { transform: none; }
+}
+.card.flying {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  filter: drop-shadow(0 0 calc(3 * var(--card-px)) var(--amber));
+}
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+  .card.landed { animation: none; }
 }
 
 .item {
@@ -325,3 +382,5 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .player-row.passed { opacity: 0.4; }
 .player-row .pass-flag { margin-left: 8px; color: var(--amber); font-size: 11px; text-transform: uppercase; }
 .item .tier { color: var(--slate); font-size: 10px; font-weight: 400; }
+.item .left { color: var(--slate); font-size: 10px; font-weight: 400; white-space: nowrap; }
+.item .left.last { color: var(--amber); }

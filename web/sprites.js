@@ -1186,6 +1186,87 @@
     "fog", "skiff",
   ];
 
+  // ---------------------------------------------------------------------------
+  // Item cards: a bought item is a square card in the player's hand under the
+  // board. An ink card with a frame in its tier's colour (I teal, II amber, III
+  // cream), one gem per tier on the top edge, the item's icon in a night-sky
+  // window, and an empty ink strip at the bottom where the page writes the name
+  // (the pixel fonts only have digits).
+  // ---------------------------------------------------------------------------
+  const CARD_SIZE = 32;
+  const CARD_ART = { x: 3, y: 5, w: 26, h: 15 }; // the icon's window
+  const CARD_NAME_Y = 21; // first row of the name strip (rows 21..29)
+  const CARD_FRAME = { 1: T, 2: A, 3: C };
+
+  /** The card's silhouette: a square with two pixels cut off each corner. */
+  function inCard(x, y) {
+    const n = CARD_SIZE - 1;
+    if (x < 0 || y < 0 || x > n || y > n) return false;
+    const cx = Math.min(x, n - x), cy = Math.min(y, n - y);
+    return cx + cy >= 2;
+  }
+
+  /** Card-face sprite for an item: CARD_SIZE square, tier 1..3 (anything else reads as 1). */
+  const cardCache = {};
+  function itemCard(id, tier) {
+    const t = tier === 2 || tier === 3 ? tier : 1;
+    const key = `${id}:${t}`;
+    if (key in cardCache) return cardCache[key];
+    const N = CARD_SIZE, frame = CARD_FRAME[t];
+    const s = new Surface(N, N);
+    s.fill(TRANSPARENT);
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        if (!inCard(x, y)) continue;
+        const edge = !inCard(x - 1, y) || !inCard(x + 1, y) || !inCard(x, y - 1) || !inCard(x, y + 1);
+        const ring = !inCard(x - 2, y) || !inCard(x + 2, y) || !inCard(x, y - 2) || !inCard(x, y + 2);
+        s.set(x, y, edge ? K : ring ? frame : K);
+      }
+    }
+    // The art window: night sky over a strip of river, framed in slate.
+    const a = CARD_ART;
+    for (let y = a.y - 1; y <= a.y + a.h; y++) {
+      for (let x = a.x - 1; x <= a.x + a.w; x++) {
+        const border = y === a.y - 1 || y === a.y + a.h || x === a.x - 1 || x === a.x + a.w;
+        const corner = (y === a.y - 1 || y === a.y + a.h) && (x === a.x - 1 || x === a.x + a.w);
+        if (corner) continue;
+        const water = y >= a.y + a.h - 3;
+        s.set(x, y, border ? S : water && ditherOn(x, y, y === a.y + a.h - 3 ? 0.25 : 0.5) ? T : K);
+      }
+    }
+    for (const [x, y] of [[a.x + 3, a.y + 2], [a.x + 21, a.y + 1], [a.x + 23, a.y + 6], [a.x + 1, a.y + 8]]) s.set(x, y, S);
+    const icon = powerupIcon(id) || SPRITES.fireflyIcon;
+    s.blitCentered(icon, a.x + (a.w >> 1), a.y + (a.h >> 1));
+    // Tier gems on the top edge: amber diamonds set in ink, each with a cream glint.
+    for (let i = 0; i < t; i++) {
+      const gx = (N >> 1) + Math.round((i - (t - 1) / 2) * 6), gy = 2;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const d = Math.abs(dx) + Math.abs(dy);
+          if (d <= 2) s.set(gx + dx, gy + dy, d === 2 ? K : d === 0 ? C : A);
+        }
+      }
+    }
+    return (cardCache[key] = makeSprite(`card_${id}_${t}`, N, N, s.px));
+  }
+
+  /** An empty place in the hand: the card's outline, dotted in slate. */
+  let cardSlotSprite = null;
+  function cardSlot() {
+    if (cardSlotSprite) return cardSlotSprite;
+    const N = CARD_SIZE;
+    const s = new Surface(N, N);
+    s.fill(TRANSPARENT);
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        if (!inCard(x, y)) continue;
+        const edge = !inCard(x - 1, y) || !inCard(x + 1, y) || !inCard(x, y - 1) || !inCard(x, y + 1);
+        if (edge && ((x + y) & 3) < 2) s.set(x, y, S);
+      }
+    }
+    return (cardSlotSprite = makeSprite("card_slot", N, N, s.px));
+  }
+
   /** Every sprite and animation, for sprite sheets and previews. */
   function catalog() {
     const out = [];
@@ -1236,6 +1317,10 @@
     isPlayerStoneCode,
     powerupIcon,
     POWERUP_ICON_IDS,
+    CARD_SIZE,
+    CARD_NAME_Y,
+    itemCard,
+    cardSlot,
     SPRITES,
     ANIMS,
     FONT_SMALL,

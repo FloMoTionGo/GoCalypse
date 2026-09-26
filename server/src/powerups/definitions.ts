@@ -429,6 +429,45 @@ const REGISTRY = new Map<string, PowerupDefinition>(
 export const MARKET_TIER_SLOTS: Record<1 | 2 | 3, number> = { 1: 3, 2: 2, 3: 1 };
 export const MARKET_SLOTS = MARKET_TIER_SLOTS[1] + MARKET_TIER_SLOTS[2] + MARKET_TIER_SLOTS[3];
 
+/**
+ * Copies of one stall's item the whole table can buy in a match; sold out means
+ * gone until the next one. Tier 3 has a single copy, so only one player gets
+ * the powerful item; tier 2 is one short of a copy each; tier 1 has one and a
+ * half per seat. At 4 seats: 6 / 3 / 1.
+ */
+export function stallCopies(tier: 1 | 2 | 3, seats: number): number {
+  if (tier === 3) return 1;
+  if (tier === 2) return Math.max(1, seats - 1);
+  return Math.ceil(seats * 1.5);
+}
+
+/**
+ * The most copies of one stall's item a single player may buy: an even split,
+ * rounded up, so nobody can buy a stall out from under the rest of the table.
+ * At 4 seats: 2 / 1 / 1.
+ */
+export function fairShare(copies: number, seats: number): number {
+  return Math.ceil(copies / Math.max(1, seats));
+}
+
+/** How many copies of `id` a player has bought this match (PlayerState.bought holds one entry per copy). */
+export function copiesBought(bought: ArrayLike<string>, id: string): number {
+  let n = 0;
+  for (let i = 0; i < bought.length; i++) if (bought[i] === id) n++;
+  return n;
+}
+
+/** Why a stall can't sell this player another copy, or null when it can. */
+export function stallRefusal(stall: { name: string; left: number; share: number }, mine: number): string | null {
+  if (stall.left <= 0) return `${stall.name} is sold out tonight.`;
+  if (mine >= stall.share) {
+    return stall.share === 1
+      ? `${stall.name} is one to a player, and you've had yours.`
+      : `You've bought your share of ${stall.name} (${stall.share} to a player).`;
+  }
+  return null;
+}
+
 export function getPowerup(id: string): PowerupDefinition | undefined {
   return REGISTRY.get(id);
 }

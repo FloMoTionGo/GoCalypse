@@ -82,6 +82,14 @@ checked in `GoRoom.applyMove`); bots never offer such a move. Positions are not
 part of a saved snapshot, so after a server restart the rule remembers from the
 restored board on.
 
+Superko alone still lets a ko go round the table: the seats in between put
+stones down elsewhere, so the retake is never quite a repeat. So **a ko is held
+for a full round**: once a single stone is taken by a lone stone left on one
+liberty, nobody may take that stone straight back until the player who took it
+has moved again, which gives them the turn to fill the ko. Bots price the same
+thing: a capture that leaves their stone in atari counts as a self-atari, unless
+it is a held ko they can fill.
+
 ### Ending the game & scoring
 
 On your turn you can **pass** (the *Pass* button in the header) instead of
@@ -154,7 +162,9 @@ tier 1, 2 of tier 2 and 1 of tier 3**, drawn fresh each match. The stall is one
 per room, so every player and bot at the table shops from the same six. Only
 tier 3 holds powerful (removal) items, so **at most one** is ever on sale. Your
 **satchel holds five items** and only **one powerful item** at a time; a
-purchase past either limit is refused with a notice.
+purchase past either limit is refused with a notice. The satchel is a hand of
+square item cards under the board: a bought item flies in from its stall as a
+card, and on your turn you pick a card to use it.
 
 Some items are **free**: they don't take your turn, you still move afterwards.
 Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400. (Within a tier the tables below read in the order the stall shows them, cheap to dear.)
@@ -296,8 +306,8 @@ data is copied, and its search and neural networks are left out.
     validation, powerup dispatch.
 - `web/` — browser client, plain HTML/CSS/JS (no build step, no framework),
   using `colyseus.js` from a CDN `<script>` tag. `main.js` renders the pixel
-  scene, player list, Satchel and Night Market straight off the synced room
-  state (`room.onStateChange`).
+  scene, player list, Night Market and the satchel's hand of item cards
+  under the board straight off the synced room state (`room.onStateChange`).
 
 ## Running locally
 
