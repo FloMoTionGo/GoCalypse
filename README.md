@@ -231,6 +231,11 @@ is whose. The rules do not change: captures and suicide still run on the real
 colours, and players have to remember what they cannot see. The grey comes in with the
 cloudburst and eases out through the last round. It is driven by `GoState.storm.until` versus `GoState.turnCount`, so
 a client joining mid-storm sees it too (`stormLinger` in `web/pixelScene.js`).
+Nothing else gives the colours away while it lasts: stones still moving (placed,
+flipped, captured, blown or burnt away) are grey too, the boards you step back
+to with the recall arrows are grey, the owner marks on wards, lily pads and seeds
+are hidden, and an item that targets your own stone no longer marks your stones
+with embers -- you pick yours from memory.
 
 `go_debug` rooms roll every **6** turns instead, so a storm can actually be
 watched in a test session (`src/rules/storm.ts`, `GoDebugRoom`).

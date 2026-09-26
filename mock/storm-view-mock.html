@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>GoCalypse mock: what the storm hides</title>
+<link rel="stylesheet" href="../web/style.css" />
+<script src="../web/sprites.js"></script>
+<script src="../web/pixelScene.js"></script>
+<style>
+  #picker { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+  #picker button.on { background: var(--amber); color: var(--ink); }
+  .note { color: var(--slate); font-size: 13px; max-width: 900px; margin: 0 0 12px; }
+  .note li { margin: 2px 0; }
+  .boards { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .boards figure { margin: 0; }
+  .boards figcaption { color: var(--cream); font-size: 13px; margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="note">
+    <p>Static mock of the storm's grey (findings Phase 2a). The same board, calm on the left and in a storm's grey on
+    the right. You play black + gray, with Lantern Ward armed. Every two seconds a stone of each kind lands, flips,
+    is captured and is blown away (Gust), so you can watch stones in flight. Under the grey:</p>
+    <ul>
+      <li>stones in flight are grey too (B7), and so are their shadows: a transparent stone's ring-shaped shadow would give it away;</li>
+      <li>the owner marks on the ward (3-3), the lily pad (8-2) and the seed (10-8) are hidden, and the timers stay (B8);</li>
+      <li>the armed Lantern Ward marks none of your stones with embers (B8);</li>
+      <li>no firefly halos wander around without their fireflies (B10).</li>
+    </ul>
+    <p>Recall (B6) and the hover over a rival's mist (B9) live in <code>main.js</code>. <code>client-browser.mjs</code> checks them.
+    Sample data only, no server. <code>?t=0.12</code> freezes the animations that many seconds into each two-second loop.</p>
+  </div>
+  <div id="picker"></div>
+  <div class="boards">
+    <figure><figcaption>Calm: colours, owner marks, embers</figcaption><canvas id="calm" class="px"></canvas></figure>
+    <figure><figcaption>Storm's grey: nothing says whose stone is whose</figcaption><canvas id="storm" class="px"></canvas></figure>
+  </div>
+</div>
+<script>
+(function () {
+  const P = window.GoPixelScene;
+  const SIZE = 13, SCALE = 2;
+  // [x, y, code]: 1/5 are yours (black / gray); 7 and 8 are the transparent (ring) stones.
+  const STONES = [
+    [3,3,1],[4,3,1],[3,4,5],[4,4,2],[5,3,6],[6,6,3],[7,6,7],[8,8,4],[9,3,7],[6,9,1],[5,5,5],
+    [2,9,1],[2,10,5],[10,10,1],[11,10,2],[10,2,8],[7,8,6],[4,7,5],[9,11,12],
+  ];
+  const board = new Array(SIZE * SIZE).fill(0);
+  for (const [x, y, c] of STONES) board[y * SIZE + x] = c;
+  const mine = [];
+  board.forEach((c, i) => { if (c === 1 || c === 5) mine.push(i); });
+  const overlays = [
+    { kind: "ward", x: 3, y: 3, owner: 1, until: 26 }, { kind: "ward", x: 4, y: 3, owner: 1, until: 26 },
+    { kind: "lily", x: 8, y: 2, owner: 3, until: 24 },
+    { kind: "seed", x: 10, y: 8, owner: 2, until: 20, axis: "pattern" },
+  ];
+  // Stones in flight, restarted every LOOP seconds. The board already shows their end state.
+  const LOOP = 2;
+  const flying = (start) => [
+    P.makeEffect("place", 1, 1, { code: 8 }, start),
+    P.makeEffect("place", 11, 5, { code: 3 }, start + 0.1),
+    P.makeEffect("flip", 6, 6, { from: 3, code: 7 }, start + 0.2),
+    P.makeEffect("capture", 1, 6, { code: 2 }, start + 0.3),
+    P.makeEffect("gust", 11, 1, { code: 4 }, start + 0.4),
+    P.makeEffect("burnAway", 6, 11, { code: 7 }, start + 0.5),
+  ];
+
+  function setup(id) {
+    const scene = P.createScene({ size: SIZE });
+    const canvas = document.getElementById(id);
+    canvas.width = scene.width; canvas.height = scene.height;
+    canvas.style.width = scene.width * SCALE + "px"; canvas.style.height = scene.height * SCALE + "px";
+    const ctx = canvas.getContext("2d");
+    return { scene, ctx, image: ctx.createImageData(scene.width, scene.height) };
+  }
+  // stormUntil 24 at turn 16 of a 4-player game: two full rounds of grey left.
+  const views = [[setup("calm"), 0], [setup("storm"), 24]];
+
+  const tParam = new URLSearchParams(location.search).get("t");
+  let frozen = tParam === null ? null : Number(tParam);
+  function draw(time) {
+    const start = time - (time % LOOP);
+    const at = frozen === null ? time : start + frozen;
+    for (const [v, stormUntil] of views) {
+      v.scene.render({
+        time: at, board, hover: null, hoverKind: "none", myColor: 1, lastMove: { x: 5, y: 5 },
+        effects: flying(start), storm: null, round: 5, fireflies: 12, turnCount: 16, roundLength: 4, stormUntil,
+        reducedMotion: false, overlays, highlightMine: stormUntil ? null : mine, // main.js ownStoneHighlight(): none in the grey
+      });
+      v.image.data.set(v.scene.rgba);
+      v.ctx.putImageData(v.image, 0, 0);
+    }
+  }
+  function loop(ms) {
+    draw(frozen === null ? ms / 1000 : 20);
+    requestAnimationFrame(loop);
+  }
+
+  const picker = document.getElementById("picker");
+  const pick = (f) => {
+    frozen = f;
+    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("on", String(f) === b.dataset.f));
+  };
+  for (const [f, label] of [[null, "play"], [0.03, "landing"], [0.32, "mid-flip"], [0.45, "capture"], [0.62, "gust"]]) {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.f = String(f); b.textContent = label;
+    b.addEventListener("click", () => pick(f));
+    picker.append(b);
+  }
+  pick(frozen);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

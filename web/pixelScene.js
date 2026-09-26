@@ -553,23 +553,46 @@
   }
 
   /**
+   * A piece centred on (cx, cy), faded towards the storm's slate grey by `grey`
+   * (0..1) if it's a player stone. The one grey ramp for stones at rest and
+   * stones in flight, so nothing a storm hides shows its colour while it moves.
+   * With opts.coverage (a fading piece) the grey never covers more than the
+   * piece: at full grey the two land on the same dither pixels.
+   */
+  function blitPiece(surf, code, shape, cx, cy, grey, opts) {
+    surf.blitCentered(G.pieceSprite(code, shape), cx, cy, opts);
+    if (!(grey > 0) || !G.isPlayerStoneCode(code)) return;
+    const cov = opts && opts.coverage !== undefined ? Math.min(opts.coverage, grey) : grey;
+    surf.blitCentered(G.pieceSprite(6, shape), cx, cy, { coverage: cov });
+  }
+  /**
+   * A piece's drop shadow. The transparent stones are rings, so their shadows
+   * are too: under the storm's grey every player stone casts the grey stone's
+   * solid one, or a stone in the air would still say which kind it is.
+   */
+  function blitShadow(surf, code, shape, cx, cy, grey) {
+    const look = grey > 0 && G.isPlayerStoneCode(code) ? 6 : code;
+    surf.blitCentered(G.pieceSprite(look, shape), cx, cy, { color: K, coverage: 0.5 });
+  }
+
+  /**
    * Draw one effect frame centred on native pixel (cx, cy). Exposed so the
-   * sprite-sheet preview can show effects in isolation.
+   * sprite-sheet preview can show effects in isolation. `grey` (0..1) is the
+   * storm's grey: stones in flight wear it too, and owner marks stay hidden.
    * Returns a light source {x, y, r} if the frame glows, else null.
    */
-  function drawEffect(surf, effect, elapsed, cx, cy, reducedMotion) {
+  function drawEffect(surf, effect, elapsed, cx, cy, reducedMotion, grey = 0) {
     const tl = timelineFor(effect.kind, reducedMotion);
     const at = frameAt(tl, elapsed);
     if (!at) return null;
     const f = at.frame;
     const code = effect.code;
     if (effect.kind === "place") {
-      const spr = G.stoneSprite(code, f.shape);
-      surf.blitCentered(G.stoneSprite(code, f.shadow), cx + 1, cy + 1, { color: K, coverage: 0.5 });
+      blitShadow(surf, code, f.shadow, cx + 1, cy + 1, grey);
       if (f.ripple !== undefined) {
         surf.blitCentered(ANIMS.ripple.frames[f.ripple], cx, cy, { coverage: f.rippleCov });
       }
-      surf.blitCentered(spr, cx, cy + f.dy);
+      blitPiece(surf, code, f.shape, cx, cy + f.dy, grey);
       if (f.specks !== undefined) {
         const d = 9 + f.specks * 2;
         for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
@@ -579,17 +602,17 @@
       }
       return null;
     }
-    const powerup = drawPowerupFrame(surf, effect, f, at.index, cx, cy);
+    const powerup = drawPowerupFrame(surf, effect, f, at.index, cx, cy, grey);
     if (powerup !== undefined) return powerup;
 
     // capture (also the tail of the snipe timeline)
     const look = G.lookForCode(code);
     if (f.kind === "stone") {
-      surf.blitCentered(G.pieceSprite(code), cx + f.dx, cy);
+      blitPiece(surf, code, "normal", cx + f.dx, cy, grey);
       return null;
     }
     if (f.kind === "squish") {
-      surf.blitCentered(G.pieceSprite(code, "squash"), cx, cy + 1);
+      blitPiece(surf, code, "squash", cx, cy + 1, grey);
       return null;
     }
     if (f.kind === "flash") {
@@ -597,7 +620,7 @@
       return { x: cx, y: cy, r: 9 };
     }
     if (f.kind === "fade") {
-      surf.blitCentered(G.pieceSprite(code), cx, cy, { coverage: f.coverage });
+      blitPiece(surf, code, "normal", cx, cy, grey, { coverage: f.coverage });
       return null;
     }
     const wisp = ANIMS.wisp.frames[at.index & 1];
@@ -621,7 +644,7 @@
    * Frames of the powerup timelines. Returns a light source / null when it
    * drew the frame, or undefined if the frame kind isn't a powerup kind.
    */
-  function drawPowerupFrame(surf, effect, f, index, cx, cy) {
+  function drawPowerupFrame(surf, effect, f, index, cx, cy, grey) {
     switch (f.kind) {
       case "drop": {
         const log = G.SPRITES.driftwood;
@@ -638,7 +661,7 @@
       }
       case "lily": {
         surf.blitCentered(G.SPRITES[f.spr], cx, cy + 1);
-        if (f.mark && effect.owner) surf.blitCentered(G.splitPreviewSprite(effect.owner, "mini"), cx, cy + 1);
+        if (f.mark && effect.owner && !(grey > 0)) surf.blitCentered(G.splitPreviewSprite(effect.owner, "mini"), cx, cy + 1);
         if (f.spark !== undefined) drawSparkRing(surf, cx, cy, f.sparkR, f.spark);
         return null;
       }
@@ -651,18 +674,18 @@
       }
       case "flip": {
         const code = f.side === "from" ? effect.from : effect.code;
-        surf.blitCentered(G.stoneSprite(code, "icon"), cx + 1, cy + 1, { color: K, coverage: 0.5 });
-        surf.blitCentered(G.stoneSprite(code, f.shape), cx, cy + f.dy);
+        blitShadow(surf, code, "icon", cx + 1, cy + 1, grey);
+        blitPiece(surf, code, f.shape, cx, cy + f.dy, grey);
         if (f.spark !== undefined) drawSparkRing(surf, cx, cy, f.sparkR, f.spark);
         return null;
       }
       case "gust": {
         drawWind(surf, cx, cy, f.wind);
-        surf.blitCentered(G.pieceSprite(effect.code, f.shape), cx + f.dx, cy + f.dy, { coverage: f.cov });
+        blitPiece(surf, effect.code, f.shape, cx + f.dx, cy + f.dy, grey, { coverage: f.cov });
         return null;
       }
       case "aim": {
-        surf.blitCentered(G.pieceSprite(effect.code), cx, cy);
+        blitPiece(surf, effect.code, "normal", cx, cy, grey);
         drawBrackets(surf, cx, cy, f.d);
         if (f.strike) {
           for (let k = 3; k <= 10; k++) {
@@ -675,7 +698,7 @@
       }
       case "burn": {
         if (f.cov > 0 && effect.code) {
-          surf.blitCentered(G.pieceSprite(effect.code, f.shape), cx, cy, { coverage: f.cov });
+          blitPiece(surf, effect.code, f.shape, cx, cy, grey, { coverage: f.cov });
         }
         if (f.flame !== undefined) {
           surf.blitCentered(ANIMS.flame.frames[f.flame % ANIMS.flame.frames.length], cx, cy - 3);
@@ -1261,32 +1284,34 @@
      * remember what they cannot see. Driftwood keeps its own look.
      */
     function drawStones(board, skip, grey) {
-      const spriteFor = (code) => G.pieceSprite(code);
       // Shadows first so they never cover a neighbour.
       for (let i = 0; i < board.length; i++) {
         const code = board[i];
         if (!code || skip.has(i)) continue;
         const p = pointToNative(i % size, (i / size) | 0);
-        surf.blitCentered(spriteFor(code), p.x + 1, p.y + 1, { color: K, coverage: 0.5 });
+        blitShadow(surf, code, "normal", p.x + 1, p.y + 1, grey);
       }
       for (let i = 0; i < board.length; i++) {
         const code = board[i];
         if (!code || skip.has(i)) continue;
         const p = pointToNative(i % size, (i / size) | 0);
-        surf.blitCentered(spriteFor(code), p.x, p.y);
-        if (grey > 0 && G.isPlayerStoneCode(code)) surf.blitCentered(G.pieceSprite(6), p.x, p.y, { coverage: grey });
+        blitPiece(surf, code, "normal", p.x, p.y, grey);
       }
     }
 
-    /** Lily pads (under stones) on empty cells, each showing its owner's split stone (base | other front). */
-    function drawLilyPads(overlays, board, busy) {
+    /**
+     * Lily pads (under stones) on empty cells, each showing its owner's split
+     * stone (base | other front) -- except while the storm greys the board
+     * (`hideOwners`): no owner marks then, so nobody is told whose grey stones are whose.
+     */
+    function drawLilyPads(overlays, board, busy, hideOwners) {
       for (const o of overlays) {
         if (o.kind !== "lily") continue;
         const i = o.y * size + o.x;
         if (board[i] || busy.has("lily:" + i)) continue;
         const p = pointToNative(o.x, o.y);
         surf.blitCentered(G.SPRITES.lilyBoard, p.x, p.y + 1);
-        if (o.owner) surf.blitCentered(G.splitPreviewSprite(o.owner, "icon"), p.x, p.y + 1);
+        if (o.owner && !hideOwners) surf.blitCentered(G.splitPreviewSprite(o.owner, "icon"), p.x, p.y + 1);
       }
     }
 
@@ -1295,7 +1320,7 @@
      * others see only the cloud (main.js takes the stone out of what it hands
      * over), its owner sees their stone through a thinner one.
      */
-    function drawSeeds(overlays, board, busy) {
+    function drawSeeds(overlays, board, busy, hideOwners) {
       for (const o of overlays) {
         if (o.kind !== "seed") continue;
         const i = o.y * size + o.x;
@@ -1303,7 +1328,7 @@
         const p = pointToNative(o.x, o.y);
         surf.blitCentered(G.SPRITES.seedBoard, p.x, p.y);
         // The stone it will grow into: the solid one, or the gray/transparent one for a right-click seed.
-        const mark = o.owner && G.stoneSprite(o.axis === "pattern" ? G.patternCode(o.owner) : o.owner, "mini");
+        const mark = o.owner && !hideOwners && G.stoneSprite(o.axis === "pattern" ? G.patternCode(o.owner) : o.owner, "mini");
         if (mark) blitHaloed(mark, p.x - 7, p.y - 7);
       }
     }
@@ -1372,9 +1397,10 @@
      * side, on the upper left of the point). Lily pads and wards are owned;
      * driftwood and fires are nobody's. A ward covers a whole group, one
      * overlay per stone, so only its first stone carries the mark and the tag.
-     * (The lily pad's mark is the split stone drawn on the pad itself.)
+     * (The lily pad's mark is the split stone drawn on the pad itself.) While
+     * the storm greys the board (`hideOwners`) only the timers are left.
      */
-    function drawTimers(overlays, board, busy, turnCount, roundLength, pendingFires, myColor) {
+    function drawTimers(overlays, board, busy, turnCount, roundLength, pendingFires, myColor, hideOwners) {
       const wardAnchor = new Map();
       for (const o of overlays) {
         if (o.kind !== "ward") continue;
@@ -1385,7 +1411,7 @@
       }
       for (const o of wardAnchor.values()) {
         const p = pointToNative(o.x, o.y);
-        if (o.owner) blitHaloed(G.splitPreviewSprite(o.owner, "mini"), p.x - 7, p.y - 7);
+        if (o.owner && !hideOwners) blitHaloed(G.splitPreviewSprite(o.owner, "mini"), p.x - 7, p.y - 7);
         drawTimerTag(p.x, p.y, roundsLeft(o, turnCount, roundLength));
       }
       const fogs = new Map();
@@ -1573,6 +1599,8 @@
      *   stormUntil:    turnCount when the storm's fires go out; while turnCount is below
      *                  this, a weak copy of the storm's weather lingers over the scene (see
      *                  stormLinger) -- for the full 3 rounds, not just the ~10s cloudburst,
+     *   stormTurnCount: the turn counter the storm is judged by (defaults to turnCount); the live
+     *                  one while an older board is recalled, so a storm on now greys the old boards too,
      *   reducedMotion: boolean,
      * }
      * Returns the RGBA buffer (Uint8ClampedArray, width*height*4).
@@ -1585,6 +1613,29 @@
       const t = Math.floor(ambientRaw * AMBIENT_FPS) / AMBIENT_FPS;
       const board = st.board || [];
       const effects = st.effects || [];
+
+      // The storm's weights, worked out first: the weather decides which lights
+      // shine (fireflies sit it out) and the grey what the stones show.
+      // Two layers of weather (see the Thunderstorm notes above): the ~10 s
+      // cloudburst (`storm`, introW) over the whole scene, playing surface
+      // included, and behind it a weak copy for the storm's full three rounds
+      // (lingerW, from GoState.storm.until) that leaves the playing surface alone.
+      const storm = st.storm
+        ? stormPhase(time - st.storm.start, (st.storm.strikes || []).length, reduced)
+        : null;
+      const linger = stormLinger(
+        st.stormTurnCount === undefined ? st.turnCount : st.stormTurnCount, st.stormUntil, st.roundLength || 0
+      );
+      const introW = storm ? storm.weight : 0;
+      const lingerW = linger * STORM_LINGER;
+      const outsideW = Math.max(introW, lingerW); // over water, banks and the frame
+      const boardW = Math.max(introW, lingerW * STORM_BOARD_SHARE); // over the playing surface
+      const weather = outsideW > 0;
+      // The storm greys every stone for its full three rounds: it comes in with
+      // the cloudburst and eases out through the last round (stormLinger).
+      const stormElapsed = st.storm ? time - st.storm.start : STORM_DARK_IN;
+      const greyW = Math.min(1, linger, stormElapsed / STORM_DARK_IN);
+      const hideOwners = greyW > 0;
 
       surf.copyFrom(base.surface);
 
@@ -1602,7 +1653,7 @@
       for (const fl of floats) lights.push({ x: fl.x, y: fl.y - 2, r: 9, s: 0.55 });
       garland.forEach((g) => lights.push({ x: g.x, y: 5, r: 7, s: 0.45 }));
       const flies = fireflies.map((ff) => fireflyState(ff, t));
-      for (const ff of flies) if (ff.frame === 2) lights.push({ x: ff.x, y: ff.y, r: 3.5, s: 0.7 });
+      if (!weather) for (const ff of flies) if (ff.frame === 2) lights.push({ x: ff.x, y: ff.y, r: 3.5, s: 0.7 });
       for (const lt of lights) surf.ramp(G.LIGHT, lt.x, lt.y, lt.r, lt.s, 1, noLight);
 
       // 3. floating lanterns + reflections
@@ -1639,21 +1690,14 @@
       const overlays = st.overlays || [];
       // A storm in flight: its bolts haven't all landed, so hold back the
       // fires that belong to bolts still on their way.
-      const storm = st.storm
-        ? stormPhase(time - st.storm.start, (st.storm.strikes || []).length, reduced)
-        : null;
       const pendingFires = new Set();
       if (storm) {
         (st.storm.strikes || []).forEach((s, i) => {
           if (!storm.landed[i]) pendingFires.add(s.y * size + s.x);
         });
       }
-      // The storm greys every stone for its full three rounds: it comes in with
-      // the cloudburst and eases out through the last round (stormLinger).
-      const stormElapsed = st.storm ? time - st.storm.start : STORM_DARK_IN;
-      const greyW = Math.min(1, stormLinger(st.turnCount, st.stormUntil, st.roundLength || 0), stormElapsed / STORM_DARK_IN);
-      drawLilyPads(overlays, board, busy);
-      drawSeeds(overlays, board, busy);
+      drawLilyPads(overlays, board, busy, hideOwners);
+      drawSeeds(overlays, board, busy, hideOwners);
       drawStones(board, skip, greyW);
       drawWards(overlays, board, busy, time, reduced);
       drawMists(overlays, st.myColor);
@@ -1668,21 +1712,13 @@
       // 8. effects in flight
       for (const e of active) {
         const p = pointToNative(e.x, e.y);
-        const glow = drawEffect(surf, e, time - e.start, p.x, p.y, reduced);
+        const glow = drawEffect(surf, e, time - e.start, p.x, p.y, reduced, greyW);
         if (glow) surf.ramp(G.LIGHT, glow.x, glow.y, glow.r, 0.6, 1, noLight);
       }
 
-      // 8b. weather: dusk, cloud cover and rain, then the bolts themselves.
-      // Two layers (see the Thunderstorm notes above): the ~10 s cloudburst
-      // (`storm`, introW) over the whole scene, playing surface included, and
-      // behind it a weak copy for the storm's full three rounds (lingerW, from
-      // GoState.storm.until) that leaves the playing surface alone. Both sit
-      // under the hover UI, so you can still see where you are about to play.
-      const introW = storm ? storm.weight : 0;
-      const lingerW = stormLinger(st.turnCount, st.stormUntil, st.roundLength || 0) * STORM_LINGER;
-      const outsideW = Math.max(introW, lingerW); // over water, banks and the frame
-      const boardW = Math.max(introW, lingerW * STORM_BOARD_SHARE); // over the playing surface
-      const weather = outsideW > 0;
+      // 8b. weather: dusk, cloud cover and rain (both layers, weighed at the
+      // top), then the bolts themselves. Both sit under the hover UI, so you
+      // can still see where you are about to play.
       if (weather) {
         const darkOut = STORM_DARKNESS * outsideW;
         const darkIn = STORM_DARKNESS * boardW;
@@ -1729,7 +1765,7 @@
       // 8c. fires burn on top of the weather: they are the one thing the
       // storm doesn't dim, and they keep burning long after it has passed.
       drawFires(overlays, busy, time, reduced, st.turnCount, st.roundLength || 0, pendingFires);
-      drawTimers(overlays, board, busy, st.turnCount, st.roundLength || 0, pendingFires, st.myColor);
+      drawTimers(overlays, board, busy, st.turnCount, st.roundLength || 0, pendingFires, st.myColor, hideOwners);
 
       // 8d. a pass: a quick PASS sign over the board that fades out
       if (st.passFlash !== undefined) drawPassSign(time - st.passFlash);
@@ -1738,7 +1774,7 @@
       // the Lantern, Ferry, Skiff before its first target): the last-move ember,
       // enlarged, in the centre of every stone of yours on the board, so you
       // don't have to work out which ones are yours by memory. main.js decides
-      // which points qualify; this just draws them.
+      // which points qualify (none while the storm greys the board); this just draws them.
       if (st.highlightMine) {
         const ember = animFrame("emberBig", reduced ? 0 : time);
         for (const i of st.highlightMine) {
@@ -1837,6 +1873,7 @@
     STORM_SECONDS,
     boltTime,
     stormPhase,
+    stormLinger,
     REGION: { BANK: R_BANK, WATER: R_WATER, FRAME: R_FRAME, KAYA: R_KAYA, FRONT: R_FRONT },
     computeLayout,
     createScene,

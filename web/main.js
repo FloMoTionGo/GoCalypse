@@ -67,7 +67,7 @@ let lastFrameAt = 0;
 // Recall: the last RECALL_STEPS boards before the live one, kept in the browser.
 // Anyone can step back to look (bots move fast); nothing is sent to the server.
 const RECALL_STEPS = 5;
-let history = []; // [{id, seq, board, overlays, lastMove, event, turnCount, stormUntil}], oldest first, live is last
+let history = []; // [{id, seq, board, overlays, lastMove, event, turnCount}], oldest first, live is last (the storm's grey is always judged live)
 let nextSnapId = 1;
 let viewId = null; // id of the snapshot on screen, or null while live
 const recallEl = document.getElementById("recall");
@@ -491,7 +491,10 @@ function frame() {
     fireflies: myPlayer ? myPlayer.fireflies : undefined,
     turnCount: snap ? snap.turnCount : turnCount,
     roundLength,
-    stormUntil: snap ? snap.stormUntil : stormUntil,
+    // The grey is judged by the live storm, not the one the snapshot saw: a
+    // storm on now greys the older boards too (as a fog on now covers them).
+    stormTurnCount: turnCount,
+    stormUntil,
     reducedMotion: reduced,
     highlightMine: snap ? null : ownStoneHighlight(displayBoard),
   });
@@ -515,6 +518,11 @@ function hoverKind() {
   if (!isMyTurn || !myPlayer) return "none";
   if (burningAt(hoverPoint.x, hoverPoint.y)) return "none"; // nothing can be played into a fire
   if (overlays.some((o) => o.kind === "fog" && o.x === hoverPoint.x && o.y === hoverPoint.y)) return "none"; // nor into a fog
+  // Nor over someone else's mist: the stone under it is taken out of what we
+  // draw, so the point would look free. (The mist itself is on show anyway.)
+  if (overlays.some((o) => o.kind === "mist" && o.owner !== myPlayer.color && o.x === hoverPoint.x && o.y === hoverPoint.y)) {
+    return "none";
+  }
   const owner = lilyOwnerAt(hoverPoint.x, hoverPoint.y);
   return owner && owner !== myPlayer.color ? "none" : "stone";
 }
@@ -590,9 +598,19 @@ function isMyStoneCode(code, myColor) {
   return code >= 10 && code <= 13 && code - 9 === myColor;
 }
 
-/** Every point on `boardArr` that's my own stone, while an item that needs one is armed and waiting for it. */
+/** True while the storm greys the stones (its full three rounds): nobody is shown whose stone is whose. */
+function stormGreys() {
+  return P.stormLinger(turnCount, stormUntil, roundLength) > 0;
+}
+
+/**
+ * Every point on `boardArr` that's my own stone, while an item that needs one
+ * is armed and waiting for it. None while the storm greys the board: arming an
+ * item and cancelling it again must not show which grey stones are mine.
+ */
 function ownStoneHighlight(boardArr) {
   if (!myPlayer || firstTarget || !selectedPowerup || !OWN_STONE_TARGET_ITEMS.has(selectedPowerup)) return null;
+  if (stormGreys()) return null;
   const points = [];
   for (let i = 0; i < boardArr.length; i++) {
     if (isMyStoneCode(boardArr[i], myPlayer.color)) points.push(i);
@@ -640,14 +658,17 @@ function targetingText() {
   const item = selectedPowerup && marketItem(selectedPowerup);
   if (!item) return "";
   const ownStone = OWN_STONE_TARGET_ITEMS.has(item.id) && !firstTarget;
+  const pickOwn = stormGreys()
+    ? `${item.name}: pick one of your stones -- the storm hides which are yours -- right click to cancel.`
+    : `${item.name}: pick one of your stones, each marked with an ember -- right click to cancel.`;
   return item.id === "seedling"
     ? "Seedling: click for a solid seed, right click for a gray or transparent one -- Esc to cancel."
     : item.points >= 2
     ? firstTarget
       ? `${item.name}: now the empty point to move it to -- right click to cancel.`
-      : `${item.name}: pick one of your stones, each marked with an ember -- right click to cancel.`
+      : pickOwn
     : ownStone
-    ? `${item.name}: pick one of your stones, each marked with an ember -- right click to cancel.`
+    ? pickOwn
     : `Pick a point for ${item.name} -- right click to cancel.`;
 }
 
@@ -663,7 +684,6 @@ function recordHistory(state, action) {
     lastMove,
     event: state.lastEvent || "",
     turnCount: state.turnCount,
-    stormUntil: state.storm.until,
   };
   const last = history[history.length - 1];
   if (last && last.seq === action.seq) {
@@ -1463,9 +1483,14 @@ function renderPlayers(state) {
       score.title = finished ? "Final score: the lower of this player's two totals" : "Stones captured";
       score.textContent = `${finished ? player.finalScore : player.score}`;
 
+      // A player's fireflies and what they have lit are their own business (a
+      // Kite is how you peek) until the game is over.
+      const mine = !!room && player.sessionId === room.sessionId;
+      const open = mine || finished;
       const top = document.createElement("span");
       top.className = "top";
-      top.append(name, fireflies(player.fireflies), score);
+      if (open) top.append(name, fireflies(player.fireflies), score);
+      else top.append(name, score);
       const flag = document.createElement("span");
       flag.className = "pass-flag";
       flag.textContent = "passed";
@@ -1482,7 +1507,7 @@ function renderPlayers(state) {
       if (player.mist) armed.push("mist");
       if (player.twin) armed.push("twin");
       if (player.extra > 0) armed.push("+1 stone");
-      if (armed.length && state.status === "playing") {
+      if (armed.length && state.status === "playing" && mine) {
         const tags = document.createElement("span");
         tags.className = "pass-flag";
         tags.textContent = armed.join(" · ");
