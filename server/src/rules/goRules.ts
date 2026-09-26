@@ -24,6 +24,9 @@
 //   10..13   = that player's TWIN stone (Twin Wick, player id + 9): it fights on
 //              BOTH fronts at once, so it merges and captures on both -- and is
 //              captured when either of its two groups runs out of liberties
+//   14       = GREY_STONE: never on the true board. It is what GoState.seen shows
+//              for every player stone while a storm's grey lasts, so no client
+//              is told whose stone is whose (GoRoom.refreshSeen).
 
 export interface Point {
   x: number;
@@ -36,6 +39,8 @@ export type StoneView = "base" | "pattern";
 export type IsProtected = (idx: number) => boolean;
 
 export const DRIFTWOOD = 9;
+/** The storm's grey: a player stone, colour unknown. Only ever in GoState.seen. */
+export const GREY_STONE = 14;
 /** A twin stone's code: 10..13 for player 1..4. */
 export function twinCode(player: number): number {
   return player + 9;

@@ -737,11 +737,28 @@ function renderRecall() {
 
 // ---- state --------------------------------------------------------------------------
 
+/**
+ * The board this player is allowed to see. The server sends `seen`: fogged
+ * points and rivals' misted stones read 0, and in a storm's grey every player
+ * stone reads the grey code (14). My own misted stones come separately, on my
+ * own PlayerState (`misted`: index, code pairs), and go back in here. A server
+ * from before this change sends only the true `board` (veiled() still hides
+ * what it must then).
+ */
+function visibleBoard(state) {
+  if (!state.seen || state.seen.length !== state.size * state.size) return Array.from(state.board);
+  const cells = Array.from(state.seen);
+  const me = room && Array.from(state.players).find((p) => p.sessionId === room.sessionId);
+  const mine = me && me.misted ? Array.from(me.misted) : [];
+  for (let i = 0; i + 1 < mine.length; i += 2) cells[mine[i]] = mine[i + 1];
+  return cells;
+}
+
 function onState(state) {
   lastState = state;
   ensureScene(state.size);
 
-  const nextBoard = Array.from(state.board);
+  const nextBoard = visibleBoard(state);
   const nextOverlays = Array.from(state.effects)
     .filter((e) => ["lily", "ward", "drift", "fire", "seed", "mist", "fog"].includes(e.kind))
     .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until, axis: e.axis }));
@@ -1310,7 +1327,7 @@ function renderResultTerritory(state) {
   container.replaceChildren();
   if (!state.baseTerritoryOwner || !state.patternTerritoryOwner || !state.baseTerritoryOwner.length) return;
 
-  const board = Array.from(state.board);
+  const board = visibleBoard(state); // the true board: the game is over
   const fronts = [
     ["Base front: black vs white", Array.from(state.baseTerritoryOwner)],
     ["Pattern front: gray vs transparent", Array.from(state.patternTerritoryOwner)],

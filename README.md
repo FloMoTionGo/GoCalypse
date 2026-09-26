@@ -175,8 +175,8 @@ Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400. (Wi
 |---|---|---|
 | Firefly Jar | 25 | Free. Your captures earn double fireflies for the rest of this turn and your next 3. |
 | Seedling | 30 | Plant a seed on an empty point. After 2 rounds, if the point is still empty and the stone would have a liberty, it grows into your stone: left click plants a solid seed, right click a gray or transparent one (Esc cancels). |
-| Mist | 30 | Free. Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on. (The mist is drawn by the client; the game state still holds the stone.) |
-| Fog | 35 | Rolls a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed (like a ward over the whole area), and nobody can see them, the caster and the stones' owners included, and the move recall strip leaves them out too (all drawn by the client). No stone can be placed inside it (moves, Ferry, Skiff, Echo Chime and growing seeds are all refused there). |
+| Mist | 30 | Free. Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on. (The server doesn't send the others that stone at all, only you get it.) |
+| Fog | 35 | Rolls a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed (like a ward over the whole area), and nobody can see them, the caster and the stones' owners included, and the move recall strip leaves them out too (the server sends nobody the stones under it). No stone can be placed inside it (moves, Ferry, Skiff, Echo Chime and growing seeds are all refused there). |
 | Driftwood | 30 | Neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Can't smother a group. |
 | Lily Pad | 40 | Reserves an empty point for 3 rounds: only you may play there. |
 
@@ -235,7 +235,9 @@ Nothing else gives the colours away while it lasts: stones still moving (placed,
 flipped, captured, blown or burnt away) are grey too, the boards you step back
 to with the recall arrows are grey, the owner marks on wards, lily pads and seeds
 are hidden, and an item that targets your own stone no longer marks your stones
-with embers -- you pick yours from memory.
+with embers -- you pick yours from memory. The server keeps this too: while the
+grey lasts it sends every client each player stone as one grey code, so the
+colours aren't in the browser to be read.
 
 `go_debug` rooms roll every **6** turns instead, so a storm can actually be
 watched in a test session (`src/rules/storm.ts`, `GoDebugRoom`).
@@ -291,6 +293,14 @@ data is copied, and its search and neural networks are left out.
   holds the canonical board state per room and syncs it to all connected
   clients over WebSockets.
   - `src/state/GoState.ts` — synced schema (board, players, turn, etc).
+    **What each client is sent:** the true `board` never leaves the server
+    (`@view(SERVER_ONLY)`); clients get `seen`, rebuilt before every patch
+    (`GoRoom.refreshSeen`): fogged points and stones under someone's Mist read
+    0, and during a storm's grey every player stone reads `GREY_STONE` (14). A
+    player's fireflies, satchel, bought list, lit items and their own misted
+    stones (`misted`) are `@view()` fields that reach only that player through
+    their `StateView`, and everyone once the game is over. Bots, rules, scoring
+    and snapshots all read the true board.
   - `src/rules/goRules.ts` — hand-rolled capture/liberty/suicide rules,
     including the two-view model above (not a general Go rules library).
   - `src/rules/endgame.ts` — end-of-game area scoring and the per-player

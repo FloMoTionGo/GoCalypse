@@ -1,4 +1,5 @@
 import { Client, Delayed, Room } from "colyseus";
+import { ArraySchema, StateView } from "@colyseus/schema";
 import { BoardEffect, GoState, MarketItem, PlayerState } from "../state/GoState";
 import { randomGuestName } from "../util/usernames";
 import { deleteSnapshot, restoreState, saveSnapshot, takeRestore } from "../state/persist";
@@ -12,6 +13,7 @@ import {
   boardIndex,
   DRIFTWOOD,
   findGroup,
+  GREY_STONE,
   isOnBoard,
   isPlayerStone,
   isSuicide,
@@ -105,6 +107,15 @@ function cleanKey(value: unknown): string {
   return typeof value === "string" ? value.slice(0, 64) : "";
 }
 
+/** Makes `list` equal to `want`, touching only the entries that differ. */
+function syncNumbers(list: ArraySchema<number>, want: number[]) {
+  while (list.length > want.length) list.pop();
+  want.forEach((v, i) => {
+    if (i >= list.length) list.push(v);
+    else if (list[i] !== v) list[i] = v;
+  });
+}
+
 export class GoRoom extends Room<GoState> {
   maxClients = MAX_PLAYERS;
   // Not taken from create options on purpose: Colyseus merges client-supplied
@@ -167,6 +178,7 @@ export class GoRoom extends Room<GoState> {
       for (const [color, key] of Object.entries(restored.keys)) this.seatKeys.set(Number(color), key);
     }
     this.setState(state);
+    this.refreshSeen();
     this.updateForecast();
     liveRooms.add(this);
     this.clock.setInterval(() => this.saveSnapshot(), SAVE_EVERY_MS);
@@ -234,6 +246,7 @@ export class GoRoom extends Room<GoState> {
       // Back after a dropped connection or a server restart: same seat, new socket.
       seat.sessionId = client.sessionId;
       seat.connected = true;
+      this.giveView(client, seat);
       this.state.lastEvent = `${seat.name} is back`;
       return;
     }
@@ -256,6 +269,7 @@ export class GoRoom extends Room<GoState> {
     const free = [1, 2, 3, 4].filter((c) => !taken.has(c));
     player.color = free.length ? free[Math.floor(Math.random() * free.length)] : this.state.players.length + 1;
     this.state.players.push(player);
+    this.giveView(client, player);
     if (key) this.seatKeys.set(player.color, key);
     this.state.lastEvent = `${player.name} joined as player ${player.color}`;
 
@@ -277,6 +291,78 @@ export class GoRoom extends Room<GoState> {
     this.lock();
     this.makeRoomForReturns();
     this.scheduleBotTurn();
+  }
+
+  // ---- what each player may see (findings B5) ----------------------------------
+
+  /**
+   * A client's view: its own seat's private fields (fireflies, satchel, what
+   * it has lit, its misted stones), and once the game is over everyone's.
+   */
+  private giveView(client: Client, player: PlayerState) {
+    client.view = new StateView();
+    client.view.add(player);
+    if (this.state.status === "finished") for (const p of this.state.players) client.view.add(p);
+  }
+
+  /** The game is over: every seat's private fields are shown to everyone. */
+  private openViews() {
+    for (const client of this.clients) {
+      if (!client.view) continue;
+      for (const p of this.state.players) client.view.add(p);
+    }
+  }
+
+  /** Runs before every patch goes out, so `seen` always follows the true board. */
+  onBeforePatch() {
+    this.refreshSeen();
+  }
+
+  /**
+   * Rebuilds GoState.seen, the board the clients are sent, from the true one:
+   * - a fogged point reads 0 for everybody, the stones' owners included;
+   * - a stone under a Mist reads 0, and its owner gets it through their
+   *   private PlayerState.misted instead;
+   * - while a storm's grey lasts (turnCount < storm.until) every player stone
+   *   reads GREY_STONE, so nobody is told whose stone is whose;
+   * - once the game is over, everything is shown as it is.
+   * Only cells that changed are written, so an unchanged board costs no patch.
+   */
+  private refreshSeen() {
+    const { board, seen, size, status, turnCount, storm, effects, players } = this.state;
+    const n = size * size;
+    const open = status === "finished";
+    const grey = !open && turnCount < storm.until;
+    const shown = (code: number) => (grey && isPlayerStone(code) ? GREY_STONE : code);
+
+    const FOG = 1, MIST = 2;
+    const hidden = new Uint8Array(n);
+    const mistOwner = new Map<number, number>();
+    if (!open) {
+      for (const e of effects) {
+        if (e.until <= turnCount || (e.kind !== "fog" && e.kind !== "mist")) continue;
+        const i = boardIndex(size, e.x, e.y);
+        if (e.kind === "fog") hidden[i] = FOG;
+        else if (hidden[i] === 0) {
+          hidden[i] = MIST;
+          mistOwner.set(i, e.owner);
+        }
+      }
+    }
+
+    while (seen.length < n) seen.push(0);
+    const misted = new Map<number, number[]>();
+    for (let i = 0; i < n; i++) {
+      const code = board[i] ?? 0;
+      const value = hidden[i] ? 0 : shown(code);
+      if (seen[i] !== value) seen[i] = value;
+      if (hidden[i] === MIST && code) {
+        const owner = mistOwner.get(i) ?? 0;
+        if (!misted.has(owner)) misted.set(owner, []);
+        misted.get(owner)!.push(i, shown(code));
+      }
+    }
+    for (const p of players) syncNumbers(p.misted, misted.get(p.color) ?? []);
   }
 
   /**
@@ -968,6 +1054,8 @@ export class GoRoom extends Room<GoState> {
     // weather hanging over the final board for good.
     if (state.storm.until > state.turnCount) state.storm.until = state.turnCount;
     state.status = "finished";
+    this.openViews();
+    this.refreshSeen();
 
     const winners = state.players.filter((p) => p.place === 1);
     state.lastEvent =

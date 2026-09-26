@@ -1,4 +1,13 @@
-import { Schema, type, ArraySchema } from "@colyseus/schema";
+import { Schema, type, view, ArraySchema } from "@colyseus/schema";
+
+/**
+ * What each player may see (findings B5). A client's StateView holds its own
+ * PlayerState, so the fields tagged @view() below reach only their owner --
+ * and everyone once the game is finished (GoRoom.openViews). Nobody's view is
+ * ever given SERVER_ONLY: the true board stays on the server, and the clients
+ * get GoState.seen instead.
+ */
+export const SERVER_ONLY = 1;
 
 export class PlayerState extends Schema {
   @type("string") sessionId: string = "";
@@ -7,17 +16,18 @@ export class PlayerState extends Schema {
   @type("boolean") connected: boolean = true;
   @type("boolean") bot: boolean = false; // a seat played by the server, not a socket
   @type("boolean") passed: boolean = false; // passed in the current run of passes (reset by any stone or item)
-  @type("number") jar: number = 0; // turns of double capture fireflies left (Firefly Jar)
-  @type("boolean") mist: boolean = false; // the next stone is played in a mist (Mist)
-  @type("boolean") twin: boolean = false; // the next stone fights on both fronts (Twin Wick)
-  @type("number") extra: number = 0; // 1 while the next stone is a free extra one (Stepping Stones)
+  // What the player has lit and not yet used: their own business (a Kite peeks).
+  @view() @type("number") jar: number = 0; // turns of double capture fireflies left (Firefly Jar)
+  @view() @type("boolean") mist: boolean = false; // the next stone is played in a mist (Mist)
+  @view() @type("boolean") twin: boolean = false; // the next stone fights on both fronts (Twin Wick)
+  @view() @type("number") extra: number = 0; // 1 while the next stone is a free extra one (Stepping Stones)
   @type("number") score: number = 0; // stones captured
   // Prisoners: stones this player captured, split by the front the dead group
   // was judged on. Counted all match (not just at the end) and added to that
   // front total when the board is scored (rules/endgame.ts).
   @type("number") basePrisoners: number = 0;
   @type("number") patternPrisoners: number = 0;
-  @type("number") fireflies: number = 0; // market currency, earned this match
+  @view() @type("number") fireflies: number = 0; // market currency, earned this match
   @type("number") moves: number = 0; // stones placed; the market opens after GoState.shopAfter
   // Filled in once when the game ends (rules/endgame.ts); all 0 until then.
   @type("number") baseTerritory: number = 0; // territory of this player's base side (black or white)
@@ -25,8 +35,11 @@ export class PlayerState extends Schema {
   @type("number") finalScore: number = 0; // the lower of (territory + prisoners) on each front
   @type("number") tiebreak: number = 0; // the higher of the two
   @type("number") place: number = 0; // 1 = winner; players level on both numbers share a place
-  @type(["string"]) powerups = new ArraySchema<string>(); // owned, unused items (bought at the market)
-  @type(["string"]) bought = new ArraySchema<string>(); // every item bought this match, one entry per copy (for the fair share)
+  @view() @type(["string"]) powerups = new ArraySchema<string>(); // owned, unused items (bought at the market)
+  @view() @type(["string"]) bought = new ArraySchema<string>(); // every item bought this match, one entry per copy (for the fair share)
+  // This player's own stones that GoState.seen leaves out (under their Mist):
+  // pairs of board index and the code they see there, [i0, c0, i1, c1, ...].
+  @view() @type(["number"]) misted = new ArraySchema<number>();
 }
 
 /** One item the Night Market sells. Filled from the powerup registry on room creation. */
@@ -89,7 +102,13 @@ export class LastAction extends Schema {
 
 export class GoState extends Schema {
   @type("number") size: number = 13; // board is size x size
-  @type(["number"]) board = new ArraySchema<number>(); // flattened; codes documented in rules/goRules.ts
+  // The true board, flattened; codes documented in rules/goRules.ts. Every rule,
+  // bot and snapshot reads it, but no client is sent it (SERVER_ONLY).
+  @view(SERVER_ONLY) @type(["number"]) board = new ArraySchema<number>();
+  // The board as every player may see it (GoRoom.refreshSeen): fogged points
+  // and stones under a Mist read 0, and while a storm's grey lasts every player
+  // stone reads GREY_STONE. At the end of the game it is the true board.
+  @type(["number"]) seen = new ArraySchema<number>();
   // Filled in once when the game ends (rules/endgame.ts territoryOwners), one entry
   // per board point: 0 (none/stone/dame), else the SIDE_CODE of the side that
   // settled it on that front (base: black 1 / white 2; pattern: gray 3 / transparent 4).

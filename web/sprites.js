@@ -171,7 +171,10 @@
 
   /** Board code -> look. 1/3 black, 2/4 white, 5/6 gray, 7/8 transparent. */
   const CODE_LOOK = [null, "black", "white", "black", "white", "gray", "gray", "transparent", "transparent", null,
-    "black", "white", "black", "white"]; // 10..13: twin stones, which flash like their solid side
+    "black", "white", "black", "white", // 10..13: twin stones, which flash like their solid side
+    "gray"]; // 14: GREY_STONE, a stone in the storm's grey whose colour the server doesn't tell
+  /** A player stone the server sends only as grey, during a storm (server/src/rules/goRules.ts GREY_STONE). */
+  const GREY_STONE = 14;
   function lookForCode(code) {
     return CODE_LOOK[code] || null;
   }
@@ -1336,6 +1339,7 @@
     DRIFTWOOD,
     pieceSprite,
     isPlayerStoneCode,
+    GREY_STONE,
     powerupIcon,
     POWERUP_ICON_IDS,
     CARD_W,

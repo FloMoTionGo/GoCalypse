@@ -472,6 +472,15 @@
   }
 
   /**
+   * True when a point only went into or out of the storm's grey: the server
+   * sends every player stone as GREY_STONE while the grey lasts, so the storm
+   * breaking or passing turns every stone's code without anything happening.
+   */
+  function greyOnly(a, b) {
+    return (a === G.GREY_STONE && G.isPlayerStoneCode(b)) || (b === G.GREY_STONE && G.isPlayerStoneCode(a));
+  }
+
+  /**
    * Compare two board snapshots and return effects for what changed:
    * a new stone -> "place", a stone that disappeared -> "capture".
    * `lastMove` is the single newly placed point (if exactly one).
@@ -482,7 +491,7 @@
     if (!prev || prev.length !== next.length) return { effects, lastMove: null };
     for (let i = 0; i < next.length; i++) {
       const a = prev[i], b = next[i];
-      if (a === b) continue;
+      if (a === b || greyOnly(a, b)) continue;
       const x = i % size, y = (i / size) | 0;
       if (a !== 0) effects.push(captureEffect(x, y, a, time));
       if (b !== 0) {
@@ -528,7 +537,7 @@
     );
     for (let i = 0; i < next.length; i++) {
       const a = prev[i], b = next[i];
-      if (a === b) continue;
+      if (a === b || greyOnly(a, b)) continue;
       const x = i % size, y = (i / size) | 0;
       if (a === 0) {
         effects.push(b === G.DRIFTWOOD ? makeEffect("drop", x, y, { code: b }, time) : placeEffect(x, y, b, time));
