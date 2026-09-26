@@ -159,13 +159,21 @@ requestAnimationFrame(frame);
 const PLAYER_KEY_STORE = `gocalypse.playerKey.${hashParams.get("name") || ""}`;
 let memoryKey = "";
 
+// crypto.randomUUID only exists in secure contexts (https or localhost); a plain
+// http://<LAN-IP> page falls back to crypto.getRandomValues, which every browser has.
+function newKey() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function playerKey() {
   try {
     let key = sessionStorage.getItem(PLAYER_KEY_STORE);
-    if (!key) sessionStorage.setItem(PLAYER_KEY_STORE, (key = crypto.randomUUID()));
+    if (!key) sessionStorage.setItem(PLAYER_KEY_STORE, (key = newKey()));
     return key;
   } catch {
-    return memoryKey || (memoryKey = crypto.randomUUID()); // storage blocked: rejoin works until refresh
+    return memoryKey || (memoryKey = newKey()); // storage blocked: rejoin works until refresh
   }
 }
 
@@ -290,6 +298,7 @@ function attachRoom(joined) {
 
   lobbyEl.hidden = true;
   gameEl.hidden = false;
+  sizeCanvas(); // a resize while a previous game was hidden was skipped; catch up now that #game is visible
 }
 
 async function connect() {
@@ -334,10 +343,14 @@ async function connect() {
 // the answer is in, or a click could open a second room beside the rejoined one.
 if (!hashParams.has("autojoin")) {
   joinButton.disabled = true;
+  setLobbyStatus("Looking for your game...", false);
   rejoin()
     .catch(() => false)
     .then((found) => {
-      if (!found) joinButton.disabled = false;
+      if (!found) {
+        joinButton.disabled = false;
+        setLobbyStatus("", false);
+      }
     });
 }
 
@@ -379,7 +392,7 @@ function ensureScene(size) {
  * displays.
  */
 function sizeCanvas() {
-  if (!scene) return;
+  if (!scene || gameEl.hidden) return; // #game has size 0 while hidden; wait for attachRoom to show it
   const dpr = window.devicePixelRatio || 1;
   const sidebar = document.getElementById("sidebar");
   const body = document.getElementById("game-body");

@@ -288,7 +288,7 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .card { transition: transform 120ms ease-out; }
 .card:hover:not(:disabled) { background: none; transform: translateY(calc(-1 * var(--card-px))); }
 /* Armed: lifted clear of the others, in a glow that follows the card's cut corners. */
-.card.active { transform: translateY(calc(-2 * var(--card-px))); filter: drop-shadow(0 0 calc(2 * var(--card-px)) var(--amber)); }
+.card.active, .card.active:hover:not(:disabled) { transform: translateY(calc(-2 * var(--card-px))); filter: drop-shadow(0 0 calc(2 * var(--card-px)) var(--amber)); }
 .card:disabled { cursor: default; background: none; }
 .card:disabled img, .card:disabled .card-name, .card:disabled .card-text { opacity: 0.55; }
 .card-name {

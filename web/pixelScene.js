@@ -225,7 +225,7 @@
         if (y === by1 && x > bx0 && x < bx1) c = S; // front edge catching light
         // Mitre joints: 1px slate diagonal from the outer to the inner corner.
         const ix = x - bx0, iy = y - by0, jx = bx1 - x, jy = by1 - y;
-        if ((ix === iy || jx === jy) && ix < FRAME && iy < FRAME) c = S;
+        if ((ix === iy && ix < FRAME && iy < FRAME) || (jx === jy && jx < FRAME && jy < FRAME)) c = S;
         if ((jx === iy && jx < FRAME && iy < FRAME) || (ix === jy && ix < FRAME && jy < FRAME)) c = S;
         s.px[y * W + x] = c;
       }
