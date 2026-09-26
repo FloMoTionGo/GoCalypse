@@ -92,6 +92,7 @@ const ROOM_NAME = hashParams.get("room") === "go_debug" ? "go_debug" : "go_custo
 if (hashParams.has("server")) serverInput.value = hashParams.get("server");
 if (hashParams.has("name")) nameInput.value = hashParams.get("name");
 if (hashParams.has("autojoin")) {
+  joinButton.disabled = true; // connect() is already on its way
   setTimeout(connect, Number(hashParams.get("delay")) || 0);
 }
 
@@ -184,7 +185,7 @@ async function rejoin() {
     body: JSON.stringify({ playerKey: playerKey() }),
   });
   if (res.status === 404) return false;
-  if (!res.ok) throw new Error(`rejoin refused (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(`your seat could not be handed back (${res.status}); try again in a moment`), { status: res.status });
   attachRoom(await new Colyseus.Client(endpoint).consumeSeatReservation(await res.json()));
   return true;
 }
@@ -211,17 +212,57 @@ async function rejoinAfterDrop(inGame) {
 }
 
 let leaving = false;
-let lastPasses = 0;
+let lastPasses = null; // null until this room's first state, so a rejoin doesn't flash an old pass
 let passFlashAt;
 
-function attachRoom(joined) {
-  lastPasses = 0;
+/**
+ * Forgets everything the last room left behind. Without this a new game would
+ * diff its first board against the old one (a capture for every old stone),
+ * replay a storm, step back into the old game's boards and never open Results.
+ */
+function resetRoomState() {
+  lastState = null;
+  myPlayer = null;
+  isMyTurn = false;
+  selectedPowerup = null;
+  firstTarget = null;
+  boardEl.classList.remove("targeting", "my-turn");
+  board = null; // the first state is taken as it stands, not diffed
+  overlays = [];
+  effects = [];
+  lastMove = null;
+  lastActionSeq = null;
+  history = [];
+  viewId = null;
+  storm = null;
+  lastStormSeq = null;
+  turnCount = 0;
+  roundLength = 0;
+  stormUntil = 0;
+  resultOpened = false;
+  closeWelcomeOnStart = false;
+  lastPasses = null;
+  passFlashAt = undefined;
   handBought = null; // a new room: its first state is the satchel as it stands, nothing flies in
+  if (resultEl.open) resultEl.close();
+  renderRecall();
+}
+
+function attachRoom(joined) {
+  // A second room (Join pressed while the page-load rejoin was still out): keep
+  // the newest, and let the old one go without it touching the screen.
+  const previous = room;
+  resetRoomState();
   room = joined;
-  room.onStateChange((state) => onState(state));
-  room.onMessage("notice", (text) => showNotice(text));
-  room.onMessage("reveal", (text) => showNotice(text, 15000));
+  if (previous && previous !== joined) previous.leave(true);
+  // Every handler checks it still belongs to the room on screen.
+  const current = () => room === joined;
+  room.onStateChange((state) => current() && onState(state));
+  room.onMessage("notice", (text) => current() && showNotice(text));
+  room.onMessage("reveal", (text) => current() && showNotice(text, 15000));
   room.onLeave((code) => {
+    if (!current()) return;
+    room = null;
     if (leaving) {
       leaving = false;
       gameEl.hidden = true;
@@ -243,6 +284,7 @@ function attachRoom(joined) {
     }
   });
   room.onError((code, message) => {
+    if (!current()) return;
     setLobbyStatus(`Room error ${code}: ${message || ""}`, true);
   });
 
@@ -263,7 +305,10 @@ async function connect() {
     try {
       if (await rejoin()) return;
     } catch (err) {
-      console.error(err); // an old server without /rejoin: just join normally
+      // The server has our game but refused the seat: joining a new lobby would
+      // strand the old seat, which a bot then takes. Anything else: join normally.
+      if (err.status) throw err;
+      console.error(err);
     }
 
     const client = new Colyseus.Client(endpoint);
@@ -285,8 +330,16 @@ async function connect() {
 }
 
 // Opening the page (or refreshing it) in the middle of a game puts you back at
-// the table. Panels that autojoin get the same from connect().
-if (!hashParams.has("autojoin")) rejoin().catch(() => {});
+// the table. Panels that autojoin get the same from connect(). Join waits until
+// the answer is in, or a click could open a second room beside the rejoined one.
+if (!hashParams.has("autojoin")) {
+  joinButton.disabled = true;
+  rejoin()
+    .catch(() => false)
+    .then((found) => {
+      if (!found) joinButton.disabled = false;
+    });
+}
 
 function setLobbyStatus(text, isError) {
   lobbyStatus.textContent = text;
@@ -295,7 +348,7 @@ function setLobbyStatus(text, isError) {
 
 /** A pass is easy to miss in the log line: show the pixel PASS sign when the pass count goes up. */
 function showPass(state) {
-  if (state.status === "playing" && state.passes > lastPasses && /passed/.test(state.lastEvent || "")) {
+  if (lastPasses !== null && state.status === "playing" && state.passes > lastPasses && /passed/.test(state.lastEvent || "")) {
     passFlashAt = clock();
   }
   lastPasses = state.passes;
@@ -409,7 +462,7 @@ function veiled(cells, list) {
 
 function frame() {
   requestAnimationFrame(frame);
-  if (!scene || !board) return;
+  if (!scene || !board || gameEl.hidden) return; // nothing on screen to draw
   const now = clock();
   if (now - lastFrameAt < FRAME_INTERVAL) return;
   lastFrameAt = now;

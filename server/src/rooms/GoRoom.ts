@@ -196,6 +196,7 @@ export class GoRoom extends Room<GoState> {
   private resumeRestored() {
     for (const player of this.state.players) if (!player.bot) player.connected = false;
     this.lock();
+    this.makeRoomForReturns();
     this.autoDispose = false;
     this.saveSnapshot();
     this.scheduleBotTurn();
@@ -236,6 +237,11 @@ export class GoRoom extends Room<GoState> {
       this.state.lastEvent = `${seat.name} is back`;
       return;
     }
+    // Two joins reserved before either reached onJoin can both land at a table
+    // with one seat left; the second would become a fifth player (color 5).
+    if (this.state.status !== "waiting" || this.state.players.length >= MAX_PLAYERS) {
+      throw new Error("This table is full.");
+    }
 
     const player = new PlayerState();
     player.sessionId = client.sessionId;
@@ -269,7 +275,27 @@ export class GoRoom extends Room<GoState> {
     // mid-game. Reconnection (allowReconnection) bypasses the lock, so a
     // player who actually dropped can still get their own seat back.
     this.lock();
+    this.makeRoomForReturns();
     this.scheduleBotTurn();
+  }
+
+  /**
+   * A game under way: maxClients stops guarding the table (the lock and onJoin
+   * do that) and leaves room for seat reservations instead. A dropped player's
+   * allowReconnection holds a reservation for 60 s, and Colyseus counts it with
+   * the sockets, so with four humans at MAX_PLAYERS the tab coming back through
+   * /rejoin was refused (409) and the seat went to a bot.
+   */
+  private makeRoomForReturns() {
+    this.maxClients = MAX_PLAYERS * 2;
+  }
+
+  /**
+   * While waiting, bots hold seats without sockets: count them, so matchmaking
+   * stops handing out reservations the table can't seat.
+   */
+  private countBotSeats() {
+    this.maxClients = MAX_PLAYERS - this.state.players.filter((p) => p.bot).length;
   }
 
   /** Seats a bot with this style in a free seat. False when the table is already full. */
@@ -323,6 +349,7 @@ export class GoRoom extends Room<GoState> {
       if (style && this.addBot(style)) added += 1;
     }
     if (added > 0 && this.state.players.length === MAX_PLAYERS) this.startGame();
+    else if (added > 0) this.countBotSeats();
   }
 
   async onLeave(client: Client, consented: boolean) {
