@@ -673,14 +673,20 @@ export class GoRoom extends Room<GoState> {
     }
 
     // A seed that is still on an empty point grows into its planter's stone, if
-    // that stone would be legal there; otherwise it withers. Placed after the
-    // effects are cleared, so a lily pad or ward that lapsed in the same turn no
-    // longer counts.
+    // that stone would be legal there; otherwise it withers. Only a ko keeps it
+    // waiting: it tries again next turn, as a player would once the ko is free.
+    // Placed after the effects are cleared, so a lily pad or ward that lapsed in
+    // the same turn no longer counts.
     for (const seed of grownSeeds) {
       const planter = this.state.players.findIndex((p) => p.color === seed.owner);
       if (planter === -1) continue;
-      const grew = this.placeStoneFor(planter, seed.x, seed.y, stoneCode(seed.owner, seed.axis));
-      if (grew !== null) this.state.lastEvent = `A seed of ${this.state.players[planter].name} grows into a stone`;
+      const grew = this.tryPlaceStone(planter, seed.x, seed.y, stoneCode(seed.owner, seed.axis));
+      if (grew === "ko") {
+        this.addEffect("seed", seed.x, seed.y, seed.owner, 0, seed.axis);
+        this.state.effects[this.state.effects.length - 1].until = turnCount + 1;
+      } else if (grew !== null) {
+        this.state.lastEvent = `A seed of ${this.state.players[planter].name} grows into a stone`;
+      }
     }
 
     // A ward can keep a group alive with no liberties left. Once it lapses,
@@ -1056,20 +1062,28 @@ export class GoRoom extends Room<GoState> {
   }
 
   /**
-   * Puts a stone on an empty point for an item (Ferry, Echo Chime, a growing
-   * seed): captures are made and credited, and it is refused (null, nothing
-   * changed) when the point is burning, reserved by someone else's lily pad, or
-   * the stone would have no liberties. It leaves the turn and the ko history
-   * alone.
+   * Puts a stone on an empty point for an item (Ferry, Skiff, Echo Chime, a
+   * growing seed): captures are made and credited, and it is refused (null,
+   * nothing changed) when the point is burning, reserved by someone else's lily
+   * pad, the stone would have no liberties, or it breaks a ko rule a move would
+   * (findings B12). It leaves the turn alone and opens no ko of its own.
    */
   private placeStoneFor(playerIndex: number, x: number, y: number, code: number): number | null {
+    const placed = this.tryPlaceStone(playerIndex, x, y, code);
+    return placed === "ko" ? null : placed;
+  }
+
+  /** placeStoneFor, but telling a ko refusal ("ko") apart from any other (null). */
+  private tryPlaceStone(playerIndex: number, x: number, y: number, code: number, checkKo = true): number | "ko" | null {
     const size = this.state.size;
     const board = this.state.board;
     const player = this.state.players[playerIndex];
-    const captured = this.landStone(board.toArray(), player.color, x, y, code);
+    const raw = board.toArray();
+    const captured = this.landStone(raw, player.color, x, y, code);
     if (captured === null) return null;
 
     const idx = boardIndex(size, x, y);
+    if (checkKo && (this.positions.repeats(raw) || this.kos.blocks(idx, captured, this.state.turnCount))) return "ko";
     const lily = this.lilyOwnerAt(idx);
     board[idx] = code;
     for (const { point } of captured) board[boardIndex(size, point.x, point.y)] = 0;
@@ -1391,12 +1405,25 @@ export class GoRoom extends Room<GoState> {
 
     const trial = this.state.board.toArray();
     let landed = 0;
-    for (const s of landings) if (this.landStone(trial, player.color, s.x, s.y, s.code) !== null) landed += 1;
+    let retakes = false;
+    for (const s of landings) {
+      const took = this.landStone(trial, player.color, s.x, s.y, s.code);
+      if (took === null) continue;
+      landed += 1;
+      if (this.kos.blocks(boardIndex(size, s.x, s.y), took, this.state.turnCount)) retakes = true;
+    }
     if (landed === 0) return "None of the card's stones would land there.";
     if (this.positions.repeats(trial)) return "Ko: that would bring back a board position that has stood before.";
+    if (retakes) {
+      return "Ko: one of the card's stones would take back a ko before its taker has moved again.";
+    }
 
+    // Judged as one play above, so no stone is refused on its own for ko.
     let captured = 0;
-    for (const s of landings) captured += this.placeStoneFor(playerIndex, s.x, s.y, s.code) ?? 0;
+    for (const s of landings) {
+      const took = this.tryPlaceStone(playerIndex, s.x, s.y, s.code, false);
+      if (typeof took === "number") captured += took;
+    }
     player.powerups.splice(player.powerups.indexOf(STONE_CARD), 1);
     player.card.clear();
 

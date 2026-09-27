@@ -34,8 +34,9 @@ export interface PowerupContext {
    * Puts a stone with this board code on an empty point as if it had been
    * played: captures are made and credited to the user, and it is refused
    * (null, board untouched) if the point is burning or reserved by someone
-   * else's lily pad, or the stone would have no liberties. Returns the number
-   * of captures. It does not touch the turn or the ko history.
+   * else's lily pad, the stone would have no liberties, or it breaks a ko rule
+   * a move would (repeats a position, or takes back a held ko). Returns the
+   * number of captures. It does not touch the turn or open a ko.
    */
   placeStone(x: number, y: number, code: number): number | null;
   /** Tells the user something only they should see (Kite). */
