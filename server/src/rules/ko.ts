@@ -32,6 +32,19 @@ export class PositionHistory {
   repeats(board: ArrayLike<number>): boolean {
     return this.seen.has(positionKey(board));
   }
+
+  /** Every position so far, as positionKey strings, for a room snapshot (state/persist.ts). */
+  save(): string[] {
+    return Array.from(this.seen);
+  }
+
+  /** Adds positions from save(). Anything that isn't a key of this board's size is skipped. */
+  load(keys: unknown, points: number): void {
+    if (!Array.isArray(keys)) return;
+    for (const key of keys) {
+      if (typeof key === "string" && key.length === points && /^[01]*$/.test(key)) this.seen.add(key);
+    }
+  }
 }
 
 // ---- the ko, held for a round ------------------------------------------------
@@ -71,7 +84,7 @@ export function koOpenedBy(board: ArrayLike<number>, size: number, idx: number, 
 }
 
 export class KoWatch {
-  private held: (Ko & { until: number })[] = [];
+  private held: HeldKo[] = [];
 
   constructor(private readonly size: number) {}
 
@@ -90,4 +103,23 @@ export class KoWatch {
       (ko) => ko.until > turn && ko.point === idx && ko.stone === lifted && ko.code === captured[0].color
     );
   }
+
+  /** The kos held now, for a room snapshot (state/persist.ts). `until` is a turn count, which the snapshot keeps too. */
+  save(): HeldKo[] {
+    return this.held.map((ko) => ({ ...ko }));
+  }
+
+  /** Holds the kos from save() again. Malformed entries are skipped. */
+  load(held: unknown): void {
+    if (!Array.isArray(held)) return;
+    const points = this.size * this.size;
+    const onBoard = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) < points;
+    for (const ko of held) {
+      if (!ko || !onBoard(ko.point) || !onBoard(ko.stone)) continue;
+      if (!Number.isInteger(ko.code) || !Number.isInteger(ko.until)) continue;
+      this.held.push({ point: ko.point, stone: ko.stone, code: ko.code, until: ko.until });
+    }
+  }
 }
+
+export type HeldKo = Ko & { until: number };

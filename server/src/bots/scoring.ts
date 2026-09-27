@@ -125,24 +125,6 @@ function distanceToOwnSide(view: BotView, x: number, y: number, code: number, ax
 }
 
 /**
- * Every neighbour already on our side of this front: filling it gains nothing
- * and usually costs a liberty. Unless one of them is down to its last liberty
- * -- then the point is no eye but the one move that saves it. That is exactly
- * what a ko looks like to the stone that just took it, and a bot that never
- * fills there leaves every ko it wins open for the other side to take back.
- */
-function isOwnEye(view: BotView, x: number, y: number, code: number, axis: StoneView): boolean {
-  for (const n of neighbors(view.size, x, y)) {
-    const c = view.board[boardIndex(view.size, n.x, n.y)];
-    if (c === 0 || !sameView(axis, c, code)) return false;
-  }
-  for (const n of neighbors(view.size, x, y)) {
-    if (findGroup(view.board, view.size, n.x, n.y, axis).liberties === 1) return false;
-  }
-  return true;
-}
-
-/**
  * What this point is worth to this bot on this front, or null if the move is
  * illegal (or is one no bot should make: filling its own eye).
  *
@@ -172,7 +154,62 @@ export function scoreMove(
   // a twin is lost if EITHER of its groups runs out of liberties, so it is
   // judged by the tighter of the two.
   const code = view.twin ? twinCode(view.color) : stoneCode(view.color, axis);
-  if (isOwnEye(view, x, y, code, axis)) return null;
+
+  // ---- the neighbours it arrives among ------------------------------------
+  // Each chain is looked at once, so a move touching two stones of one group
+  // does not read as two groups.
+  const seen = new Set<number>();
+  let ownChains = 0;
+  let enemyChains = 0;
+  let rescued = 0;
+  let touching = 0;
+  let hemmed = 0;
+  let open = false; // an empty neighbour, or one that isn't on our side of this front
+
+  for (const n of neighbors(size, x, y)) {
+    const nIdx = boardIndex(size, n.x, n.y);
+    const nCode = view.board[nIdx];
+    if (nCode === 0) {
+      open = true;
+      continue;
+    }
+    if (!isPlayerStone(nCode)) {
+      open = true;
+      hemmed += 1; // driftwood: takes a liberty and can never be taken back
+      continue;
+    }
+
+    // A group is judged on its OWN front -- a liberty is a liberty whoever
+    // fills it -- so a stone that committed to the other front is a target
+    // too, not the harmless wall it looks like. The only group that is ours
+    // is the one this stone merges into, and that one is judged on the front
+    // this stone is played on: a twin next to it (which fights on both) joins
+    // it there, and its group on the other front gains nothing from the move.
+    const friendly = sameView(axis, nCode, code);
+    if (!friendly) {
+      touching += 1;
+      open = true;
+    }
+    const front = friendly ? axis : axisOf(nCode);
+    const key = nIdx * 2 + (front === "pattern" ? 1 : 0); // one stone can sit in a group on each front
+    if (seen.has(key)) continue;
+
+    const { group, liberties } = findGroup(view.board, size, n.x, n.y, front);
+    for (const p of group) seen.add(boardIndex(size, p.x, p.y) * 2 + (front === "pattern" ? 1 : 0));
+    if (friendly) {
+      ownChains += 1;
+      if (liberties === 1) rescued += group.length; // in atari before this move
+    } else {
+      enemyChains += 1;
+    }
+  }
+
+  // Every neighbour already on our side of this front: filling it gains
+  // nothing and usually costs a liberty. Unless one of them is down to its last
+  // liberty -- then the point is no eye but the one move that saves it. That is
+  // exactly what a ko looks like to the stone that just took it, and a bot that
+  // never fills there leaves every ko it wins open for the other side to take back.
+  if (!open && rescued === 0) return null;
 
   const after = view.board.slice();
   after[idx] = code;
@@ -191,43 +228,6 @@ export function scoreMove(
   // the stones yourself is worth more than leaving them to the ally who shares
   // this front.
   let score = style.capture * captured.length;
-
-  // ---- the neighbours it arrives among ------------------------------------
-  // Each chain is looked at once, so a move touching two stones of one group
-  // does not read as two groups.
-  const seen = new Set<number>();
-  let ownChains = 0;
-  let enemyChains = 0;
-  let rescued = 0;
-  let touching = 0;
-  let hemmed = 0;
-
-  for (const n of neighbors(size, x, y)) {
-    const nIdx = boardIndex(size, n.x, n.y);
-    const nCode = view.board[nIdx];
-    if (nCode === 0) continue;
-    if (!isPlayerStone(nCode)) {
-      hemmed += 1; // driftwood: takes a liberty and can never be taken back
-      continue;
-    }
-
-    // A group is judged on its OWN front -- a liberty is a liberty whoever
-    // fills it -- so a stone that committed to the other front is a target
-    // too, not the harmless wall it looks like. The only group that is ours
-    // is the one this stone merges into.
-    const friendly = sameView(axis, nCode, code);
-    if (!friendly) touching += 1;
-    if (seen.has(nIdx)) continue;
-
-    const { group, liberties } = findGroup(view.board, size, n.x, n.y, axisOf(nCode));
-    for (const p of group) seen.add(boardIndex(size, p.x, p.y));
-    if (friendly) {
-      ownChains += 1;
-      if (liberties === 1) rescued += group.length; // in atari before this move
-    } else {
-      enemyChains += 1;
-    }
-  }
 
   if (ownChains > 1) score += style.connect * (ownChains - 1);
   if (enemyChains > 1) score += style.cut * (enemyChains - 1);

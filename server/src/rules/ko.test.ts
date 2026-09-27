@@ -113,3 +113,44 @@ test("a stone that is not the ko's own is not held by it", () => {
   const other = [{ point: { x: 2, y: 1 }, color: 3, view: "base" as const }];
   assert.equal(kos.blocks(boardIndex(SIZE, 1, 1), other, 1), false);
 });
+
+test("a held ko and the positions survive a save and load (room snapshots)", () => {
+  const kos = new KoWatch(SIZE);
+  const positions = new PositionHistory();
+  const start = parse(KO);
+  positions.record(start);
+  const taken = take(start, 2, 1, 1);
+  positions.record(taken.board);
+  kos.open(taken.board, boardIndex(SIZE, 2, 1), taken.captured, 0, 4);
+
+  // Through JSON, as the snapshot file does, into a fresh pair as a restored room builds them.
+  const saved = JSON.parse(JSON.stringify({ positions: positions.save(), kos: kos.save() }));
+  const kos2 = new KoWatch(SIZE);
+  const positions2 = new PositionHistory();
+  kos2.load(saved.kos);
+  positions2.load(saved.positions, SIZE * SIZE);
+
+  let board = play(taken.board, 0, 3, 3);
+  board = play(board, 3, 3, 4);
+  const retake = take(board, 1, 1, 2);
+  const at = boardIndex(SIZE, 1, 1);
+  assert.equal(kos2.blocks(at, retake.captured, 3), true, "the ko is still held after the restore");
+  assert.equal(kos2.blocks(at, retake.captured, 4), false);
+  assert.equal(positions2.repeats(start), true);
+  assert.equal(positions2.repeats(taken.board), true);
+  assert.equal(positions2.repeats(board), false);
+});
+
+test("loading a snapshot's ko state skips what doesn't fit the board", () => {
+  const kos = new KoWatch(SIZE);
+  kos.load([null, { point: 99, stone: 1, code: 1, until: 4 }, { point: 1, stone: 2, code: "1", until: 4 }]);
+  assert.deepEqual(kos.save(), []);
+  kos.load("nonsense");
+  assert.deepEqual(kos.save(), []);
+
+  const positions = new PositionHistory();
+  positions.load(["0101", "01", 7, "0".repeat(SIZE * SIZE), "2".repeat(SIZE * SIZE)], SIZE * SIZE);
+  assert.deepEqual(positions.save(), ["0".repeat(SIZE * SIZE)]);
+  positions.load(undefined, SIZE * SIZE);
+  assert.equal(positions.save().length, 1);
+});

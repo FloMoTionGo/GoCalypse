@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ArraySchema, Schema } from "@colyseus/schema";
 import { BoardEffect, GoState, MarketItem, PlayerState } from "./GoState";
+import type { HeldKo } from "../rules/ko";
 
 /**
  * A game in progress, on disk, so it outlives a restart of the server (a deploy,
@@ -17,6 +18,11 @@ export interface Snapshot {
   room: string; // registered room name: "go_custom" | "go_debug"
   keys: Record<string, string>;
   state: Record<string, any>; // GoState.toJSON()
+  // Room memory outside GoState. Absent in snapshots written before they were
+  // saved: the bots then fall back to temperamentFor, and ko starts afresh.
+  bots?: Record<string, string>; // player color -> bots/styles.ts styleFor id
+  positions?: string[]; // rules/ko.ts PositionHistory.save()
+  kos?: HeldKo[]; // rules/ko.ts KoWatch.save()
 }
 
 const ROOMS_DIR = path.join(process.env.DATA_DIR || path.join(process.cwd(), "data"), "rooms");

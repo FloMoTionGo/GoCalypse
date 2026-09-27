@@ -16,6 +16,7 @@ import {
   StoneView,
   twinCode,
 } from "../rules/goRules";
+import { copiesBought, stallRefusal } from "../powerups/definitions";
 import { AXES, BotView, Candidate, fightsUs, isPointless, pointOf, rankMoves, scoreMove } from "./scoring";
 import { Style } from "./styles";
 
@@ -509,11 +510,13 @@ export function chooseBuy(view: BotView, style: Style): string | null {
     if (view.powerups.indexOf(id) !== -1) continue; // one of each in hand is plenty
     // Only six of the stalls open in any match, and the shopping list is
     // written without knowing which: an item that isn't on sale, is sold out
-    // or already had its share from this bot is skipped, not waited for.
+    // or already had its share from this bot is skipped, not waited for. The
+    // stall check is the room's own (GoRoom.applyBuy), so the two can't drift
+    // apart: a buy the room refuses would be retried by the bot every turn.
     const row = held(id);
     if (!row) continue;
-    if (row.left !== undefined && row.left <= 0) continue;
-    if (row.share !== undefined && view.bought.filter((b) => b === id).length >= row.share) continue;
+    const stall = { name: id, left: row.left ?? Infinity, share: row.share ?? Infinity };
+    if (stallRefusal(stall, copiesBought(view.bought, id))) continue;
     if (row.removal && powerfulInHand >= view.powerfulLimit) continue;
     if (view.fireflies < row.price) continue;
     return id;

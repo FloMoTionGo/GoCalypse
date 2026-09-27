@@ -1,7 +1,7 @@
 import { Client, Delayed, Room } from "colyseus";
 import { BoardEffect, GoState, MarketItem, PlayerState } from "../state/GoState";
 import { randomGuestName } from "../util/usernames";
-import { deleteSnapshot, restoreState, saveSnapshot, takeRestore } from "../state/persist";
+import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import {
   applyCaptures,
   axisOf,
@@ -42,12 +42,15 @@ import {
   chooseBuy,
   chooseCardUpgrade,
   chooseFree,
+  DRIFTER_ID,
   randomStyle,
   rankMoves,
   recruitStyle,
   Rng,
   Style,
+  styleFor,
   temperamentFor,
+  temperamentId,
 } from "../bots";
 import {
   FIRE_ROUNDS,
@@ -139,6 +142,8 @@ export class GoRoom extends Room<GoState> {
   protected stormEvery = STORM_EVERY_TURNS;
   private botTimer?: Delayed;
   private botStyles = new Map<string, Style>();
+  // player color -> the styleFor id of the bot on that seat, saved with the game so a restore seats the same bot.
+  private botIds = new Map<number, string>();
   private seatKeys = new Map<number, string>(); // player color -> that player's secret; see state/persist.ts
   private lastSaved = "";
   private shuttingDown = false;
@@ -187,9 +192,16 @@ export class GoRoom extends Room<GoState> {
         const sold = state.players.reduce((n, p) => n + copiesBought(p.bought, item.id), 0);
         item.left = Math.max(0, item.stock - sold);
       }
-      // Earlier positions are not saved, so ko only remembers from here on.
+      // Snapshots from before these were saved have none: ko then remembers from here on.
+      this.positions.load(restored.positions, state.board.length);
       this.positions.record(state.board.toArray());
+      this.kos.load(restored.kos);
       for (const [color, key] of Object.entries(restored.keys)) this.seatKeys.set(Number(color), key);
+      for (const player of state.players) {
+        const id = restored.bots?.[player.color];
+        const style = player.bot && typeof id === "string" ? styleFor(id) : null;
+        if (style) this.playBot(player, id!, style);
+      }
     }
     this.setState(state);
     this.updateForecast();
@@ -245,7 +257,10 @@ export class GoRoom extends Room<GoState> {
       room: this.roomName,
       keys: Object.fromEntries(this.seatKeys),
       state: this.state.toJSON(),
-    });
+      bots: Object.fromEntries(this.botIds),
+      positions: this.positions.save(),
+      kos: this.kos.save(),
+    } satisfies Snapshot);
     if (json === this.lastSaved) return;
     try {
       saveSnapshot(this.roomId, json);
@@ -327,8 +342,8 @@ export class GoRoom extends Room<GoState> {
     this.maxClients = MAX_PLAYERS - this.state.players.filter((p) => p.bot).length;
   }
 
-  /** Seats a bot with this style in a free seat. False when the table is already full. */
-  private addBot(style: Style): boolean {
+  /** Seats the bot with this recruit id in a free seat. False when the table is already full. */
+  private addBot(id: string, style: Style): boolean {
     const taken = new Set(this.state.players.map((p) => p.color));
     const free = [1, 2, 3, 4].filter((c) => !taken.has(c));
     if (free.length === 0) return false;
@@ -342,7 +357,7 @@ export class GoRoom extends Room<GoState> {
     bot.name = this.freeName(style.name);
     bot.fireflies = this.startingFireflies;
     this.dealStoneCard(bot);
-    this.botStyles.set(bot.sessionId, style);
+    this.playBot(bot, id, style);
     this.state.players.push(bot);
     this.state.lastEvent = `${bot.name} takes a seat`;
     return true;
@@ -376,7 +391,7 @@ export class GoRoom extends Room<GoState> {
     for (const id of ids.slice(0, MAX_BOTS)) {
       if (added >= room) break;
       const style = typeof id === "string" ? recruitStyle(id) : null;
-      if (style && this.addBot(style)) added += 1;
+      if (style && this.addBot(id as string, style)) added += 1;
     }
     if (added > 0 && this.state.players.length === MAX_PLAYERS) this.startGame();
     else if (added > 0) this.countBotSeats();
@@ -426,13 +441,20 @@ export class GoRoom extends Room<GoState> {
    * client still shows the seat as theirs.
    */
   private seatToBot(player: PlayerState, playerIndex: number, left = false) {
-    const style = left ? randomStyle() : temperamentFor(playerIndex);
+    const id = left ? DRIFTER_ID : temperamentId(playerIndex);
+    const style = styleFor(id)!;
     player.bot = true;
-    this.botStyles.set(player.sessionId, style);
+    this.playBot(player, id, style);
     this.state.lastEvent = left
       ? `${player.name} left; ${style.name} plays the seat`
       : `${player.name} drifted off; ${style.name} plays the seat`;
     this.scheduleBotTurn();
+  }
+
+  /** Hands a seat to the bot `style`, remembering its styleFor `id` for the snapshot. */
+  private playBot(player: PlayerState, id: string, style: Style) {
+    this.botStyles.set(player.sessionId, style);
+    this.botIds.set(player.color, id);
   }
 
   // Saves the game one last time, then lets the shutdown go on: the disconnects

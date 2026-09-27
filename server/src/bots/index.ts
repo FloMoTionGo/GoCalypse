@@ -13,7 +13,21 @@ export type { FreeUse } from "./items";
 export { rankMoves, scoreMove, chooseMove, isPointless } from "./scoring";
 export type { BotView, Candidate, MarketRow } from "./scoring";
 export type { Style } from "./styles";
-export { heron, magpie, moth, oldToad, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
+export {
+  DRIFTER_ID,
+  heron,
+  magpie,
+  moth,
+  oldToad,
+  randomStyle,
+  RECRUIT_IDS,
+  recruitStyle,
+  reed,
+  styleFor,
+  tanuki,
+  temperamentFor,
+  temperamentId,
+} from "./styles";
 
 /**
  * One turn's worth of intent. "pass" is what a bot returns when the board

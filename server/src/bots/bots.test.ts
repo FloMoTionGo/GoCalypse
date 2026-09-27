@@ -5,6 +5,7 @@ import {
   boardIndex,
   isSuicide,
   stoneCode,
+  twinCode,
   StoneView,
 } from "../rules/goRules";
 import { isSettled, regionAt, sidesOf, territoryScore } from "../rules/endgame";
@@ -12,7 +13,22 @@ import { chooseAction, chooseBuy } from "./index";
 import { playMatch } from "./selfplay";
 import { Rng } from "./rng";
 import { BotView, isPointless, rankMoves, scoreMove } from "./scoring";
-import { heron, magpie, moth, oldToad, randomStyle, RECRUIT_IDS, recruitStyle, reed, Style, tanuki, temperamentFor } from "./styles";
+import {
+  DRIFTER_ID,
+  heron,
+  magpie,
+  moth,
+  oldToad,
+  randomStyle,
+  RECRUIT_IDS,
+  recruitStyle,
+  reed,
+  Style,
+  styleFor,
+  tanuki,
+  temperamentFor,
+  temperamentId,
+} from "./styles";
 
 // The players are pure functions over a plain board, so everything below runs
 // without a room, a socket or a clock. Seat 1 is black+gray throughout.
@@ -312,6 +328,14 @@ test("recruit ids resolve to a style, and anything else to nothing", () => {
   }
 });
 
+test("every bot a room seats has an id that brings the same style back (room snapshots)", () => {
+  for (const id of RECRUIT_IDS) assert.deepEqual(styleFor(id), recruitStyle(id), id);
+  assert.deepEqual(styleFor(DRIFTER_ID), randomStyle());
+  assert.equal(recruitStyle(DRIFTER_ID), null, "no client can ask for a drifter");
+  for (let seat = 0; seat < 8; seat++) assert.deepEqual(styleFor(temperamentId(seat)), temperamentFor(seat), `seat ${seat}`);
+  assert.equal(styleFor("Atsumi"), null);
+});
+
 test("the recruits run from no items to every item", () => {
   // The order the menus list them in: each one readier to spend a turn on an item than the last.
   const styles = RECRUIT_IDS.map((id) => recruitStyle(id)!);
@@ -503,4 +527,35 @@ test("a ko the rules hold for the round is not offered", () => {
   assert.ok(free.some((c) => boardIndex(5, c.x, c.y) === retake));
   const held = rankMoves(view(5, 2, { board: b, retakesKo: (idx) => idx === retake }), reed());
   assert.ok(held.every((c) => boardIndex(5, c.x, c.y) !== retake));
+});
+
+// A twin fights on both fronts. Here seat 1's twin at (1,0) sits between two of
+// seat 3's base stones: on the pattern front those are walls, so its pattern
+// group is down to one liberty, (1,1); on the base front they share its black
+// and it breathes freely. Only `save` is weighted, so the score is what the
+// rescue pays.
+const SAVES_ONLY: Style = { ...randomStyle(), save: 1000 };
+
+function twinBetweenWalls(): number[] {
+  const b = board(["3.3..", ".....", ".....", ".....", "....."]);
+  b[boardIndex(5, 1, 0)] = twinCode(1);
+  return b;
+}
+
+test("a stone that joins a twin on the front where it is in atari pays for the save", () => {
+  const v = view(5, 1, { board: twinBetweenWalls() });
+  assert.equal(scoreMove(v, 1, 1, "pattern", SAVES_ONLY), SAVES_ONLY.save);
+});
+
+test("a stone on the other front saves nothing: it isn't the twin's group there", () => {
+  // Now seat 2's grey stones flank the twin. On the pattern front they are its
+  // own side's grey, so the three breathe through (0,1), (1,1), (2,1) and (3,0);
+  // on the base front they are walls, and the twin's base group is in atari.
+  // A pattern stone at (1,1) doesn't join that group: it saves nothing.
+  const b = board(".....".repeat(5).match(/.{5}/g)!);
+  b[boardIndex(5, 0, 0)] = stoneCode(2, "pattern");
+  b[boardIndex(5, 1, 0)] = twinCode(1);
+  b[boardIndex(5, 2, 0)] = stoneCode(2, "pattern");
+  assert.equal(scoreMove(view(5, 1, { board: b }), 1, 1, "pattern", SAVES_ONLY), 0);
+  assert.equal(scoreMove(view(5, 1, { board: b }), 1, 1, "base", SAVES_ONLY), SAVES_ONLY.save);
 });

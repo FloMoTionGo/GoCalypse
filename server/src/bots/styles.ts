@@ -236,6 +236,23 @@ export function temperamentFor(seat: number): Style {
   return TEMPERAMENTS[Math.abs(seat) % TEMPERAMENTS.length]();
 }
 
+/** The recruit id of temperamentFor(seat), so a room can save which bot it seated. */
+export function temperamentId(seat: number): string {
+  const make = TEMPERAMENTS[Math.abs(seat) % TEMPERAMENTS.length];
+  return RECRUIT_IDS.find((id) => RECRUITS.get(id) === make)!;
+}
+
+/** The id a room saves for randomStyle(); never a recruit id, so no client can ask for it. */
+export const DRIFTER_ID = "drifter";
+
+/**
+ * The style a saved bot id stands for: a recruit id or DRIFTER_ID. Null for
+ * anything else, e.g. a snapshot written before a recruit was renamed.
+ */
+export function styleFor(id: string): Style | null {
+  return id === DRIFTER_ID ? randomStyle() : recruitStyle(id);
+}
+
 /**
  * Tier 0, and the room's fallback: every weight zero and a draw wide enough to
  * cover the whole board, so the scorer collapses to "any legal point that is
