@@ -27,6 +27,9 @@ export class PlayerState extends Schema {
   @type("number") place: number = 0; // 1 = winner; players level on both numbers share a place
   @type(["string"]) powerups = new ArraySchema<string>(); // owned, unused items (bought at the market)
   @type(["string"]) bought = new ArraySchema<string>(); // every item bought this match, one entry per copy (for the fair share)
+  // The Stone Card (rules/stoneCard.ts): 9 cells, row by row, each empty / base /
+  // pattern. Empty once played. Open to everyone, as the hand is.
+  @type(["number"]) card = new ArraySchema<number>();
 }
 
 /** One item the Night Market sells. Filled from the powerup registry on room creation. */
@@ -103,7 +106,7 @@ export class GoState extends Schema {
   @type("number") passes: number = 0; // passes in a row; the game ends when every player has passed
   @type("string") lastEvent: string = ""; // human-readable log of the last action, for client toasts
   @type("number") shopAfter: number = 5; // a player's market opens after this many placed stones
-  @type("number") satchelLimit: number = 5; // items a player may hold at once
+  @type("number") handLimit: number = 5; // cards a player may hold at once, the Stone Card included
   @type("number") powerfulLimit: number = 1; // removal items a player may hold at once
   @type([MarketItem]) market = new ArraySchema<MarketItem>();
   @type([BoardEffect]) effects = new ArraySchema<BoardEffect>();

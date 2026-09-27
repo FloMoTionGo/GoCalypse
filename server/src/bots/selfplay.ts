@@ -77,7 +77,7 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
       bought: [],
       shopAfter: Number.MAX_SAFE_INTEGER, // the market never opens here
       market: [],
-      satchelLimit: 5,
+      handLimit: 5,
       powerfulLimit: 1,
       isWarded: () => false,
       lilyOwnerAt: () => 0,
@@ -88,7 +88,7 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
 
     const action = chooseAction(view, styles[seat], rng);
     if (action.kind !== "move") {
-      // Only a pass can come back: there is no satchel to use an item from.
+      // Only a pass can come back: there is no hand to use an item from.
       passes += 1;
       if (passes >= SEATS) {
         finished = true;

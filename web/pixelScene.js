@@ -1584,7 +1584,9 @@
      *   ambientTime:   seconds for ambient loops (defaults to time; freeze it for reduced motion),
      *   board:         flat array of codes, length size*size (row-major, y * size + x),
      *   hover:         {x, y} | null,
-     *   hoverKind:     "stone" (split preview) | "target" (powerup reticle) | "none" (labels only),
+     *   hoverKind:     "stone" (split preview) | "target" (powerup reticle) | "card" (the Stone Card's
+ *                  stones, see-through, around the hovered point) | "none" (labels only),
+ *   cardGhost:     [{dx, dy, code}] -- the Stone Card's stones, relative to its centre (hoverKind "card"),
      *   myColor:       1..4, the viewing player (for the split preview),
      *   lastMove:      {x, y} | null,
      *   effects:       [placeEffect(...) | captureEffect(...) | makeEffect(kind, ...)],
@@ -1799,6 +1801,14 @@
           if (pulse) outlineGlow(spr, p.x, p.y - lift);
         } else if (kind === "target") {
           surf.blitCentered(animFrame("reticle", reduced ? 0 : time), p.x, p.y);
+        } else if (kind === "card") {
+          // Only where a stone would land: off the board and on a taken point, none is placed.
+          for (const g of st.cardGhost || []) {
+            const x = hover.x + g.dx, y = hover.y + g.dy;
+            if (x < 0 || y < 0 || x >= size || y >= size || board[y * size + x]) continue;
+            const q = pointToNative(x, y);
+            surf.blitCentered(G.stoneSprite(g.code), q.x, q.y, { coverage: 0.5 });
+          }
         }
         drawHighlightTag(String(hover.x), L.gridX + hover.x * SPACING, L.boardY + FRAME - LABEL_GAP - 3, "down");
         drawHighlightTag(String(hover.y), L.kayaX - LABEL_GAP - 4, L.gridY + hover.y * SPACING, "right");

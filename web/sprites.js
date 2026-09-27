@@ -1271,6 +1271,72 @@
     return (cardCache[key] = makeSprite(`card_${id}_${t}`, W, H, s.px));
   }
 
+  // The Stone Card (server/src/rules/stoneCard.ts): a 3x3 go board on a card,
+  // cells row by row, 0 empty, 1 the owner's base stone, 2 their other one.
+  // The grid is also drawn on its own, small, beside each player's name.
+  const CARD_GRID_STEP = 9; // card pixels between two lines of the 3x3 grid
+  const CARD_GRID_SIZE = 2 * CARD_GRID_STEP + 9; // the grid's kaya, a mini stone's reach past the outer lines
+  const CARD_GRID_Y = 5; // top row of the grid's kaya on the Stone Card
+  const STONE_CARD_NAME_Y = 34; // first row of the Stone Card's name panel (rows 34..40)
+  const STONE_CARD_TEXT_Y = 43; // first row of its small text (rows 43..48)
+
+  /** A player's card cell -> board code for the stone drawn there (base = color, pattern = color + 4). */
+  function cardCellCode(cell, playerColor) {
+    return cell === 1 ? playerColor : cell === 2 ? patternCode(playerColor) : 0;
+  }
+
+  const cardGridCache = {};
+  /** The card's 3x3 board: amber kaya, ink lines, the owner's mini stones where the card has them. */
+  function cardGrid(cells, playerColor) {
+    const key = `${playerColor}:${Array.from(cells).join("")}`;
+    if (key in cardGridCache) return cardGridCache[key];
+    const N = CARD_GRID_SIZE, o = (N - 1 - 2 * CARD_GRID_STEP) >> 1;
+    const s = new Surface(N, N);
+    s.fill(A);
+    for (let i = 0; i < 3; i++) {
+      const at = o + i * CARD_GRID_STEP;
+      for (let k = o; k <= o + 2 * CARD_GRID_STEP; k++) {
+        s.set(at, k, K);
+        s.set(k, at, K);
+      }
+    }
+    for (let i = 0; i < 9; i++) {
+      const spr = stoneSprite(cardCellCode(cells[i], playerColor), "mini");
+      if (spr) s.blitCentered(spr, o + (i % 3) * CARD_GRID_STEP, o + Math.floor(i / 3) * CARD_GRID_STEP);
+    }
+    return (cardGridCache[key] = makeSprite(`card_grid_${key}`, N, N, s.px));
+  }
+
+  const stoneCardCache = {};
+  /** The Stone Card's face: an amber-framed card, the grid where an item's art would be, two panels for the page's text. */
+  function stoneCard(cells, playerColor) {
+    const key = `${playerColor}:${Array.from(cells).join("")}`;
+    if (key in stoneCardCache) return stoneCardCache[key];
+    const W = CARD_W, H = CARD_H;
+    const s = new Surface(W, H);
+    s.fill(TRANSPARENT);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!inCard(x, y)) continue;
+        const edge = !inCard(x - 1, y) || !inCard(x + 1, y) || !inCard(x, y - 1) || !inCard(x, y + 1);
+        const ring = !inCard(x - 2, y) || !inCard(x + 2, y) || !inCard(x, y - 2) || !inCard(x, y + 2);
+        s.set(x, y, edge ? K : ring ? A : K);
+      }
+    }
+    const grid = cardGrid(cells, playerColor);
+    const gx = (W - grid.w) >> 1;
+    // A slate frame around the kaya, as the item cards frame their art.
+    for (let y = CARD_GRID_Y - 1; y <= CARD_GRID_Y + grid.h; y++) {
+      for (let x = gx - 1; x <= gx + grid.w; x++) {
+        const corner = (y === CARD_GRID_Y - 1 || y === CARD_GRID_Y + grid.h) && (x === gx - 1 || x === gx + grid.w);
+        if (!corner) s.set(x, y, S);
+      }
+    }
+    s.blit(grid, gx, CARD_GRID_Y);
+    for (let x = 6; x < W - 6; x += 2) s.set(x, STONE_CARD_TEXT_Y - 2, S);
+    return (stoneCardCache[key] = makeSprite(`stone_card_${key}`, W, H, s.px));
+  }
+
   /** An empty place in the hand: the card's outline, dotted in slate. */
   let cardSlotSprite = null;
   function cardSlot() {
@@ -1344,6 +1410,13 @@
     CARD_TEXT_Y,
     itemCard,
     cardSlot,
+    cardGrid,
+    stoneCard,
+    CARD_GRID_STEP,
+    CARD_GRID_SIZE,
+    CARD_GRID_Y,
+    STONE_CARD_NAME_Y,
+    STONE_CARD_TEXT_Y,
     SPRITES,
     ANIMS,
     FONT_SMALL,

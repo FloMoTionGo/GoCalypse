@@ -32,7 +32,7 @@ function view(size: number, color: number, over: Partial<BotView> = {}): BotView
     bought: [],
     shopAfter: 5,
     market: [],
-    satchelLimit: 5,
+    handLimit: 5,
     powerfulLimit: 1,
     isWarded: () => false,
     lilyOwnerAt: () => 0,

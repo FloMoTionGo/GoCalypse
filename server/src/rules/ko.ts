@@ -5,7 +5,7 @@
 // capture can be answered two or three stones later by someone else, and the
 // same board comes round again after a full turn or two, so the rule
 // remembers every position rather than only the last one. Only the stones
-// count -- who is to move and what is in the satchels do not.
+// count -- who is to move and what is in the hands do not.
 //
 // Stone colours do not count either, only which points are occupied. With four
 // seats a point can be taken, captured, and retaken by the next colour round

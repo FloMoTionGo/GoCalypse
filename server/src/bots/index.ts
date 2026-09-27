@@ -1,4 +1,6 @@
 import { StoneView } from "../rules/goRules";
+import { STONE_CARD } from "../rules/stoneCard";
+import { planCard } from "./card";
 import { planItem } from "./items";
 import { Rng } from "./rng";
 import { BotView, Candidate, isPointless, rankMoves } from "./scoring";
@@ -6,6 +8,7 @@ import { Style } from "./styles";
 
 export { Rng } from "./rng";
 export { chooseBuy, chooseFree } from "./items";
+export { chooseCardUpgrade, planCard } from "./card";
 export type { FreeUse } from "./items";
 export { rankMoves, scoreMove, chooseMove, isPointless } from "./scoring";
 export type { BotView, Candidate, MarketRow } from "./scoring";
@@ -36,7 +39,12 @@ export function chooseAction(view: BotView, style: Style, rng: Rng): BotAction {
   const ranked = rankMoves(view, style);
   const move = pickMove(view, style, rng, ranked);
   const item = planItem(view, style, ranked);
+  const card = planCard(view, style);
 
+  // The Stone Card is not a market item, so no itemBias: it has to beat the move and the item on its own.
+  if (card && (!move || card.score > move.score) && (!item || card.score > item.score + style.itemBias)) {
+    return { kind: "powerup", id: STONE_CARD, target: card.target };
+  }
   if (item && (!move || item.score + style.itemBias > move.score)) {
     return { kind: "powerup", id: item.id, target: item.target, target2: item.target2, axis: item.axis };
   }

@@ -253,7 +253,7 @@ function resetRoomState() {
   closeWelcomeOnStart = false;
   lastPasses = null;
   passFlashAt = undefined;
-  handBought = null; // a new room: its first state is the satchel as it stands, nothing flies in
+  handBought = null; // a new room: its first state is the hand as it stands, nothing flies in
   if (resultEl.open) resultEl.close();
   renderRecall();
 }
@@ -431,6 +431,7 @@ const CARD_ROW_GAP = 3; // between the board and the cards
 const CARD_GAP = 2; // between two cards
 const RECALL_W = 160; // CSS px the recall strip takes beside the cards, its gap included
 const RECALL_ROW = 34; // ... or the row it takes under them when the two don't fit side by side
+const CARD_HINT_ROW = 6; // card pixels under the cards for the Stone Card's UPGRADABLE hint
 
 /**
  * For a board at `scale` device pixels per native pixel: `k`, the device pixels
@@ -440,13 +441,13 @@ const RECALL_ROW = 34; // ... or the row it takes under them when the two don't 
  * the board; the recall strip goes under them when there's no room beside.
  */
 function handLayout(scale, dpr) {
-  const places = (lastState && lastState.satchelLimit) || 5;
+  const places = (lastState && lastState.handLimit) || 5;
   const boardW = (scene.width * scale) / dpr;
   const handW = (k) => ((places * G.CARD_W + (places - 1) * CARD_GAP) * k) / dpr;
   let k = Math.max(1, Math.round(Math.min(3 * dpr, Math.max(2 * dpr, scale))));
   while (k > 1 && handW(k) > boardW) k--;
   const oneRow = handW(k) + RECALL_W <= boardW;
-  return { k, oneRow, height: ((G.CARD_H + CARD_ROW_GAP) * k) / dpr + (oneRow ? 0 : RECALL_ROW) };
+  return { k, oneRow, height: ((G.CARD_H + CARD_ROW_GAP + CARD_HINT_ROW) * k) / dpr + (oneRow ? 0 : RECALL_ROW) };
 }
 
 function reducedMotion() {
@@ -496,6 +497,7 @@ function frame() {
     board: displayBoard,
     hover: snap ? null : hoverPoint,
     hoverKind: hoverKind(),
+    cardGhost: cardGhost(),
     myColor: myPlayer ? myPlayer.color : 0,
     lastMove: snap ? snap.lastMove : lastMove,
     effects: snap ? [] : effects.filter((e) => !isVeiled(e.x, e.y, e.code)),
@@ -529,6 +531,7 @@ function burningAt(x, y) {
 /** What the hovered point shows: a powerup reticle, the split stone preview, or just the coordinates. */
 function hoverKind() {
   if (!hoverPoint || viewId !== null) return "none";
+  if (selectedPowerup === STONE_CARD) return "card";
   if (selectedPowerup) return "target";
   if (!isMyTurn || !myPlayer) return "none";
   if (burningAt(hoverPoint.x, hoverPoint.y)) return "none"; // nothing can be played into a fire
@@ -634,7 +637,7 @@ function ownStoneHighlight(boardArr) {
 }
 
 /**
- * Picks an item from the satchel. Items that need no point (Firefly Jar, Mist,
+ * Picks an item from the hand. Items that need no point (Firefly Jar, Mist,
  * Twin Wick, Stepping Stones) go straight off; the rest wait for a click on the board.
  */
 function pickPowerup(id) {
@@ -670,6 +673,9 @@ function stoneHint() {
 }
 
 function targetingText() {
+  if (selectedPowerup === STONE_CARD) {
+    return "Stone Card: click the point for its centre -- the see-through stones are the ones that land. Right click to cancel.";
+  }
   const item = selectedPowerup && marketItem(selectedPowerup);
   if (!item) return "";
   const ownStone = OWN_STONE_TARGET_ITEMS.has(item.id) && !firstTarget;
@@ -893,8 +899,13 @@ function openWelcome(state) {
     `Once you've placed ${state.shopAfter} stones, the Night Market opens in the sidebar. It has ${stalls.length} stalls ` +
     `a night: ${perTier[0].length} cozy, ${perTier[1].length} tactical and ${perTier[2].length} powerful. ` +
     stockText +
-    `Your satchel holds ${state.satchelLimit} items: every item you buy flies into it as a card under the board. ` +
-    `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels).`;
+    `Your hand holds ${state.handLimit} cards under the board: every item you buy flies into it as a card. ` +
+    `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels). ` +
+    `One place is taken from the start by your Stone Card, a 3x3 board with one of your stones in the middle ` +
+    `(click that stone for your solid one, right click for your gray or transparent one, until you add a second). ` +
+    `Whenever you have the fireflies, click an empty point on the card to add a stone there, right click for your other ` +
+    `stone: the first costs 100, each one after it 25 more, up to 8. It costs no turn. Play the card on your turn like an ` +
+    `item: the point you click takes its centre, and every stone that lands on an empty point is placed.`;
 
   // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
   document.getElementById("welcome-weather").textContent =
@@ -1466,7 +1477,7 @@ function renderPlayers(state) {
   const players = Array.from(state.players);
   const sig = JSON.stringify([
     state.turnIndex, state.status, myPlayer && myPlayer.sessionId,
-    players.map((p) => [p.name, p.color, p.connected, p.bot, p.passed, p.jar, p.mist, p.twin, p.extra, p.score, p.fireflies, p.finalScore, p.place]),
+    players.map((p) => [p.name, p.color, p.connected, p.bot, p.passed, p.jar, p.mist, p.twin, p.extra, p.score, p.fireflies, p.finalScore, p.place, Array.from(p.card).join("")]),
   ]);
   rebuild(playersEl, sig, () => {
     // Listed by color, which is also the turn order (the synced array is join order).
@@ -1533,6 +1544,13 @@ function renderPlayers(state) {
       info.append(top, look);
 
       row.append(swatches, info);
+      if (hasStoneCard(player)) {
+        const cells = Array.from(player.card);
+        const mini = spriteImg(`card_grid_${player.color}_${cells.join("")}`, G.cardGrid(cells, player.color), 1);
+        mini.classList.add("card-mini");
+        mini.title = `Stone Card: ${cardUpgrades(cells)} of ${CARD_UPGRADES} stones added`;
+        row.append(mini);
+      }
       playersEl.appendChild(row);
     });
   });
@@ -1547,14 +1565,14 @@ function powerfulHeld() {
   }).length;
 }
 
-// ---- satchel: the hand of item cards under the board ---------------------------------
+// ---- the hand of item cards under the board ---------------------------------
 
 let handBought = null; // my `bought` count at the last render; null until this room's first state
 let armedCard = -1; // hand position of the card picked last (two copies of one item are two cards)
 const incoming = new Set(); // hand positions whose card is still flying in from the market
 
 /**
- * The satchel as a hand of portrait cards under the board, one per item held and
+ * The hand of portrait cards under the board, one per item held and
  * a dotted place for each free one. A card bought since the last state flies
  * in from its Night Market stall first. Only the buyer sees that: every client
  * draws its own player's hand.
@@ -1568,12 +1586,13 @@ function renderHand(state) {
   handBought = myPlayer ? bought : null;
   for (let i = owned.length - fresh; i < owned.length; i++) incoming.add(i); // until flyCard lands it
 
-  const places = Math.max(state.satchelLimit, owned.length);
+  const places = Math.max(state.handLimit, owned.length);
   const shown = selectedPowerup ? (owned[armedCard] === selectedPowerup ? armedCard : owned.indexOf(selectedPowerup)) : -1;
   handEl.title =
-    `Satchel: ${owned.length} of ${state.satchelLimit} items, at most ${state.powerfulLimit} of them powerful. ` +
-    `Buy them at the Night Market, and on your turn pick a card to use it.`;
-  const sig = JSON.stringify([owned, places, isMyTurn, shown, Array.from(incoming)]);
+    `Hand: ${owned.length} of ${state.handLimit} cards, at most ${state.powerfulLimit} of them powerful. ` +
+    `Buy items at the Night Market, and on your turn pick a card to use it.`;
+  const cardSig = myPlayer && hasStoneCard(myPlayer) ? [Array.from(myPlayer.card).join(""), cardUpgradable(myPlayer), state.status] : null;
+  const sig = JSON.stringify([owned, places, isMyTurn, shown, Array.from(incoming), cardSig]);
   const rebuilt = rebuild(handEl, sig, () => {
     for (let i = 0; i < places; i++) {
       if (i >= owned.length) {
@@ -1581,6 +1600,12 @@ function renderHand(state) {
         place.className = "card-place";
         place.append(spriteImg("card_slot", G.cardSlot(), 1));
         handEl.appendChild(place);
+        continue;
+      }
+      if (owned[i] === STONE_CARD) {
+        const card = stoneCardEl(myPlayer, i === shown);
+        card.dataset.index = String(i);
+        handEl.appendChild(card);
         continue;
       }
       const card = itemCard(owned[i]);
@@ -1602,6 +1627,132 @@ function renderHand(state) {
   for (let i = owned.length - fresh; i < owned.length; i++) flyCard(i);
 }
 
+// ---- the Stone Card: mirrors server/src/rules/stoneCard.ts ---------------------------------
+
+const STONE_CARD = "stone_card";
+const CARD_CENTRE = 4;
+const CARD_UPGRADES = 8;
+const CARD_FIRST_COST = 100;
+const CARD_COST_STEP = 25;
+
+function hasStoneCard(player) {
+  return player.card.length === 9 && Array.from(player.powerups).includes(STONE_CARD);
+}
+
+/** Stones added to the card (the centre one is not one). */
+function cardUpgrades(cells) {
+  return cells.filter((c, i) => i !== CARD_CENTRE && c !== 0).length;
+}
+
+/** Fireflies the next stone costs, or null once the card is full. */
+function nextCardCost(cells) {
+  const n = cardUpgrades(cells);
+  return n >= CARD_UPGRADES ? null : CARD_FIRST_COST + CARD_COST_STEP * n;
+}
+
+/** Whether `player` can add a stone to their card right now. */
+function cardUpgradable(player) {
+  if (!lastState || lastState.status !== "playing" || !hasStoneCard(player)) return false;
+  const cost = nextCardCost(Array.from(player.card));
+  return cost !== null && player.fireflies >= cost;
+}
+
+/** The armed card's stones around the pointer, relative to its centre, for the board to draw see-through. */
+function cardGhost() {
+  if (selectedPowerup !== STONE_CARD || !myPlayer || !hasStoneCard(myPlayer)) return null;
+  const out = [];
+  Array.from(myPlayer.card).forEach((c, i) => {
+    if (c) out.push({ dx: (i % 3) - 1, dy: Math.floor(i / 3) - 1, code: c === 2 ? myPlayer.color + 4 : myPlayer.color });
+  });
+  return out;
+}
+
+/**
+ * The Stone Card in the hand: its face (sprites.js stoneCard) with a button on
+ * each point of its grid. An empty point takes a stone for fireflies (left click
+ * the solid one, right click the other), at any time; the centre stone changes
+ * front for free until a second stone is added. A click anywhere else on the
+ * card arms it for play, on your turn. It glows, with UPGRADABLE under it, while
+ * the purse holds the next stone's price.
+ */
+function stoneCardEl(player, armed) {
+  const cells = Array.from(player.card);
+  const [baseName, otherName] = LOOK_NAMES[player.color] || LOOK_NAMES[1];
+  const done = cardUpgrades(cells);
+  const cost = nextCardCost(cells);
+  const upgradable = cardUpgradable(player);
+  const playing = lastState && lastState.status === "playing";
+
+  const card = document.createElement("div");
+  card.className = "card stone-card";
+  card.dataset.id = STONE_CARD;
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+  card.setAttribute("aria-label", `Stone Card, ${done} of ${CARD_UPGRADES} stones added. Play it on your turn: its stones land around the point you pick.`);
+  card.classList.toggle("active", armed);
+  card.classList.toggle("upgradable", upgradable);
+
+  const name = document.createElement("span");
+  name.className = "card-name";
+  name.textContent = "Stone Card";
+  const text = document.createElement("span");
+  text.className = "card-text";
+  text.textContent =
+    cost === null
+      ? "Full. Play it on your turn: all nine land around the point you pick."
+      : `${done} of ${CARD_UPGRADES} added. Next stone: ${cost} fireflies -- click an empty point, right click for ${otherName}.`;
+  card.append(spriteImg(`stone_card_${player.color}_${cells.join("")}`, G.stoneCard(cells, player.color), 1), name, text);
+
+  cells.forEach((c, i) => {
+    const centre = i === CARD_CENTRE;
+    const open = centre ? done === 0 && lastState.status !== "finished" : c === 0 && upgradable;
+    if (!open) return;
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = "card-cell";
+    cell.style.setProperty("--col", String(i % 3));
+    cell.style.setProperty("--row", String(Math.floor(i / 3)));
+    cell.title = centre
+      ? `Centre stone: click for ${baseName}, right click for ${otherName} (free until you add a stone)`
+      : `Add a stone here for ${cost} fireflies: click for ${baseName}, right click for ${otherName}`;
+    const send = (axis) => {
+      if (!room) return;
+      if (centre) room.send("cardCentre", { axis });
+      else room.send("upgradeCard", { cell: i, axis });
+    };
+    cell.addEventListener("click", (e) => {
+      e.stopPropagation();
+      send("base");
+    });
+    cell.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      send("pattern");
+    });
+    card.append(cell);
+  });
+
+  if (upgradable) {
+    const hint = document.createElement("span");
+    hint.className = "card-hint";
+    hint.textContent = "UPGRADABLE";
+    card.append(hint);
+  }
+
+  const pick = () => {
+    if (!playing) return;
+    if (!isMyTurn) return showNotice("Play the Stone Card on your turn. Adding stones works any time.");
+    pickCard(STONE_CARD, Number(card.dataset.index));
+  };
+  card.addEventListener("click", pick);
+  card.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    pick();
+  });
+  return card;
+}
+
 /** A card: the pixel card face (sprites.js itemCard) with the item's name and description in its panels. */
 function itemCard(id) {
   const item = marketItem(id) || { name: id, description: "", tier: 1 };
@@ -1610,7 +1761,7 @@ function itemCard(id) {
   card.className = "card";
   card.dataset.id = id;
   card.setAttribute("aria-label", `${item.name} (tier ${["", "I", "II", "III"][item.tier] || item.tier}): ${item.description}`);
-  card.title = ""; // hovering shows the card enlarged instead; "" also keeps the satchel's tooltip off it
+  card.title = ""; // hovering shows the card enlarged instead; "" also keeps the hand's tooltip off it
   const name = document.createElement("span");
   name.className = "card-name";
   name.textContent = item.name;
@@ -1792,7 +1943,7 @@ function renderMarket(state) {
   const wallet = me ? me.fireflies : 0;
 
   const held = me ? Array.from(me.powerups).length : 0;
-  const full = held >= state.satchelLimit;
+  const full = held >= state.handLimit;
   const powerfulFull = powerfulHeld() >= state.powerfulLimit;
 
   const items = Array.from(state.market);
@@ -1822,7 +1973,7 @@ function renderMarket(state) {
           ? `${m.name} is one to a player, and you've had yours.`
           : `You've bought your share of ${m.name} (${m.share} to a player).`
         : full
-        ? `Your satchel is full (${state.satchelLimit} items).`
+        ? `Your hand is full (${state.handLimit} cards).`
         : m.removal && powerfulFull
         ? `You can only carry ${state.powerfulLimit} powerful item at a time.`
         : counted

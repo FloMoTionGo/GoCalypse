@@ -161,10 +161,36 @@ Items come in three **tiers**, and the market stocks **six per match: 3 of
 tier 1, 2 of tier 2 and 1 of tier 3**, drawn fresh each match. The stall is one
 per room, so every player and bot at the table shops from the same six. Only
 tier 3 holds powerful (removal) items, so **at most one** is ever on sale. Your
-**satchel holds five items** and only **one powerful item** at a time; a
-purchase past either limit is refused with a notice. The satchel is a hand of
-square item cards under the board: a bought item flies in from its stall as a
+**hand holds five cards** and only **one powerful item** at a time; a
+purchase past either limit is refused with a notice. The hand is a row of
+portrait cards under the board: a bought item flies in from its stall as a
 card, and on your turn you pick a card to use it.
+
+### The Stone Card
+
+Every player starts with a **Stone Card** in their hand, taking one of its five
+places: a 3x3 go board with one of your stones in the middle. Click that stone
+for your solid one, right click for your gray or transparent one; it's yours
+to switch until you add a second stone. Whenever you have the fireflies, click
+an empty point on the card to add your solid stone there (right click: your
+other one). The first costs **100**, each one after it **25 more** (100, 125 …
+275; 1,500 for all 8). Adding a stone never takes your turn and works while
+others move too. While you can pay for the next stone the card glows, with
+*UPGRADABLE* under it.
+
+Playing the card takes your turn: pick it, and a see-through copy of its stones
+follows the pointer over the board (never rotated). The point you click takes
+the centre stone. The stones then land centre first, then the ring clockwise
+from its top-left, each like a stone of its own: captures count and pay, but a
+stone whose point is taken, burning, fogged, under someone else's lily pad, off
+the board or without liberties is simply **not placed**, and whatever stands
+there is left alone. A card that would land nothing, or bring back an earlier
+board (ko), is refused and kept. Everyone can see everyone's card beside their
+name. Bots add only their solid stone, on a random point, as their purse habits
+allow (Reed never; Heron keeps as much again in reserve), up to **5 stones of 9**
+(a full 3x3 block is a clump, not a shape). They play the card once it has those
+5, or if it never grows, or once the table starts passing
+(`rules/stoneCard.ts`, `bots/card.ts`).
 
 Some items are **free**: they don't take your turn, you still move afterwards.
 Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400. (Within a tier the tables below read in the order the stall shows them, cheap to dear.)
@@ -311,7 +337,7 @@ data is copied, and its search and neural networks are left out.
     validation, powerup dispatch.
 - `web/` — browser client, plain HTML/CSS/JS (no build step, no framework),
   using `colyseus.js` from a CDN `<script>` tag. `main.js` renders the pixel
-  scene, player list, Night Market and the satchel's hand of item cards
+  scene, player list, Night Market and the hand of item cards
   under the board straight off the synced room state (`room.onStateChange`).
 
 ## Running locally

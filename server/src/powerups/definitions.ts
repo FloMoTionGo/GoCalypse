@@ -10,6 +10,7 @@ import {
   stoneCode,
   viewsOf,
 } from "../rules/goRules";
+import { STONE_CARD, STONE_CARD_NAME } from "../rules/stoneCard";
 import { PowerupContext, PowerupDefinition } from "./types";
 
 // Prices by tier. Fireflies come at 3 a stone and 5 a capture, so a tier 1 item
@@ -277,8 +278,8 @@ const kite: PowerupDefinition = {
     if (!isPlayerStone(code) || ownerOf(code) === ownColor(ctx)) return false;
     const rival = ctx.state.players.find((p) => p.color === ownerOf(code));
     if (!rival) return false;
-    const items = Array.from(rival.powerups).map((id) => getPowerup(id)?.name ?? id);
-    ctx.reveal(`${rival.name}: ${items.length ? items.join(", ") : "an empty satchel"} - ${rival.fireflies} fireflies`);
+    const items = Array.from(rival.powerups).map((id) => (id === STONE_CARD ? STONE_CARD_NAME : getPowerup(id)?.name ?? id));
+    ctx.reveal(`${rival.name}: ${items.length ? items.join(", ") : "an empty hand"} - ${rival.fireflies} fireflies`);
     return true;
   },
 };

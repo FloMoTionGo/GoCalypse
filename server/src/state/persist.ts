@@ -68,6 +68,7 @@ export function takeRestore(token: unknown): Snapshot | undefined {
 /** Copies plain JSON (from toJSON) back onto a schema. Arrays here hold primitives only. */
 function fill(target: Schema, json: Record<string, any>) {
   for (const [key, value] of Object.entries(json)) {
+    if (!(key in target)) continue; // a field since dropped or renamed: its default stands
     const current = (target as any)[key];
     if (current instanceof ArraySchema) {
       current.clear();

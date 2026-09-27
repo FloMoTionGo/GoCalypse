@@ -251,7 +251,7 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 
 
 #market-items { display: flex; flex-direction: column; gap: 4px; }
-/* Under the board: the recall strip on the left, the satchel's hand of cards on the right.
+/* Under the board: the recall strip on the left, the hand of cards on the right.
    Sized in card pixels (--card-px, set by sizeCanvas in main.js) so the cards scale in whole
    device pixels like the board. width 0 + min-width 100%: the row never widens the board's column. */
 :root { --card-px: 2px; }
@@ -264,7 +264,7 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
   min-width: 100%;
   margin-top: calc(3 * var(--card-px)); /* CARD_ROW_GAP in main.js */
 }
-#hand { position: relative; display: flex; gap: calc(2 * var(--card-px)); margin-left: auto; } /* CARD_GAP */
+#hand { position: relative; display: flex; gap: calc(2 * var(--card-px)); margin-left: auto; padding-bottom: calc(6 * var(--card-px)); } /* CARD_GAP; CARD_HINT_ROW under the cards */
 #board-foot.stacked #hand { order: -1; }
 #board-foot.stacked #recall { flex-basis: 100%; }
 #board-hint.targeting { color: var(--amber); }
@@ -412,3 +412,41 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .item .tier { color: var(--slate); font-size: 10px; font-weight: 400; }
 .item .left { color: var(--slate); font-size: 10px; font-weight: 400; white-space: nowrap; }
 .item .left.last { color: var(--amber); }
+
+/* The Stone Card (stoneCardEl in main.js): its name and text sit lower than an item's, under the
+   3x3 grid (sprites.js STONE_CARD_NAME_Y / STONE_CARD_TEXT_Y), and each open point of the grid is a
+   button: 9 card pixels square around its intersection (CARD_GRID_Y 5, lines 9 apart from x 8). */
+.stone-card { cursor: pointer; }
+.stone-card .card-name { top: calc(34 * var(--card-px)); height: calc(7 * var(--card-px)); font-size: calc(3.6 * var(--card-px)); }
+.stone-card .card-text { top: calc(43 * var(--card-px)); height: calc(6 * var(--card-px)); font-size: calc(1.7 * var(--card-px)); }
+.card-cell {
+  position: absolute;
+  left: calc((4 + 9 * var(--col)) * var(--card-px));
+  top: calc((5 + 9 * var(--row)) * var(--card-px));
+  width: calc(9 * var(--card-px));
+  height: calc(9 * var(--card-px));
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.card-cell:hover:not(:disabled), .card-cell:focus-visible { background: none; box-shadow: inset 0 0 0 var(--card-px) var(--cream); }
+/* Enough fireflies for the next stone: a soft glow around the card and a word under it. */
+.stone-card.upgradable { filter: drop-shadow(0 0 calc(1.5 * var(--card-px)) var(--cream)); }
+.stone-card.upgradable.active { filter: drop-shadow(0 0 calc(2 * var(--card-px)) var(--amber)); }
+.card-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 1 * var(--card-px));
+  text-align: center;
+  color: var(--cream);
+  font-size: calc(3.2 * var(--card-px));
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+}
+.card.zoom .card-hint, .card.zoom .card-cell { display: none; }
+/* Each seat's card, small, at the end of its row in the players list: rivals may look. */
+.player-row .card-mini { margin-left: auto; flex-shrink: 0; width: 27px; height: 27px; image-rendering: pixelated; }

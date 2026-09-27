@@ -20,6 +20,18 @@ import {
   StoneView,
 } from "../rules/goRules";
 import { finalResults, territoryOwners, territoryScore } from "../rules/endgame";
+import {
+  CARD_CELLS,
+  CARD_CENTRE,
+  CARD_EMPTY,
+  CARD_UPGRADES,
+  cardLandings,
+  cellFor,
+  newCard,
+  nextUpgradeCost,
+  STONE_CARD,
+  upgradesDone,
+} from "../rules/stoneCard";
 import { KoWatch, PositionHistory } from "../rules/ko";
 import { copiesBought, fairShare, getPowerup, marketStock, stallCopies, stallRefusal } from "../powerups/definitions";
 import { EffectKind, PowerupContext } from "../powerups/types";
@@ -28,6 +40,7 @@ import {
   BotView,
   chooseAction,
   chooseBuy,
+  chooseCardUpgrade,
   chooseFree,
   randomStyle,
   rankMoves,
@@ -69,6 +82,15 @@ interface BuyMessage {
   id: string;
 }
 
+interface UpgradeCardMessage {
+  cell: number; // 0..8, row by row; not the centre
+  axis?: StoneView; // which of the player's fronts the new stone fights on
+}
+
+interface CardCentreMessage {
+  axis?: StoneView;
+}
+
 interface AddBotsMessage {
   ids?: unknown; // recruit ids from bots/styles.ts, at most 3
 }
@@ -83,7 +105,7 @@ const SHOP_AFTER_MOVES = 5;
 const FIREFLIES_PER_MOVE = 3;
 const FIREFLIES_PER_CAPTURE = 5;
 const CONSOLATION_PER_STONE = 3; // paid to the owner of a stone removed by someone's item
-const SATCHEL_LIMIT = 5; // items a player may hold at once
+const HAND_LIMIT = 5; // cards a player may hold at once, the Stone Card included
 const POWERFUL_LIMIT = 1; // removal items a player may hold at once
 const DEBUG_STORM_EVERY_TURNS = 6; // debug rooms roll far more often, so storms can be watched
 // Bots are only ever seated on request (the welcome screen's "add bots"), or to
@@ -132,7 +154,7 @@ export class GoRoom extends Room<GoState> {
     const state = new GoState();
     state.size = BOARD_SIZE;
     state.shopAfter = this.shopAfterMoves;
-    state.satchelLimit = SATCHEL_LIMIT;
+    state.handLimit = HAND_LIMIT;
     state.powerfulLimit = POWERFUL_LIMIT;
     state.storm.every = this.stormEvery;
     for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
@@ -180,6 +202,8 @@ export class GoRoom extends Room<GoState> {
     this.onMessage("buy", (client, message: BuyMessage) => this.handleBuy(client, message));
     this.onMessage("pass", (client) => this.handlePass(client));
     this.onMessage("addBots", (client, message: AddBotsMessage) => this.handleAddBots(client, message));
+    this.onMessage("upgradeCard", (client, message: UpgradeCardMessage) => this.handleUpgradeCard(client, message));
+    this.onMessage("cardCentre", (client, message: CardCentreMessage) => this.handleCardCentre(client, message));
 
     if (restored) this.resumeRestored();
   }
@@ -250,6 +274,7 @@ export class GoRoom extends Room<GoState> {
     const name = typeof options?.name === "string" ? options.name.trim().slice(0, 24) : "";
     player.name = name || randomGuestName();
     player.fireflies = this.startingFireflies;
+    this.dealStoneCard(player);
 
     // A random color/pattern combo that nobody in the room holds yet, so
     // every game deals the pairings anew and no combo is ever doubled.
@@ -314,6 +339,7 @@ export class GoRoom extends Room<GoState> {
     bot.bot = true;
     bot.name = this.freeName(style.name);
     bot.fireflies = this.startingFireflies;
+    this.dealStoneCard(bot);
     this.botStyles.set(bot.sessionId, style);
     this.state.players.push(bot);
     this.state.lastEvent = `${bot.name} takes a seat`;
@@ -432,7 +458,13 @@ export class GoRoom extends Room<GoState> {
     return this.state.players.findIndex((p) => p.sessionId === sessionId);
   }
 
-  /** Removal ("powerful") items sitting in a player's satchel right now. */
+  /** The Stone Card every seat starts with, in its hand and taking one of its places. */
+  private dealStoneCard(player: PlayerState) {
+    player.powerups.push(STONE_CARD);
+    for (const cell of newCard()) player.card.push(cell);
+  }
+
+  /** Removal ("powerful") items sitting in a player's hand right now. */
   private powerfulHeld(player: PlayerState): number {
     return player.powerups.filter((id) => getPowerup(id)?.removal).length;
   }
@@ -682,7 +714,8 @@ export class GoRoom extends Room<GoState> {
         left: m.left,
         share: m.share,
       })),
-      satchelLimit: SATCHEL_LIMIT,
+      handLimit: HAND_LIMIT,
+      card: Array.from(player.card),
       powerfulLimit: POWERFUL_LIMIT,
       isWarded: (idx) => this.isWarded(idx),
       lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
@@ -741,14 +774,21 @@ export class GoRoom extends Room<GoState> {
     }
 
     // Buying never takes the turn, so it happens first and the action is then
-    // chosen from a satchel that already holds what was bought.
+    // chosen from a hand that already holds what was bought.
     const buy = chooseBuy(this.botView(playerIndex), style);
     if (buy) this.applyBuy(playerIndex, buy);
 
-    // Then whatever in the satchel costs no turn (Stepping Stones, Mist, a
+    // Stones for the Stone Card from what the purse still holds, as many as the
+    // bot's style lets it buy; each one costs more than the last.
+    for (let i = 0; i < CARD_UPGRADES; i++) {
+      const cell = chooseCardUpgrade(this.botView(playerIndex), style, this.rng);
+      if (cell === null || this.applyUpgradeCard(playerIndex, { cell, axis: "base" }) !== null) break;
+    }
+
+    // Then whatever in the hand costs no turn (Stepping Stones, Mist, a
     // Firefly Jar...), one at a time so each sees what the last one lit. The
     // cap is only a guard: every one of them stops asking once it is lit.
-    for (let i = 0; i < SATCHEL_LIMIT; i++) {
+    for (let i = 0; i < HAND_LIMIT; i++) {
       const view = this.botView(playerIndex);
       const free = chooseFree(view, style, rankMoves(view, style));
       if (!free || this.applyUsePowerup(playerIndex, { id: free.id, target: free.target }) !== null) break;
@@ -904,19 +944,13 @@ export class GoRoom extends Room<GoState> {
    */
   private placeStoneFor(playerIndex: number, x: number, y: number, code: number): number | null {
     const size = this.state.size;
-    if (!isOnBoard(size, x, y)) return null;
-    const idx = boardIndex(size, x, y);
     const board = this.state.board;
-    if (board[idx] !== 0 || this.isBurning(idx) || this.isFogged(idx)) return null;
     const player = this.state.players[playerIndex];
+    const captured = this.landStone(board.toArray(), player.color, x, y, code);
+    if (captured === null) return null;
+
+    const idx = boardIndex(size, x, y);
     const lily = this.lilyOwnerAt(idx);
-    if (lily && lily !== player.color) return null;
-
-    const raw = board.toArray();
-    raw[idx] = code;
-    const captured = applyCaptures(raw, size, x, y, code, (i) => this.isWarded(i));
-    if (captured.length === 0 && isSuicide(raw, size, x, y)) return null;
-
     board[idx] = code;
     for (const { point } of captured) board[boardIndex(size, point.x, point.y)] = 0;
     if (lily) this.removeEffectsAt("lily", idx);
@@ -924,6 +958,30 @@ export class GoRoom extends Room<GoState> {
     this.creditPrisoners(player, captured);
     player.fireflies += this.captureFireflies(player, captured.length);
     return captured.length;
+  }
+
+  /**
+   * The rules placeStoneFor goes by, on a plain board: puts `code` on (x, y) of
+   * `raw` and lifts what it captures, or returns null and leaves `raw` as it was
+   * when the point is off the board, taken, burning, fogged, under a rival's
+   * lily pad, or the stone would have no liberties. A Stone Card is tried out
+   * on a copy with this before any of its stones touch the synced board.
+   */
+  private landStone(raw: number[], color: number, x: number, y: number, code: number): Captured[] | null {
+    const size = this.state.size;
+    if (!isOnBoard(size, x, y)) return null;
+    const idx = boardIndex(size, x, y);
+    if (raw[idx] !== 0 || this.isBurning(idx) || this.isFogged(idx)) return null;
+    const lily = this.lilyOwnerAt(idx);
+    if (lily && lily !== color) return null;
+
+    raw[idx] = code;
+    const captured = applyCaptures(raw, size, x, y, code, (i) => this.isWarded(i));
+    if (captured.length === 0 && isSuicide(raw, size, x, y)) {
+      raw[idx] = 0; // nothing was lifted, so this is all there is to undo
+      return null;
+    }
+    return captured;
   }
 
   /** A stone or an item ends the run of passes: every seat may play on again. */
@@ -1017,8 +1075,8 @@ export class GoRoom extends Room<GoState> {
     // The stall's copies are shared by the table, and nobody may take more than their share.
     const refused = stallRefusal(stall, copiesBought(player.bought, definition.id));
     if (refused) return refused;
-    if (player.powerups.length >= SATCHEL_LIMIT) {
-      return `Your satchel only holds ${SATCHEL_LIMIT} items. Use something first.`;
+    if (player.powerups.length >= HAND_LIMIT) {
+      return `Your hand only holds ${HAND_LIMIT} cards. Play one first.`;
     }
     if (definition.removal && this.powerfulHeld(player) >= POWERFUL_LIMIT) {
       return `You can only carry ${POWERFUL_LIMIT} powerful item at a time.`;
@@ -1051,6 +1109,7 @@ export class GoRoom extends Room<GoState> {
     const player = this.state.players[playerIndex];
     const inventoryIndex = player.powerups.findIndex((id) => id === message?.id);
     if (inventoryIndex === -1) return "";
+    if (message.id === STONE_CARD) return this.applyPlayCard(playerIndex, message.target);
 
     const definition = getPowerup(message.id);
     if (!definition) return "";
@@ -1101,6 +1160,102 @@ export class GoRoom extends Room<GoState> {
     const at = (definition.points ?? 1) >= 2 ? target2! : target!;
     this.recordAction("powerup", definition.id, at.x, at.y, player.color);
     this.state.lastEvent = `${player.name} used ${definition.name}`;
+    this.advanceTurn();
+    return null;
+  }
+
+  // ---- the Stone Card (rules/stoneCard.ts) -------------------------------------
+
+  /** The seat's card while it is still in the hand, else null. */
+  private cardInHand(player: PlayerState): number[] | null {
+    if (player.card.length !== CARD_CELLS || !player.powerups.includes(STONE_CARD)) return null;
+    return Array.from(player.card);
+  }
+
+  private handleUpgradeCard(client: Client, message: UpgradeCardMessage) {
+    const playerIndex = this.findPlayerIndex(client.sessionId);
+    if (playerIndex === -1) return;
+    const refused = this.applyUpgradeCard(playerIndex, message);
+    if (refused) this.notice(client, refused);
+  }
+
+  /**
+   * One more stone on the card, on an empty cell the player picks. Free to do
+   * at any time in the game, turn or not; it only costs fireflies, more for
+   * every stone already added.
+   */
+  private applyUpgradeCard(playerIndex: number, message: UpgradeCardMessage): string | null {
+    if (!message || typeof message !== "object") return "";
+    if (this.state.status !== "playing") return "";
+    const player = this.state.players[playerIndex];
+    const card = this.cardInHand(player);
+    if (!card) return "";
+    const { cell } = message;
+    if (!Number.isInteger(cell) || cell < 0 || cell >= CARD_CELLS || cell === CARD_CENTRE) return "";
+    if (card[cell] !== CARD_EMPTY) return "";
+    const cost = nextUpgradeCost(card);
+    if (cost === null) return "Your Stone Card is full.";
+    if (player.fireflies < cost) return `Not enough fireflies: the next stone on your card costs ${cost}.`;
+
+    player.fireflies -= cost;
+    player.card[cell] = cellFor(message.axis === "pattern" ? "pattern" : "base");
+    this.state.lastEvent = `${player.name} added a stone to their Stone Card (${upgradesDone(card) + 1} of ${CARD_UPGRADES})`;
+    return null;
+  }
+
+  private handleCardCentre(client: Client, message: CardCentreMessage) {
+    const playerIndex = this.findPlayerIndex(client.sessionId);
+    if (playerIndex === -1) return;
+    const refused = this.applyCardCentre(playerIndex, message);
+    if (refused) this.notice(client, refused);
+  }
+
+  /** The front of the card's centre stone: the player's to choose, for free, until the first stone is added. */
+  private applyCardCentre(playerIndex: number, message: CardCentreMessage): string | null {
+    if (this.state.status === "finished") return "";
+    const player = this.state.players[playerIndex];
+    const card = this.cardInHand(player);
+    if (!card) return "";
+    if (upgradesDone(card) > 0) return "The centre stone is set once a stone has been added to the card.";
+    player.card[CARD_CENTRE] = cellFor(message?.axis === "pattern" ? "pattern" : "base");
+    return null;
+  }
+
+  /**
+   * Plays the Stone Card as the turn: its stones land centre first, then the
+   * ring clockwise from the top-left, each as if placed on its own. A stone
+   * whose point is taken (or burning, fogged, a rival's lily pad, off the
+   * board, or without liberties) is simply not placed, and whatever stands
+   * there is left alone. Tried out on a copy first, so a card that would land
+   * nothing, or bring back an earlier board (ko), changes nothing at all.
+   */
+  private applyPlayCard(playerIndex: number, t: { x: number; y: number } | undefined): string | null {
+    const player = this.state.players[playerIndex];
+    const card = this.cardInHand(player);
+    if (!card) return "";
+    const size = this.state.size;
+    if (!t || typeof t.x !== "number" || typeof t.y !== "number" || !isOnBoard(size, t.x, t.y)) {
+      return "The Stone Card needs a point on the board for its centre.";
+    }
+    const centre = { x: t.x, y: t.y };
+    const landings = cardLandings(card, centre, player.color, size);
+
+    const trial = this.state.board.toArray();
+    let landed = 0;
+    for (const s of landings) if (this.landStone(trial, player.color, s.x, s.y, s.code) !== null) landed += 1;
+    if (landed === 0) return "None of the card's stones would land there.";
+    if (this.positions.repeats(trial)) return "Ko: that would bring back a board position that has stood before.";
+
+    let captured = 0;
+    for (const s of landings) captured += this.placeStoneFor(playerIndex, s.x, s.y, s.code) ?? 0;
+    player.powerups.splice(player.powerups.indexOf(STONE_CARD), 1);
+    player.card.clear();
+
+    this.clearPasses();
+    this.recordAction("powerup", STONE_CARD, centre.x, centre.y, player.color);
+    this.state.lastEvent =
+      `${player.name} played their Stone Card: ${landed} stone${landed === 1 ? "" : "s"}` +
+      `${captured ? `, captured ${captured}` : ""}`;
     this.advanceTurn();
     return null;
   }

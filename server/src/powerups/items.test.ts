@@ -187,7 +187,7 @@ test("Seedling remembers the axis it was planted with", () => {
 
 // ---- tier 2 -----------------------------------------------------------------------
 
-test("Kite shows an enemy player's satchel and fireflies to the user only", () => {
+test("Kite shows an enemy player's hand and fireflies to the user only", () => {
   const t = table();
   t.put(2, 2, stoneCode(3, "base"));
   t.state.players[2].fireflies = 42;

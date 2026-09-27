@@ -49,8 +49,10 @@ export interface BotView {
   bought: string[];
   shopAfter: number;
   market: MarketRow[];
-  satchelLimit: number;
+  handLimit: number;
   powerfulLimit: number;
+  /** The Stone Card's 9 cells while it is in the hand (rules/stoneCard.ts). Absent or empty means none. */
+  card?: number[];
   isWarded(idx: number): boolean;
   lilyOwnerAt(idx: number): number;
   isBurning(idx: number): boolean;

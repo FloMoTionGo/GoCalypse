@@ -426,7 +426,7 @@ const PLANNERS: Record<string, (view: BotView, style: Style, ranked: Candidate[]
   echo_chime: (view, style, ranked) => planEcho(view, style, ranked),
 };
 
-/** The best use of anything in the satchel that takes the turn, already scored against the board. */
+/** The best use of anything in the hand that takes the turn, already scored against the board. */
 export function planItem(view: BotView, style: Style, ranked: Candidate[]): ItemPlan | null {
   let best: ItemPlan | null = null;
   for (const id of new Set(view.powerups)) {
@@ -462,7 +462,7 @@ function stoneAhead(view: BotView, style: Style, ranked: Candidate[]): boolean {
 
 /**
  * The items that don't take the turn, one at a time: the room uses it and asks
- * again, so each rule below sees the satchel and the flags as they now stand.
+ * again, so each rule below sees the hand and the flags as they now stand.
  * Each fires only while its effect is not lit yet, so the asking ends.
  *
  *  - Stepping Stones and Mist whenever a stone is coming: two stones for one
@@ -471,7 +471,7 @@ function stoneAhead(view: BotView, style: Style, ranked: Candidate[]): boolean {
  *  - Twin Wick when the best twin point beats the best plain one by more than
  *    half a capture: a twin is lost on either front, so it has to earn that;
  *  - Kite at once, on any rival stone. A bot reads nothing from it -- the
- *    reveal is for people -- but the satchel slot is worth more than a kite.
+ *    reveal is for people -- but the hand slot is worth more than a kite.
  */
 export function chooseFree(view: BotView, style: Style, ranked: Candidate[]): FreeUse | null {
   if (style.shopping.length === 0) return null; // a bot that never shops never uses anything either
@@ -500,7 +500,7 @@ export function chooseFree(view: BotView, style: Style, ranked: Candidate[]): Fr
  */
 export function chooseBuy(view: BotView, style: Style): string | null {
   if (view.moves < view.shopAfter) return null;
-  if (view.powerups.length >= view.satchelLimit) return null;
+  if (view.powerups.length >= view.handLimit) return null;
 
   const held = (id: string) => view.market.find((m) => m.id === id);
   const powerfulInHand = view.powerups.filter((id) => held(id)?.removal).length;
