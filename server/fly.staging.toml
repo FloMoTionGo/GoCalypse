@@ -1,0 +1,36 @@
+app = "gocalypse-staging"
+primary_region = "fra"
+
+# Staging: a second app for trying feature branches before they reach
+# production (fly.toml). Deploy from server/ with
+#   fly deploy -c fly.staging.toml
+# and point a client at it with ?server=wss://gocalypse-staging.fly.dev
+#
+# One-time setup:
+#   fly apps create gocalypse-staging
+#   fly volumes create gocalypse_staging_data --region fra --size 1 -a gocalypse-staging
+
+[build]
+
+[env]
+  DATA_DIR = "/data"
+
+[mounts]
+  source = "gocalypse_staging_data"
+  destination = "/data"
+
+# Stops when idle so it costs next to nothing; the first connection after
+# that waits a second or two for a cold start.
+[http_service]
+  internal_port = 2567
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  interval = "10s"
+  timeout = "2s"
+  grace_period = "5s"
+  method = "GET"
+  path = "/healthz"
