@@ -41,7 +41,6 @@ const welcomeBotsIntroEl = document.getElementById("welcome-bots-intro");
 const welcomeBotListEl = document.getElementById("welcome-bot-list");
 const welcomeBotsAddButton = document.getElementById("welcome-bots-add");
 const welcomeBotsNoteEl = document.getElementById("welcome-bots-note");
-const lobbyBotListEl = document.getElementById("lobby-bot-list");
 const boardHintEl = document.getElementById("board-hint");
 const weatherEl = document.getElementById("weather");
 
@@ -99,6 +98,12 @@ if (hashParams.has("autojoin")) {
 }
 
 joinButton.addEventListener("click", connect);
+// Enter in the name field plays, through the very button the lobby board's Start stone clicks.
+nameInput.addEventListener("keydown", (evt) => {
+  if (evt.key !== "Enter" || joinButton.disabled) return;
+  evt.preventDefault();
+  joinButton.click();
+});
 boardEl.addEventListener("mousemove", (evt) => (hoverPoint = eventPoint(evt)));
 boardEl.addEventListener("mouseleave", () => (hoverPoint = null));
 document.getElementById("recall-back").addEventListener("click", () => stepRecall(1));
@@ -119,6 +124,13 @@ boardEl.addEventListener("click", onBoardClick);
 boardEl.addEventListener("contextmenu", onBoardRightClick);
 window.addEventListener("resize", sizeCanvas);
 helpButton.addEventListener("click", () => lastState && openWelcome(lastState));
+// The home screen's "How to play" (#home-help in the lobby's markup). Delegated, so it works
+// whenever that element exists; before joining there is no room, and openWelcome says the general rules.
+document.addEventListener("click", (evt) => {
+  if (!evt.target.closest || !evt.target.closest("#home-help")) return;
+  evt.preventDefault();
+  openWelcome(lobbyEl.hidden ? lastState : null);
+});
 welcomeCloseButton.addEventListener("click", () => welcomeEl.close());
 botsButton.addEventListener("click", () => {
   if (!lastState) return;
@@ -873,19 +885,36 @@ function stoneChip(code) {
   return chip;
 }
 
+// What the welcome screen says before there is a room to read it from (the home screen's
+// "How to play"). Mirrors SHOP_AFTER_MOVES / HAND_LIMIT / STORM_EVERY_TURNS in server/src/rooms/GoRoom.ts
+// and MARKET_TIER_SLOTS in server/src/powerups/definitions.ts.
+const WELCOME_DEFAULTS = { shopAfter: 5, handLimit: 5, stormEvery: 20, stalls: [3, 2, 1] };
+
+/**
+ * The welcome screen: how to play, the bots menu while the room waits, and tonight's
+ * market. `state` is null on the home screen: then it tells the general rules
+ * (no seat, no market yet) and closes back to the home screen.
+ */
 function openWelcome(state) {
-  const color = myPlayer ? myPlayer.color : 1;
+  const seated = !!state && !!myPlayer;
+  const color = seated ? myPlayer.color : 1;
   const [base, pattern] = LOOK_NAMES[color] || LOOK_NAMES[1];
 
-  document.getElementById("welcome-you").textContent =
-    `You play ${base} with ${pattern}. Every move, you choose which of the two your stone fights with:`;
+  document.getElementById("welcome-you").textContent = seated
+    ? `You play ${base} with ${pattern}. Every move, you choose which of the two your stone fights with:`
+    : `Each player gets one solid stone (black or white) and one of the other front (gray or transparent), ` +
+      `for example black with gray. Every move, you choose which of the two your stone fights with:`;
   document.getElementById("welcome-base-icon").replaceChildren(stoneChip(color));
   document.getElementById("welcome-pattern-icon").replaceChildren(stoneChip(color + 4));
 
   // Rates mirror FIREFLIES_PER_MOVE / _PER_CAPTURE / CONSOLATION_PER_STONE in server/src/rooms/GoRoom.ts.
   // Stock and shares are synced per stall (stallCopies / fairShare in server/src/powerups/definitions.ts).
-  const stalls = Array.from(state.market);
+  const stalls = state ? Array.from(state.market) : [];
   const perTier = [1, 2, 3].map((tier) => stalls.filter((m) => m.tier === tier));
+  const tierCounts = state ? perTier.map((list) => list.length) : WELCOME_DEFAULTS.stalls;
+  const shopAfter = state ? state.shopAfter : WELCOME_DEFAULTS.shopAfter;
+  const handLimit = state ? state.handLimit : WELCOME_DEFAULTS.handLimit;
+  const stormEvery = state ? state.storm.every : WELCOME_DEFAULTS.stormEvery;
   const [cozy, tactical, powerful] = perTier.map((list) => list.find((m) => m.stock > 0));
   const stockText =
     cozy && tactical && powerful
@@ -896,10 +925,11 @@ function openWelcome(state) {
   document.getElementById("welcome-economy").textContent =
     `You earn fireflies: 3 for every stone you place and 5 for every stone you capture. ` +
     `If someone's item removes one of your stones, you get 3 back. ` +
-    `Once you've placed ${state.shopAfter} stones, the Night Market opens in the sidebar. It has ${stalls.length} stalls ` +
-    `a night: ${perTier[0].length} cozy, ${perTier[1].length} tactical and ${perTier[2].length} powerful. ` +
+    `Once you've placed ${shopAfter} stones, the Night Market opens in the sidebar. It has ` +
+    `${tierCounts[0] + tierCounts[1] + tierCounts[2]} stalls a night: ${tierCounts[0]} cozy, ${tierCounts[1]} tactical ` +
+    `and ${tierCounts[2]} powerful. ` +
     stockText +
-    `Your hand holds ${state.handLimit} cards under the board: every item you buy flies into it as a card. ` +
+    `Your hand holds ${handLimit} cards under the board: every item you buy flies into it as a card. ` +
     `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels). ` +
     `One place is taken from the start by your Stone Card, an empty 3x3 board. Click a point on it to put your solid ` +
     `stone there: the first is free, the next costs 100 fireflies and each one after it 25 more, up to all nine. Click a ` +
@@ -909,7 +939,7 @@ function openWelcome(state) {
 
   // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
   document.getElementById("welcome-weather").textContent =
-    `Every ${state.storm.every} turns a D20 is rolled behind the clouds, plus 1 for every calm roll since the last ` +
+    `Every ${stormEvery} turns a D20 is rolled behind the clouds, plus 1 for every calm roll since the last ` +
     `storm. At 20 or more a thunderstorm breaks: the night darkens, rain sweeps the board for ten seconds and up to ` +
     `three bolts come down on random points. Whatever stands there catches fire and burns away three rounds later, ` +
     `and nobody can play on a burning point until the fire goes out. A fainter storm hangs over the river for all ` +
@@ -917,21 +947,29 @@ function openWelcome(state) {
     `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll.`;
 
   // Mirrors territoryScore / finalResults in server/src/rules/endgame.ts.
+  const yourTwo = seated ? `your ${base} total and your ${pattern} total` : `your two totals, one per front`;
+  const sharers = seated
+    ? `Players who also hold ${base} share the ${base} territory, and players who also hold ${pattern} share ` +
+      `the ${pattern} territory`
+    : `Players who hold the same colour share its territory`;
   document.getElementById("welcome-scoring").textContent =
-    `The board is counted the Japanese way: only territory, the empty points your side walls in on its own. ` +
-    `A stone is worth nothing in itself, only the ground it surrounds. On top of that you count your ` +
-    `prisoners: the stones you captured yourself on that side. ` +
-    `You play ${base} with ${pattern}, so your score is the lower of your ${base} total and your ${pattern} total; ` +
-    `the higher one only breaks ties. Players who also hold ${base} share the ${base} territory, and players ` +
-    `who also hold ${pattern} share the ${pattern} territory -- but prisoners are yours alone, so take the ` +
-    `capture rather than leave it to them. Nothing is taken off as dead at the end: capture what should go ` +
-    `before you pass.`;
+    `The board is then counted once on each front, the Japanese way: only territory, the empty points your side ` +
+    `walls in on its own. A stone is worth nothing in itself, only the ground it surrounds, and a stone that is a ` +
+    `wall on a front counts for no one there. On top of that you count your prisoners: the stones you captured ` +
+    `yourself on that side. Your score is the lower of ${yourTwo}; the higher one only breaks ties. ` +
+    `${sharers} -- but prisoners are yours alone, so take the capture rather than leave it to them. ` +
+    `Nothing is taken off as dead at the end: capture what should go before you pass.`;
 
   renderWelcomeBots(state);
 
   const list = document.getElementById("welcome-powerups");
   list.replaceChildren();
-  for (const m of Array.from(state.market)) {
+  if (!state) {
+    const note = document.createElement("p");
+    note.textContent = "Each night the market stocks a few of eighteen items. Tonight's are listed here once you sit down.";
+    list.append(note);
+  }
+  for (const m of stalls) {
     const row = document.createElement("div");
     row.className = "welcome-item";
     const text = document.createElement("div");
@@ -947,6 +985,14 @@ function openWelcome(state) {
     row.append(spriteImg(`icon_${m.id}`, G.powerupIcon(m.id) || G.SPRITES.fireflyIcon, 2), text);
     list.appendChild(row);
   }
+
+  // How the window is left: before joining, back to the home screen; the first time at a table, to play;
+  // reopened later, back to the game.
+  document.getElementById("welcome-footer").textContent = !state
+    ? "Click anywhere outside this window to get back to the home screen."
+    : welcomeSeen()
+    ? "Click anywhere outside this window to get back to the game."
+    : "Click anywhere outside this window to start.";
 
   if (!welcomeEl.open) welcomeEl.showModal();
 }
@@ -1008,7 +1054,7 @@ function pickedIds() {
 
 /** Bots can be added by someone at the table, before the game starts, while there is room. */
 function botMenuAvailable(state) {
-  return !!myPlayer && state.status === "waiting" && botRoom(state) > 0;
+  return !!state && !!myPlayer && state.status === "waiting" && botRoom(state) > 0;
 }
 
 function renderBotMenu(state) {
@@ -1026,6 +1072,7 @@ function buildBotRows(listEl) {
     const who = document.createElement("div");
     who.className = "who";
     const name = document.createElement("span");
+    name.className = "name";
     name.textContent = option.name;
     const kind = document.createElement("span");
     kind.className = "kind";
@@ -1106,18 +1153,28 @@ function trimPicks(cap) {
 }
 
 /** The home screen's menu: bots to bring along before there is a room at all. */
+/**
+ * The home screen's picks are made on the lobby board (lobbyBoard.js, through
+ * changePick); `botPicks` is the model, and the play button's label says what
+ * joining will do. A lobby without that board (its markup still shows the
+ * #lobby-bots list) gets the list of steppers instead, kept in step here.
+ */
 function renderLobbyBots() {
-  if (!lobbyBotListEl.firstChild) buildBotRows(lobbyBotListEl);
-  updateBotRows(lobbyBotListEl, MAX_BOTS);
+  const list = document.getElementById("lobby-bot-list");
+  if (list && !list.closest("[hidden]")) {
+    if (!list.firstChild) buildBotRows(list);
+    updateBotRows(list, MAX_BOTS);
+  }
   const n = pickedTotal();
-  joinButton.textContent = n === 0 ? "Join Game" : `Start with ${n} bot${n === 1 ? "" : "s"}`;
+  joinButton.textContent = n === 0 ? "Play online" : `Play with ${n} bot${n === 1 ? "" : "s"}`;
 }
 
 function renderWelcomeBots(state) {
   const show = botMenuAvailable(state);
   welcomeBotsEl.hidden = !show;
   if (!show) {
-    botPicks.clear();
+    // On the home screen (no room yet) the picks belong to the lobby board: keep them.
+    if (state) botPicks.clear();
     return;
   }
   if (!welcomeBotListEl.firstChild) buildBotRows(welcomeBotListEl);

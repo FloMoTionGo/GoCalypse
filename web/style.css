@@ -120,6 +120,11 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .welcome-body { padding: 18px 22px 16px; max-height: calc(88vh - 4px); overflow-y: auto; font-size: 14px; line-height: 1.4; }
 .welcome-body h2 { margin: 0 32px 2px 0; color: var(--amber); font-size: 20px; }
 .welcome-body h3 { margin: 16px 0 6px; font-size: 13px; color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
+/* The welcome screen's reference sections: folded under a heading that reads like the h3s above. */
+.welcome-more { margin: 10px 0 0; border-top: 1px solid var(--teal); padding-top: 8px; }
+.welcome-more > summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
+.welcome-more > summary:hover, .welcome-more > summary:focus-visible { color: var(--cream); }
+.welcome-more[open] > summary { margin-bottom: 6px; }
 .welcome-body p { margin: 6px 0; }
 .welcome-tagline { color: var(--slate); margin-top: 0; }
 .welcome-x {
@@ -157,6 +162,8 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .bot-option .step { width: 26px; height: 26px; padding: 0; font-size: 16px; line-height: 20px; }
 .bot-option .count { min-width: 14px; text-align: center; font-weight: 700; font-size: 16px; }
 .bot-option .who { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-weight: 700; }
+.bot-option .name { color: var(--amber); } /* as on the lobby board */
+.bot-option.picked .name { color: var(--cream); }
 .bot-option .kind { color: var(--slate); font-size: 12px; font-weight: 400; }
 .bot-option.picked .kind, .bot-option.picked .desc { color: var(--cream); }
 .bot-option .desc { color: var(--slate); font-size: 13px; font-weight: 400; }
