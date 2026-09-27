@@ -447,6 +447,11 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
   line-height: 1;
   letter-spacing: 0.06em;
 }
-.card.zoom .card-hint, .card.zoom .card-cell { display: none; }
+/* The zoom only shows a card, except the Stone Card's, which is a live copy standing on the hand's card
+   (showCardZoom in main.js): its points can be clicked there at 400%. */
+.card.zoom .card-hint, .card.zoom:not(.live) .card-cell { display: none; }
+.card.zoom.live, .card.zoom.live:hover:not(:disabled) { pointer-events: auto; cursor: pointer; transform: none; }
+.card.zoom.again { animation: none; } /* rebuilt under the pointer after a click: no second pop */
+.card-cell.set:hover:not(:disabled), .card-cell.set:focus-visible { box-shadow: inset 0 0 0 var(--card-px) var(--amber); }
 /* Each seat's card, small, at the end of its row in the players list: rivals may look. */
 .player-row .card-mini { margin-left: auto; flex-shrink: 0; width: 27px; height: 27px; image-rendering: pixelated; }

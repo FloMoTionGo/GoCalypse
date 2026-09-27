@@ -15,7 +15,7 @@ import {
   CARD_PATTERN,
   cardLandings,
   LANDING_ORDER,
-  nextUpgradeCost,
+  nextStoneCost,
   STONE_CARD,
 } from "../rules/stoneCard";
 import { BOT_CARD_STONES, chooseCardUpgrade, planCard } from "../bots/card";
@@ -51,15 +51,15 @@ function table(debug = false) {
   };
 }
 
-test("the card costs 100 for its first stone and 25 more for each after, 8 in all", () => {
-  const card = [0, 0, 0, 0, CARD_BASE, 0, 0, 0, 0];
+test("the first stone on the card is free, then 100 and 25 more for each after, 9 in all", () => {
+  const card = [0, 0, 0, 0, 0, 0, 0, 0, 0];
   const costs: number[] = [];
-  for (const cell of [0, 1, 2, 3, 5, 6, 7, 8]) {
-    costs.push(nextUpgradeCost(card)!);
+  for (const cell of [4, 0, 1, 2, 3, 5, 6, 7, 8]) {
+    costs.push(nextStoneCost(card)!);
     card[cell] = CARD_BASE;
   }
-  assert.deepEqual(costs, [100, 125, 150, 175, 200, 225, 250, 275]);
-  assert.equal(nextUpgradeCost(card), null);
+  assert.deepEqual(costs, [0, 100, 125, 150, 175, 200, 225, 250, 275]);
+  assert.equal(nextStoneCost(card), null);
 });
 
 test("stones land centre first, then the ring clockwise from the top-left, never rotated", () => {
@@ -81,51 +81,78 @@ test("stones land centre first, then the ring clockwise from the top-left, never
   assert.equal(cardLandings(full, { x: 0, y: 0 }, 3, 13).length, 4);
 });
 
-test("every seat is dealt a Stone Card, in its hand, with a base stone in the middle", () => {
+test("every seat is dealt an empty Stone Card, in its hand", () => {
   const t = table();
   for (const p of t.state.players) {
     assert.deepEqual(Array.from(p.powerups), [STONE_CARD]);
-    assert.deepEqual(Array.from(p.card), [0, 0, 0, 0, CARD_BASE, 0, 0, 0, 0]);
+    assert.deepEqual(Array.from(p.card), [0, 0, 0, 0, 0, 0, 0, 0, 0]);
   }
   t.close();
 });
 
-test("a stone is added at any time, on or off turn, for fireflies", () => {
+test("a stone goes on any empty point, at any time, on or off turn: the first free, then for fireflies", () => {
   const t = table();
   const off = t.state.players[t.offTurn()];
   off.fireflies = 230;
   assert.equal(t.room.applyUpgradeCard(t.offTurn(), { cell: 0, axis: "pattern" }), null);
-  assert.equal(off.fireflies, 130);
+  assert.equal(off.fireflies, 230, "the first stone is free");
   assert.equal(off.card[0], CARD_PATTERN);
+  assert.equal(t.room.applyUpgradeCard(t.offTurn(), { cell: CARD_CENTRE }), null);
+  assert.equal(off.fireflies, 130);
+  assert.equal(off.card[CARD_CENTRE], CARD_BASE);
   assert.equal(t.room.applyUpgradeCard(t.offTurn(), { cell: 8 }), null);
   assert.equal(off.fireflies, 5);
-  assert.equal(off.card[8], CARD_BASE);
   assert.match(t.room.applyUpgradeCard(t.offTurn(), { cell: 1 }), /costs 150/);
   assert.equal(off.fireflies, 5);
   t.close();
 });
 
-test("a stone can't go on the centre or on a cell that already has one", () => {
+test("a stone can't go on a point that already has one, or off the card", () => {
   const t = table();
   const me = t.state.players[0];
   me.fireflies = 1000;
-  assert.equal(t.room.applyUpgradeCard(0, { cell: CARD_CENTRE }), "");
   assert.equal(t.room.applyUpgradeCard(0, { cell: 2 }), null);
   assert.equal(t.room.applyUpgradeCard(0, { cell: 2 }), "");
   assert.equal(t.room.applyUpgradeCard(0, { cell: 9 }), "");
-  assert.equal(me.fireflies, 900);
+  assert.equal(t.room.applyUpgradeCard(0, { cell: -1 }), "");
+  assert.equal(me.fireflies, 1000);
   t.close();
 });
 
-test("the centre stone's front is the player's choice until the first stone is added", () => {
+test("a stone on the card switches front for free, and comes off again for no refund", () => {
   const t = table();
   const me = t.state.players[0];
   me.fireflies = 100;
-  assert.equal(t.room.applyCardCentre(0, { axis: "pattern" }), null);
-  assert.equal(me.card[CARD_CENTRE], CARD_PATTERN);
+  t.room.applyUpgradeCard(0, { cell: 4 }); // free
+  t.room.applyUpgradeCard(0, { cell: 0 }); // 100
+  assert.equal(me.fireflies, 0);
+  assert.equal(t.room.applyFlipCardStone(0, { cell: 0 }), null);
+  assert.equal(me.card[0], CARD_PATTERN);
+  assert.equal(t.room.applyFlipCardStone(0, { cell: 0 }), null);
+  assert.equal(me.card[0], CARD_BASE);
+  assert.equal(t.room.applyFlipCardStone(0, { cell: 1 }), "", "nothing to switch on an empty point");
+  assert.equal(t.room.applyRemoveCardStone(0, { cell: 0 }), null);
+  assert.equal(me.card[0], 0);
+  assert.equal(me.fireflies, 0, "no refund");
+  assert.equal(t.room.applyRemoveCardStone(0, { cell: 0 }), "");
+  // The next stone costs what the one taken off did, never less.
+  me.fireflies = 100;
+  assert.equal(t.room.applyUpgradeCard(0, { cell: 8 }), null);
+  assert.equal(me.fireflies, 0);
+  // Off the whole card, the first stone is free again.
+  t.room.applyRemoveCardStone(0, { cell: 4 });
+  t.room.applyRemoveCardStone(0, { cell: 8 });
   assert.equal(t.room.applyUpgradeCard(0, { cell: 3 }), null);
-  assert.match(t.room.applyCardCentre(0, { axis: "base" }), /set once/);
-  assert.equal(me.card[CARD_CENTRE], CARD_PATTERN);
+  assert.equal(me.fireflies, 0);
+  t.close();
+});
+
+test("an empty card can't be played", () => {
+  const t = table();
+  const seat = t.onTurn();
+  assert.match(t.room.applyUsePowerup(seat, { id: STONE_CARD, target: { x: 6, y: 6 } }), /empty/);
+  assert.deepEqual(Array.from(t.state.players[seat].powerups), [STONE_CARD]);
+  assert.equal(t.onTurn(), seat);
   t.close();
 });
 
@@ -166,6 +193,7 @@ test("the card lands off the edge only as far as the board goes", () => {
 test("a card that would land nothing is refused, and kept, and the turn stays", () => {
   const t = table();
   const seat = t.onTurn();
+  t.state.players[seat].card[CARD_CENTRE] = CARD_BASE;
   t.put(4, 4, stoneCode(t.state.players[t.offTurn()].color, "base"));
   assert.match(t.room.applyUsePowerup(seat, { id: STONE_CARD, target: { x: 4, y: 4 } }), /None of the card/);
   assert.deepEqual(Array.from(t.state.players[seat].powerups), [STONE_CARD]);
@@ -233,15 +261,18 @@ function botView(over: Partial<BotView> = {}): BotView {
   };
 }
 
-test("a bot adds stones by its purse habits: eager, careful, or never", () => {
+test("every bot takes the free first stone, then adds by its purse habits: eager, careful, or never", () => {
   const rng = new Rng(7);
+  const empty = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for (const style of [magpie(), heron(), reed()]) {
+    assert.notEqual(chooseCardUpgrade(botView({ card: empty, fireflies: 0 }), style, rng), null, style.name);
+  }
   assert.equal(chooseCardUpgrade(botView({ fireflies: 99 }), magpie(), rng), null);
-  const cell = chooseCardUpgrade(botView({ fireflies: 100 }), magpie(), rng);
-  assert.ok(cell !== null && cell !== CARD_CENTRE);
+  assert.notEqual(chooseCardUpgrade(botView({ fireflies: 100 }), magpie(), rng), null);
   // Heron is careful (itemBias < 0): it keeps as much again as the stone costs.
   assert.equal(chooseCardUpgrade(botView({ fireflies: 150 }), heron(), rng), null);
   assert.notEqual(chooseCardUpgrade(botView({ fireflies: 200 }), heron(), rng), null);
-  // Reed never shops, so it never adds a stone either.
+  // Reed never shops, so it never pays for a stone.
   assert.equal(chooseCardUpgrade(botView({ fireflies: 5000 }), reed(), rng), null);
 });
 
@@ -251,15 +282,15 @@ test("a bot only ever adds its main (base) stone", () => {
   me.bot = true; // the others stay people: a table of nothing but bots closes itself
   t.room.botStyles.set(me.sessionId, magpie());
   for (const stall of t.state.market) stall.left = 0; // nothing to buy: the purse goes to the card
-  me.fireflies = 230; // two stones (100 + 125), so the card can still grow and is kept
+  me.fireflies = 230; // the free stone, then 100 + 125: three, so the card can still grow and is kept
   t.room.runBotTurn();
-  const added = Array.from(me.card as number[]).filter((c, i) => i !== CARD_CENTRE && c !== 0);
-  assert.equal(added.length, 2);
-  assert.ok(added.every((c) => c === CARD_BASE));
+  const stones = Array.from(me.card as number[]).filter((c) => c !== 0);
+  assert.equal(stones.length, 3);
+  assert.ok(stones.every((c) => c === CARD_BASE));
   t.close();
 });
 
-test("a bot stops adding at 5 stones of 9, the centre included", () => {
+test("a bot stops adding at 5 stones of 9", () => {
   assert.equal(BOT_CARD_STONES, 5);
   const rng = new Rng(3);
   const four = botView({ card: [1, 0, 1, 0, 1, 0, 0, 1, 0], fireflies: 5000 });

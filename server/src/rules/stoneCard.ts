@@ -1,10 +1,12 @@
 import { isOnBoard, Point, stoneCode, StoneView } from "./goRules";
 
-// The Stone Card: every player is dealt one at the start, a 3x3 go board with
-// one of their stones in the middle. It sits in the hand like an item, but it
-// is never sold. Its owner may add stones to it for fireflies at any time, and
-// playing it takes a turn: all its stones land on the board at once, around a
-// centre point the player picks, in the card's own orientation (no rotation).
+// The Stone Card: every player is dealt one at the start, an empty 3x3 go
+// board. It sits in the hand like an item, but it is never sold. Its owner puts
+// stones on it at any time -- the first for free, each one after that for
+// fireflies -- may switch a stone to their other front or take it off again
+// (no refund), and playing it takes a turn: all its stones land on the board at
+// once, around a centre point the player picks, in the card's own orientation
+// (no rotation).
 //
 // PlayerState.card holds the 3x3 grid row by row (index = (dy + 1) * 3 + dx + 1),
 // each cell one of CARD_EMPTY / CARD_BASE / CARD_PATTERN: which of the owner's
@@ -18,34 +20,36 @@ export const CARD_CENTRE = 4;
 export const CARD_EMPTY = 0;
 export const CARD_BASE = 1;
 export const CARD_PATTERN = 2;
-/** Stones that can be added: every cell but the centre, which the card starts with. */
-export const CARD_UPGRADES = CARD_CELLS - 1;
 
-const FIRST_UPGRADE_COST = 100;
-const UPGRADE_COST_STEP = 25;
+const SECOND_STONE_COST = 100;
+const STONE_COST_STEP = 25;
 
-/** A fresh card: its centre stone on `axis`, the rest empty. */
-export function newCard(axis: StoneView = "base"): number[] {
-  const card = new Array(CARD_CELLS).fill(CARD_EMPTY);
-  card[CARD_CENTRE] = cellFor(axis);
-  return card;
+/** A fresh card: all nine points empty. */
+export function newCard(): number[] {
+  return new Array(CARD_CELLS).fill(CARD_EMPTY);
 }
 
 export function cellFor(axis: StoneView): number {
   return axis === "pattern" ? CARD_PATTERN : CARD_BASE;
 }
 
-/** Stones added to the card so far (the centre one is not an upgrade). */
-export function upgradesDone(card: ArrayLike<number>): number {
+/** Stones on the card. */
+export function cardStones(card: ArrayLike<number>): number {
   let n = 0;
-  for (let i = 0; i < card.length; i++) if (i !== CARD_CENTRE && card[i] !== CARD_EMPTY) n++;
+  for (let i = 0; i < card.length; i++) if (card[i] !== CARD_EMPTY) n++;
   return n;
 }
 
-/** Fireflies the next stone costs: 100, 125, 150 ... 275. Null once the card is full. */
-export function nextUpgradeCost(card: ArrayLike<number>): number | null {
-  const done = upgradesDone(card);
-  return done >= CARD_UPGRADES ? null : FIRST_UPGRADE_COST + UPGRADE_COST_STEP * done;
+/**
+ * Fireflies the next stone costs, by how many are on the card now: the first
+ * is free, then 100, 125, 150 ... 275. Null once all nine points are taken.
+ * Taking a stone off refunds nothing, so it only ever lowers the next price
+ * back to what that stone cost.
+ */
+export function nextStoneCost(card: ArrayLike<number>): number | null {
+  const n = cardStones(card);
+  if (n >= CARD_CELLS) return null;
+  return n === 0 ? 0 : SECOND_STONE_COST + STONE_COST_STEP * (n - 1);
 }
 
 /**

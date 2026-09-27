@@ -168,15 +168,16 @@ card, and on your turn you pick a card to use it.
 
 ### The Stone Card
 
-Every player starts with a **Stone Card** in their hand, taking one of its five
-places: a 3x3 go board with one of your stones in the middle. Click that stone
-for your solid one, right click for your gray or transparent one; it's yours
-to switch until you add a second stone. Whenever you have the fireflies, click
-an empty point on the card to add your solid stone there (right click: your
-other one). The first costs **100**, each one after it **25 more** (100, 125 …
-275; 1,500 for all 8). Adding a stone never takes your turn and works while
-others move too. While you can pay for the next stone the card glows, with
-*UPGRADABLE* under it.
+Every player starts with an empty **Stone Card** in their hand, taking one of
+its five places: a 3x3 go board. Click a point on it to put your solid stone
+there. The **first stone is free**, the next costs **100**, each one after it
+**25 more** (100, 125 … 275; 1,500 for all nine). Click a stone on the card to
+switch it to your gray or transparent one, right click to **take it off** again
+(no refund: the next stone then costs what that one did). None of this takes
+your turn, and it works while others move too. The card is small in the hand,
+so hovering it shows a **400% copy** standing on it that you can click just the
+same. While you can pay for the next stone the card glows, with *UPGRADABLE*
+under it.
 
 Playing the card takes your turn: pick it, and a see-through copy of its stones
 follows the pointer over the board (never rotated). The point you click takes
@@ -185,11 +186,12 @@ from its top-left, each like a stone of its own: captures count and pay, but a
 stone whose point is taken, burning, fogged, under someone else's lily pad, off
 the board or without liberties is simply **not placed**, and whatever stands
 there is left alone. A card that would land nothing, or bring back an earlier
-board (ko), is refused and kept. Everyone can see everyone's card beside their
-name. Bots add only their solid stone, on a random point, as their purse habits
-allow (Reed never; Heron keeps as much again in reserve), up to **5 stones of 9**
+board (ko), or an empty card, is refused and kept. Everyone can see everyone's card beside their
+name. Every bot takes the free first stone; after that bots add only their solid
+stone, on a random point, as their purse habits allow (Reed never pays; Heron
+keeps as much again in reserve), up to **5 stones of 9**
 (a full 3x3 block is a clump, not a shape). They play the card once it has those
-5, or if it never grows, or once the table starts passing
+5, or if it pays for none (Reed plays its free one), or once the table starts passing
 (`rules/stoneCard.ts`, `bots/card.ts`).
 
 Some items are **free**: they don't take your turn, you still move afterwards.

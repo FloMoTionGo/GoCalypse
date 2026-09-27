@@ -15,10 +15,11 @@
 </head>
 <body>
 <div id="app">
-  <p class="note">Static mock of the Stone Card: a 3x3 board on a card in the hand. It glows with UPGRADABLE under it
-  while the purse holds the next stone's price (100, then 25 more each). Armed, its stones follow the pointer
-  see-through; the one over a taken point is left out, as it would not be placed. Pick a state below
-  (<code>?state=dealt|growing|poor|full|armed</code>). Sample data only, no server.</p>
+  <p class="note">Static mock of the Stone Card: a 3x3 board on a card in the hand, dealt empty. It glows with
+  UPGRADABLE under it while the purse holds the next stone's price (the first free, then 100 and 25 more each).
+  Hovering it in the game shows a live 400% copy standing on it (<code>?state=zoom</code>). Armed, its stones follow the
+  pointer see-through; the one over a taken point is left out, as it would not be placed. Pick a state below
+  (<code>?state=dealt|growing|poor|full|zoom|armed</code>). Sample data only, no server.</p>
   <div id="picker"></div>
 
   <section id="game">
@@ -59,15 +60,16 @@
 
   const ME = 2; // white + gray
   const STATES = {
-    dealt: { cells: [0, 0, 0, 0, 1, 0, 0, 0, 0], fireflies: 120, hint: "Left click: your white stone · Right click: your gray stone" },
-    growing: { cells: [1, 0, 2, 0, 1, 0, 0, 1, 0], fireflies: 180, hint: "Left click: your white stone · Right click: your gray stone" },
+    dealt: { cells: [0, 0, 0, 0, 0, 0, 0, 0, 0], fireflies: 0, hint: "Left click: your white stone · Right click: your gray stone" },
+    growing: { cells: [1, 0, 2, 0, 1, 0, 0, 1, 0], fireflies: 200, hint: "Left click: your white stone · Right click: your gray stone" },
     poor: { cells: [1, 0, 2, 0, 1, 0, 0, 1, 0], fireflies: 90, hint: "Left click: your white stone · Right click: your gray stone" },
     full: { cells: [1, 2, 1, 2, 1, 2, 1, 2, 1], fireflies: 400, hint: "Left click: your white stone · Right click: your gray stone" },
+    zoom: { cells: [1, 0, 2, 0, 1, 0, 0, 1, 0], fireflies: 200, zoom: true, hint: "Left click: your white stone · Right click: your gray stone" },
     armed: { cells: [1, 0, 2, 0, 1, 2, 0, 1, 0], fireflies: 60, armed: true,
       hint: "Stone Card: click the point for its centre -- the see-through stones are the ones that land. Right click to cancel." },
   };
-  const upgrades = (cells) => cells.filter((c, i) => i !== 4 && c).length;
-  const nextCost = (cells) => (upgrades(cells) >= 8 ? null : 100 + 25 * upgrades(cells));
+  const stones = (cells) => cells.filter((c) => c).length;
+  const nextCost = (cells) => (stones(cells) >= 9 ? null : stones(cells) === 0 ? 0 : 100 + 25 * (stones(cells) - 1));
 
   // ---- scene -----------------------------------------------------------------
   const SIZE = 13, SCALE = 3, scene = P.createScene({ size: SIZE });
@@ -107,14 +109,15 @@
     card.classList.toggle("active", !!st.armed);
     const n = document.createElement("span"); n.className = "card-name"; n.textContent = "Stone Card";
     const t = document.createElement("span"); t.className = "card-text";
-    t.textContent = cost === null
-      ? "Full. Play it on your turn: all nine land around the point you pick."
-      : `${upgrades(st.cells)} of 8 added. Next stone: ${cost} fireflies -- click an empty point, right click for gray.`;
+    const n0 = stones(st.cells);
+    t.textContent = n0 === 0
+      ? "Empty. Click a point for your first stone: it's free."
+      : `${n0} of 9. ${cost === null ? "Full." : `Next stone: ${cost} fireflies.`} Click a stone to switch it, right click to take it off.`;
     card.append(img(`stone_card_${ME}_${st.cells.join("")}`, G.stoneCard(st.cells, ME)), n, t);
     st.cells.forEach((c, i) => {
-      if (i === 4 ? upgrades(st.cells) > 0 : c || !upgradable) return;
+      if (!c && !upgradable) return;
       const cell = document.createElement("button");
-      cell.type = "button"; cell.className = "card-cell";
+      cell.type = "button"; cell.className = c ? "card-cell set" : "card-cell";
       cell.style.setProperty("--col", String(i % 3));
       cell.style.setProperty("--row", String(Math.floor(i / 3)));
       card.append(cell);
@@ -124,6 +127,19 @@
       card.append(hint);
     }
     handEl.append(card);
+    document.querySelectorAll(".card.zoom").forEach((el) => el.remove());
+    if (st.zoom) {
+      // As showCardZoom in main.js: a live copy at 4x, standing on the card, its lower edge a third of the way down it.
+      requestAnimationFrame(() => {
+        const zpx = 4 * k, c = card.getBoundingClientRect();
+        const zoom = card.cloneNode(true);
+        zoom.classList.add("zoom", "live", "again");
+        zoom.style.setProperty("--card-px", zpx + "px");
+        zoom.style.left = Math.max(8, c.left + (c.width - G.CARD_W * zpx) / 2) + "px";
+        zoom.style.top = Math.max(8, c.top + c.height / 3 - G.CARD_H * zpx) + "px";
+        document.body.append(zoom);
+      });
+    }
     for (const [id, name, tier, desc] of [
       ["lily_pad", "Lily Pad", 1, "Reserve an empty point for 3 rounds: only you may place a stone there."],
       ["twin_wick", "Twin Wick", 2, "Your next stone fights on both fronts at once."],

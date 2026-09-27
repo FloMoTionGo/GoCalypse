@@ -1,22 +1,23 @@
 import { applyCaptures, boardIndex, Point } from "../rules/goRules";
-import { CARD_CELLS, CARD_CENTRE, CARD_EMPTY, cardLandings, nextUpgradeCost, STONE_CARD, upgradesDone } from "../rules/stoneCard";
+import { CARD_CELLS, CARD_EMPTY, cardLandings, cardStones, nextStoneCost, STONE_CARD } from "../rules/stoneCard";
 import { Rng } from "./rng";
 import { BotView, pointOf, scoreMove } from "./scoring";
 import { Style } from "./styles";
 
 // The Stone Card, from a bot's side of the table (rules/stoneCard.ts).
 //
-// Adding stones goes by the purse habits a Style already has: a bot that never
-// shops never adds one either, a careful one (itemBias below zero) keeps as
-// much again as the stone costs, and the rest add one whenever they can pay.
-// A bot only ever adds its main (base) stone, on a random empty cell, and
+// Every bot takes the free first stone. After that, adding stones goes by the
+// purse habits a Style already has: a bot that never shops never pays for one,
+// a careful one (itemBias below zero) keeps as much again as the stone costs,
+// and the rest add one whenever they can pay. A bot only ever adds its main
+// (base) stone, on a random empty point, never switches or removes one, and
 // stops at BOT_CARD_STONES: a solid 3x3 block is a clump, not a shape.
 //
 // Playing it waits until the card is as good as it will get -- those five
-// stones, or held by a bot that adds nothing -- or until the table starts
-// passing, and then it has to beat the move the bot would otherwise make.
+// stones, or the one free stone of a bot that pays for none -- or until the
+// table starts passing, and then it has to beat the move it would otherwise make.
 
-/** Stones on a bot's card, the centre included, before it stops adding and plays it: 5 of the 9. */
+/** Stones on a bot's card before it stops adding and plays it: 5 of the 9. */
 export const BOT_CARD_STONES = 5;
 
 export interface CardPlan {
@@ -39,18 +40,20 @@ function reserveFor(style: Style, cost: number): number | null {
 export function chooseCardUpgrade(view: BotView, style: Style, rng: Rng): number | null {
   const card = cardInHand(view);
   if (!card) return null;
-  const cost = nextUpgradeCost(card);
-  if (cost === null || upgradesDone(card) + 1 >= BOT_CARD_STONES) return null;
-  const reserve = reserveFor(style, cost);
-  if (reserve === null || view.fireflies < cost + reserve) return null;
+  const cost = nextStoneCost(card);
+  if (cost === null || cardStones(card) >= BOT_CARD_STONES) return null;
+  if (cost > 0) {
+    const reserve = reserveFor(style, cost);
+    if (reserve === null || view.fireflies < cost + reserve) return null;
+  }
   const empty: number[] = [];
-  for (let i = 0; i < CARD_CELLS; i++) if (i !== CARD_CENTRE && card[i] === CARD_EMPTY) empty.push(i);
+  for (let i = 0; i < CARD_CELLS; i++) if (card[i] === CARD_EMPTY) empty.push(i);
   return empty.length ? empty[rng.below(empty.length)] : null;
 }
 
 function cardReady(view: BotView, style: Style, card: number[]): boolean {
-  if (upgradesDone(card) + 1 >= BOT_CARD_STONES) return true; // as many stones as a bot wants on it
-  if (reserveFor(style, 0) === null) return true; // never grows: it is what it is
+  if (cardStones(card) >= BOT_CARD_STONES) return true; // as many stones as a bot wants on it
+  if (reserveFor(style, 0) === null) return true; // never pays for a stone: the free one is all it gets
   return view.passes > 0; // the table is winding down: play what there is
 }
 

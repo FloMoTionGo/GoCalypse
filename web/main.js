@@ -901,11 +901,11 @@ function openWelcome(state) {
     stockText +
     `Your hand holds ${state.handLimit} cards under the board: every item you buy flies into it as a card. ` +
     `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels). ` +
-    `One place is taken from the start by your Stone Card, a 3x3 board with one of your stones in the middle ` +
-    `(click that stone for your solid one, right click for your gray or transparent one, until you add a second). ` +
-    `Whenever you have the fireflies, click an empty point on the card to add a stone there, right click for your other ` +
-    `stone: the first costs 100, each one after it 25 more, up to 8. It costs no turn. Play the card on your turn like an ` +
-    `item: the point you click takes its centre, and every stone that lands on an empty point is placed.`;
+    `One place is taken from the start by your Stone Card, an empty 3x3 board. Click a point on it to put your solid ` +
+    `stone there: the first is free, the next costs 100 fireflies and each one after it 25 more, up to all nine. Click a ` +
+    `stone on the card to switch it to your other stone, right click to take it off again (no refund). None of this costs ` +
+    `a turn, and it works while others move too; hover the card for a big copy you can click on. Play the card on your ` +
+    `turn like an item: the point you click takes its centre, and every stone that lands on an empty point is placed.`;
 
   // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
   document.getElementById("welcome-weather").textContent =
@@ -1554,7 +1554,7 @@ function renderPlayers(state) {
         const cells = Array.from(player.card);
         const mini = spriteImg(`card_grid_${player.color}_${cells.join("")}`, G.cardGrid(cells, player.color), 1);
         mini.classList.add("card-mini");
-        mini.title = `Stone Card: ${cardUpgrades(cells)} of ${CARD_UPGRADES} stones added`;
+        mini.title = `Stone Card: ${cardStones(cells)} of ${CARD_CELLS} stones`;
         row.append(mini);
       }
       playersEl.appendChild(row);
@@ -1636,29 +1636,28 @@ function renderHand(state) {
 // ---- the Stone Card: mirrors server/src/rules/stoneCard.ts ---------------------------------
 
 const STONE_CARD = "stone_card";
-const CARD_CENTRE = 4;
-const CARD_UPGRADES = 8;
-const CARD_FIRST_COST = 100;
+const CARD_CELLS = 9;
+const CARD_SECOND_COST = 100;
 const CARD_COST_STEP = 25;
 
 function hasStoneCard(player) {
-  return player.card.length === 9 && Array.from(player.powerups).includes(STONE_CARD);
+  return player.card.length === CARD_CELLS && Array.from(player.powerups).includes(STONE_CARD);
 }
 
-/** Stones added to the card (the centre one is not one). */
-function cardUpgrades(cells) {
-  return cells.filter((c, i) => i !== CARD_CENTRE && c !== 0).length;
+function cardStones(cells) {
+  return cells.filter((c) => c !== 0).length;
 }
 
-/** Fireflies the next stone costs, or null once the card is full. */
+/** Fireflies the next stone costs: the first is free, then 100, 125 ... 275; null once all nine are taken. */
 function nextCardCost(cells) {
-  const n = cardUpgrades(cells);
-  return n >= CARD_UPGRADES ? null : CARD_FIRST_COST + CARD_COST_STEP * n;
+  const n = cardStones(cells);
+  if (n >= CARD_CELLS) return null;
+  return n === 0 ? 0 : CARD_SECOND_COST + CARD_COST_STEP * (n - 1);
 }
 
-/** Whether `player` can add a stone to their card right now. */
+/** Whether `player` can put another stone on their card right now. */
 function cardUpgradable(player) {
-  if (!lastState || lastState.status !== "playing" || !hasStoneCard(player)) return false;
+  if (!lastState || lastState.status === "finished" || !hasStoneCard(player)) return false;
   const cost = nextCardCost(Array.from(player.card));
   return cost !== null && player.fireflies >= cost;
 }
@@ -1674,27 +1673,30 @@ function cardGhost() {
 }
 
 /**
- * The Stone Card in the hand: its face (sprites.js stoneCard) with a button on
- * each point of its grid. An empty point takes a stone for fireflies (left click
- * the solid one, right click the other), at any time; the centre stone changes
- * front for free until a second stone is added. A click anywhere else on the
- * card arms it for play, on your turn. It glows, with UPGRADABLE under it, while
- * the purse holds the next stone's price.
+ * The Stone Card: its face (sprites.js stoneCard) with a button on each point of
+ * its grid that can be used. An empty point takes your solid stone (the first
+ * free, then for fireflies); a stone is switched to your other front by a click
+ * and taken off by a right click (no refund). All of it any time, turn or not.
+ * A click anywhere else on the card arms it for play, on your turn. It glows,
+ * with UPGRADABLE under it, while the purse holds the next stone's price. The
+ * hand's card and its enlarged copy (showCardZoom) are both built here, so the
+ * copy can be clicked just the same.
  */
 function stoneCardEl(player, armed) {
   const cells = Array.from(player.card);
   const [baseName, otherName] = LOOK_NAMES[player.color] || LOOK_NAMES[1];
-  const done = cardUpgrades(cells);
+  const stones = cardStones(cells);
   const cost = nextCardCost(cells);
   const upgradable = cardUpgradable(player);
   const playing = lastState && lastState.status === "playing";
+  const editable = lastState && lastState.status !== "finished";
 
   const card = document.createElement("div");
   card.className = "card stone-card";
   card.dataset.id = STONE_CARD;
   card.tabIndex = 0;
   card.setAttribute("role", "button");
-  card.setAttribute("aria-label", `Stone Card, ${done} of ${CARD_UPGRADES} stones added. Play it on your turn: its stones land around the point you pick.`);
+  card.setAttribute("aria-label", `Stone Card, ${stones} of ${CARD_CELLS} stones. Play it on your turn: its stones land around the point you pick.`);
   card.classList.toggle("active", armed);
   card.classList.toggle("upgradable", upgradable);
 
@@ -1704,36 +1706,33 @@ function stoneCardEl(player, armed) {
   const text = document.createElement("span");
   text.className = "card-text";
   text.textContent =
-    cost === null
-      ? "Full. Play it on your turn: all nine land around the point you pick."
-      : `${done} of ${CARD_UPGRADES} added. Next stone: ${cost} fireflies -- click an empty point, right click for ${otherName}.`;
+    stones === 0
+      ? "Empty. Click a point for your first stone: it's free."
+      : `${stones} of ${CARD_CELLS}. ${cost === null ? "Full." : `Next stone: ${cost} fireflies.`} ` +
+        `Click a stone to switch it, right click to take it off.`;
   card.append(spriteImg(`stone_card_${player.color}_${cells.join("")}`, G.stoneCard(cells, player.color), 1), name, text);
 
   cells.forEach((c, i) => {
-    const centre = i === CARD_CENTRE;
-    const open = centre ? done === 0 && lastState.status !== "finished" : c === 0 && upgradable;
-    if (!open) return;
+    if (!editable || (c === 0 && !upgradable)) return;
     const cell = document.createElement("button");
     cell.type = "button";
-    cell.className = "card-cell";
+    cell.className = c === 0 ? "card-cell" : "card-cell set";
     cell.style.setProperty("--col", String(i % 3));
     cell.style.setProperty("--row", String(Math.floor(i / 3)));
-    cell.title = centre
-      ? `Centre stone: click for ${baseName}, right click for ${otherName} (free until you add a stone)`
-      : `Add a stone here for ${cost} fireflies: click for ${baseName}, right click for ${otherName}`;
-    const send = (axis) => {
-      if (!room) return;
-      if (centre) room.send("cardCentre", { axis });
-      else room.send("upgradeCard", { cell: i, axis });
-    };
+    cell.title =
+      c === 0
+        ? `Put your ${baseName} stone here (${cost === 0 ? "free" : `${cost} fireflies`})`
+        : `Click: switch to your ${c === 2 ? baseName : otherName} stone · Right click: take it off (no refund)`;
     cell.addEventListener("click", (e) => {
       e.stopPropagation();
-      send("base");
+      if (!room) return;
+      if (c === 0) room.send("upgradeCard", { cell: i, axis: "base" });
+      else room.send("flipCardStone", { cell: i });
     });
     cell.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      send("pattern");
+      if (room && c !== 0) room.send("removeCardStone", { cell: i });
     });
     card.append(cell);
   });
@@ -1747,10 +1746,13 @@ function stoneCardEl(player, armed) {
 
   const pick = () => {
     if (!playing) return;
-    if (!isMyTurn) return showNotice("Play the Stone Card on your turn. Adding stones works any time.");
+    if (!isMyTurn) return showNotice("Play the Stone Card on your turn. Putting stones on it works any time.");
+    if (stones === 0) return showNotice("Put a stone on your Stone Card first: the first one is free.");
+    hideCardZoom();
     pickCard(STONE_CARD, Number(card.dataset.index));
   };
   card.addEventListener("click", pick);
+  card.addEventListener("contextmenu", (e) => e.preventDefault()); // right click is the card's own, never the browser's
   card.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     e.preventDefault();
@@ -1786,7 +1788,9 @@ let zoomedCard = null; // the hand's card on show, or null
 /**
  * Shows a copy of `card` at CARD_ZOOM times its size, centred over the board and
  * kept on screen, so its description can be read. It only looks: the pointer
- * passes through it to the hand below.
+ * passes through it to the hand below. The Stone Card is the exception: its
+ * copy is a live card (stoneCardEl) standing on top of it, overlapping it, so
+ * the pointer can move up onto the copy and put stones on it at that size.
  */
 function showCardZoom(card) {
   if (zoomedCard === card) return;
@@ -1801,15 +1805,30 @@ function showCardZoom(card) {
   const zpx = Math.max(px, Math.floor(fit * dpr) / dpr);
   const w = G.CARD_W * zpx, h = G.CARD_H * zpx;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
-  const left = clamp(b.left + (b.width - w) / 2, margin, window.innerWidth - margin - w);
-  const top = clamp(b.top + (b.height - h) / 2, margin, window.innerHeight - margin - h);
+  const live = card.dataset.id === STONE_CARD && !!myPlayer && hasStoneCard(myPlayer);
+  let left = clamp(b.left + (b.width - w) / 2, margin, window.innerWidth - margin - w);
+  let top = clamp(b.top + (b.height - h) / 2, margin, window.innerHeight - margin - h);
+  if (live) {
+    // Over the card, its lower edge a third of the way down the card: no gap for the pointer to fall through.
+    const c = card.getBoundingClientRect();
+    left = clamp(c.left + (c.width - w) / 2, margin, window.innerWidth - margin - w);
+    top = clamp(c.top + c.height / 3 - h, margin, window.innerHeight - margin - h);
+  }
 
-  const zoom = card.cloneNode(true);
+  const zoom = live ? stoneCardEl(myPlayer, false) : card.cloneNode(true);
   zoom.classList.remove("active", "landed");
   zoom.classList.add("zoom");
-  zoom.disabled = false; // shown bright even off-turn: it's there to be read
-  zoom.removeAttribute("aria-label");
-  zoom.setAttribute("aria-hidden", "true");
+  if (live) {
+    zoom.classList.add("live");
+    zoom.dataset.index = card.dataset.index;
+    zoom.addEventListener("pointerleave", (e) => {
+      if (!(zoomedCard && zoomedCard.contains(e.relatedTarget))) hideCardZoom();
+    });
+  } else {
+    zoom.disabled = false; // shown bright even off-turn: it's there to be read
+    zoom.removeAttribute("aria-label");
+    zoom.setAttribute("aria-hidden", "true");
+  }
   zoom.tabIndex = -1;
   zoom.style.setProperty("--card-px", `${zpx}px`);
   Object.assign(zoom.style, { left: `${left}px`, top: `${top}px` });
@@ -1822,12 +1841,17 @@ function hideCardZoom() {
   for (const el of document.querySelectorAll(".card.zoom")) el.remove();
 }
 
-/** After the hand is rebuilt: show the new card under the pointer (or in focus), if any. */
+/** After the hand is rebuilt: show the new card under the pointer (or in focus, or its live copy), if any. */
 function refreshCardZoom() {
   if (!zoomedCard) return;
-  const under = handEl.querySelector(".card:hover") || handEl.querySelector(".card:focus-visible");
+  const onLive = !!document.querySelector(".card.zoom.live:hover");
+  const under =
+    handEl.querySelector(".card:hover") ||
+    handEl.querySelector(".card:focus-visible") ||
+    (onLive ? handEl.querySelector(`.card[data-id="${STONE_CARD}"]`) : null);
   hideCardZoom();
   if (under) showCardZoom(under);
+  if (onLive) for (const el of document.querySelectorAll(".card.zoom.live")) el.classList.add("again");
 }
 
 handEl.addEventListener("pointerover", (e) => {
@@ -1836,7 +1860,8 @@ handEl.addEventListener("pointerover", (e) => {
 });
 handEl.addEventListener("pointerout", (e) => {
   const card = e.target.closest(".card");
-  if (card && card === zoomedCard && !card.contains(e.relatedTarget)) hideCardZoom();
+  const toZoom = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".card.zoom.live");
+  if (card && card === zoomedCard && !card.contains(e.relatedTarget) && !toZoom) hideCardZoom();
 });
 handEl.addEventListener("focusin", (e) => {
   const card = e.target.closest(".card");

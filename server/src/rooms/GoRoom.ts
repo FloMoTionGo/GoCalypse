@@ -21,16 +21,16 @@ import {
 } from "../rules/goRules";
 import { finalResults, territoryOwners, territoryScore } from "../rules/endgame";
 import {
+  CARD_BASE,
   CARD_CELLS,
-  CARD_CENTRE,
   CARD_EMPTY,
-  CARD_UPGRADES,
+  CARD_PATTERN,
   cardLandings,
+  cardStones,
   cellFor,
   newCard,
-  nextUpgradeCost,
+  nextStoneCost,
   STONE_CARD,
-  upgradesDone,
 } from "../rules/stoneCard";
 import { KoWatch, PositionHistory } from "../rules/ko";
 import { copiesBought, fairShare, getPowerup, marketStock, stallCopies, stallRefusal } from "../powerups/definitions";
@@ -83,12 +83,12 @@ interface BuyMessage {
 }
 
 interface UpgradeCardMessage {
-  cell: number; // 0..8, row by row; not the centre
+  cell: number; // 0..8, row by row
   axis?: StoneView; // which of the player's fronts the new stone fights on
 }
 
-interface CardCentreMessage {
-  axis?: StoneView;
+interface CardCellMessage {
+  cell: number; // 0..8, row by row: a point of the card that holds a stone
 }
 
 interface AddBotsMessage {
@@ -203,7 +203,8 @@ export class GoRoom extends Room<GoState> {
     this.onMessage("pass", (client) => this.handlePass(client));
     this.onMessage("addBots", (client, message: AddBotsMessage) => this.handleAddBots(client, message));
     this.onMessage("upgradeCard", (client, message: UpgradeCardMessage) => this.handleUpgradeCard(client, message));
-    this.onMessage("cardCentre", (client, message: CardCentreMessage) => this.handleCardCentre(client, message));
+    this.onMessage("flipCardStone", (client, message: CardCellMessage) => this.handleCardCell(client, message, "flip"));
+    this.onMessage("removeCardStone", (client, message: CardCellMessage) => this.handleCardCell(client, message, "remove"));
 
     if (restored) this.resumeRestored();
   }
@@ -780,7 +781,7 @@ export class GoRoom extends Room<GoState> {
 
     // Stones for the Stone Card from what the purse still holds, as many as the
     // bot's style lets it buy; each one costs more than the last.
-    for (let i = 0; i < CARD_UPGRADES; i++) {
+    for (let i = 0; i < CARD_CELLS; i++) {
       const cell = chooseCardUpgrade(this.botView(playerIndex), style, this.rng);
       if (cell === null || this.applyUpgradeCard(playerIndex, { cell, axis: "base" }) !== null) break;
     }
@@ -1180,44 +1181,60 @@ export class GoRoom extends Room<GoState> {
   }
 
   /**
-   * One more stone on the card, on an empty cell the player picks. Free to do
-   * at any time in the game, turn or not; it only costs fireflies, more for
-   * every stone already added.
+   * One more stone on the card, on an empty point the player picks. The first
+   * is free, the rest cost fireflies by how many are on the card already. Done
+   * at any time until the game ends, turn or not, and it never takes the turn.
    */
   private applyUpgradeCard(playerIndex: number, message: UpgradeCardMessage): string | null {
     if (!message || typeof message !== "object") return "";
-    if (this.state.status !== "playing") return "";
+    if (this.state.status === "finished") return "";
     const player = this.state.players[playerIndex];
     const card = this.cardInHand(player);
     if (!card) return "";
     const { cell } = message;
-    if (!Number.isInteger(cell) || cell < 0 || cell >= CARD_CELLS || cell === CARD_CENTRE) return "";
+    if (!Number.isInteger(cell) || cell < 0 || cell >= CARD_CELLS) return "";
     if (card[cell] !== CARD_EMPTY) return "";
-    const cost = nextUpgradeCost(card);
+    const cost = nextStoneCost(card);
     if (cost === null) return "Your Stone Card is full.";
     if (player.fireflies < cost) return `Not enough fireflies: the next stone on your card costs ${cost}.`;
 
     player.fireflies -= cost;
     player.card[cell] = cellFor(message.axis === "pattern" ? "pattern" : "base");
-    this.state.lastEvent = `${player.name} added a stone to their Stone Card (${upgradesDone(card) + 1} of ${CARD_UPGRADES})`;
+    this.state.lastEvent = `${player.name} put a stone on their Stone Card (${cardStones(card) + 1} of ${CARD_CELLS})`;
     return null;
   }
 
-  private handleCardCentre(client: Client, message: CardCentreMessage) {
+  private handleCardCell(client: Client, message: CardCellMessage, what: "flip" | "remove") {
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
-    const refused = this.applyCardCentre(playerIndex, message);
+    const refused = what === "flip" ? this.applyFlipCardStone(playerIndex, message) : this.applyRemoveCardStone(playerIndex, message);
     if (refused) this.notice(client, refused);
   }
 
-  /** The front of the card's centre stone: the player's to choose, for free, until the first stone is added. */
-  private applyCardCentre(playerIndex: number, message: CardCentreMessage): string | null {
-    if (this.state.status === "finished") return "";
-    const player = this.state.players[playerIndex];
+  /** The card point's stone, if the message names one: its index, else -1. */
+  private cardStoneAt(player: PlayerState, message: CardCellMessage): number {
+    if (this.state.status === "finished" || !message || typeof message !== "object") return -1;
     const card = this.cardInHand(player);
-    if (!card) return "";
-    if (upgradesDone(card) > 0) return "The centre stone is set once a stone has been added to the card.";
-    player.card[CARD_CENTRE] = cellFor(message?.axis === "pattern" ? "pattern" : "base");
+    const { cell } = message;
+    if (!card || !Number.isInteger(cell) || cell < 0 || cell >= CARD_CELLS) return -1;
+    return card[cell] === CARD_EMPTY ? -1 : cell;
+  }
+
+  /** A stone on the card switched to the player's other front, for free. */
+  private applyFlipCardStone(playerIndex: number, message: CardCellMessage): string | null {
+    const player = this.state.players[playerIndex];
+    const cell = this.cardStoneAt(player, message);
+    if (cell === -1) return "";
+    player.card[cell] = player.card[cell] === CARD_PATTERN ? CARD_BASE : CARD_PATTERN;
+    return null;
+  }
+
+  /** A stone taken off the card again. Nothing is refunded; the next stone just costs what this one did. */
+  private applyRemoveCardStone(playerIndex: number, message: CardCellMessage): string | null {
+    const player = this.state.players[playerIndex];
+    const cell = this.cardStoneAt(player, message);
+    if (cell === -1) return "";
+    player.card[cell] = CARD_EMPTY;
     return null;
   }
 
@@ -1237,6 +1254,7 @@ export class GoRoom extends Room<GoState> {
     if (!t || typeof t.x !== "number" || typeof t.y !== "number" || !isOnBoard(size, t.x, t.y)) {
       return "The Stone Card needs a point on the board for its centre.";
     }
+    if (cardStones(card) === 0) return "Your Stone Card is empty: put a stone on it first.";
     const centre = { x: t.x, y: t.y };
     const landings = cardLandings(card, centre, player.color, size);
 
