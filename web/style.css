@@ -549,5 +549,18 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .card.zoom.live, .card.zoom.live:hover:not(:disabled) { pointer-events: auto; cursor: pointer; transform: none; }
 .card.zoom.again { animation: none; } /* rebuilt under the pointer after a click: no second pop */
 .card-cell.set:hover:not(:disabled), .card-cell.set:focus-visible { box-shadow: inset 0 0 0 var(--card-px) var(--amber); }
+/* An empty point under the pointer: both stones it could take, see-through and split as on the board
+   (left half solid for a click, right half pattern for a right click). Replaces the cream ring there. */
+.card-cell .card-ghost {
+  position: absolute;
+  left: var(--card-px);
+  top: var(--card-px);
+  width: calc(7 * var(--card-px));
+  height: calc(7 * var(--card-px));
+  opacity: 0;
+  pointer-events: none;
+}
+.card-cell:not(.set):hover .card-ghost, .card-cell:not(.set):focus-visible .card-ghost { opacity: 0.7; }
+.card-cell:not(.set):hover:not(:disabled) { box-shadow: none; }
 /* Each seat's card, small, at the end of its row in the players list: rivals may look. */
 .player-row .card-mini { margin-left: auto; flex-shrink: 0; width: 27px; height: 27px; image-rendering: pixelated; }

@@ -11,6 +11,7 @@
   #picker button.on { background: var(--amber); color: var(--ink); }
   .note { color: var(--slate); font-size: 13px; max-width: 900px; margin: 0 0 12px; }
   #rows { margin: 12px 0 0; max-width: 260px; }
+  .card-cell.show-ghost .card-ghost { opacity: 0.7; } /* ?state=hover: the pointer resting on an empty point */
 </style>
 </head>
 <body>
@@ -18,8 +19,10 @@
   <p class="note">Static mock of the Stone Card: a 3x3 board on a card in the hand, dealt empty. It glows with
   UPGRADABLE under it while the purse holds the next stone's price (the first free, then 100 and 25 more each).
   Hovering it in the game shows a live 400% copy standing on it (<code>?state=zoom</code>). Armed, its stones follow the
-  pointer see-through; the one over a taken point is left out, as it would not be placed. Pick a state below
-  (<code>?state=dealt|growing|poor|full|zoom|armed</code>). Sample data only, no server.</p>
+  pointer see-through; the one over a taken point is left out, as it would not be placed. Hovering an empty point
+  shows both stones it could take, see-through and split: left click solid, right click pattern
+  (<code>?state=hover</code>). Pick a state below
+  (<code>?state=dealt|growing|poor|full|zoom|hover|armed</code>). Sample data only, no server.</p>
   <div id="picker"></div>
 
   <section id="game">
@@ -65,6 +68,7 @@
     poor: { cells: [1, 0, 2, 0, 1, 0, 0, 1, 0], fireflies: 90, hint: "Left click: your white stone · Right click: your gray stone" },
     full: { cells: [1, 2, 1, 2, 1, 2, 1, 2, 1], fireflies: 400, hint: "Left click: your white stone · Right click: your gray stone" },
     zoom: { cells: [1, 0, 2, 0, 1, 0, 0, 1, 0], fireflies: 200, zoom: true, hint: "Left click: your white stone · Right click: your gray stone" },
+    hover: { cells: [1, 0, 2, 0, 1, 0, 0, 1, 0], fireflies: 200, zoom: true, hoverCell: 5, hint: "Left click: your white stone · Right click: your gray stone" },
     armed: { cells: [1, 0, 2, 0, 1, 2, 0, 1, 0], fireflies: 60, armed: true,
       hint: "Stone Card: click the point for its centre -- the see-through stones are the ones that land. Right click to cancel." },
   };
@@ -111,8 +115,8 @@
     const t = document.createElement("span"); t.className = "card-text";
     const n0 = stones(st.cells);
     t.textContent = n0 === 0
-      ? "Empty. Click a point for your first stone: it's free."
-      : `${n0} of 9. ${cost === null ? "Full." : `Next stone: ${cost} fireflies.`} Click a stone to switch it, right click to take it off.`;
+      ? "Empty. Click a point for your first stone, right click for a pattern one: it's free."
+      : `${n0} of 9. ${cost === null ? "Full." : `Next stone: ${cost} fireflies.`} Same button takes a stone off, the other switches it.`;
     card.append(img(`stone_card_${ME}_${st.cells.join("")}`, G.stoneCard(st.cells, ME)), n, t);
     st.cells.forEach((c, i) => {
       if (!c && !upgradable) return;
@@ -120,6 +124,13 @@
       cell.type = "button"; cell.className = c ? "card-cell set" : "card-cell";
       cell.style.setProperty("--col", String(i % 3));
       cell.style.setProperty("--row", String(Math.floor(i / 3)));
+      if (!c) {
+        // As stoneCardEl: both stones the point could take, see-through, shown on hover.
+        const ghost = img(`card_ghost_${ME}`, G.splitPreviewSprite(ME, "mini"));
+        ghost.classList.add("card-ghost");
+        cell.append(ghost);
+        if (st.hoverCell === i) cell.classList.add("show-ghost");
+      }
       card.append(cell);
     });
     if (upgradable) {

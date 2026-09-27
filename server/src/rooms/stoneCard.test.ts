@@ -147,6 +147,23 @@ test("a stone on the card switches front for free, and comes off again for no re
   t.close();
 });
 
+test("with an axis, a stone switches to that front and comes off only from its own front", () => {
+  const t = table();
+  const me = t.state.players[0];
+  t.room.applyUpgradeCard(0, { cell: 4, axis: "base" });
+  // Right click on the solid stone: to the pattern front; sent twice, it stays there.
+  assert.equal(t.room.applyFlipCardStone(0, { cell: 4, axis: "pattern" }), null);
+  assert.equal(me.card[4], CARD_PATTERN);
+  assert.equal(t.room.applyFlipCardStone(0, { cell: 4, axis: "pattern" }), "");
+  assert.equal(me.card[4], CARD_PATTERN);
+  // A left-click removal doesn't take a pattern stone off; a right-click one does.
+  assert.equal(t.room.applyRemoveCardStone(0, { cell: 4, axis: "base" }), "");
+  assert.equal(me.card[4], CARD_PATTERN);
+  assert.equal(t.room.applyRemoveCardStone(0, { cell: 4, axis: "pattern" }), null);
+  assert.equal(me.card[4], 0);
+  t.close();
+});
+
 test("an empty card can't be played", () => {
   const t = table();
   const seat = t.onTurn();

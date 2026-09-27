@@ -932,8 +932,9 @@ function openWelcome(state) {
     `Your hand holds ${handLimit} cards under the board: every item you buy flies into it as a card. ` +
     `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels). ` +
     `One place is taken from the start by your Stone Card, an empty 3x3 board. Click a point on it to put your solid ` +
-    `stone there: the first is free, the next costs 100 fireflies and each one after it 25 more, up to all nine. Click a ` +
-    `stone on the card to switch it to your other stone, right click to take it off again (no refund). None of this costs ` +
+    `stone there, right click for your pattern stone: the first is free, the next costs 100 fireflies and each one after ` +
+    `it 25 more, up to all nine. Clicking a stone on the card with its own button again takes it off (no refund), ` +
+    `the other button switches it to your other stone for free. None of this costs ` +
     `a turn, and it works while others move too; hover the card for a big copy you can click on. Play the card on your ` +
     `turn like an item: the point you click takes its centre, and every stone that lands on an empty point is placed.`;
 
@@ -1731,9 +1732,11 @@ function cardGhost() {
 
 /**
  * The Stone Card: its face (sprites.js stoneCard) with a button on each point of
- * its grid that can be used. An empty point takes your solid stone (the first
- * free, then for fireflies); a stone is switched to your other front by a click
- * and taken off by a right click (no refund). All of it any time, turn or not.
+ * its grid that can be used. An empty point takes your solid stone on a click
+ * and your pattern stone on a right click (the first free, then for fireflies),
+ * with both shown see-through on hover. On a stone, the button of its own front
+ * takes it off (no refund) and the other one switches it (free). All of it any
+ * time, turn or not.
  * A click anywhere else on the card arms it for play, on your turn. It glows,
  * with UPGRADABLE under it, while the purse holds the next stone's price. The
  * hand's card and its enlarged copy (showCardZoom) are both built here, so the
@@ -1764,9 +1767,9 @@ function stoneCardEl(player, armed) {
   text.className = "card-text";
   text.textContent =
     stones === 0
-      ? "Empty. Click a point for your first stone: it's free."
+      ? "Empty. Click a point for your first stone, right click for a pattern one: it's free."
       : `${stones} of ${CARD_CELLS}. ${cost === null ? "Full." : `Next stone: ${cost} fireflies.`} ` +
-        `Click a stone to switch it, right click to take it off.`;
+        `Same button takes a stone off, the other switches it.`;
   card.append(spriteImg(`stone_card_${player.color}_${cells.join("")}`, G.stoneCard(cells, player.color), 1), name, text);
 
   cells.forEach((c, i) => {
@@ -1776,20 +1779,36 @@ function stoneCardEl(player, armed) {
     cell.className = c === 0 ? "card-cell" : "card-cell set";
     cell.style.setProperty("--col", String(i % 3));
     cell.style.setProperty("--row", String(Math.floor(i / 3)));
+    const onIt = c === 2 ? "pattern" : "base"; // the front of the stone on this point, if any
     cell.title =
       c === 0
-        ? `Put your ${baseName} stone here (${cost === 0 ? "free" : `${cost} fireflies`})`
-        : `Click: switch to your ${c === 2 ? baseName : otherName} stone · Right click: take it off (no refund)`;
+        ? `Click: your ${baseName} stone · Right click: your ${otherName} stone (${cost === 0 ? "free" : `${cost} fireflies`})`
+        : c === 1
+          ? `Click: take it off (no refund) · Right click: switch to your ${otherName} stone (free)`
+          : `Right click: take it off (no refund) · Click: switch to your ${baseName} stone (free)`;
+    if (c === 0) {
+      // Both stones it could take, see-through and split down the middle as on the board, shown on hover.
+      const ghost = spriteImg(`card_ghost_${player.color}`, G.splitPreviewSprite(player.color, "mini"), 1);
+      ghost.classList.add("card-ghost");
+      cell.append(ghost);
+    }
+    // Fixed mapping, whatever the player's habits: left click is the solid stone, right
+    // click the pattern one. The button of a stone's own front takes it off, the other
+    // button switches it; the axis rides along so a click sent twice does no harm.
+    const press = (axis) => {
+      if (!room) return;
+      if (c === 0) room.send("upgradeCard", { cell: i, axis });
+      else if (axis === onIt) room.send("removeCardStone", { cell: i, axis });
+      else room.send("flipCardStone", { cell: i, axis });
+    };
     cell.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (!room) return;
-      if (c === 0) room.send("upgradeCard", { cell: i, axis: "base" });
-      else room.send("flipCardStone", { cell: i });
+      press("base");
     });
     cell.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (room && c !== 0) room.send("removeCardStone", { cell: i });
+      press("pattern");
     });
     card.append(cell);
   });

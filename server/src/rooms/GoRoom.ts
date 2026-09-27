@@ -89,6 +89,7 @@ interface UpgradeCardMessage {
 
 interface CardCellMessage {
   cell: number; // 0..8, row by row: a point of the card that holds a stone
+  axis?: StoneView; // flip: the front to switch to; remove: the front the stone must be on
 }
 
 interface AddBotsMessage {
@@ -1220,20 +1221,30 @@ export class GoRoom extends Room<GoState> {
     return card[cell] === CARD_EMPTY ? -1 : cell;
   }
 
-  /** A stone on the card switched to the player's other front, for free. */
+  /**
+   * A stone on the card switched to the player's other front, for free. With an
+   * axis it is switched to that front (nothing to do if it is on it already),
+   * so a click sent twice doesn't switch it back.
+   */
   private applyFlipCardStone(playerIndex: number, message: CardCellMessage): string | null {
     const player = this.state.players[playerIndex];
     const cell = this.cardStoneAt(player, message);
     if (cell === -1) return "";
-    player.card[cell] = player.card[cell] === CARD_PATTERN ? CARD_BASE : CARD_PATTERN;
+    const to = message.axis ? cellFor(message.axis) : player.card[cell] === CARD_PATTERN ? CARD_BASE : CARD_PATTERN;
+    if (player.card[cell] === to) return "";
+    player.card[cell] = to;
     return null;
   }
 
-  /** A stone taken off the card again. Nothing is refunded; the next stone just costs what this one did. */
+  /**
+   * A stone taken off the card again. Nothing is refunded; the next stone just
+   * costs what this one did. With an axis, only a stone on that front comes off.
+   */
   private applyRemoveCardStone(playerIndex: number, message: CardCellMessage): string | null {
     const player = this.state.players[playerIndex];
     const cell = this.cardStoneAt(player, message);
     if (cell === -1) return "";
+    if (message.axis && player.card[cell] !== cellFor(message.axis)) return "";
     player.card[cell] = CARD_EMPTY;
     return null;
   }

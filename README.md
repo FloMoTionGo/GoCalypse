@@ -169,11 +169,13 @@ card, and on your turn you pick a card to use it.
 ### The Stone Card
 
 Every player starts with an empty **Stone Card** in their hand, taking one of
-its five places: a 3x3 go board. Click a point on it to put your solid stone
-there. The **first stone is free**, the next costs **100**, each one after it
-**25 more** (100, 125 … 275; 1,500 for all nine). Click a stone on the card to
-switch it to your gray or transparent one, right click to **take it off** again
-(no refund: the next stone then costs what that one did). None of this takes
+its five places: a 3x3 go board. The mouse buttons are fixed: **left click**
+puts your solid stone on a point, **right click** your gray or transparent one;
+hovering an empty point shows both, see-through and split down the middle. The
+**first stone is free**, the next costs **100**, each one after it **25 more**
+(100, 125 … 275; 1,500 for all nine). Clicking a stone with **its own button**
+again **takes it off** (no refund: the next stone then costs what that one did);
+the **other button switches** it to your other stone for free. None of this takes
 your turn, and it works while others move too. The card is small in the hand,
 so hovering it shows a **400% copy** standing on it that you can click just the
 same. While you can pay for the next stone the card glows, with *UPGRADABLE*
