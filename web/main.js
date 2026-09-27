@@ -952,12 +952,15 @@ function openWelcome(state) {
     stockText +
     `Your hand holds ${handLimit} cards under the board: every item you buy flies into it as a card. ` +
     `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels). ` +
-    `One place is taken from the start by your Stone Card, an empty 3x3 board. Click a point on it to put your solid ` +
+    `One place is taken from the start by your Stone Card, an empty 3x3 board: build a shape on it, then play it ` +
+    `once per game as one move that places all its stones at the same moment, so nobody can answer in between. ` +
+    `Every stone after the first is an extra move you buy. Click a point on it to put your solid ` +
     `stone there, right click for your pattern stone: the first is free, the next costs 100 fireflies and each one after ` +
     `it 25 more, up to all nine. Clicking a stone on the card with its own button again takes it off (no refund), ` +
     `the other button switches it to your other stone for free. None of this costs ` +
     `a turn, and it works while others move too; hover the card for a big copy you can click on. Play the card on your ` +
-    `turn like an item: the point you click takes its centre, and every stone that lands on an empty point is placed.`;
+    `turn like an item: the point you click takes its centre, and every stone that lands on an empty point is placed. ` +
+    `Stones that can't be placed there are left out; after that the card is gone. Everyone can see everyone's card.`;
 
   // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
   document.getElementById("welcome-weather").textContent =
@@ -1777,7 +1780,11 @@ function stoneCardEl(player, armed) {
   card.dataset.id = STONE_CARD;
   card.tabIndex = 0;
   card.setAttribute("role", "button");
-  card.setAttribute("aria-label", `Stone Card, ${stones} of ${CARD_CELLS} stones. Play it on your turn: its stones land around the point you pick.`);
+  card.setAttribute(
+    "aria-label",
+    `Stone Card, ${stones} of ${CARD_CELLS} stones: one move that places all of them at once, once per game. ` +
+      `Play it on your turn: its stones land around the point you pick.`,
+  );
   card.classList.toggle("active", armed);
   card.classList.toggle("upgradable", upgradable);
 
@@ -1858,6 +1865,73 @@ function stoneCardEl(player, armed) {
   return card;
 }
 
+/**
+ * What the Stone Card is for and how it plays, beside its enlarged copy (showCardZoom): the card
+ * face only has room for its stone count and price. Mirrors rules/stoneCard.ts and applyPlayCard
+ * in rooms/GoRoom.ts; the numbers follow the card as it is now.
+ */
+function stoneCardHelp(player) {
+  const cells = Array.from(player.card);
+  const [baseName, otherName] = LOOK_NAMES[player.color] || LOOK_NAMES[1];
+  const stones = cardStones(cells);
+  const cost = nextCardCost(cells);
+
+  const help = document.createElement("div");
+  help.className = "card-help";
+  help.setAttribute("aria-hidden", "true"); // the card's own aria-label says the same, shorter
+  const add = (tag, text, cls) => {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    if (cls) el.className = cls;
+    help.append(el);
+    return el;
+  };
+  const list = (lines) => {
+    const ul = add("ul", "");
+    for (const line of lines) ul.append(Object.assign(document.createElement("li"), { textContent: line }));
+  };
+
+  add("h4", "Stone Card");
+  add("p", "One move that places a whole shape of your stones at once. You get it once per game.", "lead");
+  add(
+    "p",
+    stones === 0
+      ? "Empty: put your first stone on it, it's free."
+      : stones === 1
+        ? "1 stone on it: played now, it is just a normal move. Add stones to make it count."
+        : `${stones} stones on it: played now, it places up to ${stones} stones in one move, ${stones - 1} more than a normal move.`,
+    "now",
+  );
+
+  add("h5", "Why use it");
+  list([
+    "Every stone after the first is an extra move, bought with fireflies.",
+    "They all land at the same moment, so nobody can answer in between: close a net, make two eyes or capture in one go.",
+    "You choose when and where: build the shape early, play it once the board shows where it fits.",
+  ]);
+
+  add("h5", "Build it · any time, also while others move");
+  list([
+    `Left click an empty point: your ${baseName} stone. Right click: your ${otherName} stone.`,
+    cost === null
+      ? "The card is full: all nine points are taken."
+      : cost === 0
+        ? `The first stone is free. The next costs ${CARD_SECOND_COST} fireflies, then ${CARD_COST_STEP} more each.`
+        : `Next stone: ${cost} fireflies${player.fireflies < cost ? ` (you have ${player.fireflies})` : ""}` +
+          `${stones < CARD_CELLS - 1 ? `, then ${CARD_COST_STEP} more each` : ""}.`,
+    "A stone's own button takes it off (no refund); the other button switches it, free.",
+    "Everyone can see your card beside your name.",
+  ]);
+
+  add("h5", "Play it · on your turn, takes the turn");
+  list([
+    "Click the card, then a point on the board: that point takes the centre stone, the others land around it as drawn, never rotated.",
+    "A stone whose point is taken, burning, fogged, under someone else's lily pad or off the board, or that would have no liberties, is left out. Captures count and pay as usual.",
+    "If no stone would land, or the board would repeat (ko), the card stays in your hand. Once played, it is gone.",
+  ]);
+  return help;
+}
+
 /** A card: the pixel card face (sprites.js itemCard) with the item's name and description in its panels. */
 function itemCard(id) {
   const item = marketItem(id) || { name: id, description: "", tier: 1 };
@@ -1931,12 +2005,20 @@ function showCardZoom(card) {
   zoom.style.setProperty("--card-px", `${zpx}px`);
   Object.assign(zoom.style, { left: `${left}px`, top: `${top}px` });
   document.body.appendChild(zoom);
+  if (live) {
+    // What the card is for, beside the copy: on its left (over the board) if it fits, else on its right.
+    const help = stoneCardHelp(myPlayer);
+    document.body.appendChild(help);
+    const hw = help.offsetWidth, hh = help.offsetHeight, gap = 10;
+    const hl = left - gap - hw >= margin ? left - gap - hw : clamp(left + w + gap, margin, vw - margin - hw);
+    Object.assign(help.style, { left: `${hl}px`, top: `${clamp(top + h - hh, margin, vh - margin - hh)}px` });
+  }
   zoomedCard = card;
 }
 
 function hideCardZoom() {
   zoomedCard = null;
-  for (const el of document.querySelectorAll(".card.zoom")) el.remove();
+  for (const el of document.querySelectorAll(".card.zoom, .card-help")) el.remove();
 }
 
 /** After the hand is rebuilt: show the new card under the pointer (or in focus, or its live copy), if any. */
@@ -1949,7 +2031,7 @@ function refreshCardZoom() {
     (onLive ? handEl.querySelector(`.card[data-id="${STONE_CARD}"]`) : null);
   hideCardZoom();
   if (under) showCardZoom(under);
-  if (onLive) for (const el of document.querySelectorAll(".card.zoom.live")) el.classList.add("again");
+  if (onLive) for (const el of document.querySelectorAll(".card.zoom.live, .card-help")) el.classList.add("again");
 }
 
 handEl.addEventListener("pointerover", (e) => {
