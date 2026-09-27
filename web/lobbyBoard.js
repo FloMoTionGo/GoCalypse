@@ -195,11 +195,36 @@
       if (inside(rx, ry) && region[idx(rx, ry)] === R_LAND) base.blit(G.SPRITES.rock, x, y);
     }
 
-    // Deck: dark lacquer frame, slate rim light on the top and left, front edge catching light.
+    // Deck: dark lacquer frame. Its top/left/right edge dissolves into the grass the way the
+    // island's own shore does — speckled grit reaching out into the grass, moss reaching onto
+    // the stone, denser near the edge and thinning with distance — instead of a rim-light line
+    // or a ruler-straight boundary against the background.
     base.rect(boardX, boardY, boardW, boardH, K);
-    const bx1 = boardRight - 1, by1 = boardBottom - 1;
-    for (let x = boardX + 1; x < bx1; x++) { base.set(x, boardY + 1, S); base.set(x, by1, S); }
-    for (let y = boardY + 1; y < by1; y++) base.set(boardX + 1, y, S);
+    const ringOut = (x, y) => { // ring distance outside the frame's top/left/right (not the front face)
+      if (y >= boardBottom) return -1;
+      const dx = x < boardX ? boardX - x : x >= boardRight ? x - boardRight + 1 : 0;
+      const dy = y < boardY ? boardY - y : 0;
+      return dx && dy ? Math.max(dx, dy) + 1 : dx || dy;
+    };
+    for (let y = boardY - 3; y < boardBottom; y++) {
+      for (let x = boardX - 3; x < boardRight + 3; x++) {
+        if (!inside(x, y) || region[idx(x, y)] !== R_LAND) continue;
+        const d = ringOut(x, y);
+        if (d < 1 || d > 3) continue;
+        const p = (4 - d) * 0.22, speck = hash2(x, y, 41);
+        if (speck < p * 0.5) base.px[idx(x, y)] = K;
+        else if (speck < p) base.px[idx(x, y)] = S;
+      }
+    }
+    const ringIn = (x, y) => y >= boardBottom - 2 ? 99 : Math.min(x - boardX, boardRight - 1 - x, y - boardY);
+    for (let y = boardY; y < boardBottom - 2; y++) {
+      for (let x = boardX; x < boardRight; x++) {
+        const d = ringIn(x, y);
+        if (d > 2) continue;
+        const p = (3 - d) * 0.16, speck = hash2(x, y, 43);
+        if (speck < p) base.px[idx(x, y)] = speck < p * 0.4 ? T : S;
+      }
+    }
     // Front face: shadowed planks with slate seams.
     for (let y = boardBottom; y < frontBottom; y++) {
       for (let x = boardX; x < boardRight; x++) {
