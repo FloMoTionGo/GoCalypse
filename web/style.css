@@ -13,10 +13,10 @@
   --muted: var(--slate);
   --accent: var(--amber);
 
-  /* The whole page drawn at 85%, like the browser's own zoom. The pixel canvases
+  /* The whole page drawn at 90%, like the browser's own zoom. The pixel canvases
      still land on whole device pixels: main.js and logo.js size them through
      uiZoom(). Viewport units are divided by it so "92vw" still means 92% of the window. */
-  --ui-zoom: 0.85;
+  --ui-zoom: 0.9;
 }
 html { zoom: var(--ui-zoom); }
 
@@ -81,6 +81,8 @@ h1 { margin: 0 0 4px; color: var(--amber); }
   cursor: help;
 }
 .board-label.bot.hot, .board-label.bot:hover { color: var(--cream); }
+/* "Bots", heading the row of initials in the left frame; it stands on the same line as they do. */
+.board-label.bots-head { transform: translateY(-100%); }
 .board-label.market { color: var(--amber); font-weight: 600; font-size: max(11px, calc(var(--np) * 4px)); pointer-events: auto; cursor: help; }
 .bot-tip {
   display: none;

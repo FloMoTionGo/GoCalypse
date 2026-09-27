@@ -343,7 +343,7 @@ test("the market bot shops as soon as the market opens, and spends a turn on an 
 });
 
 test("the balanced bot would rather take the board than a ward it barely needs", () => {
-  // The same cornered pair, but a stone that captures is on the board: Tanuki's
+  // The same cornered pair, but a stone that captures is on the board: Seme's
   // itemBias is small enough that the capture wins.
   const size = 5;
   const v = view(size, 1, { powerups: ["lantern_ward"] });

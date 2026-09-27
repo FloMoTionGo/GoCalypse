@@ -1,6 +1,6 @@
 # Tuning the recruits
 
-An offline search for better board weights for Reed, Tanuki and Magpie, by
+An offline search for better board weights for Honte, Seme and Ko, by
 self-play on 13x13 with all four combos.
 
 **Nothing here ships and nothing here learns.** It runs on a developer's
@@ -31,7 +31,7 @@ incumbent.
 ## Noise, and why the held-out check is not optional
 
 One match is worth a few points of margin either way. The same **unchanged**
-Reed, scored against disjoint seed sets, comes out at:
+Honte, scored against disjoint seed sets, comes out at:
 
 | matches per candidate | standard deviation of margin |
 |---|---|
@@ -49,7 +49,7 @@ Three things keep it honest:
    which pairs the comparison and cancels most of the spread.
 2. A mutant that wins its generation must win **again** on seeds neither it nor
    the incumbent has seen, and those change every generation. Without this,
-   Reed's run won four generations running by 3.5–5.0 points and failed the
+   Honte's run won four generations running by 3.5–5.0 points and failed the
    confirmation every single time.
 3. The winner is replayed on **several disjoint held-out blocks**, so the gain
    arrives with a spread, and is kept only if it clears that spread. One block
@@ -59,11 +59,11 @@ Three things keep it honest:
 
 | style | training margin | out of sample |
 |---|---|---|
-| Reed | −0.23 → 3.39 | −0.48, spread 1.45 over 5 blocks — **discarded** |
-| Tanuki | 5.06 → 8.07 | −0.23 on one block — **discarded** |
-| Magpie | 3.41 → 3.41 | nothing was ever accepted |
+| Honte | −0.23 → 3.39 | −0.48, spread 1.45 over 5 blocks — **discarded** |
+| Seme | 5.06 → 8.07 | −0.23 on one block — **discarded** |
+| Ko | 3.41 → 3.41 | nothing was ever accepted |
 
-Reed is the cautionary tale. Its winner (`capture` 1400→1143, `line` 200→162)
+Honte is the cautionary tale. Its winner (`capture` 1400→1143, `line` 200→162)
 cleared a single held-out block at +0.34 and an earlier version of this tool
 called that a gain, because it only checked the sign. Five blocks put the same
 weights at **−0.48 with a spread of 1.45**: the weights were slightly *worse*,
@@ -90,7 +90,7 @@ be noise. Writing planners for the other 11 items is a separate piece of work.
 `prefers` and the item weights are also most of what makes the three recruits
 read as three different players, which is the point of having three. Each style
 additionally keeps a floor on the terms it is named for (`GUARDS` in
-`tune.js`) — Tanuki stays a fighter rather than drifting into Heron.
+`tune.js`) — Seme stays a fighter rather than drifting into Atsumi.
 
 ## Caveat on what "stronger" means
 

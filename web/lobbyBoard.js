@@ -1,6 +1,6 @@
 // GoCalypse lobby board: the home screen's bot menu and Join button, played as
 // a Go board on a grassy island in the logo's lantern river. Each bot kind is a
-// column, marked by its initials in the top frame like a board's coordinates
+// column, marked by its initial in the top frame like a board's coordinates
 // (hover them for the bot's name and what it does), with its Night Market
 // appetite as lanterns under them. Each row is a seat, P2 to P4, in the left
 // frame (you are P1, on the nameplate): a black stone seats that column's bot there, a
@@ -58,8 +58,6 @@
   const START_ROW = ROWS - 1, START_COL = (COLS - 1) >> 1;
   const KAYA_MARGIN = 6;
   const FRAME_TOP = 38, FRAME_LEFT = 38, FRAME_RIGHT = 16, FRAME_BOTTOM = 12; // the top holds your nameplate, then the bot initials and lamps
-  // Each bot's initials over its column; Moth and Magpie share an M, so both take two letters.
-  const INITIALS = { pure: "R", careful: "H", pattern: "Mo", balanced: "T", items: "OT", shark: "Ma" };
   const FRONT = 5; // the deck's front face
   const CLIFF = 3; // earth face under the island's near shore
 
@@ -458,7 +456,7 @@
     labelsEl.appendChild(el);
     return el;
   }
-  /** A bot's initials over its column. Hovering them shows its name and what it does in a tip on the kaya. */
+  /** A bot's initial over its column. Hovering them shows its name and what it does in a tip on the kaya. */
   function addBotLabel(o, col) {
     const el = document.createElement("span");
     el.className = "board-label bot" + (col === 0 ? " tip-start" : col === COLS - 1 ? " tip-end" : "");
@@ -472,7 +470,7 @@
     kind.className = "kind";
     kind.textContent = `${o.kind} · ${o.itemsLabel}`;
     tip.append(name, kind, o.desc);
-    el.append(INITIALS[o.id] || o.name.slice(0, 1), tip);
+    el.append(o.name.slice(0, 1), tip); // the names are Go terms with distinct first letters
     el.style.left = `${((px(col) + 0.5) / W) * 100}%`;
     el.style.top = `${((NAME_Y + 1) / H) * 100}%`;
     labelsEl.appendChild(el);
@@ -480,6 +478,7 @@
   }
   BOT_OPTIONS.forEach((o, col) => addBotLabel(o, col));
   for (let s = 0; s < SEATS; s++) addLabel(`P${s + 2}`, s, py(s) + 0.5);
+  addLabel("Bots", null, NAME_Y + 1, "bots-head");
   addLabel("Item buys", null, LAMP_Y + 0.5, "market").title = "How often each bot buys Night Market items: 0 to 3 lit lanterns";
   addLabel("Start", START_ROW, py(START_ROW) + 0.5, "start");
   addLabel("P1", null, PLATE.y + PLATE.h / 2, "name");

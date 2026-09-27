@@ -348,7 +348,7 @@ export class GoRoom extends Room<GoState> {
     return true;
   }
 
-  /** `base`, or `base 2`, `base 3`... when a seat already has that name, so two Reeds are told apart. */
+  /** `base`, or `base 2`, `base 3`... when a seat already has that name, so two Hontes are told apart. */
   private freeName(base: string): string {
     const names = new Set(this.state.players.map((p) => p.name));
     if (!names.has(base)) return base;

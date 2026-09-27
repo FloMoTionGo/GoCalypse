@@ -7,7 +7,7 @@
 // board's island (lobbyBoard.js, a canvas of its own laid over the river at
 // twice this scene's pixel size), with surf all along its shore.
 //
-// Sized to 75% of the window width at a whole number of device pixels per
+// Sized to about 64% of the window width (LOGO_SHARE) at a whole number of device pixels per
 // native pixel, so it stays as crisp as the board. Animates at the scene's
 // ambient 10 fps while the lobby is on screen; one still frame with reduced motion.
 (function () {
@@ -520,17 +520,18 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Canvas: 75% of the window, whole device pixels per native pixel
+  // Canvas: LOGO_SHARE of the window, whole device pixels per native pixel
   // ---------------------------------------------------------------------------
   const ctx = canvas.getContext("2d");
+  const LOGO_SHARE = 0.75 * 0.85; // of the window's width: 85% of the first 75%
   let scene = null, image = null;
   function fit() {
     // The page is zoomed (--ui-zoom in style.css): the window and the device pixels are
     // in window px, the canvas's style width in page px, each worth `zoom` window px.
     const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     const dpr = window.devicePixelRatio || 1;
-    // 75% of the window; on a narrow one the whole width (less the page gutters), as the bot board is in it.
-    let target = Math.floor(window.innerWidth * 0.75 * dpr); // device px
+    // LOGO_SHARE of the window; on a narrow one the whole width (less the page gutters), as the bot board is in it.
+    let target = Math.floor(window.innerWidth * LOGO_SHARE * dpr); // device px
     if (target < MIN_W) target = Math.floor((window.innerWidth - 32 * zoom) * dpr);
     const scale = Math.floor(target / MIN_W);
     const W = scale >= 1 ? Math.floor(target / scale) : MIN_W;

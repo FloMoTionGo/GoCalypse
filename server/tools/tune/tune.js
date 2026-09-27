@@ -20,7 +20,7 @@
 // A word on noise, because it decides whether any of this means anything. One
 // match is worth a few points of margin either way, so a candidate measured on
 // too few of them is measured mostly on luck. Against disjoint seed sets the
-// same unchanged Reed scores with a standard deviation of about 3.2 margin
+// same unchanged Honte scores with a standard deviation of about 3.2 margin
 // points over 12 matches, 2.4 over 24, and 1.1 over 48. Picking the best of
 // lambda mutants then adds selection bias on top: on 12 matches a do-nothing
 // search "improves" by 8 points in one generation. So:
@@ -35,7 +35,7 @@
 //  - and the winner is finally replayed on several DISJOINT held-out blocks, so
 //    the gain comes with a spread. It is kept only if it clears that spread.
 //    A single block cannot tell a small gain from a lucky one: one block once
-//    put Reed at "+0.34, holds up", and five blocks put the same weights at
+//    put Honte at "+0.34, holds up", and five blocks put the same weights at
 //    -0.48 with a spread of 1.45.
 //
 // So far this has found nothing that clears the bar. That is a result: the
@@ -223,7 +223,7 @@ async function main() {
 
     // Winning the generation is not enough. The best of eight noisy draws beats
     // the incumbent on luck alone often enough to walk the search uphill on
-    // nothing -- a first run of this tool "improved" Reed by 5.5 points on the
+    // nothing -- a first run of this tool "improved" Honte by 5.5 points on the
     // training seeds and gave 3.2 of them back out of sample. So the winner has
     // to beat the incumbent a second time, on seeds neither has been scored on,
     // and those seeds are different every generation.
@@ -269,7 +269,7 @@ async function main() {
   //
   // Several disjoint blocks of them, not one. A single held-out block gives one
   // difference and no way to tell a small gain from a lucky one -- an earlier
-  // version of this check reported Reed "+0.34, holds up" on one block, and
+  // version of this check reported Honte "+0.34, holds up" on one block, and
   // five blocks put the same weights at -0.48 with a spread of 1.45. One number
   // cannot say that; a handful can.
   const diffs = [];

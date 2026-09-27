@@ -190,10 +190,10 @@ the board or without liberties is simply **not placed**, and whatever stands
 there is left alone. A card that would land nothing, or bring back an earlier
 board (ko), or an empty card, is refused and kept. Everyone can see everyone's card beside their
 name. Every bot takes the free first stone; after that bots add only their solid
-stone, on a random point, as their purse habits allow (Reed never pays; Heron
+stone, on a random point, as their purse habits allow (Honte never pays; Atsumi
 keeps as much again in reserve), up to **5 stones of 9**
 (a full 3x3 block is a clump, not a shape). They play the card once it has those
-5, or if it pays for none (Reed plays its free one), or once the table starts passing
+5, or if it pays for none (Honte plays its free one), or once the table starts passing
 (`rules/stoneCard.ts`, `bots/card.ts`).
 
 Some items are **free**: they don't take your turn, you still move afterwards.
@@ -294,17 +294,17 @@ matching you with strangers), or added while a room is still waiting for its
 fourth player: the welcome screen (it opens by itself on a first visit;
 **Add bots** in the header reopens it) has the same menu. Pick up to **three of
 each kind**, but **no more than three bots in all** (the server enforces this
-too). Two of a kind are numbered ("Reed", "Reed 2"). The lanterns beside each
+too). Two of a kind are numbered ("Honte", "Honte 2"). The lanterns beside each
 name show how much of the Night Market it uses.
 
 | Bot | Plays | Night Market |
 |---|---|---|
-| Reed | Pure Go: stones only | Never buys, never uses an item |
-| Heron | Careful builder: keeps its stones together, fights only for something real | Few: spends slowly and keeps a reserve |
-| Moth | Pattern fighter: reaches for its gray or transparent stones first, builds with walls | Some |
-| Tanuki | A fighter that goes looking for contact | Some: buys a removal item or a trick when it pays |
-| Old Toad | Item player: plays the market as much as the board | Many: logs, lily pads, seeds, the odd bomb |
-| Magpie | Market shark | Max: spends turns on items whenever one can do anything, and shops down the whole list |
+| Honte | Pure Go: stones only | Never buys, never uses an item |
+| Atsumi | Careful builder: keeps its stones together, fights only for something real | Few: spends slowly and keeps a reserve |
+| Moyo | Pattern fighter: reaches for its gray or transparent stones first, builds with walls | Some |
+| Seme | A fighter that goes looking for contact | Some: buys a removal item or a trick when it pays |
+| Tenuki | Item player: plays the market as much as the board | Many: logs, lily pads, seeds, the odd bomb |
+| Ko | Market shark | Max: spends turns on items whenever one can do anything, and shops down the whole list |
 
 Bots are strictly opt-in: nobody is ever seated at a table that didn't ask for
 one. The one other time a bot plays is a seat whose player never came back

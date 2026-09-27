@@ -80,7 +80,7 @@ const BALANCED: Style = {
 export function heron(): Style {
   return {
     ...BALANCED,
-    name: "Heron",
+    name: "Atsumi",
     capture: 1200,
     save: 1100,
     atari: 300,
@@ -103,7 +103,7 @@ export function heron(): Style {
 export function tanuki(): Style {
   return {
     ...BALANCED,
-    name: "Tanuki",
+    name: "Seme",
     capture: 1600,
     save: 900,
     atari: 650,
@@ -126,7 +126,7 @@ export function tanuki(): Style {
 export function oldToad(): Style {
   return {
     ...BALANCED,
-    name: "Old Toad",
+    name: "Tenuki",
     capture: 1300,
     save: 1000,
     atari: 450,
@@ -152,7 +152,7 @@ export function oldToad(): Style {
 export function moth(): Style {
   return {
     ...BALANCED,
-    name: "Moth",
+    name: "Moyo",
     capture: 1250,
     save: 950,
     atari: 400,
@@ -175,7 +175,7 @@ export function moth(): Style {
 export function reed(): Style {
   return {
     ...BALANCED,
-    name: "Reed",
+    name: "Honte",
     hemmed: 100,
     itemBias: -1_000_000, // no item can ever beat a stone
     shopping: [], // and nothing is ever bought, so there is nothing to use
@@ -192,7 +192,7 @@ export function reed(): Style {
 export function magpie(): Style {
   return {
     ...BALANCED,
-    name: "Magpie",
+    name: "Ko",
     capture: 1300,
     atari: 450,
     contact: 100,

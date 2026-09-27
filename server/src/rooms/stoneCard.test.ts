@@ -286,10 +286,10 @@ test("every bot takes the free first stone, then adds by its purse habits: eager
   }
   assert.equal(chooseCardUpgrade(botView({ fireflies: 99 }), magpie(), rng), null);
   assert.notEqual(chooseCardUpgrade(botView({ fireflies: 100 }), magpie(), rng), null);
-  // Heron is careful (itemBias < 0): it keeps as much again as the stone costs.
+  // Atsumi is careful (itemBias < 0): it keeps as much again as the stone costs.
   assert.equal(chooseCardUpgrade(botView({ fireflies: 150 }), heron(), rng), null);
   assert.notEqual(chooseCardUpgrade(botView({ fireflies: 200 }), heron(), rng), null);
-  // Reed never shops, so it never pays for a stone.
+  // Honte never shops, so it never pays for a stone.
   assert.equal(chooseCardUpgrade(botView({ fireflies: 5000 }), reed(), rng), null);
 });
 

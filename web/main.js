@@ -1024,21 +1024,21 @@ function openWelcome(state) {
 // The bots a player can bring, on the home screen before joining or on the welcome
 // screen while the room waits for its fourth player. `id` is the wire name
 // server/src/bots/styles.ts (RECRUITS) answers to, and `name` is the name the seated
-// bot takes there (a second one is "Reed 2"). `items` is how much of the Night
-// Market it uses, 0 to 3: from Reed, who never buys or uses a thing, to Magpie,
+// bot takes there (a second one is "Honte 2"). `items` is how much of the Night
+// Market it uses, 0 to 3: from Honte, who never buys or uses a thing, to Ko,
 // who spends turns on items whenever one can do anything.
 const BOT_OPTIONS = [
-  { id: "pure", name: "Reed", kind: "Pure Go", items: 0, itemsLabel: "No powerups",
+  { id: "pure", name: "Honte", kind: "Pure Go", items: 0, itemsLabel: "No powerups",
     desc: "Plays stones and nothing else. Never visits the Night Market." },
-  { id: "careful", name: "Heron", kind: "Careful builder", items: 1, itemsLabel: "Few powerups",
+  { id: "careful", name: "Atsumi", kind: "Careful builder", items: 1, itemsLabel: "Few powerups",
     desc: "Keeps its stones together and fights only for something real. Spends slowly and keeps a reserve." },
-  { id: "pattern", name: "Moth", kind: "Pattern fighter", items: 1, itemsLabel: "Some powerups",
+  { id: "pattern", name: "Moyo", kind: "Pattern fighter", items: 1, itemsLabel: "Some powerups",
     desc: "Reaches for its gray or transparent stones first and builds with walls." },
-  { id: "balanced", name: "Tanuki", kind: "Fighter", items: 1, itemsLabel: "Some powerups",
+  { id: "balanced", name: "Seme", kind: "Fighter", items: 1, itemsLabel: "Some powerups",
     desc: "Goes looking for fights, and buys a removal item or a trick when it pays off." },
-  { id: "items", name: "Old Toad", kind: "Item player", items: 2, itemsLabel: "Many powerups",
+  { id: "items", name: "Tenuki", kind: "Item player", items: 2, itemsLabel: "Many powerups",
     desc: "Plays the market as much as the board: logs, lily pads, seeds and the odd bomb." },
-  { id: "shark", name: "Magpie", kind: "Market shark", items: 3, itemsLabel: "Max powerups",
+  { id: "shark", name: "Ko", kind: "Market shark", items: 3, itemsLabel: "Max powerups",
     desc: "Spends turns on items whenever it can, and shops down the whole list." },
 ];
 const BOT_SEATS = 4; // mirrors MAX_PLAYERS in server/src/rooms/GoRoom.ts
@@ -1065,7 +1065,7 @@ function pickedTotal() {
   return n;
 }
 
-/** The picks as the wire list the server takes: one id per bot, so two Reeds are "pure" twice. */
+/** The picks as the wire list the server takes: one id per bot, so two Hontes are "pure" twice. */
 function pickedIds() {
   const ids = [];
   for (const option of BOT_OPTIONS) {
