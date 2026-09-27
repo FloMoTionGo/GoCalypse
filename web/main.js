@@ -997,8 +997,8 @@ function openWelcome(state) {
     : `Players who hold the same colour share its territory`;
   document.getElementById("welcome-scoring").textContent =
     `The board is then counted once on each front, the Japanese way: only territory, the empty points your side ` +
-    `walls in on its own. A stone is worth nothing in itself, only the ground it surrounds, and a stone that is a ` +
-    `wall on a front counts for no one there. On top of that you count your prisoners: the stones you captured ` +
+    `walls in on its own. A stone is worth nothing in itself, only the ground it surrounds, and a stone of the ` +
+    `other front (a gray one on black against white) counts for no one there. On top of that you count your prisoners: the stones you captured ` +
     `yourself on that side. Your score is the lower of ${yourTwo}; the higher one only breaks ties. ` +
     `${sharers} -- but prisoners are yours alone, so take the capture rather than leave it to them. ` +
     `Nothing is taken off as dead at the end: capture what should go before you pass.`;
