@@ -525,6 +525,15 @@
   const ctx = canvas.getContext("2d");
   const LOGO_SHARE = 0.75 * 0.85; // of the window's width: 85% of the first 75%
   let scene = null, image = null;
+  let rest = 0; // window px the home screen needs besides the logo, last measured while it showed
+  /** Window px above the logo and from its foot to the page's end (the lobby, its margin, #app's padding). */
+  function restHeight(zoom) {
+    const app = document.getElementById("app");
+    if (!lobby || lobby.hidden || !app) return rest;
+    const logo = canvas.getBoundingClientRect(), end = lobby.getBoundingClientRect().bottom;
+    const below = parseFloat(getComputedStyle(lobby).marginBottom) + parseFloat(getComputedStyle(app).paddingBottom);
+    return (rest = end - logo.height + window.scrollY + below * zoom);
+  }
   function fit() {
     // The page is zoomed (--ui-zoom in style.css): the window and the device pixels are
     // in window px, the canvas's style width in page px, each worth `zoom` window px.
@@ -533,10 +542,15 @@
     // LOGO_SHARE of the window; on a narrow one the whole width (less the page gutters), as the bot board is in it.
     let target = Math.floor(window.innerWidth * LOGO_SHARE * dpr); // device px
     if (target < MIN_W) target = Math.floor((window.innerWidth - 32 * zoom) * dpr);
-    const scale = Math.floor(target / MIN_W);
+    // ...and no taller than the window leaves once the text under it (tagline, Play,
+    // footer) has its room, so the home screen fits on one screen at any display
+    // scaling. A lower scale makes the scene wider in its own pixels, not narrower.
+    const tall = ((window.innerHeight - restHeight(zoom)) * dpr) / H; // device px per scene px the height allows
+    const scale = Math.min(Math.floor(target / MIN_W), Math.max(1, Math.floor(tall)));
     const W = scale >= 1 ? Math.floor(target / scale) : MIN_W;
-    // Too narrow for whole pixels: let the browser shrink it to the window instead.
-    canvas.style.width = scale >= 1 ? `${(W * scale) / (dpr * zoom)}px` : `${window.innerWidth / zoom - 32}px`;
+    // Too narrow or too short for whole pixels: let the browser shrink it to the window instead.
+    const shrink = Math.min(1, Math.max(tall, 0.25));
+    canvas.style.width = scale >= 1 ? `${(W * scale * shrink) / (dpr * zoom)}px` : `${Math.min(window.innerWidth / zoom - 32, (W * shrink) / (dpr * zoom))}px`;
     if (scene && scene.W === W) return placeIsland();
     canvas.width = W;
     canvas.height = H;
