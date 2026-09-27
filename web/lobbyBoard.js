@@ -1,10 +1,11 @@
 // GoCalypse lobby board: the home screen's bot menu and Join button, played as
 // a Go board on a grassy island in the logo's lantern river. Each bot kind is a
-// row, named in the left frame like a board's coordinates, with its Night
-// Market appetite as lanterns in the right frame. Each column is a seat,
-// Player 2 to 4 (you are Player 1, on the nameplate): a black stone seats that
-// row's bot there, a white stone captures it again. A black stone on Start
-// joins. The name is written on a nameplate set into the frame below the kaya.
+// column, marked by its initials in the top frame like a board's coordinates
+// (hover them for the bot's name and what it does), with its Night Market
+// appetite as lanterns under them. Each row is a seat, P2 to P4, in the left
+// frame (you are P1, on the nameplate): a black stone seats that column's bot there, a
+// white stone captures it again. A black stone on Start joins. The name is
+// written on a nameplate set into the frame above the kaya, over the bots.
 //
 // The island is drawn on its own transparent canvas at twice the logo's pixel
 // size; logo.js lays it over the river, which it draws round the island's
@@ -51,12 +52,14 @@
   // placement / capture effects fit as they are.
   // ---------------------------------------------------------------------------
   const SP = PS.SPACING;
-  const BOT_ROWS = BOT_OPTIONS.length;
-  const COLS = MAX_BOTS; // one column per seat a bot can take: Player 2 to 4
-  const ROWS = BOT_ROWS + 2; // the bots, an empty line, then Start
+  const SEATS = MAX_BOTS; // one row per seat a bot can take: Player 2 to 4
+  const COLS = BOT_OPTIONS.length; // one column per bot kind
+  const ROWS = SEATS + 2; // the seats, an empty line, then Start
   const START_ROW = ROWS - 1, START_COL = (COLS - 1) >> 1;
   const KAYA_MARGIN = 6;
-  const FRAME_TOP = 22, FRAME_LEFT = 64, FRAME_RIGHT = 28, FRAME_BOTTOM = 24; // the top holds the seat labels
+  const FRAME_TOP = 38, FRAME_LEFT = 38, FRAME_RIGHT = 16, FRAME_BOTTOM = 12; // the top holds your nameplate, then the bot initials and lamps
+  // Each bot's initials over its column; Moth and Magpie share an M, so both take two letters.
+  const INITIALS = { pure: "R", careful: "H", pattern: "Mo", balanced: "T", items: "OT", shark: "Ma" };
   const FRONT = 5; // the deck's front face
   const CLIFF = 3; // earth face under the island's near shore
 
@@ -96,8 +99,9 @@
   const kayaX = boardX + FRAME_LEFT, kayaY = boardY + FRAME_TOP;
   const gridX = kayaX + KAYA_MARGIN, gridY = kayaY + KAYA_MARGIN;
   const boardRight = boardX + boardW, boardBottom = boardY + boardH, frontBottom = boardBottom + FRONT;
-  const PLATE = { x: kayaX, y: kayaY + kayaH + 7, w: kayaW, h: 13 };
-  const LAMP_X = kayaX + kayaW + 7; // first lamp in the right frame
+  const PLATE = { x: kayaX, y: boardY + 6, w: kayaW, h: 13 }; // P1, at the top of the frame over the bots
+  const LAMP_Y = kayaY - 5; // the lamps' row in the top frame, under the bot names
+  const NAME_Y = kayaY - 9; // foot of the bot initials
   const px = (col) => gridX + col * SP, py = (row) => gridY + row * SP;
   const idx = (x, y) => y * W + x;
   const inside = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
@@ -210,12 +214,10 @@
     for (let c = 0; c < COLS; c++) for (let y = py(0); y <= py(ROWS - 1); y++) base.set(px(c), y, K);
     for (let r = 0; r < ROWS; r++) for (let x = px(0); x <= px(COLS - 1); x++) base.set(x, py(r), K);
     base.blitCentered(G.SPRITES.hoshi, px(START_COL), py(START_ROW));
-    // Seat ticks: a slate notch in the frame above each column, under its label.
-    for (let c = 0; c < COLS; c++) { base.set(px(c), kayaY - 2, S); base.set(px(c), kayaY - 3, S); }
-    // Lamps in the right frame: how much of the Night Market each bot uses.
-    BOT_OPTIONS.forEach((o, r) => {
+    // Lamps in the top frame, three under each bot's initials: how much of the Night Market it uses.
+    BOT_OPTIONS.forEach((o, c) => {
       for (let i = 0; i < 3; i++) {
-        const lx = LAMP_X + i * 6, ly = py(r);
+        const lx = px(c) + (i - 1) * 4, ly = LAMP_Y;
         if (i < o.items) {
           base.set(lx, ly, C);
           base.set(lx - 1, ly, A); base.set(lx + 1, ly, A); base.set(lx, ly - 1, A); base.set(lx, ly + 1, A);
@@ -266,10 +268,10 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Play state: stones mirror main.js's bot picks, one stone per seat (column)
+  // Play state: stones mirror main.js's bot picks, one stone per seat (row)
   // ---------------------------------------------------------------------------
-  const rows = BOT_OPTIONS.map(() => []); // columns holding a black stone, oldest first
-  const ownerOf = (col) => rows.findIndex((have) => have.includes(col));
+  const seated = BOT_OPTIONS.map(() => []); // per bot (column): the seats (rows) holding its black stone, oldest first
+  const ownerOf = (seat) => seated.findIndex((have) => have.includes(seat));
   let startStone = false, startAt = 0;
   let effects = [];
   let hover = null; // {col, row} under the pointer
@@ -281,10 +283,10 @@
 
   /** Brings the stones in line with the picks (joining clears them; the welcome menu shares them). */
   function reconcile(time) {
-    BOT_OPTIONS.forEach((o, row) => {
-      const want = botPicks.get(o.id) || 0, have = rows[row];
+    BOT_OPTIONS.forEach((o, col) => {
+      const want = botPicks.get(o.id) || 0, have = seated[col];
       while (have.length > want) have.pop();
-      for (let c = 0; have.length < want && c < COLS; c++) if (ownerOf(c) < 0) have.push(c);
+      for (let s = 0; have.length < want && s < SEATS; s++) if (ownerOf(s) < 0) have.push(s);
     });
     // The Start stone stays while the join is under way, and goes when it failed or we are back.
     if (startStone && !joinButton.disabled && time - startAt > 0.6) startStone = false;
@@ -304,9 +306,9 @@
   }
 
   function capture(col, row, time) {
-    const have = rows[row];
-    have.splice(have.indexOf(col), 1);
-    changePick(BOT_OPTIONS[row].id, -1);
+    const have = seated[col];
+    have.splice(have.indexOf(row), 1);
+    changePick(BOT_OPTIONS[col].id, -1);
     effects.push(PS.captureEffect(col, row, 1, time));
   }
 
@@ -322,24 +324,24 @@
       setTimeout(() => joinButton.click(), reduced.matches ? 0 : 320);
       return updateCaption();
     }
-    const o = BOT_OPTIONS[point.row], have = rows[point.row];
-    if (have.includes(point.col) || color === "white") {
-      // White captures: the stone clicked, or the row's newest one.
-      const col = have.includes(point.col) ? point.col : have[have.length - 1];
-      if (col === undefined) return say(`No ${o.name} on the board to take off.`);
-      capture(col, point.row, time);
-      announce(`${o.name} taken off ${seatName(col)}.`);
+    const o = BOT_OPTIONS[point.col], have = seated[point.col];
+    if (have.includes(point.row) || color === "white") {
+      // White captures: the stone clicked, or the column's newest one.
+      const seat = have.includes(point.row) ? point.row : have[have.length - 1];
+      if (seat === undefined) return say(`No ${o.name} on the board to take off.`);
+      capture(point.col, seat, time);
+      announce(`${o.name} taken off ${seatName(seat)}.`);
       return updateCaption();
     }
     // Black on a seat another bot holds: that bot is captured and this one takes the seat.
-    const other = ownerOf(point.col);
-    if (other >= 0) capture(point.col, other, time);
+    const other = ownerOf(point.row);
+    if (other >= 0) capture(other, point.row, time);
     const replaced = other >= 0 ? ` ${BOT_OPTIONS[other].name} taken off.` : "";
     if (pickedTotal() >= MAX_BOTS) return say(`${MAX_BOTS} bots at most. Capture one with a white stone first.`);
-    have.push(point.col);
+    have.push(point.row);
     changePick(o.id, 1);
     effects.push(PS.placeEffect(point.col, point.row, 1, time));
-    announce(`${o.name} seated as ${seatName(point.col)}.${replaced}`);
+    announce(`${o.name} seated as ${seatName(point.row)}.${replaced}`);
     updateCaption();
   }
 
@@ -347,7 +349,7 @@
   // Caption under the scene: what the point under the pointer does
   // ---------------------------------------------------------------------------
   const touch = window.matchMedia("(pointer: coarse)");
-  const seatName = (col) => `Player ${col + 2}`;
+  const seatName = (seat) => `Player ${seat + 2}`;
   function startText() {
     const n = pickedTotal();
     if (n === 0) return "Start: play a black stone here to join a table with other players.";
@@ -361,13 +363,13 @@
     if (message && now() < messageUntil) text = message;
     else if (p && p.row === START_ROW) text = startText();
     else if (p) {
-      const o = BOT_OPTIONS[p.row];
-      text = `${o.name} as ${seatName(p.col)}, ${o.kind.toLowerCase()} (${o.itemsLabel.toLowerCase()}): ${o.desc}`;
+      const o = BOT_OPTIONS[p.col];
+      text = `${o.name} as ${seatName(p.row)}, ${o.kind.toLowerCase()} (${o.itemsLabel.toLowerCase()}): ${o.desc}`;
     } else {
       const n = pickedTotal();
       text = (touch.matches
-        ? "You are Player 1. Tap a row under a seat to put that bot there, tap its stone to take it off, then tap Start."
-        : "You are Player 1. A black stone (left click) seats a row's bot as that column's player, a white stone (right click) takes it off. Then play on Start.");
+        ? "You are Player 1. Tap a bot's column in a seat's row to put that bot there, tap its stone to take it off, then tap Start."
+        : "You are Player 1. A black stone (left click) seats a column's bot as that row's player, a white stone (right click) takes it off. Then play on Start.");
       if (n) text = `${n} of ${MAX_BOTS} bots seated. ` + text;
     }
     if (captionEl.textContent !== text) captionEl.textContent = text;
@@ -400,7 +402,7 @@
     // stones: shadows first, then the stones, skipping any a placement is still dropping
     const busy = new Set(effects.filter((e) => e.kind === "place" && !PS.effectDone(e, real, reduced.matches)).map((e) => `${e.x},${e.y}`));
     const stones = [];
-    rows.forEach((have, row) => have.forEach((col) => stones.push({ col, row })));
+    seated.forEach((have, col) => have.forEach((row) => stones.push({ col, row })));
     if (startStone) stones.push({ col: START_COL, row: START_ROW });
     const black = G.STONES.black.normal, white = G.STONES.white.normal;
     for (const s of stones) {
@@ -412,7 +414,7 @@
     const p = keyboard ? cursor : hover;
     if (p) {
       const col = p.row === START_ROW ? START_COL : p.col;
-      const taken = p.row < BOT_ROWS ? rows[p.row].includes(col) : startStone;
+      const taken = p.row < SEATS ? seated[col].includes(p.row) : startStone;
       const ghost = taken ? white : black;
       if (!(p.row === START_ROW && startStone)) surf.blitCentered(ghost, px(col), py(p.row), { coverage: taken ? 0.75 : 0.5 });
       if (keyboard) surf.blitCentered(animFrame("reticle", t), px(col), py(p.row));
@@ -444,7 +446,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Labels over the frame (seats, names, market, Start, Player 1) and the nameplate's input
+  // Labels over the frame (seats, names, market, Start, P1) and the nameplate's input
   // ---------------------------------------------------------------------------
   function addLabel(text, row, y, cls) {
     const el = document.createElement("span");
@@ -456,36 +458,31 @@
     labelsEl.appendChild(el);
     return el;
   }
-  /** A two-line label centred over a column of the frame. */
-  function addTopLabel(top, bottom, x, cls) {
+  /** A bot's initials over its column. Hovering them shows its name and what it does in a tip on the kaya. */
+  function addBotLabel(o, col) {
     const el = document.createElement("span");
-    el.className = "board-label top" + (cls ? " " + cls : "");
-    el.append(top, document.createElement("br"), bottom);
-    el.style.left = `${(x / W) * 100}%`;
-    el.style.top = `${((boardY + FRAME_TOP / 2) / H) * 100}%`;
+    el.className = "board-label bot" + (col === 0 ? " tip-start" : col === COLS - 1 ? " tip-end" : "");
+    el.dataset.col = String(col);
+    el.dataset.id = o.id;
+    const tip = document.createElement("span");
+    tip.className = "bot-tip";
+    const name = document.createElement("b");
+    name.textContent = o.name;
+    const kind = document.createElement("span");
+    kind.className = "kind";
+    kind.textContent = `${o.kind} · ${o.itemsLabel}`;
+    tip.append(name, kind, o.desc);
+    el.append(INITIALS[o.id] || o.name.slice(0, 1), tip);
+    el.style.left = `${((px(col) + 0.5) / W) * 100}%`;
+    el.style.top = `${((NAME_Y + 1) / H) * 100}%`;
     labelsEl.appendChild(el);
     return el;
   }
-  const seatLabels = [];
-  for (let c = 0; c < COLS; c++) {
-    const el = addTopLabel("Player", String(c + 2), px(c) + 0.5);
-    el.dataset.col = String(c);
-    seatLabels.push(el);
-  }
-  // Where the columns get too close for "Player 2", they read "P2".
-  let shortSeats = null;
-  new ResizeObserver(() => {
-    const short = (wrap.getBoundingClientRect().width / W) * SP < 40; // "Player" at 11px needs ~36 CSS px
-    if (short === shortSeats) return;
-    shortSeats = short;
-    seatLabels.forEach((el, c) => {
-      el.replaceChildren(...(short ? [`P${c + 2}`] : ["Player", document.createElement("br"), String(c + 2)]));
-    });
-  }).observe(wrap);
-  addTopLabel("Item", "buys", LAMP_X + 6.5, "market").title = "How often each bot buys Night Market items: 0 to 3 lit lanterns";
-  BOT_OPTIONS.forEach((o, row) => addLabel(o.name, row, py(row) + 0.5));
+  BOT_OPTIONS.forEach((o, col) => addBotLabel(o, col));
+  for (let s = 0; s < SEATS; s++) addLabel(`P${s + 2}`, s, py(s) + 0.5);
+  addLabel("Item buys", null, LAMP_Y + 0.5, "market").title = "How often each bot buys Night Market items: 0 to 3 lit lanterns";
   addLabel("Start", START_ROW, py(START_ROW) + 0.5, "start");
-  addLabel("Player 1", null, PLATE.y + PLATE.h / 2, "name");
+  addLabel("P1", null, PLATE.y + PLATE.h / 2, "name");
   Object.assign(plateEl.style, {
     left: `${(PLATE.x / W) * 100}%`,
     top: `${(PLATE.y / H) * 100}%`,
@@ -500,7 +497,7 @@
     const rect = canvas.getBoundingClientRect();
     const nx = ((evt.clientX - rect.left) * W) / rect.width, ny = ((evt.clientY - rect.top) * H) / rect.height;
     const col = Math.round((nx - gridX) / SP), row = Math.round((ny - gridY) / SP);
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS || row === BOT_ROWS) return null;
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS || row === SEATS) return null;
     if (Math.abs(nx - px(col)) > SP / 2 || Math.abs(ny - py(row)) > SP / 2) return null;
     return { col: row === START_ROW ? START_COL : col, row };
   }
@@ -529,7 +526,7 @@
       evt.preventDefault();
       keyboard = true;
       let row = cursor.row + move[1];
-      if (row === BOT_ROWS) row += move[1]; // hop the empty line
+      if (row === SEATS) row += move[1]; // hop the empty line
       row = Math.max(0, Math.min(START_ROW, row));
       const col = row === START_ROW ? START_COL : Math.max(0, Math.min(COLS - 1, (cursor.row === START_ROW && move[1] ? START_COL : cursor.col) + move[0]));
       cursor = { col, row };

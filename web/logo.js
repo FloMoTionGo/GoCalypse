@@ -525,14 +525,17 @@
   const ctx = canvas.getContext("2d");
   let scene = null, image = null;
   function fit() {
+    // The page is zoomed (--ui-zoom in style.css): the window and the device pixels are
+    // in window px, the canvas's style width in page px, each worth `zoom` window px.
+    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     const dpr = window.devicePixelRatio || 1;
     // 75% of the window; on a narrow one the whole width (less the page gutters), as the bot board is in it.
     let target = Math.floor(window.innerWidth * 0.75 * dpr); // device px
-    if (target < MIN_W) target = Math.floor((window.innerWidth - 32) * dpr);
+    if (target < MIN_W) target = Math.floor((window.innerWidth - 32 * zoom) * dpr);
     const scale = Math.floor(target / MIN_W);
     const W = scale >= 1 ? Math.floor(target / scale) : MIN_W;
     // Too narrow for whole pixels: let the browser shrink it to the window instead.
-    canvas.style.width = scale >= 1 ? `${(W * scale) / dpr}px` : "calc(100vw - 32px)";
+    canvas.style.width = scale >= 1 ? `${(W * scale) / (dpr * zoom)}px` : `${window.innerWidth / zoom - 32}px`;
     if (scene && scene.W === W) return placeIsland();
     canvas.width = W;
     canvas.height = H;
@@ -552,7 +555,8 @@
   /** Lays the island's canvas over its outline in the river, at twice this scene's pixel size. */
   function placeIsland() {
     if (!ISLE || !scene) return;
-    const u = canvas.getBoundingClientRect().width / scene.W; // CSS px per scene px; exact px, as percentages round off
+    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    const u = canvas.getBoundingClientRect().width / zoom / scene.W; // page px per scene px; exact px, as percentages round off
     Object.assign(ISLE.wrap.style, {
       left: `${scene.islandX * u}px`,
       top: `${ISLAND_TOP * u}px`,

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>GoCalypse mock: lobby board</title>
+<link rel="stylesheet" href="../web/style.css" />
+<script src="../web/sprites.js"></script>
+<script src="../web/pixelScene.js"></script>
+<style>
+  .note { color: var(--slate); font-size: 13px; max-width: 760px; margin: 0 auto 12px; text-align: center; }
+  /* ?tip=<name> pins that bot's tip open, as if hovered */
+  .board-label.bot.pinned { color: var(--cream); z-index: 3; }
+  .board-label.bot.pinned .bot-tip { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <p class="note">Static mock of the home screen's bot board, transposed: bots are columns, marked by their initials
+  (R H Mo T OT Ma) with Night Market lamps under them; hover the initials for the bot's name and what it does. Seats
+  P2 to P4 are rows. The whole page is
+  drawn at 85% (<code>--ui-zoom</code>). Pin a state with <code>?pick=pure,balanced,shark</code> (seated in order) and
+  <code>?tip=Tanuki</code>. No server: Start does nothing.</p>
+  <div id="logo-wrap">
+    <canvas id="logo" class="px" aria-hidden="true"></canvas>
+    <div id="lobby-board-wrap">
+      <canvas id="lobby-board" class="px" tabindex="0" aria-describedby="lobby-caption" aria-label="Bot board"></canvas>
+      <div id="lobby-board-labels" aria-hidden="true"></div>
+      <label id="name-plate">
+        <span class="visually-hidden">Name</span>
+        <input id="name-input" type="text" placeholder="Guest" maxlength="24" spellcheck="false" />
+      </label>
+    </div>
+    <a id="github-link" href="#" tabindex="-1" aria-hidden="true"></a>
+  </div>
+  <section id="lobby">
+    <p class="tagline">4-player Go by the lantern river. Custom captures. A night market.</p>
+    <p id="lobby-caption" class="hint"></p>
+    <p id="lobby-announce" class="visually-hidden" aria-live="polite"></p>
+    <button id="join-button" type="button">Play online</button>
+    <p id="lobby-status" class="status" role="status"></p>
+  </section>
+</div>
+<script>
+  // Stand-ins for the main.js globals lobbyBoard.js drives; BOT_OPTIONS mirrors main.js.
+  const BOT_OPTIONS = [
+    { id: "pure", name: "Reed", kind: "Pure Go", items: 0, itemsLabel: "No powerups",
+      desc: "Plays stones and nothing else. Never visits the Night Market." },
+    { id: "careful", name: "Heron", kind: "Careful builder", items: 1, itemsLabel: "Few powerups",
+      desc: "Keeps its stones together and fights only for something real. Spends slowly and keeps a reserve." },
+    { id: "pattern", name: "Moth", kind: "Pattern fighter", items: 1, itemsLabel: "Some powerups",
+      desc: "Reaches for its gray or transparent stones first and builds with walls." },
+    { id: "balanced", name: "Tanuki", kind: "Fighter", items: 1, itemsLabel: "Some powerups",
+      desc: "Goes looking for fights, and buys a removal item or a trick when it pays off." },
+    { id: "items", name: "Old Toad", kind: "Item player", items: 2, itemsLabel: "Many powerups",
+      desc: "Plays the market as much as the board: logs, lily pads, seeds and the odd bomb." },
+    { id: "shark", name: "Magpie", kind: "Market shark", items: 3, itemsLabel: "Max powerups",
+      desc: "Spends turns on items whenever it can, and shops down the whole list." },
+  ];
+  const MAX_BOTS = 3;
+  const botPicks = new Map();
+  const joinButton = document.getElementById("join-button");
+  const lobbyStatus = document.getElementById("lobby-status");
+  function pickedTotal() { let n = 0; for (const c of botPicks.values()) n += c; return n; }
+  function changePick(id, delta) {
+    const next = Math.max(0, (botPicks.get(id) || 0) + delta);
+    if (next === 0) botPicks.delete(id); else botPicks.set(id, next);
+    const n = pickedTotal();
+    joinButton.textContent = n === 0 ? "Play online" : `Play with ${n} bot${n === 1 ? "" : "s"}`;
+  }
+  const params = new URLSearchParams(location.search);
+  for (const id of (params.get("pick") || "").split(",").filter(Boolean).slice(0, MAX_BOTS)) changePick(id, 1);
+</script>
+<script src="../web/lobbyBoard.js"></script>
+<script src="../web/logo.js"></script>
+<script>
+  const tip = params.get("tip");
+  const tipBot = tip && BOT_OPTIONS.find((o) => o.name.toLowerCase() === tip.toLowerCase() || o.id === tip);
+  if (tipBot) for (const el of document.querySelectorAll(".board-label.bot")) el.classList.toggle("pinned", el.dataset.id === tipBot.id);
+</script>
+</body>
+</html>

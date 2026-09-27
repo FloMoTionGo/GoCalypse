@@ -399,6 +399,26 @@ function ensureScene(size) {
 }
 
 /**
+ * The page's CSS zoom (--ui-zoom in style.css). getBoundingClientRect(), the
+ * pointer and innerWidth / innerHeight come in window px; lengths set on an
+ * element's style are page px, each worth uiZoom() window px.
+ */
+function uiZoom() {
+  return parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+}
+
+/** Device pixels per page px: what whole-pixel sizing divides by. */
+function devicePx() {
+  return (window.devicePixelRatio || 1) * uiZoom();
+}
+
+/** A getBoundingClientRect() in page px, for placing elements with style lengths. */
+function pageRect(el) {
+  const r = el.getBoundingClientRect(), z = uiZoom();
+  return { left: r.left / z, top: r.top / z, right: r.right / z, bottom: r.bottom / z, width: r.width / z, height: r.height / z };
+}
+
+/**
  * Make the scene as large as it can be while the whole page still fits on one
  * screen: the largest whole number of device pixels per native pixel that
  * leaves room for the sidebar and the lines under the board. Whole device
@@ -407,17 +427,18 @@ function ensureScene(size) {
  */
 function sizeCanvas() {
   if (!scene || gameEl.hidden) return; // #game has size 0 while hidden; wait for attachRoom to show it
-  const dpr = window.devicePixelRatio || 1;
+  const z = uiZoom();
+  const dpr = devicePx();
   const sidebar = document.getElementById("sidebar");
   const body = document.getElementById("game-body");
   const gap = 20;
-  const sideW = sidebar ? sidebar.getBoundingClientRect().width : 220;
-  const bodyLeft = body ? body.getBoundingClientRect().left : 16;
-  const availW = Math.max(120, window.innerWidth - bodyLeft * 2 - sideW - gap);
+  const sideW = sidebar ? sidebar.getBoundingClientRect().width / z : 220;
+  const bodyLeft = body ? body.getBoundingClientRect().left / z : 16;
+  const availW = Math.max(120, window.innerWidth / z - bodyLeft * 2 - sideW - gap);
   // Room for the header above and, below, the row of cards (with the recall strip)
   // and the hint / notice / last-event lines. The cards grow with the board.
-  const top = body ? body.getBoundingClientRect().top : 60;
-  const availH = Math.max(120, window.innerHeight - top - 66);
+  const top = body ? body.getBoundingClientRect().top / z : 60;
+  const availH = Math.max(120, window.innerHeight / z - top - 66);
 
   let scale = MIN_SCALE;
   for (let s = MAX_SCALE; s > MIN_SCALE; s--) {
@@ -1873,22 +1894,23 @@ function showCardZoom(card) {
   hideCardZoom();
   if (!card.isConnected || card.classList.contains("incoming")) return;
   const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-px")) || 2;
-  const b = boardEl.getBoundingClientRect();
+  const b = pageRect(boardEl);
   const margin = 8;
   // As large as asked, unless the window is too small for that; whole device pixels per card pixel.
-  const dpr = window.devicePixelRatio || 1;
-  const fit = Math.min(CARD_ZOOM * px, (window.innerWidth - 2 * margin) / G.CARD_W, (window.innerHeight - 2 * margin) / G.CARD_H);
+  const dpr = devicePx();
+  const vw = window.innerWidth / uiZoom(), vh = window.innerHeight / uiZoom(); // the window in page px
+  const fit = Math.min(CARD_ZOOM * px, (vw - 2 * margin) / G.CARD_W, (vh - 2 * margin) / G.CARD_H);
   const zpx = Math.max(px, Math.floor(fit * dpr) / dpr);
   const w = G.CARD_W * zpx, h = G.CARD_H * zpx;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
   const live = card.dataset.id === STONE_CARD && !!myPlayer && hasStoneCard(myPlayer);
-  let left = clamp(b.left + (b.width - w) / 2, margin, window.innerWidth - margin - w);
-  let top = clamp(b.top + (b.height - h) / 2, margin, window.innerHeight - margin - h);
+  let left = clamp(b.left + (b.width - w) / 2, margin, vw - margin - w);
+  let top = clamp(b.top + (b.height - h) / 2, margin, vh - margin - h);
   if (live) {
     // Over the card, its lower edge a third of the way down the card: no gap for the pointer to fall through.
-    const c = card.getBoundingClientRect();
-    left = clamp(c.left + (c.width - w) / 2, margin, window.innerWidth - margin - w);
-    top = clamp(c.top + c.height / 3 - h, margin, window.innerHeight - margin - h);
+    const c = pageRect(card);
+    left = clamp(c.left + (c.width - w) / 2, margin, vw - margin - w);
+    top = clamp(c.top + c.height / 3 - h, margin, vh - margin - h);
   }
 
   const zoom = live ? stoneCardEl(myPlayer, false) : card.cloneNode(true);
@@ -1977,8 +1999,8 @@ function flyCard(index) {
   const source = stall >= 0 ? marketItemsEl.children[stall] : null;
   if (!target || !source || reducedMotion() || !target.animate) return land();
 
-  const to = target.getBoundingClientRect();
-  const from = (source.querySelector("img") || source).getBoundingClientRect();
+  const to = pageRect(target);
+  const from = pageRect(source.querySelector("img") || source);
   if (!to.width || !from.width) return land();
   const flier = target.cloneNode(true);
   flier.classList.remove("incoming", "active");
@@ -1999,7 +2021,7 @@ function flyCard(index) {
   const x0 = from.left + from.width / 2 - cx;
   const y0 = from.top + from.height / 2 - cy;
   const s0 = Math.min(1, from.width / to.width);
-  const b = boardEl.getBoundingClientRect();
+  const b = pageRect(boardEl);
   const boardBox = { left: b.left - cx, right: b.right - cx, top: b.top - cy, bottom: b.bottom - cy };
   const smooth = (a, z, v) => {
     const k = Math.min(1, Math.max(0, (v - a) / (z - a)));

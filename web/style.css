@@ -12,7 +12,13 @@
   --text: var(--cream);
   --muted: var(--slate);
   --accent: var(--amber);
+
+  /* The whole page drawn at 85%, like the browser's own zoom. The pixel canvases
+     still land on whole device pixels: main.js and logo.js size them through
+     uiZoom(). Viewport units are divided by it so "92vw" still means 92% of the window. */
+  --ui-zoom: 0.85;
 }
+html { zoom: var(--ui-zoom); }
 
 * { box-sizing: border-box; }
 
@@ -67,16 +73,40 @@ h1 { margin: 0 0 4px; color: var(--amber); }
 .board-label.hot { color: var(--cream); }
 .board-label.start { text-transform: uppercase; letter-spacing: 0.08em; }
 .board-label.name { color: color-mix(in srgb, var(--cream) 40%, var(--slate)); font-weight: 600; }
-/* Seat and market headings over the columns, in the frame above the kaya. */
-.board-label.top {
-  transform: translate(-50%, -50%);
-  text-align: center;
-  line-height: 1.05;
-  color: color-mix(in srgb, var(--cream) 40%, var(--slate));
-  font-size: max(11px, calc(var(--np) * 4px));
+/* Bot initials over the columns, in the frame above the kaya, like the seats' P2 to P4.
+   Hovering them shows the bot's name and what it does. */
+.board-label.bot {
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: help;
 }
-.board-label.top.hot { color: var(--cream); }
-.board-label.market { color: var(--amber); font-weight: 600; }
+.board-label.bot.hot, .board-label.bot:hover { color: var(--cream); }
+.board-label.market { color: var(--amber); font-weight: 600; font-size: max(11px, calc(var(--np) * 4px)); pointer-events: auto; cursor: help; }
+.bot-tip {
+  display: none;
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + var(--np) * 8px); /* down past the lamps, onto the kaya: clear of the other initials */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px; /* the tip is 150% of the page's small text, to be read at a glance */
+  padding: 10px 15px;
+  border: 1px solid var(--slate);
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 19.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+.bot-tip b { display: block; color: var(--amber); font-size: 22.5px; font-weight: 700; }
+.bot-tip .kind { display: block; margin-bottom: 4px; color: color-mix(in srgb, var(--cream) 40%, var(--slate)); font-size: 18px; }
+.board-label.bot:hover { z-index: 3; } /* over the seat labels, which come later */
+.board-label.bot:hover .bot-tip { display: block; }
+.board-label.bot.tip-start .bot-tip { left: 0; transform: none; }
+.board-label.bot.tip-end .bot-tip { left: auto; right: 0; transform: none; }
 #logo-wrap #name-plate { position: absolute; display: block; margin: 0; }
 #logo-wrap #name-plate input {
   display: block;
@@ -130,7 +160,7 @@ h1 { margin: 0 0 4px; color: var(--amber); }
 #server-menu summary::after { content: " \25BE"; }
 #server-menu[open] summary::after { content: " \25B4"; }
 #server-menu summary:hover, #server-menu summary:focus-visible { color: var(--amber); }
-#lobby #server-menu input { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 300px; max-width: 80vw; margin-top: 6px; font-size: 13px; padding: 6px 8px; }
+#lobby #server-menu input { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 300px; max-width: calc(80vw / var(--ui-zoom)); margin-top: 6px; font-size: 13px; padding: 6px 8px; }
 #lobby { padding-bottom: 48px; } /* room for the open server field */
 
 #lobby label {
@@ -197,8 +227,8 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 /* Only .welcome-body scrolls; the x is pinned to the dialog's corner. */
 #welcome, #result {
   padding: 0;
-  width: min(560px, 92vw);
-  max-height: 88vh;
+  width: min(560px, calc(92vw / var(--ui-zoom)));
+  max-height: calc(88vh / var(--ui-zoom));
   overflow: hidden;
   background: var(--ink);
   color: var(--cream);
@@ -206,7 +236,7 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
   border-radius: 6px;
 }
 #welcome::backdrop, #result::backdrop { background: rgba(31, 26, 36, 0.75); }
-.welcome-body { padding: 18px 22px 16px; max-height: calc(88vh - 4px); overflow-y: auto; font-size: 14px; line-height: 1.4; }
+.welcome-body { padding: 18px 22px 16px; max-height: calc(88vh / var(--ui-zoom) - 4px); overflow-y: auto; font-size: 14px; line-height: 1.4; }
 .welcome-body h2 { margin: 0 32px 2px 0; color: var(--amber); font-size: 20px; }
 .welcome-body h3 { margin: 16px 0 6px; font-size: 13px; color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
 /* The welcome screen's reference sections: folded under a heading that reads like the h3s above. */
