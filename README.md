@@ -296,7 +296,10 @@ name show how much of the Night Market it uses.
 | Bot | Plays | Night Market |
 |---|---|---|
 | Reed | Pure Go: stones only | Never buys, never uses an item |
-| Tanuki | A fighter that goes looking for contact | Some: buys a ward or a removal item when it pays |
+| Heron | Careful builder: keeps its stones together, fights only for something real | Few: spends slowly and keeps a reserve |
+| Moth | Pattern fighter: reaches for its gray or transparent stones first, builds with walls | Some |
+| Tanuki | A fighter that goes looking for contact | Some: buys a removal item or a trick when it pays |
+| Old Toad | Item player: plays the market as much as the board | Many: logs, lily pads, seeds, the odd bomb |
 | Magpie | Market shark | Max: spends turns on items whenever one can do anything, and shops down the whole list |
 
 Bots are strictly opt-in: nobody is ever seated at a table that didn't ask for

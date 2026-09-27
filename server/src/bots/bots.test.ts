@@ -305,7 +305,7 @@ function corneredPair(over: Partial<BotView> = {}): BotView {
 }
 
 test("recruit ids resolve to a style, and anything else to nothing", () => {
-  assert.deepEqual(RECRUIT_IDS, ["pure", "balanced", "shark"]);
+  assert.deepEqual(RECRUIT_IDS, ["pure", "careful", "pattern", "balanced", "items", "shark"]);
   for (const id of RECRUIT_IDS) assert.ok(recruitStyle(id) !== null, id);
   for (const id of ["", "PURE", "constructor", "__proto__", "toString", "hasOwnProperty"]) {
     assert.equal(recruitStyle(id), null, id);
@@ -313,11 +313,13 @@ test("recruit ids resolve to a style, and anything else to nothing", () => {
 });
 
 test("the recruits run from no items to every item", () => {
-  const [pure, balanced, shark] = RECRUIT_IDS.map((id) => recruitStyle(id)!);
-  assert.ok(pure.itemBias < balanced.itemBias && balanced.itemBias < shark.itemBias);
+  // The order the menus list them in: each one readier to spend a turn on an item than the last.
+  const styles = RECRUIT_IDS.map((id) => recruitStyle(id)!);
+  for (let i = 1; i < styles.length; i++) assert.ok(styles[i - 1].itemBias < styles[i].itemBias, styles[i].name);
+  const pure = styles[0], shark = styles[styles.length - 1];
   assert.equal(pure.shopping.length, 0);
-  assert.ok(shark.shopping.length > balanced.shopping.length);
-  assert.equal(new Set([pure.name, balanced.name, shark.name]).size, 3);
+  for (const s of styles.slice(0, -1)) assert.ok(shark.shopping.length > s.shopping.length, s.name);
+  assert.equal(new Set(styles.map((s) => s.name)).size, styles.length);
 });
 
 test("the pure Go bot never buys, and never uses an item even when handed one", () => {

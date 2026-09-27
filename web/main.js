@@ -962,8 +962,14 @@ function openWelcome(state) {
 const BOT_OPTIONS = [
   { id: "pure", name: "Reed", kind: "Pure Go", items: 0, itemsLabel: "No powerups",
     desc: "Plays stones and nothing else. Never visits the Night Market." },
+  { id: "careful", name: "Heron", kind: "Careful builder", items: 1, itemsLabel: "Few powerups",
+    desc: "Keeps its stones together and fights only for something real. Spends slowly and keeps a reserve." },
+  { id: "pattern", name: "Moth", kind: "Pattern fighter", items: 1, itemsLabel: "Some powerups",
+    desc: "Reaches for its gray or transparent stones first and builds with walls." },
   { id: "balanced", name: "Tanuki", kind: "Fighter", items: 1, itemsLabel: "Some powerups",
-    desc: "Goes looking for fights, and buys a ward or a removal item when it pays off." },
+    desc: "Goes looking for fights, and buys a removal item or a trick when it pays off." },
+  { id: "items", name: "Old Toad", kind: "Item player", items: 2, itemsLabel: "Many powerups",
+    desc: "Plays the market as much as the board: logs, lily pads, seeds and the odd bomb." },
   { id: "shark", name: "Magpie", kind: "Market shark", items: 3, itemsLabel: "Max powerups",
     desc: "Spends turns on items whenever it can, and shops down the whole list." },
 ];

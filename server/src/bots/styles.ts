@@ -217,7 +217,10 @@ const TEMPERAMENTS = [heron, tanuki, oldToad, moth];
 // "addBots" -- a Map, so a client-supplied id like "constructor" finds nothing.
 const RECRUITS = new Map<string, () => Style>([
   ["pure", reed],
+  ["careful", heron],
+  ["pattern", moth],
   ["balanced", tanuki],
+  ["items", oldToad],
   ["shark", magpie],
 ]);
 
