@@ -1739,8 +1739,13 @@ const CARD_CELLS = 9;
 const CARD_SECOND_COST = 100;
 const CARD_COST_STEP = 25;
 
+/**
+ * A rival's satchel isn't sent (findings B5), so for them the card alone tells:
+ * the server clears it once it's played, so nine cells means it's still in hand.
+ */
 function hasStoneCard(player) {
-  return player.card.length === CARD_CELLS && Array.from(player.powerups).includes(STONE_CARD);
+  if (!player.card || player.card.length !== CARD_CELLS) return false;
+  return !player.powerups || Array.from(player.powerups).includes(STONE_CARD);
 }
 
 function cardStones(cells) {
