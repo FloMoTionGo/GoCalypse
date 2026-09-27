@@ -1,7 +1,7 @@
 import { Client, Delayed, Room } from "colyseus";
 import { ArraySchema, StateView } from "@colyseus/schema";
 import { BoardEffect, GoState, MarketItem, PlayerState } from "../state/GoState";
-import { randomGuestName } from "../util/usernames";
+import { randomGuestName, sanitizeName } from "../util/usernames";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import {
   applyCaptures,
@@ -38,6 +38,7 @@ import { KoWatch, PositionHistory } from "../rules/ko";
 import { copiesBought, fairShare, getPowerup, marketStock, stallCopies, stallRefusal } from "../powerups/definitions";
 import { EffectKind, PowerupContext } from "../powerups/types";
 import {
+  BOT_NAMES,
   BotAction,
   BotView,
   chooseAction,
@@ -133,6 +134,15 @@ export function findRoomForKey(key: string): GoRoom | undefined {
 
 function cleanKey(value: unknown): string {
   return typeof value === "string" ? value.slice(0, 64) : "";
+}
+
+// The client appends exactly " (bot)" / " (you)" (main.js renderPlayers); a
+// human choosing a name ending the same way, or a bot's own name, would show
+// as a bot or as another player's own seat on their screen (findings.md).
+const FAKE_TAG = /\s*\((?:bot|you)\)\s*$/i;
+
+function looksLikeBot(name: string): boolean {
+  return FAKE_TAG.test(name) || BOT_NAMES.some((n) => n.toLowerCase() === name.toLowerCase());
 }
 
 /** Makes `list` equal to `want`, touching only the entries that differ. */
@@ -301,8 +311,8 @@ export class GoRoom extends Room<GoState> {
 
     const player = new PlayerState();
     player.sessionId = client.sessionId;
-    const name = typeof options?.name === "string" ? options.name.trim().slice(0, 24) : "";
-    player.name = name || randomGuestName();
+    const wanted = typeof options?.name === "string" ? sanitizeName(options.name) : "";
+    player.name = wanted && !looksLikeBot(wanted) ? this.freeName(wanted) : randomGuestName();
     player.fireflies = this.startingFireflies;
     this.dealStoneCard(player);
 
@@ -449,7 +459,7 @@ export class GoRoom extends Room<GoState> {
     return true;
   }
 
-  /** `base`, or `base 2`, `base 3`... when a seat already has that name, so two Hontes are told apart. */
+  /** `base`, or `base 2`, `base 3`... when a seat already has that name, so two Hontes -- or two Alices -- are told apart. */
   private freeName(base: string): string {
     const names = new Set(this.state.players.map((p) => p.name));
     if (!names.has(base)) return base;

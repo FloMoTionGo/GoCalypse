@@ -14,6 +14,7 @@ export { rankMoves, scoreMove, chooseMove, isPointless } from "./scoring";
 export type { BotView, Candidate, MarketRow } from "./scoring";
 export type { Style } from "./styles";
 export {
+  BOT_NAMES,
   DRIFTER_ID,
   heron,
   magpie,

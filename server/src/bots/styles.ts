@@ -226,6 +226,11 @@ const RECRUITS = new Map<string, () => Style>([
 
 export const RECRUIT_IDS = Array.from(RECRUITS.keys());
 
+// Every name a bot can show up under, so a human can be refused the same one
+// (findings.md: pretending to be a bot). "drifter" is randomStyle()'s name,
+// which is never a recruit but is a real bot name once one is seated.
+export const BOT_NAMES = [...new Set(Array.from(RECRUITS.values()).map((make) => make().name))].concat("drifter");
+
 export function recruitStyle(id: string): Style | null {
   const make = RECRUITS.get(id);
   return make ? make() : null;
