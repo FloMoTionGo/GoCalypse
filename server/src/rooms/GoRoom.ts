@@ -816,12 +816,28 @@ export class GoRoom extends Room<GoState> {
 
   // ---- bots ------------------------------------------------------------------
 
-  /** Everything a bot may see, flattened off the synced state. */
+  /**
+   * Everything a bot may see, flattened off the synced state. Its board is what
+   * a human in its seat is sent (findings B13): `seen` plus its own misted
+   * stones, so fog, a rival's mist and the storm's grey hide from bots too.
+   */
   private botView(playerIndex: number): BotView {
     const player = this.state.players[playerIndex];
     const action = this.state.action;
+    this.refreshSeen(); // bots act between patches, so bring `seen` up to date first
+    const board = this.state.seen.toArray();
+    const misted = player.misted;
+    for (let i = 0; i + 1 < misted.length; i += 2) board[misted[i]] = misted[i + 1];
+    // A rival's mist is drawn for everybody, so like a human (hoverKind) a bot
+    // knows not to play under it without knowing what, if anything, is there.
+    const rivalMist = new Set<number>();
+    for (const e of this.state.effects) {
+      if (e.kind === "mist" && e.owner !== player.color && e.until > this.state.turnCount) {
+        rivalMist.add(boardIndex(this.state.size, e.x, e.y));
+      }
+    }
     return {
-      board: this.state.board.toArray(),
+      board,
       size: this.state.size,
       color: player.color,
       lastMove: action.seq > 0 && action.x >= 0 ? { x: action.x, y: action.y } : null,
@@ -846,7 +862,7 @@ export class GoRoom extends Room<GoState> {
       isWarded: (idx) => this.isWarded(idx),
       lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
       isBurning: (idx) => this.isBurning(idx),
-      isFogged: (idx) => this.isFogged(idx),
+      isFogged: (idx) => this.isFogged(idx) || rivalMist.has(idx), // "may not play here, can't see why"
       hasSeed: (idx) => this.effectAt("seed", idx) !== undefined,
       jar: player.jar,
       mist: player.mist,
@@ -920,7 +936,11 @@ export class GoRoom extends Room<GoState> {
       if (!free || this.applyUsePowerup(playerIndex, { id: free.id, target: free.target }) !== null) break;
     }
 
-    const wanted = chooseAction(this.botView(playerIndex), style, this.rng);
+    // Under the storm's grey the bot can't tell its stones from anyone's, and a
+    // style would read every grey stone as a wall (and a judging one might just
+    // pass). It plays any point it can, as the drifter does, until it clears.
+    const blind = this.state.turnCount < this.state.storm.until;
+    const wanted = chooseAction(this.botView(playerIndex), blind ? randomStyle() : style, this.rng);
     // A pass is a decision, not a failure: a bot with judgement hands the turn
     // on rather than spend it on a stone that gains it nothing, and every bot,
     // the drifter included, passes once the rest of the table has passed in a
