@@ -33,16 +33,105 @@ h1 { margin: 0 0 4px; color: var(--amber); }
 .px { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 #lobby {
-  border: 2px solid var(--slate);
-  border-radius: 6px;
-  padding: 24px;
-  max-width: 480px;
+  /* small text on the home screen: cream and slate mixed, 7:1 on ink (slate alone is 4:1) */
+  --mist: color-mix(in srgb, var(--cream) 40%, var(--slate));
+  max-width: 760px;
   margin: 40px auto;
+  text-align: center;
 }
-#lobby-bots { border: 2px solid var(--teal); border-radius: 4px; padding: 2px 12px 10px; margin: 18px 0 0; }
-#lobby-bots h3 { margin: 10px 0 4px; font-size: 13px; color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
-#lobby-bots h3 .hint { text-transform: none; letter-spacing: 0; }
-#lobby-bots > .hint { margin: 0 0 8px; }
+#lobby .tagline { margin: 0; color: var(--cream); font-size: 15px; }
+#logo-wrap { position: relative; width: fit-content; margin: 24px auto 0; line-height: 0; }
+#logo { display: block; }
+#logo-wrap:has(+ #lobby[hidden]) { display: none; }
+#logo-wrap + #lobby { margin-top: 14px; }
+/* Sits over the pixel GitHub sign in the river; logo.js places it and lights the sign on hover. */
+#github-link { position: absolute; z-index: 1; border-radius: 2px; }
+#github-link:focus-visible { outline: 2px solid var(--cream); outline-offset: 2px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* The lobby board (lobbyBoard.js) on its island, laid over the logo's river by logo.js: --np is CSS px per island pixel. */
+#lobby-board-wrap { position: absolute; line-height: 0; }
+#lobby-board { display: block; width: 100%; touch-action: manipulation; }
+#lobby-board:focus { outline: none; }
+#lobby-board:focus-visible { outline: 2px solid var(--cream); outline-offset: 4px; }
+#lobby-board-labels { position: absolute; inset: 0; pointer-events: none; }
+.board-label {
+  position: absolute;
+  transform: translateY(-50%);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--amber);
+  font-weight: 700;
+  font-size: max(11px, calc(var(--np) * 5.5px));
+}
+.board-label.hot { color: var(--cream); }
+.board-label.start { text-transform: uppercase; letter-spacing: 0.08em; }
+.board-label.name { color: color-mix(in srgb, var(--cream) 40%, var(--slate)); font-weight: 600; }
+/* Seat and market headings over the columns, in the frame above the kaya. */
+.board-label.top {
+  transform: translate(-50%, -50%);
+  text-align: center;
+  line-height: 1.05;
+  color: color-mix(in srgb, var(--cream) 40%, var(--slate));
+  font-size: max(11px, calc(var(--np) * 4px));
+}
+.board-label.top.hot { color: var(--cream); }
+.board-label.market { color: var(--amber); font-weight: 600; }
+#logo-wrap #name-plate { position: absolute; display: block; margin: 0; }
+#logo-wrap #name-plate input {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 calc(var(--np) * 3px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: max(11px, calc(var(--np) * 6.5px));
+  line-height: 1;
+  text-align: center;
+}
+#logo-wrap #name-plate input::placeholder { color: color-mix(in srgb, var(--ink) 80%, var(--amber)); opacity: 1; font-style: italic; font-weight: 400; }
+#logo-wrap #name-plate input:focus { outline: none; }
+#logo-wrap #name-plate:focus-within { outline: 2px solid var(--cream); outline-offset: 1px; }
+/* Three lines kept for the longest bot description, so nothing below jumps on hover. */
+#lobby-caption { height: calc(3 * 1.4em); max-width: 560px; margin: 8px auto 0; font-size: 13px; line-height: 1.4; color: var(--mist); overflow: hidden; }
+@media (max-width: 560px) { #lobby-caption { height: calc(4 * 1.4em); } }
+/* Play: a kaya plank under the island, its front edge catching the light like the deck's. */
+#lobby #join-button {
+  display: block;
+  width: min(340px, 100%);
+  margin: 12px auto 0;
+  padding: 12px 28px;
+  border: 0;
+  border-radius: 0;
+  background: var(--amber);
+  box-shadow: inset 0 2px 0 var(--cream), 0 4px 0 var(--slate);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+}
+#lobby #join-button:hover:not(:disabled) { background: var(--cream); }
+#lobby #join-button:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 2px 0 var(--cream), 0 2px 0 var(--slate); }
+#lobby #join-button:focus-visible { outline: 2px solid var(--cream); outline-offset: 6px; }
+#lobby #join-button:disabled { background: var(--ink); box-shadow: inset 0 0 0 2px var(--slate); color: var(--mist); }
+#lobby-status { text-align: center; color: var(--mist); margin-top: 10px; }
+#lobby-status.error { color: var(--amber); }
+/* One quiet row: How to play · Server · GitHub. */
+#home-footer { display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 20px auto 0; font-size: 13px; color: var(--mist); }
+#home-footer .sep { color: var(--slate); }
+#home-footer .link-button { border: 0; padding: 2px 6px; font-size: 13px; color: var(--mist); }
+#home-footer a { color: var(--mist); padding: 2px 6px; text-decoration: none; }
+#home-footer .link-button:hover, #home-footer a:hover, #home-footer .link-button:focus-visible, #home-footer a:focus-visible { color: var(--amber); }
+#server-menu { position: relative; font-size: 13px; color: var(--mist); }
+#server-menu summary { cursor: pointer; list-style: none; display: inline-block; padding: 2px 6px; }
+#server-menu summary::-webkit-details-marker { display: none; }
+#server-menu summary::after { content: " \25BE"; }
+#server-menu[open] summary::after { content: " \25B4"; }
+#server-menu summary:hover, #server-menu summary:focus-visible { color: var(--amber); }
+#lobby #server-menu input { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 300px; max-width: 80vw; margin-top: 6px; font-size: 13px; padding: 6px 8px; }
+#lobby { padding-bottom: 48px; } /* room for the open server field */
 
 #lobby label {
   display: block;

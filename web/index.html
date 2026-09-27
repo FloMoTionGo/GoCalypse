@@ -11,28 +11,47 @@
 </head>
 <body>
   <div id="app">
+    <!-- Pixel logo above the lobby, with the GitHub sign and the bot board's island in its river; drawn by logo.js, hidden with the lobby. -->
+    <div id="logo-wrap">
+      <h1 class="visually-hidden">GoCalypse</h1>
+      <canvas id="logo" class="px" aria-hidden="true"></canvas>
+      <!-- The bot menu and Join as a Go board on an island in the logo's river; lobbyBoard.js draws it, logo.js places it. -->
+      <div id="lobby-board-wrap">
+        <canvas id="lobby-board" class="px" tabindex="0" aria-describedby="lobby-caption"
+          aria-label="Bot board. Arrow keys pick a point. Rows are bots, columns are seats, Player 2 to 4; you are Player 1. Enter plays a black stone: in a bot's row it seats that bot in that column's seat, on Start it joins. Delete plays a white stone, which takes a bot off."></canvas>
+        <div id="lobby-board-labels" aria-hidden="true"></div>
+        <label id="name-plate">
+          <span class="visually-hidden">Name (leave blank for a random guest name)</span>
+          <input id="name-input" type="text" placeholder="Guest" maxlength="24" autocomplete="nickname" spellcheck="false" />
+        </label>
+      </div>
+      <!-- The pixel sign is for the mouse; the footer's GitHub link is the one in the tab order. -->
+      <a id="github-link" href="https://github.com/FloMoTionGo/GoCalypse" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true" title="GoCalypse on GitHub"></a>
+    </div>
     <section id="lobby">
-      <h1>GoCalypse</h1>
       <p class="tagline">4-player Go by the lantern river. Custom captures. A night market.</p>
+      <!-- What the point under the pointer does; lobbyBoard.js speaks seat changes through #lobby-announce instead. -->
+      <p id="lobby-caption" class="hint"></p>
+      <p id="lobby-announce" class="visually-hidden" aria-live="polite"></p>
+      <!-- Joins like the board's Start point; main.js sets its label ("Play online" / "Play with N bots"). -->
+      <button id="join-button" type="button">Play online</button>
+      <p id="lobby-status" class="status" role="status"></p>
 
-      <label>
-        Server
-        <input id="server-input" type="text" value="wss://gocalypse.fly.dev" />
-      </label>
-      <label>
-        Name <span class="hint">(leave blank for a random guest name)</span>
-        <input id="name-input" type="text" placeholder="Guest" />
-      </label>
-
-      <!-- Bots to bring along, before there is a room; see renderLobbyBots() in main.js. -->
-      <section id="lobby-bots">
-        <h3>Play with bots <span class="hint">(optional)</span></h3>
-        <p class="hint">Bring up to 3 bots, in any mix, even 3 of the same kind, for a table of your own. Leave it at 0 to be matched with other players.</p>
+      <!-- main.js keeps its bot list here, empty while hidden; the board drives the picks. -->
+      <section id="lobby-bots" hidden>
         <div id="lobby-bot-list"></div>
       </section>
 
-      <button id="join-button">Join Game</button>
-      <p id="lobby-status" class="status"></p>
+      <nav id="home-footer" aria-label="More">
+        <button id="home-help" class="link-button" type="button">How to play</button>
+        <span class="sep" aria-hidden="true">·</span>
+        <details id="server-menu">
+          <summary>Server</summary>
+          <input id="server-input" type="text" value="wss://gocalypse.fly.dev" aria-label="Server" spellcheck="false" />
+        </details>
+        <span class="sep" aria-hidden="true">·</span>
+        <a href="https://github.com/FloMoTionGo/GoCalypse" target="_blank" rel="noopener">GitHub</a>
+      </nav>
     </section>
 
     <section id="game" hidden>
@@ -150,5 +169,7 @@
   </dialog>
 
   <script src="main.js"></script>
+  <script src="lobbyBoard.js"></script>
+  <script src="logo.js"></script>
 </body>
 </html>
