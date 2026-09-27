@@ -89,7 +89,9 @@ let stormUntil = 0; // turnCount when the current storm's fires go out; the ling
 // "/index.html?..." to "/index" and drop the query (e.g. `npx serve`).
 const hashParams = new URLSearchParams(location.hash.slice(1));
 const ROOM_NAME = hashParams.get("room") === "go_debug" ? "go_debug" : "go_custom";
-if (hashParams.has("server")) serverInput.value = hashParams.get("server");
+// ?server= too, like debug.html, for hand-written links (e.g. to a staging server).
+const serverParam = hashParams.get("server") || new URLSearchParams(location.search).get("server");
+if (serverParam) serverInput.value = serverParam;
 if (hashParams.has("name")) nameInput.value = hashParams.get("name");
 if (hashParams.has("autojoin")) {
   joinButton.disabled = true; // connect() is already on its way
