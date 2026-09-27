@@ -123,6 +123,7 @@ window.addEventListener("keydown", (evt) => {
 boardEl.addEventListener("click", onBoardClick);
 boardEl.addEventListener("contextmenu", onBoardRightClick);
 window.addEventListener("resize", sizeCanvas);
+window.addEventListener("resize", () => lastState && renderPlayers(lastState)); // browser zoom / a monitor with another DPI: re-snap the card minis
 helpButton.addEventListener("click", () => lastState && openWelcome(lastState));
 // The home screen's "How to play" (#home-help in the lobby's markup). Delegated, so it works
 // whenever that element exists; before joining there is no room, and openWelcome says the general rules.
@@ -1581,7 +1582,7 @@ function renderSidebar(state) {
 function renderPlayers(state) {
   const players = Array.from(state.players);
   const sig = JSON.stringify([
-    state.turnIndex, state.status, myPlayer && myPlayer.sessionId,
+    state.turnIndex, state.status, myPlayer && myPlayer.sessionId, devicePx(),
     players.map((p) => [p.name, p.color, p.connected, p.bot, p.passed, p.jar, p.mist, p.twin, p.extra, p.score, p.fireflies, p.finalScore, p.place, Array.from(p.card).join("")]),
   ]);
   rebuild(playersEl, sig, () => {
@@ -1653,6 +1654,11 @@ function renderPlayers(state) {
         const cells = Array.from(player.card);
         const mini = spriteImg(`card_grid_${player.color}_${cells.join("")}`, G.cardGrid(cells, player.color), 1);
         mini.classList.add("card-mini");
+        // Whole device pixels per card pixel: under the page's 0.9 zoom a 1:1 size
+        // squeezes 27 pixels into 24, and nearest-neighbour drops grid lines.
+        const dpr = devicePx();
+        const side = (mini.width * Math.max(1, Math.round(dpr))) / dpr;
+        mini.style.width = mini.style.height = `${side}px`;
         mini.title = `Stone Card: ${cardStones(cells)} of ${CARD_CELLS} stones`;
         row.append(mini);
       }

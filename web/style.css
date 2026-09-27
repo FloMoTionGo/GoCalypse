@@ -620,4 +620,4 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .card-cell:not(.set):hover .card-ghost, .card-cell:not(.set):focus-visible .card-ghost { opacity: 0.7; }
 .card-cell:not(.set):hover:not(:disabled) { box-shadow: none; }
 /* Each seat's card, small, at the end of its row in the players list: rivals may look. */
-.player-row .card-mini { margin-left: auto; flex-shrink: 0; width: 27px; height: 27px; image-rendering: pixelated; }
+.player-row .card-mini { margin-left: auto; flex-shrink: 0; image-rendering: pixelated; } /* sized in whole device px by renderPlayers */
