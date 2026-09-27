@@ -28,7 +28,9 @@ import {
   BotView,
   chooseAction,
   chooseBuy,
+  chooseFree,
   randomStyle,
+  rankMoves,
   recruitStyle,
   Rng,
   Style,
@@ -685,6 +687,12 @@ export class GoRoom extends Room<GoState> {
       isWarded: (idx) => this.isWarded(idx),
       lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
       isBurning: (idx) => this.isBurning(idx),
+      isFogged: (idx) => this.isFogged(idx),
+      hasSeed: (idx) => this.effectAt("seed", idx) !== undefined,
+      jar: player.jar,
+      mist: player.mist,
+      twin: player.twin,
+      extra: player.extra,
       repeats: (board) => this.positions.repeats(board),
       retakesKo: (idx, captured) => this.kos.blocks(idx, captured, this.state.turnCount),
     };
@@ -737,6 +745,15 @@ export class GoRoom extends Room<GoState> {
     const buy = chooseBuy(this.botView(playerIndex), style);
     if (buy) this.applyBuy(playerIndex, buy);
 
+    // Then whatever in the satchel costs no turn (Stepping Stones, Mist, a
+    // Firefly Jar...), one at a time so each sees what the last one lit. The
+    // cap is only a guard: every one of them stops asking once it is lit.
+    for (let i = 0; i < SATCHEL_LIMIT; i++) {
+      const view = this.botView(playerIndex);
+      const free = chooseFree(view, style, rankMoves(view, style));
+      if (!free || this.applyUsePowerup(playerIndex, { id: free.id, target: free.target }) !== null) break;
+    }
+
     const wanted = chooseAction(this.botView(playerIndex), style, this.rng);
     // A pass is a decision, not a failure: a bot with judgement hands the turn
     // on rather than spend it on a stone that gains it nothing, and every bot,
@@ -763,7 +780,8 @@ export class GoRoom extends Room<GoState> {
       return this.applyMove(playerIndex, { x: action.x, y: action.y, axis: action.axis });
     }
     if (action.kind === "powerup") {
-      return this.applyUsePowerup(playerIndex, { id: action.id, target: action.target });
+      const { id, target, target2, axis } = action;
+      return this.applyUsePowerup(playerIndex, { id, target, target2, axis });
     }
     return "pass";
   }

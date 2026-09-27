@@ -5,7 +5,8 @@ import { BotView, Candidate, isPointless, rankMoves } from "./scoring";
 import { Style } from "./styles";
 
 export { Rng } from "./rng";
-export { chooseBuy } from "./items";
+export { chooseBuy, chooseFree } from "./items";
+export type { FreeUse } from "./items";
 export { rankMoves, scoreMove, chooseMove, isPointless } from "./scoring";
 export type { BotView, Candidate, MarketRow } from "./scoring";
 export type { Style } from "./styles";
@@ -18,7 +19,7 @@ export { heron, magpie, moth, oldToad, randomStyle, RECRUIT_IDS, recruitStyle, r
  */
 export type BotAction =
   | { kind: "move"; x: number; y: number; axis: StoneView }
-  | { kind: "powerup"; id: string; target: { x: number; y: number } }
+  | { kind: "powerup"; id: string; target: { x: number; y: number }; target2?: { x: number; y: number }; axis?: StoneView }
   | { kind: "pass" };
 
 /**
@@ -37,7 +38,7 @@ export function chooseAction(view: BotView, style: Style, rng: Rng): BotAction {
   const item = planItem(view, style, ranked);
 
   if (item && (!move || item.score + style.itemBias > move.score)) {
-    return { kind: "powerup", id: item.id, target: item.target };
+    return { kind: "powerup", id: item.id, target: item.target, target2: item.target2, axis: item.axis };
   }
   if (move) return { kind: "move", x: move.x, y: move.y, axis: move.axis };
   return { kind: "pass" };

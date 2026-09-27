@@ -5,9 +5,9 @@
 // GoRoom.applyPass counts them, and scores the finished board with
 // rules/endgame.ts, so a result here means what it means in a real game.
 //
-// What it leaves out is the Night Market. Bots only have planners for seven of
-// the eighteen items (bots/items.ts), and the ones they do have need the room's
-// effect bookkeeping -- wards, lily pads, driftwood timers -- to behave. So a
+// What it leaves out is the Night Market. Bots have a planner for every item
+// (bots/items.ts), but the items need the room's effect bookkeeping -- wards,
+// lily pads, fog, seeds, driftwood timers -- to behave. So a
 // match here is stones only: it models the board play the Style weights
 // actually govern, and says nothing about shopping. `itemBias` and `shopping`
 // are not exercised, and must not be tuned from these results.

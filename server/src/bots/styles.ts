@@ -56,7 +56,7 @@ const BALANCED: Style = {
   axisBias: 0,
   prefers: "base",
   itemBias: 0,
-  shopping: ["lantern_ward", "driftwood", "gust", "remove_stone"],
+  shopping: ["lantern_ward", "driftwood", "firefly_jar", "ferry", "fog", "gust", "river_current", "remove_stone"],
   variation: 3,
   judgement: true,
 };
@@ -94,7 +94,7 @@ export function heron(): Style {
     axisBias: 200,
     prefers: "base",
     itemBias: -400,
-    shopping: ["lantern_ward", "lily_pad", "driftwood", "remove_stone"],
+    shopping: ["lantern_ward", "fog", "lily_pad", "seedling", "driftwood", "ferry", "echo_chime", "remove_stone"],
     variation: 4,
   };
 }
@@ -117,7 +117,7 @@ export function tanuki(): Style {
     axisBias: 150,
     prefers: "base",
     itemBias: 300,
-    shopping: ["gust", "remove_stone", "lantern_ward", "bomb"],
+    shopping: ["gust", "remove_stone", "river_current", "firefly_jar", "twin_wick", "skiff", "lantern_ward", "bomb"],
     variation: 2,
   };
 }
@@ -140,7 +140,10 @@ export function oldToad(): Style {
     axisBias: 0,
     prefers: "base",
     itemBias: 900,
-    shopping: ["driftwood", "lily_pad", "lantern_ward", "turn_lantern", "bomb"],
+    shopping: [
+      "driftwood", "lily_pad", "seedling", "mist", "lantern_ward", "turn_lantern", "skiff",
+      "stepping_stones", "echo_chime", "bomb",
+    ],
     variation: 3,
   };
 }
@@ -163,7 +166,7 @@ export function moth(): Style {
     axisBias: 700,
     prefers: "pattern",
     itemBias: 100,
-    shopping: ["driftwood", "turn_lantern", "lantern_ward", "gust"],
+    shopping: ["driftwood", "turn_lantern", "twin_wick", "fog", "lantern_ward", "ferry", "gust"],
     variation: 3,
   };
 }
@@ -197,7 +200,12 @@ export function magpie(): Style {
     extension: 320,
     line: 220,
     itemBias: 2400,
-    shopping: ["lantern_ward", "turn_lantern", "driftwood", "lily_pad", "gust", "remove_stone", "bomb"],
+    // The whole Night Market, dear things first: the purse is the only limit.
+    shopping: [
+      "stepping_stones", "echo_chime", "lantern_ward", "turn_lantern", "twin_wick", "skiff", "ferry",
+      "firefly_jar", "driftwood", "fog", "seedling", "lily_pad", "mist", "kite",
+      "gust", "river_current", "remove_stone", "bomb",
+    ],
     variation: 3,
   };
 }

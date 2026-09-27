@@ -10,6 +10,7 @@ import {
   sameView,
   stoneCode,
   StoneView,
+  twinCode,
 } from "../rules/goRules";
 import { isSettled, Prisoners, regionAt, sidesOf, territoryScore } from "../rules/endgame";
 import { koOpenedBy } from "../rules/ko";
@@ -53,6 +54,15 @@ export interface BotView {
   isWarded(idx: number): boolean;
   lilyOwnerAt(idx: number): number;
   isBurning(idx: number): boolean;
+  /** Under a Fog: nothing may be placed there. Absent means no fog anywhere. */
+  isFogged?(idx: number): boolean;
+  /** Whether a Seedling already waits on this point. Absent means none does. */
+  hasSeed?(idx: number): boolean;
+  /** Free items already lit on this seat: Firefly Jar turns, Mist, Twin Wick, Stepping Stones. */
+  jar?: number;
+  mist?: boolean;
+  twin?: boolean;
+  extra?: number;
   /** Whether a board would repeat an earlier position (the ko rule). Absent means nothing does. */
   repeats?(board: number[]): boolean;
   /** Whether a stone on `idx` lifting `captured` would take back a ko held for the round. Absent means none is. */
@@ -154,14 +164,22 @@ export function scoreMove(
   const lily = view.lilyOwnerAt(idx);
   if (lily !== 0 && lily !== view.color) return null;
   if (view.isBurning(idx)) return null; // still alight after the storm
+  if (view.isFogged?.(idx)) return null; // lost in fog
 
-  const code = stoneCode(view.color, axis);
+  // A lit Twin Wick makes the next stone a twin whichever front was picked, and
+  // a twin is lost if EITHER of its groups runs out of liberties, so it is
+  // judged by the tighter of the two.
+  const code = view.twin ? twinCode(view.color) : stoneCode(view.color, axis);
   if (isOwnEye(view, x, y, code, axis)) return null;
 
   const after = view.board.slice();
   after[idx] = code;
   const captured = applyCaptures(after, size, x, y, code, (i) => view.isWarded(i));
-  const mine = findGroup(after, size, x, y, axis);
+  let mine = findGroup(after, size, x, y, axis);
+  if (view.twin) {
+    const other = findGroup(after, size, x, y, axis === "base" ? "pattern" : "base");
+    if (other.liberties < mine.liberties) mine = { group: mine.group, liberties: other.liberties };
+  }
   if (captured.length === 0 && mine.liberties === 0) return null; // suicide
   if (view.repeats?.(after)) return null; // ko
   if (view.retakesKo?.(idx, captured)) return null; // and a ko is held for a round
