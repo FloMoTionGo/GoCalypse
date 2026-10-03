@@ -1,0 +1,4 @@
+{
+  "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
+  "pending": []
+}

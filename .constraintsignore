@@ -1,0 +1,5 @@
+# Paths the floor guard (tests/lib/floor-guard.mjs) skips: its own pattern
+# lists would flag themselves. Adding a line here is itself a finding.
+tests/lib/floor-guard.mjs
+# The guard's own tests: fixtures full of the moves it must catch.
+tests/tools/guards.test.mjs

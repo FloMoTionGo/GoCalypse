@@ -1,0 +1,18 @@
+{
+  "name": "gocalypse-tests",
+  "private": true,
+  "type": "module",
+  "description": "GoCalypse test suite: unit, integration and GUI tiers. See tests/README.md.",
+  "scripts": {
+    "test": "node run.mjs full",
+    "test:quick": "node run.mjs quick",
+    "test:server": "node run.mjs server",
+    "test:web": "node run.mjs web",
+    "test:integration": "node run.mjs integration",
+    "test:gui": "node run.mjs gui",
+    "setup": "git config core.hooksPath .githooks"
+  },
+  "devDependencies": {
+    "colyseus.js": "0.16.22"
+  }
+}

@@ -369,8 +369,14 @@ npm run dev
 
 Server listens on `ws://localhost:2567`. Health check at `/healthz`.
 
-Rules tests: `npm test` (from `server/`) — uses Node's built-in test runner,
-no extra dependency.
+Tests: `node tests/run.mjs` runs every tier: server units, web units,
+integration against a live server, and the GUI in headless Edge/Chrome.
+`node tests/run.mjs quick` runs the fast ones. They use Node's built-in test
+runner; the only extra dependency is `colyseus.js` in `tests/`. Git hooks run
+them before commits, merges and pushes to master, and CI runs them on every
+push (enable the hooks once with `git config core.hooksPath .githooks`). New
+features start as red tests: see [tests/README.md](tests/README.md) and the
+quality bar in [CONSTRAINTS.md](CONSTRAINTS.md).
 
 Client — just serve `web/` as static files, e.g.:
 

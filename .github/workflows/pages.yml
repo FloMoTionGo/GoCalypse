@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  contents: read
   pages: write
   id-token: write
 
@@ -15,7 +16,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A red build never reaches the live site (tests/README.md).
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   deploy:
+    needs: tests
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -1,0 +1,77 @@
+name: Tests
+
+# The same gate as the local hooks (tests/README.md), for every push and pull
+# request, and called by pages.yml before the web client deploys.
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # The bar itself: every commit judged on its own (commits made with --no-verify too).
+  constraints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Floor guard and red first, per commit
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then base="origin/${{ github.base_ref }}";
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then base="${{ github.event.before }}";
+          else base="HEAD~1"; fi
+          echo "judging every commit after $base"
+          node tests/lib/floor-guard.mjs --range "$base"
+          node tests/lib/red-first.mjs --range "$base"
+
+  # External opinion: known vulnerabilities in what the server ships with.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # npm audit at high and above, less the tracked exceptions in CONSTRAINTS.md.
+      - run: node tests/lib/audit.mjs
+
+  quick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+        working-directory: server
+      - run: node tests/run.mjs quick --reporter dot
+
+  full:
+    needs: quick
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            tests/package-lock.json
+      - run: npm ci
+        working-directory: server
+      - run: npm ci
+        working-directory: tests
+      # ubuntu-latest ships Google Chrome; the GUI tier drives it headless.
+      - run: node tests/run.mjs full --reporter dot
+        env:
+          GOCALYPSE_BROWSER: /usr/bin/google-chrome

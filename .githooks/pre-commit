@@ -1,0 +1,20 @@
+#!/bin/sh
+# GoCalypse test gate (tests/README.md): the quick tiers before a commit on a
+# branch, every tier before a commit on master. Enable once per clone with
+#   git config core.hooksPath .githooks      (or: npm run setup, in tests/)
+# Override the profile:  GOCALYPSE_GATE=full git commit ...
+root=$(git rev-parse --show-toplevel) || exit 2
+branch=$(git symbolic-ref --short -q HEAD)
+
+# Nothing but prose staged: no code can have broken.
+if [ -z "$(git diff --cached --name-only | grep -v '\.md$')" ]; then
+  echo "GoCalypse gate: only Markdown staged, tests skipped"
+  exit 0
+fi
+
+profile=quick
+[ "$branch" = "master" ] && profile=full
+[ -n "$GOCALYPSE_GATE" ] && profile=$GOCALYPSE_GATE
+
+echo "GoCalypse gate: $profile tests before committing to ${branch:-a detached HEAD}"
+exec node "$root/tests/run.mjs" $profile --gate --reporter dot

@@ -1,0 +1,7 @@
+#!/bin/sh
+# A merge into master gets the whole gate, as a commit on master does.
+# (A fast-forward merge makes no commit: pre-push and CI cover that.)
+root=$(git rev-parse --show-toplevel) || exit 2
+[ "$(git symbolic-ref --short -q HEAD)" = "master" ] || exit 0
+echo "GoCalypse gate: full tests before merging into master"
+exec node "$root/tests/run.mjs" full --gate --reporter dot

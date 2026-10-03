@@ -1,0 +1,33 @@
+#!/bin/sh
+# Pushing to master: every tier must be green for the exact tree being pushed,
+# and the floor must hold over everything new since origin/master. A tree the
+# full gate already passed (a commit on master, a merge into it) is not run twice.
+root=$(git rev-parse --show-toplevel) || exit 2
+gitdir=$(git rev-parse --git-dir) || exit 2
+zero=0000000000000000000000000000000000000000
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$remote_ref" = "refs/heads/master" ] || continue
+  [ "$local_sha" = "$zero" ] && continue # deleting the branch
+
+  # Every commit since origin/master, one by one, with its own trailers: a
+  # commit made with --no-verify is judged here all the same.
+  if git rev-parse -q --verify origin/master >/dev/null; then
+    node "$root/tests/lib/floor-guard.mjs" --range origin/master || exit 1
+    node "$root/tests/lib/red-first.mjs" --range origin/master || exit 1
+  fi
+
+  tree=$(git rev-parse "$local_sha^{tree}")
+  if [ "$(cat "$gitdir/gocalypse-gate-green" 2>/dev/null)" = "$tree" ]; then
+    echo "GoCalypse gate: this tree already passed every tier"
+    continue
+  fi
+  if [ "$(git rev-parse HEAD^{tree})" != "$tree" ] || ! git diff --quiet HEAD; then
+    echo "GoCalypse gate: the commit pushed to master is not what is checked out (or the tree has changes)."
+    echo "  Check it out cleanly so it can be tested, then push again."
+    exit 1
+  fi
+  echo "GoCalypse gate: full tests before pushing to master"
+  node "$root/tests/run.mjs" full --gate --reporter dot || exit 1
+done
+exit 0

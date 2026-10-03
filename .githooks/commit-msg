@@ -1,0 +1,6 @@
+#!/bin/sh
+# The bar itself (CONSTRAINTS.md): the floor guard, then red first.
+# Both read trailers from the message: Constraint-Exception: / Test-Exempt: <reason>.
+root=$(git rev-parse --show-toplevel) || exit 2
+node "$root/tests/lib/floor-guard.mjs" --staged --msg "$1" || exit $?
+exec node "$root/tests/lib/red-first.mjs" --staged --msg "$1"
