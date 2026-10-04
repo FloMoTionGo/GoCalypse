@@ -1,4 +1,15 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "hook in a linked worktree: the guard scenarios pass and leave the host's config, refs and index alone",
+      "feature": "guard scenarios ignore the hook git environment (tasks/gitconfig_hook_env)",
+      "tier": "tools"
+    },
+    {
+      "test": "hook on a partial commit: the guard scenarios pass and leave the commit's own index alone",
+      "feature": "guard scenarios ignore the hook git environment (tasks/gitconfig_hook_env)",
+      "tier": "tools"
+    }
+  ]
 }

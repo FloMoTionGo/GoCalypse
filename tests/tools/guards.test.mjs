@@ -3,9 +3,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { TESTS } from "../lib/paths.mjs";
 
 /** A repo with one commit: a source file, a test file, CONSTRAINTS.md and pending.json. */
@@ -239,5 +241,85 @@ test("a commit is judged by the rules its parent had: the one bringing the guard
     }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---- run from a hook -------------------------------------------------------------------------
+//
+// The pre-commit hook runs this tier, and git hands its hooks GIT_DIR and
+// GIT_INDEX_FILE (absolute paths in a linked worktree, and for a partial commit),
+// GIT_AUTHOR_* and GIT_CONFIG_PARAMETERS. The scenarios above must neither read
+// nor write the repository being committed through them.
+
+/** The environment without any GIT_* variable: git as a plain shell runs it. */
+const withoutGitEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));
+
+/** A repository with a linked worktree, standing in for the one a hook is called from. */
+function hostRepo() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "gocalypse-host-"));
+  const main = path.join(root, "main"), wt = path.join(root, "wt"), hooks = path.join(root, "hooks");
+  const git = (cwd, ...args) => execFileSync("git", args, { cwd, env: withoutGitEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  fs.mkdirSync(main);
+  git(main, "init", "-q", "-b", "master");
+  git(main, "config", "user.email", "host@example.org");
+  git(main, "config", "user.name", "Host");
+  fs.writeFileSync(path.join(main, "host.txt"), "host\n");
+  git(main, "add", "-A");
+  git(main, "commit", "-q", "--no-verify", "-m", "host");
+  git(main, "worktree", "add", "-q", "-b", "side", wt);
+  // A -c core.hooksPath on the host's commit reaches its hooks in GIT_CONFIG_PARAMETERS.
+  fs.mkdirSync(hooks);
+  fs.writeFileSync(path.join(hooks, "pre-commit"), "#!/bin/sh\nexit 1\n");
+  const sha1 = (file) => crypto.createHash("sha1").update(fs.readFileSync(file)).digest("hex");
+  return {
+    main,
+    wt,
+    wtGitDir: git(wt, "rev-parse", "--absolute-git-dir").trim(),
+    hookEnv: (env) => ({ GIT_PREFIX: "", GIT_AUTHOR_NAME: "Hook Author", GIT_AUTHOR_EMAIL: "hook@example.org", GIT_CONFIG_PARAMETERS: `'core.hooksPath'='${hooks.replace(/\\/g, "/")}'`, ...env }),
+    /** What a stray git command would change: the shared config, every ref, the hook's index. */
+    state: (index) => ({ config: fs.readFileSync(path.join(main, ".git", "config"), "utf8"), refs: git(main, "for-each-ref", "--format=%(refname) %(objectname)"), index: sha1(index) }),
+    done: () => fs.rmSync(root, { recursive: true, force: true }),
+  };
+}
+
+/** Runs five of the scenarios above in a child test run, from `cwd`, with a hook's `env`. */
+function scenariosUnder(env, cwd) {
+  const pattern = "^(floor guard: an honest change is clean|floor guard: a skipped or \\.only test|floor guard --range|red first: the two-step way|a commit is judged by the rules its parent had)";
+  // NODE_TEST_CONTEXT would tell the child it runs inside this test and make it run nothing.
+  const { NODE_TEST_CONTEXT, ...plain } = withoutGitEnv();
+  const r = spawnSync(process.execPath, ["--test", "--test-reporter=tap", `--test-name-pattern=${pattern}`, fileURLToPath(import.meta.url)], {
+    cwd,
+    env: { ...plain, ...env },
+    encoding: "utf8",
+  });
+  return { code: r.status, out: r.stdout + r.stderr };
+}
+
+test("hook in a linked worktree: the guard scenarios pass and leave the host's config, refs and index alone", () => {
+  const h = hostRepo();
+  try {
+    const index = path.join(h.wtGitDir, "index");
+    const before = h.state(index);
+    const res = scenariosUnder(h.hookEnv({ GIT_DIR: h.wtGitDir, GIT_INDEX_FILE: index }), h.wt);
+    assert.deepEqual(h.state(index), before, "the host repository changed");
+    assert.equal(res.code, 0, res.out);
+    assert.match(res.out, /^# pass 5$/m);
+  } finally {
+    h.done();
+  }
+});
+
+test("hook on a partial commit: the guard scenarios pass and leave the commit's own index alone", () => {
+  const h = hostRepo();
+  try {
+    const index = path.join(h.main, ".git", "next-index-4242.lock");
+    fs.copyFileSync(path.join(h.main, ".git", "index"), index);
+    const before = h.state(index);
+    const res = scenariosUnder(h.hookEnv({ GIT_INDEX_FILE: index }), h.main);
+    assert.deepEqual(h.state(index), before, "the host repository changed");
+    assert.equal(res.code, 0, res.out);
+    assert.match(res.out, /^# pass 5$/m);
+  } finally {
+    h.done();
   }
 });
