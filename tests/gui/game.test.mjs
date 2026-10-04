@@ -8,7 +8,7 @@ import { serverModule } from "../lib/paths.mjs";
 import { guiRig } from "./page.mjs";
 
 let rig, b;
-const P_RISE_MS = 1500; // a little over the spirit's rise (SPIRIT_RISE_SECONDS in web/pixelScene.js)
+const P_CLIMB_MS = 1700; // a little over a river creature's climb (RIVER_CLIMB_SECONDS in web/pixelScene.js)
 
 /**
  * Plays my turns (a stone on a free inside point, or a pass when there is none)
@@ -127,32 +127,46 @@ test("game: recall steps back with the arrow keys, blocks clicks, and Escape goe
   assert.equal(await b.ev("recallStepsEl.textContent"), "0");
 });
 
-test("game: How to play tells of the river spirit and its D6", async () => {
+test("game: How to play tells of the river crab and the river spirit, their D6 and the Bait", async () => {
   const text = await b.ev("document.getElementById('welcome-weather').textContent");
+  assert.match(text, /river crab/i);
   assert.match(text, /river spirit/i);
   assert.match(text, /D6/);
-  assert.match(text, /every 5 turns/i);
+  assert.match(text, /every \d+ turns/i);
+  assert.match(text, /3 rounds/i);
+  assert.match(text, /Bait/);
 });
 
-test("game: the river spirit rises beside the board on the page, its reach ringed, in palette colours", async () => {
-  // A D6 every 5 turns, rising on 4-6: play on until it does (12 rolls miss 1 time in 4096).
-  await playUntil("!!(lastState.spirit && lastState.spirit.out)", 60);
-  await b.waitFor("riverSpirit && riverSpirit.sink === undefined", 3000, "the page's spirit");
-  const view = await b.ev(`({ side: riverSpirit.side, x: riverSpirit.x, y: riverSpirit.y, reach: riverSpirit.reach.slice().sort((a, b) => a - b) })`);
-  const s = await b.ev(`({ side: lastState.spirit.side, x: lastState.spirit.x, y: lastState.spirit.y,
-    reach: [lastState.spirit.reach0, lastState.spirit.reach1, lastState.spirit.reach2].sort((a, b) => a - b) })`);
-  assert.deepEqual(view, s);
-  await wait(P_RISE_MS);
+test("game: the Bait stall is in the market every night", async () => {
+  const names = await b.ev("Array.from(marketItemsEl.querySelectorAll('button.item')).map((el) => el.textContent)");
+  assert.equal(names.filter((t) => /\bBait\b/.test(t)).length, 1, names.join(" | "));
+  assert.match(await b.ev("marketStatusEl.textContent"), /Bait/);
+});
+
+// The river creature that is out, in the page's state: "crab", "spirit" or null.
+const OUT = "(lastState.river && (lastState.river.crab.out ? 'crab' : lastState.river.spirit.out ? 'spirit' : null))";
+
+test("game: a river creature climbs onto the pier on the page, its reach ringed and its timer shown, in palette colours", async () => {
+  // A debug room rolls the D6 every 2 turns, a creature on a 5 or 6: 30 rolls miss about 1 time in 190,000.
+  await playUntil(`!!${OUT}`, 60);
+  const kind = await b.ev(OUT);
+  assert.ok(kind, "a creature came up");
+  await b.waitFor(`riverCreatures.${kind} && riverCreatures.${kind}.leave === undefined`, 3000, "the page's creature");
+  const view = await b.ev(`(({ kind, side, x, y, reach, by }) => ({ kind, side, x, y, reach: reach.slice().sort((a, b) => a - b), by }))(riverCreatures.${kind})`);
+  const c = await b.ev(`(({ kind, side, x, y, reach0, reach1, reach2, by }) => ({ kind, side, x, y, reach: [reach0, reach1, reach2].sort((a, b) => a - b), by }))(lastState.river.${kind})`);
+  assert.deepEqual(view, c);
+  await wait(P_CLIMB_MS);
   const { bad } = await rig.offPaletteBoardPixels();
   assert.equal(bad, 0);
 });
 
-test("game: by the third turn after rising the river spirit recedes into the water on the page", async () => {
-  const by = await b.ev("lastState.spirit.by");
-  await playUntil(`lastState.turnCount >= ${by}`, 4);
-  await b.waitFor("lastState.spirit.out === false && riverSpirit && riverSpirit.sink !== undefined", 5000, "the spirit sinking on the page");
-  const took = await b.ev("lastState.spirit.took");
-  if (took >= 0) assert.equal(await b.ev(`board[${took}]`), 0, "the stone it took is off the board");
+test("game: when its timer runs out the river creature goes back into the water on the page", async () => {
+  const kind = await b.ev(OUT);
+  const by = await b.ev(`lastState.river.${kind}.by`);
+  await playUntil(`lastState.turnCount >= ${by}`, by - (await b.ev("lastState.turnCount")) + 2);
+  await b.waitFor(`lastState.river.${kind}.out === false && riverCreatures.${kind} && riverCreatures.${kind}.leave !== undefined`, 5000, "the creature leaving on the page");
+  const took = await b.ev(`[lastState.river.${kind}.took0, lastState.river.${kind}.took1, lastState.river.${kind}.took2].filter((i) => i >= 0)`);
+  for (const i of took) assert.equal(await b.ev(`board[${i}]`), 0, "a stone it took is off the board");
 });
 
 test("game: a stone goes on the Stone Card with a click on its grid, any time, free the first time", async () => {
