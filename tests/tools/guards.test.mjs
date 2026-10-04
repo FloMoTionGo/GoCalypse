@@ -10,10 +10,20 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TESTS } from "../lib/paths.mjs";
 
+// The pre-commit hook runs this tier, and git hands its hooks GIT_DIR and
+// GIT_INDEX_FILE (absolute paths in a linked worktree, and for a partial commit),
+// GIT_AUTHOR_* and GIT_CONFIG_PARAMETERS. Inherited, they point a scratch repo's
+// git, and the guards run against it, at the repository being committed: on
+// 2026-10-03 the `git init` and `git config` below rewrote its .git/config
+// (core.bare = true). Every git and guard run here gets this environment instead.
+
+/** The environment without any GIT_* variable: git as a plain shell runs it. */
+const withoutGitEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));
+
 /** A repo with one commit: a source file, a test file, CONSTRAINTS.md and pending.json. */
 function repo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gocalypse-guards-"));
-  const git = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const git = (...args) => execFileSync("git", args, { cwd: dir, env: withoutGitEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   git("init", "-q", "-b", "master");
   git("config", "user.email", "test@example.org");
   git("config", "user.name", "Guard Test");
@@ -36,6 +46,7 @@ function repo() {
     fs.writeFileSync(path.join(dir, "MSG"), message);
     const r = spawnSync(process.execPath, [path.join(dir, "tests", "lib", `${tool}.mjs`), ...extra, ...(extra.length ? [] : ["--staged", "--msg", "MSG"])], {
       cwd: dir,
+      env: withoutGitEnv(),
       encoding: "utf8",
     });
     return { code: r.status, out: r.stdout + r.stderr };
@@ -222,7 +233,7 @@ test("both guards leave a merge commit to the commits it brings in", scenario((r
 
 test("a commit is judged by the rules its parent had: the one bringing the guards in is not", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gocalypse-guards-"));
-  const git = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const git = (...args) => execFileSync("git", args, { cwd: dir, env: withoutGitEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   try {
     git("init", "-q", "-b", "master");
     git("config", "user.email", "test@example.org");
@@ -235,7 +246,7 @@ test("a commit is judged by the rules its parent had: the one bringing the guard
     fs.writeFileSync(path.join(dir, "web", "main.js"), "let x = 2; // TODO\n");
     git("add", "-A");
     for (const tool of ["floor-guard", "red-first"]) {
-      const r = spawnSync(process.execPath, [path.join(dir, "tests", "lib", `${tool}.mjs`), "--staged"], { cwd: dir, encoding: "utf8" });
+      const r = spawnSync(process.execPath, [path.join(dir, "tests", "lib", `${tool}.mjs`), "--staged"], { cwd: dir, env: withoutGitEnv(), encoding: "utf8" });
       assert.equal(r.status, 0, `${tool}: ${r.stdout}${r.stderr}`);
       assert.match(r.stdout, /before this check existed/);
     }
@@ -246,13 +257,8 @@ test("a commit is judged by the rules its parent had: the one bringing the guard
 
 // ---- run from a hook -------------------------------------------------------------------------
 //
-// The pre-commit hook runs this tier, and git hands its hooks GIT_DIR and
-// GIT_INDEX_FILE (absolute paths in a linked worktree, and for a partial commit),
-// GIT_AUTHOR_* and GIT_CONFIG_PARAMETERS. The scenarios above must neither read
-// nor write the repository being committed through them.
-
-/** The environment without any GIT_* variable: git as a plain shell runs it. */
-const withoutGitEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));
+// The scenarios above, run with a hook's environment (see withoutGitEnv), must
+// neither read nor write the repository being committed.
 
 /** A repository with a linked worktree, standing in for the one a hook is called from. */
 function hostRepo() {
@@ -282,9 +288,13 @@ function hostRepo() {
   };
 }
 
-/** Runs five of the scenarios above in a child test run, from `cwd`, with a hook's `env`. */
+/**
+ * Runs three of the scenarios above in a child test run, from `cwd`, with a hook's
+ * `env`: one per path git takes here -- repo(), a guard seeing what is staged, and
+ * the test with its own scratch repo.
+ */
 function scenariosUnder(env, cwd) {
-  const pattern = "^(floor guard: an honest change is clean|floor guard: a skipped or \\.only test|floor guard --range|red first: the two-step way|a commit is judged by the rules its parent had)";
+  const pattern = "^(floor guard: an honest change is clean|floor guard: a skipped or \\.only test|a commit is judged by the rules its parent had)";
   // NODE_TEST_CONTEXT would tell the child it runs inside this test and make it run nothing.
   const { NODE_TEST_CONTEXT, ...plain } = withoutGitEnv();
   const r = spawnSync(process.execPath, ["--test", "--test-reporter=tap", `--test-name-pattern=${pattern}`, fileURLToPath(import.meta.url)], {
@@ -303,7 +313,7 @@ test("hook in a linked worktree: the guard scenarios pass and leave the host's c
     const res = scenariosUnder(h.hookEnv({ GIT_DIR: h.wtGitDir, GIT_INDEX_FILE: index }), h.wt);
     assert.deepEqual(h.state(index), before, "the host repository changed");
     assert.equal(res.code, 0, res.out);
-    assert.match(res.out, /^# pass 5$/m);
+    assert.match(res.out, /^# pass 3$/m);
   } finally {
     h.done();
   }
@@ -318,7 +328,7 @@ test("hook on a partial commit: the guard scenarios pass and leave the commit's 
     const res = scenariosUnder(h.hookEnv({ GIT_INDEX_FILE: index }), h.main);
     assert.deepEqual(h.state(index), before, "the host repository changed");
     assert.equal(res.code, 0, res.out);
-    assert.match(res.out, /^# pass 5$/m);
+    assert.match(res.out, /^# pass 3$/m);
   } finally {
     h.done();
   }
