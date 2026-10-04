@@ -904,6 +904,23 @@
     "...CCCCCCC...",
   ]);
 
+  // The river spirit: a hooded wisp of river mist with ink eyes and an amber
+  // heart, trailing off into the water at its last rows. Idling it sways its
+  // wisps and blinks; reaching, it lifts its arms to call a stone to it.
+  const SPIRIT_HEAD = ["....CCC....", "...CCCCC...", "..CCCCCCC.."];
+  const SPIRIT_TAIL = ["...CSCSC...", "...SCSCS...", "....S.S....", "...s.s.s..."];
+  anim("spiritIdle", 4, [
+    sprite("spiritIdle_0", [...SPIRIT_HEAD, "..CKCCCKC..", "..CKCCCKC..", "..CCCACCC..", ".sCCCCCCCs.", "S.CSCCCSC.S", ...SPIRIT_TAIL]),
+    sprite("spiritIdle_1", [...SPIRIT_HEAD, "..CKCCCKC..", "..CKCCCKC..", "..CCCACCC..", "S.CCCCCCC.S", ".sCSCCCSCs.", "....CSCSC..", "...SCSCS...", "....S.S....", "..s.s.s...."]),
+    sprite("spiritIdle_2", [...SPIRIT_HEAD, "..CKCCCKC..", "..CKCCCKC..", "..CCCACCC..", ".sCCCCCCCs.", "S.CSCCCSC.S", "..CSCSC....", "...SCSCS...", "....S.S....", "....s.s.s.."]),
+    // the blink
+    sprite("spiritIdle_3", [...SPIRIT_HEAD, "..CCCCCCC..", "..KKCCCKK..", "..CCCACCC..", ".sCCCCCCCs.", "S.CSCCCSC.S", ...SPIRIT_TAIL]),
+  ]);
+  anim("spiritReach", 6, [
+    sprite("spiritReach_0", [...SPIRIT_HEAD.slice(0, 2), "C.CCCCCCC.C", "CCCKCCCKCCC", ".CCKCCCKCC.", "..CCCACCC..", "..CCCCCCC..", "..CSCCCSC..", ...SPIRIT_TAIL]),
+    sprite("spiritReach_1", ["C...CCC...C", "C..CCCCC..C", "CCCCCCCCCCC", "..CKCCCKC..", "..CKCCCKC..", "..CCAAACC..", "..CCCCCCC..", "..CSCCCSC..", ...SPIRIT_TAIL]),
+  ]);
+
   SPRITES.flipArrows = sprite("flipArrows", [
     "....AAAAA......",
     "..AA.....AA.A..",

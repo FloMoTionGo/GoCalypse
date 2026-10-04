@@ -93,6 +93,31 @@ export class StormState extends Schema {
   @type("number") strike2: number = -1;
 }
 
+/**
+ * The river spirit (rules/spirit.ts). `seq` changes each time it rises, which is
+ * what the client watches to play its rise. It keeps its spot after it sinks
+ * back, so the client can draw it going under where it stood. Like the storm's
+ * strikes, the reach is three plain fields.
+ */
+export class SpiritState extends Schema {
+  @type("number") seq: number = 0;
+  @type("number") every: number = 5; // a D6 is rolled every this many turns
+  @type("number") roll: number = 0; // the last D6 roll (0 before the first one)
+  @type("number") rolledAt: number = 0; // turnCount of that roll
+  @type("boolean") out: boolean = false; // up beside the board right now
+  @type("string") side: string = ""; // "top" | "right" | "bottom" | "left": the river it rose from
+  @type("number") x: number = -1; // the edge point it faces
+  @type("number") y: number = -1;
+  @type("number") reach0: number = -1; // board indices of the outer-ring points it can take from
+  @type("number") reach1: number = -1;
+  @type("number") reach2: number = -1;
+  @type("number") rose: number = 0; // turnCount it rose
+  @type("number") by: number = 0; // it has acted by this turnCount
+  // The turn it acts on, drawn when it rose. The players only know "by".
+  @view(SERVER_ONLY) @type("number") strikeAt: number = 0;
+  @type("number") took: number = -1; // board index of the stone it took as it last sank, -1 for none
+}
+
 /** The most recent move or powerup use, so clients can pick the matching animation. */
 export class LastAction extends Schema {
   @type("number") seq: number = 0;
@@ -131,4 +156,5 @@ export class GoState extends Schema {
   @type([BoardEffect]) effects = new ArraySchema<BoardEffect>();
   @type(LastAction) action = new LastAction();
   @type(StormState) storm = new StormState();
+  @type(SpiritState) spirit = new SpiritState();
 }

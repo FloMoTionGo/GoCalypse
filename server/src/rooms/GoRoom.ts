@@ -65,6 +65,16 @@ import {
   stormChance,
   stormLevel,
 } from "../rules/storm";
+import {
+  pickSpot,
+  pickVictim,
+  rollSpiritDie,
+  SPIRIT_EVERY_TURNS,
+  SPIRIT_MAX_WAIT,
+  spiritReach,
+  spiritRisesOn,
+  strikeDelay,
+} from "../rules/spirit";
 
 interface JoinOptions {
   name?: string;
@@ -161,6 +171,9 @@ export class GoRoom extends Room<GoState> {
   protected startingFireflies = 0;
   protected shopAfterMoves = SHOP_AFTER_MOVES;
   protected stormEvery = STORM_EVERY_TURNS;
+  protected spiritEvery = SPIRIT_EVERY_TURNS;
+  // The river spirit's dice (its D6, spot, wait and pick). Tests script it.
+  protected spiritRandom: () => number = Math.random;
   private botTimer?: Delayed;
   private botStyles = new Map<string, Style>();
   // player color -> the styleFor id of the bot on that seat, saved with the game so a restore seats the same bot.
@@ -184,6 +197,7 @@ export class GoRoom extends Room<GoState> {
     state.handLimit = HAND_LIMIT;
     state.powerfulLimit = POWERFUL_LIMIT;
     state.storm.every = this.stormEvery;
+    state.spirit.every = this.spiritEvery;
     for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
       state.board.push(0);
     }
@@ -751,6 +765,10 @@ export class GoRoom extends Room<GoState> {
     const order = this.turnOrder();
     this.state.turnIndex = order[(order.indexOf(this.state.turnIndex) + 1) % order.length];
     this.expireEffects();
+    // The spirit acts on the board the fires and seeds left, and what it takes
+    // is part of the position the ko rule remembers.
+    this.spiritActs();
+    if (isRollTurn(this.state.turnCount, this.spiritEvery)) this.rollForSpirit();
     this.positions.record(this.state.board.toArray());
     if (isRollTurn(this.state.turnCount, this.stormEvery)) this.rollForStorm();
     this.scheduleBotTurn();
@@ -805,6 +823,77 @@ export class GoRoom extends Room<GoState> {
       `A thunderstorm breaks: ${struck.length} lightning strike${struck.length === 1 ? "" : "s"}` +
       `${stonesHit ? `, ${stonesHit} stone${stonesHit === 1 ? "" : "s"} alight` : ""}. ` +
       `The fires burn for ${FIRE_ROUNDS} rounds.`;
+  }
+
+  // ---- the river spirit (rules/spirit.ts) ---------------------------------------
+
+  /** Adds the spirit's news to the turn's event, so whatever the turn did still reads first. */
+  private spiritNews(text: string) {
+    const event = this.state.lastEvent.trim();
+    this.state.lastEvent = event ? `${event}${/[.!?]$/.test(event) ? "" : "."} ${text}` : text;
+  }
+
+  /**
+   * Every `spiritEvery` turns a D6 is rolled out of sight. On a 4, 5 or 6 a
+   * spirit rises from the river at a random spot beside the board, and draws
+   * the turn it will act on: one to SPIRIT_MAX_WAIT turns away. A 1, 2 or 3
+   * keeps it under until the next roll, at the same odds.
+   */
+  private rollForSpirit() {
+    const state = this.state;
+    const spirit = state.spirit;
+    if (state.status !== "playing" || spirit.out) return;
+
+    const roll = rollSpiritDie(this.spiritRandom);
+    spirit.roll = roll;
+    spirit.rolledAt = state.turnCount;
+    if (!spiritRisesOn(roll)) return;
+
+    const spot = pickSpot(state.size, this.spiritRandom);
+    const reach = spiritReach(state.size, spot.x, spot.y);
+    spirit.side = spot.side;
+    spirit.x = spot.x;
+    spirit.y = spot.y;
+    spirit.reach0 = reach[0] ?? -1;
+    spirit.reach1 = reach[1] ?? -1;
+    spirit.reach2 = reach[2] ?? -1;
+    spirit.rose = state.turnCount;
+    spirit.by = state.turnCount + SPIRIT_MAX_WAIT;
+    spirit.strikeAt = state.turnCount + strikeDelay(this.spiritRandom);
+    spirit.took = -1;
+    spirit.out = true;
+    spirit.seq += 1;
+    this.spiritNews(`A river spirit rises from the water beside (${spot.x}, ${spot.y}).`);
+  }
+
+  /**
+   * On the turn it drew, the spirit takes one of the stones within its reach,
+   * picked at random, and sinks back; with none in reach it sinks back
+   * empty-handed. It can't take what a ward or a fog shields, nor a stone it
+   * can't see under a mist, and driftwood is no stone. Nobody is credited the
+   * stone; its owner gets the consolation an item's removal pays.
+   */
+  private spiritActs() {
+    const state = this.state;
+    const spirit = state.spirit;
+    if (!spirit.out || state.turnCount < spirit.strikeAt) return;
+
+    const candidates = [spirit.reach0, spirit.reach1, spirit.reach2].filter(
+      (idx) =>
+        idx >= 0 &&
+        isPlayerStone(state.board[idx]) &&
+        !this.isWarded(idx) &&
+        this.effectAt("mist", idx) === undefined
+    );
+    const victim = pickVictim(candidates, this.spiritRandom);
+    if (victim >= 0) this.removePieces([victim], 0);
+    spirit.took = victim;
+    spirit.out = false;
+    this.spiritNews(
+      victim >= 0
+        ? `The river spirit takes the stone on (${victim % state.size}, ${Math.floor(victim / state.size)}) and sinks back.`
+        : "The river spirit finds no stone within reach and sinks back."
+    );
   }
 
   /** Puts the chance of the next roll breaking a storm, in numbers and in words, where clients can read it. */
@@ -1197,6 +1286,11 @@ export class GoRoom extends Room<GoState> {
     // Turns stop here, so a storm still in its three rounds would leave its
     // weather hanging over the final board for good.
     if (state.storm.until > state.turnCount) state.storm.until = state.turnCount;
+    // Nor is there a turn left for the river spirit to act on: it goes back under.
+    if (state.spirit.out) {
+      state.spirit.out = false;
+      state.spirit.took = -1;
+    }
     state.status = "finished";
     this.openViews();
     this.refreshSeen();

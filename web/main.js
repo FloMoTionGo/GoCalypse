@@ -81,6 +81,10 @@ let lastStormSeq = null;
 let turnCount = 0;
 let roundLength = 0;
 let stormUntil = 0; // turnCount when the current storm's fires go out; the lingering weather lasts until then
+// The river spirit as the scene draws it: {side, x, y, reach, rise?, takeAt?, sink?}, clock()
+// times of its moments (pixelScene.js spiritPhase). Kept after it sinks, for the sinking.
+let riverSpirit = null;
+let lastSpiritSeq = null;
 
 // A URL hash lets debug.html drive this page from inside an <iframe>
 // (prefill, auto-join, debug room) without touching the manual-join flow.
@@ -262,6 +266,8 @@ function resetRoomState() {
   turnCount = 0;
   roundLength = 0;
   stormUntil = 0;
+  riverSpirit = null;
+  lastSpiritSeq = null;
   resultOpened = false;
   closeWelcomeOnStart = false;
   lastPasses = null;
@@ -537,6 +543,7 @@ function frame() {
     effects: snap ? [] : effects.filter((e) => !isVeiled(e.x, e.y, e.code)),
     overlays: snap ? snap.overlays : overlays,
     storm: snap ? null : storm,
+    spirit: riverSpirit, // live scenery, like the weather: drawn as it is now even while looking back
     round: roundLength > 0 ? Math.floor((snap ? snap.turnCount : turnCount) / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
     passFlash: passFlashAt,
     fireflies: myPlayer ? myPlayer.fireflies : undefined,
@@ -809,6 +816,36 @@ function visibleBoard(state) {
   return cells;
 }
 
+/**
+ * Follows the river spirit (server/src/rules/spirit.ts) into riverSpirit. A new
+ * `seq` while it is out: it has risen (played only if this page saw it happen;
+ * a page that joins while it is up just shows it there). `out` turning false:
+ * it acts and sinks. With a stone taken, it holds its pose while the stone comes
+ * to it, then sinks; the stone is returned ({took, side, x, y}) for diffTurn.
+ */
+function followSpirit(sp) {
+  if (!sp) return null;
+  const now = clock();
+  let took = null;
+  if (sp.out && (sp.seq !== lastSpiritSeq || !riverSpirit)) {
+    riverSpirit = {
+      side: sp.side, x: sp.x, y: sp.y,
+      reach: [sp.reach0, sp.reach1, sp.reach2].filter((i) => i >= 0),
+      rise: lastSpiritSeq === null ? undefined : now,
+    };
+  } else if (!sp.out && riverSpirit && riverSpirit.sink === undefined) {
+    if (sp.took >= 0) {
+      riverSpirit.takeAt = now;
+      riverSpirit.sink = now + P.SPIRIT_TAKE_SECONDS;
+      took = { took: sp.took, side: riverSpirit.side, x: riverSpirit.x, y: riverSpirit.y };
+    } else {
+      riverSpirit.sink = now;
+    }
+  }
+  lastSpiritSeq = sp.seq;
+  return took;
+}
+
 function onState(state) {
   lastState = state;
   ensureScene(state.size);
@@ -831,6 +868,7 @@ function onState(state) {
     startStorm(state);
   }
   if (state.storm) lastStormSeq = state.storm.seq;
+  const spiritTook = followSpirit(state.spirit);
 
   if (board) {
     const known = new Set(overlays.map(overlayKey));
@@ -838,7 +876,7 @@ function onState(state) {
     const fresh = nextOverlays.filter((o) => !known.has(overlayKey(o)));
     const gone = overlays.filter((o) => !nextKeys.has(overlayKey(o)));
     const act = actionChanged ? { kind: action.kind, id: action.id, x: action.x, y: action.y } : null;
-    effects = effects.concat(P.diffTurn(board, nextBoard, state.size, act, fresh, clock(), gone));
+    effects = effects.concat(P.diffTurn(board, nextBoard, state.size, act, fresh, clock(), gone, spiritTook));
   }
   if ((actionChanged || lastActionSeq === null) && action.kind === "move") {
     lastMove = { x: action.x, y: action.y };
@@ -927,7 +965,7 @@ function stoneChip(code) {
 // What the welcome screen says before there is a room to read it from (the home screen's
 // "How to play"). Mirrors SHOP_AFTER_MOVES / HAND_LIMIT / STORM_EVERY_TURNS in server/src/rooms/GoRoom.ts
 // and MARKET_TIER_SLOTS in server/src/powerups/definitions.ts.
-const WELCOME_DEFAULTS = { shopAfter: 5, handLimit: 5, stormEvery: 20, stalls: [3, 2, 1] };
+const WELCOME_DEFAULTS = { shopAfter: 5, handLimit: 5, stormEvery: 20, spiritEvery: 5, stalls: [3, 2, 1] };
 
 /**
  * The welcome screen: how to play, the bots menu while the room waits, and tonight's
@@ -954,6 +992,7 @@ function openWelcome(state) {
   const shopAfter = state ? state.shopAfter : WELCOME_DEFAULTS.shopAfter;
   const handLimit = state ? state.handLimit : WELCOME_DEFAULTS.handLimit;
   const stormEvery = state ? state.storm.every : WELCOME_DEFAULTS.stormEvery;
+  const spiritEvery = state && state.spirit ? state.spirit.every : WELCOME_DEFAULTS.spiritEvery;
   const [cozy, tactical, powerful] = perTier.map((list) => list.find((m) => m.stock > 0));
   const stockText =
     cozy && tactical && powerful
@@ -987,7 +1026,13 @@ function openWelcome(state) {
     `three bolts come down on random points. Whatever stands there catches fire and burns away three rounds later, ` +
     `and nobody can play on a burning point until the fire goes out. A fainter storm hangs over the river for all ` +
     `three rounds, and for those rounds every stone turns the same grey: the rules still know whose is whose, so remember. The forecast in the sidebar (unlikely, likely, very likely) ` +
-    `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll.`;
+    `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll. ` +
+    // Mirrors SPIRIT_DIE_FACES / SPIRIT_RISES_FROM / SPIRIT_MAX_WAIT in server/src/rules/spirit.ts.
+    `And every ${spiritEvery} turns a D6 is rolled for the river spirit: on a 4, 5 or 6 it rises from the water ` +
+    `somewhere beside the board, and the three edge points nearest it are ringed. Within three turns it takes one ` +
+    `stone standing on them, picked at random, and sinks back; with none there it leaves empty-handed. Its owner gets ` +
+    `3 fireflies back. A ward or a fog keeps a stone safe, and it can't see one under a mist. On a 1, 2 or 3 it ` +
+    `stays under, and the next roll ${spiritEvery} turns later has the same odds.`;
 
   // Mirrors territoryScore / finalResults in server/src/rules/endgame.ts.
   const yourTwo = seated ? `your ${base} total and your ${pattern} total` : `your two totals, one per front`;

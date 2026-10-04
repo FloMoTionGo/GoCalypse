@@ -8,6 +8,26 @@ import { serverModule } from "../lib/paths.mjs";
 import { guiRig } from "./page.mjs";
 
 let rig, b;
+const P_RISE_MS = 1500; // a little over the spirit's rise (SPIRIT_RISE_SECONDS in web/pixelScene.js)
+
+/**
+ * Plays my turns (a stone on a free inside point, or a pass when there is none)
+ * while the bots play theirs, until `done` (a page expression) holds or
+ * `maxTurns` turns have gone by.
+ */
+async function playUntil(done, maxTurns) {
+  const stop = (await b.ev("lastState.turnCount")) + maxTurns;
+  while (!(await b.ev(done)) && (await b.ev("lastState.turnCount")) < stop) {
+    if (!(await b.ev("isMyTurn"))) {
+      await wait(150);
+      continue;
+    }
+    const p = await rig.freePoint();
+    const turn = await b.ev("lastState.turnCount");
+    await b.ev(p ? `room.send("move", { x: ${p.x}, y: ${p.y}, axis: "base" }); true` : `room.send("pass"); true`);
+    await b.waitFor(`lastState.turnCount > ${turn}`, 10000, "my turn to be taken");
+  }
+}
 
 /**
  * A page expression: my stone with this code offset (0 solid, 4 pattern) now
@@ -105,6 +125,34 @@ test("game: recall steps back with the arrow keys, blocks clicks, and Escape goe
   await b.key("Escape");
   assert.equal(await b.ev("viewId"), null);
   assert.equal(await b.ev("recallStepsEl.textContent"), "0");
+});
+
+test("game: How to play tells of the river spirit and its D6", async () => {
+  const text = await b.ev("document.getElementById('welcome-weather').textContent");
+  assert.match(text, /river spirit/i);
+  assert.match(text, /D6/);
+  assert.match(text, /every 5 turns/i);
+});
+
+test("game: the river spirit rises beside the board on the page, its reach ringed, in palette colours", async () => {
+  // A D6 every 5 turns, rising on 4-6: play on until it does (12 rolls miss 1 time in 4096).
+  await playUntil("!!(lastState.spirit && lastState.spirit.out)", 60);
+  await b.waitFor("riverSpirit && riverSpirit.sink === undefined", 3000, "the page's spirit");
+  const view = await b.ev(`({ side: riverSpirit.side, x: riverSpirit.x, y: riverSpirit.y, reach: riverSpirit.reach.slice().sort((a, b) => a - b) })`);
+  const s = await b.ev(`({ side: lastState.spirit.side, x: lastState.spirit.x, y: lastState.spirit.y,
+    reach: [lastState.spirit.reach0, lastState.spirit.reach1, lastState.spirit.reach2].sort((a, b) => a - b) })`);
+  assert.deepEqual(view, s);
+  await wait(P_RISE_MS);
+  const { bad } = await rig.offPaletteBoardPixels();
+  assert.equal(bad, 0);
+});
+
+test("game: by the third turn after rising the river spirit recedes into the water on the page", async () => {
+  const by = await b.ev("lastState.spirit.by");
+  await playUntil(`lastState.turnCount >= ${by}`, 4);
+  await b.waitFor("lastState.spirit.out === false && riverSpirit && riverSpirit.sink !== undefined", 5000, "the spirit sinking on the page");
+  const took = await b.ev("lastState.spirit.took");
+  if (took >= 0) assert.equal(await b.ev(`board[${took}]`), 0, "the stone it took is off the board");
 });
 
 test("game: a stone goes on the Stone Card with a click on its grid, any time, free the first time", async () => {

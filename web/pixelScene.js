@@ -404,6 +404,17 @@
     { ms: 110, kind: "burn", cov: 0, smoke: 2 },
   ];
 
+  // The river spirit takes a stone (see the river spirit notes below): a mist
+  // tendril runs out to it, the stone is drawn along it into the spirit's
+  // hands, and a splash closes over it. `u` is the take's progress, 0..1.
+  const SPIRIT_RISE_SECONDS = 1.2;
+  const SPIRIT_TAKE_SECONDS = 1.4;
+  const SPIRIT_SINK_SECONDS = 1.0;
+  const SPIRIT_TAKE_FRAMES = 14;
+  const SPIRIT_TAKE_TIMELINE = Array.from({ length: SPIRIT_TAKE_FRAMES }, (_, k) => ({
+    ms: (SPIRIT_TAKE_SECONDS * 1000) / SPIRIT_TAKE_FRAMES, kind: "spiritTake", u: k / (SPIRIT_TAKE_FRAMES - 1),
+  }));
+
   const TIMELINES = {
     place: [PLACE_TIMELINE, []],
     burnAway: [BURN_AWAY_TIMELINE, [
@@ -422,6 +433,10 @@
     gust: [GUST_TIMELINE, REDUCED_CAPTURE_TIMELINE],
     snipe: [SNIPE_TIMELINE, REDUCED_CAPTURE_TIMELINE],
     firework: [FIREWORK_TIMELINE, [{ ms: 150, kind: "burst", r: 0, flash: true }]],
+    spiritTake: [SPIRIT_TAKE_TIMELINE, [
+      { ms: 150, kind: "spiritTake", fade: 0.66 },
+      { ms: 150, kind: "spiritTake", fade: 0.33 },
+    ]],
   };
   /** Effect kinds that draw their own piece at the cell while playing (the board already shows the end state). */
   const OWNS_CELL = new Set(["place", "drop", "flip"]);
@@ -509,8 +524,10 @@
    * Picks the matching animation per changed cell: driftwood drops in or
    * drifts away, a flipped stone turns over, the Gust/Snipe target gets its
    * own exit, everything else that vanished is captured (Firework included).
+   * `spirit` ({took, side, x, y}) names the stone the river spirit took in this
+   * update: it leaves in the spirit's hands rather than as a capture.
    */
-  function diffTurn(prev, next, size, action, newOverlays, time, goneOverlays) {
+  function diffTurn(prev, next, size, action, newOverlays, time, goneOverlays, spirit) {
     const effects = [];
     if (!prev || prev.length !== next.length) return effects;
     const used = action && action.kind === "powerup" ? action.id : null;
@@ -543,7 +560,9 @@
         effects.push(b === G.DRIFTWOOD ? makeEffect("drop", x, y, { code: b }, time) : placeEffect(x, y, b, time));
       } else if (b === 0) {
         if (ferried.has(i)) continue;
-        if (burntOut.has(i)) effects.push(makeEffect("burnAway", x, y, { code: a }, time));
+        if (spirit && spirit.took === i) {
+          effects.push(makeEffect("spiritTake", x, y, { code: a, side: spirit.side, sx: spirit.x, sy: spirit.y }, time));
+        } else if (burntOut.has(i)) effects.push(makeEffect("burnAway", x, y, { code: a }, time));
         else if (a === G.DRIFTWOOD && !inBurst(x, y)) effects.push(makeEffect("driftAway", x, y, { code: a }, time));
         else if (used === "gust" && isTarget(x, y)) effects.push(makeEffect("gust", x, y, { code: a }, time));
         else if (used === "remove_stone" && isTarget(x, y)) effects.push(makeEffect("snipe", x, y, { code: a }, time));
@@ -977,6 +996,37 @@
   // ---------------------------------------------------------------------------
   // Scene
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // The river spirit (server/src/rules/spirit.ts). main.js hands render() what
+  // it knows of it, with clock times for its moments:
+  //   {side, x, y, reach: [board indices], rise?, takeAt?, sink?}
+  // and its four animations follow from those: it rises out of the river
+  // (rise), idles on the water until it acts (idle), lifts its arms while the
+  // stone it takes is drawn to it (take, with the "spiritTake" board effect),
+  // and sinks back under (sink). No rise time: it was already up.
+  // ---------------------------------------------------------------------------
+  function spiritPhase(spirit, time) {
+    if (!spirit) return { phase: "gone", u: 1 };
+    if (spirit.sink !== undefined && time >= spirit.sink) {
+      const u = (time - spirit.sink) / SPIRIT_SINK_SECONDS;
+      return u >= 1 ? { phase: "gone", u: 1 } : { phase: "sink", u };
+    }
+    if (spirit.takeAt !== undefined && time >= spirit.takeAt) {
+      return { phase: "take", u: Math.min(1, (time - spirit.takeAt) / SPIRIT_TAKE_SECONDS) };
+    }
+    if (spirit.rise !== undefined && time - spirit.rise < SPIRIT_RISE_SECONDS) {
+      return { phase: "rise", u: Math.max(0, (time - spirit.rise) / SPIRIT_RISE_SECONDS) };
+    }
+    return { phase: "idle", u: 0 };
+  }
+  const easeOut = (u) => 1 - (1 - u) * (1 - u);
+
+  /** The top `rows` rows of a sprite (what shows of it above the waterline). */
+  function topRows(spr, rows) {
+    const h = Math.max(0, Math.min(spr.h, rows));
+    return G.makeSprite(spr.name + "_top" + h, spr.w, h, spr.px.slice(0, spr.w * h));
+  }
+
   function createScene(options) {
     const opts = options || {};
     const size = opts.size || 13;
@@ -1586,6 +1636,165 @@
       }
     }
 
+    // --- the river spirit ------------------------------------------------------------
+    /**
+     * Where the spirit stands in the river, in front of edge point (x, y) on
+     * `side`: the point where it meets the water (its waterline). Its body
+     * rises from there, so the top channel, the side streams and the wide river
+     * below all have room for it. Null for a side it can't be on.
+     */
+    function spiritAnchor(side, x, y) {
+      const p = pointToNative(x, y);
+      if (side === "top") return { x: p.x, y: L.boardY - 3 };
+      if (side === "bottom") return { x: p.x, y: L.riverY0 + 12 };
+      if (side === "left") return { x: L.boardX >> 1, y: p.y + 5 };
+      if (side === "right") return { x: L.streamX0 + (STREAM >> 1), y: p.y + 5 };
+      return null;
+    }
+
+    /** Rings opening (or closing) on the water around the waterline: a flat ellipse of radius r. */
+    function spiritRipple(a, r, coverage) {
+      if (r <= 0 || coverage <= 0) return;
+      const steps = Math.max(8, Math.round(r * 5));
+      for (let k = 0; k < steps; k++) {
+        const ang = (k / steps) * Math.PI * 2;
+        const x = Math.round(a.x + Math.cos(ang) * r);
+        const y = Math.round(a.y + 1 + Math.sin(ang) * r * 0.4);
+        if (G.ditherOn(x, y, coverage)) waterSet(x, y, C);
+      }
+    }
+
+    /** The spirit's body, `shown` rows of it above the waterline (all of it when up), with its glow. */
+    function spiritBody(a, spr, shown, coverage, glow) {
+      const rows = Math.round(shown);
+      if (rows <= 0 || coverage <= 0) return;
+      if (glow > 0) surf.ramp(G.LIGHT, a.x, a.y - 6, 9, glow, 1, noLight);
+      const part = rows >= spr.h ? spr : topRows(spr, rows);
+      surf.blit(part, a.x - ((spr.w - 1) >> 1), a.y - rows + 1, coverage < 1 ? { coverage } : undefined);
+    }
+
+    /**
+     * The spirit beside the board, in whichever of its moments it is (spiritPhase):
+     * rising out of the river through opening rings and a little spray; idling,
+     * bobbing on its own wake with its wisps swaying and an occasional blink;
+     * reaching, arms up, while the stone it takes comes to it; sinking back
+     * under as the rings close over it. With reduced motion it simply stands
+     * still while it is up, and is gone the moment it sinks.
+     */
+    function drawSpirit(spirit, time, reduced) {
+      const { phase, u } = spiritPhase(spirit, time);
+      if (phase === "gone" || (reduced && phase === "sink")) return;
+      const a = spiritAnchor(spirit.side, spirit.x, spirit.y);
+      if (!a) return;
+      const idle = animFrame("spiritIdle", reduced ? 0 : time);
+      const full = idle.h;
+      if (phase === "rise" && !reduced) {
+        const up = easeOut(u);
+        spiritRipple(a, 2 + u * 7, 1 - u * 0.7);
+        if (u < 0.45) {
+          // Spray thrown up as it breaks the surface.
+          for (let k = 0; k < 5; k++) {
+            const sx = a.x + Math.round((k - 2) * (2 + u * 6));
+            const sy = a.y - Math.round(Math.sin((u / 0.45) * Math.PI) * (3 + (k & 1) * 2));
+            surf.set(sx, sy, (k & 1) ? C : S);
+          }
+        }
+        spiritBody(a, idle, full * up, Math.min(1, 0.25 + u), 0.45 * up);
+        return;
+      }
+      if (phase === "sink") {
+        const down = easeOut(u);
+        spiritRipple(a, 9 - u * 7, 0.4 + u * 0.5);
+        spiritBody(a, idle, full * (1 - down), 1 - u * 0.6, 0.45 * (1 - down));
+        // Bubbles left where it went down.
+        for (let k = 0; k < 3; k++) if (G.ditherOn(k, Math.floor(time * 8), 0.5)) waterSet(a.x - 3 + k * 3, a.y - 1 - ((k + Math.floor(u * 6)) % 3), C);
+        return;
+      }
+      const reaching = phase === "take";
+      const bob = reduced ? 0 : Math.round(Math.sin(time * 2.2) * 1);
+      const at = { x: a.x, y: a.y + bob };
+      // Its wake: a ring of foam lapping at the waterline, either side of it.
+      const lap = reduced ? 0 : Math.floor(time * 3) & 1;
+      for (const side of [-1, 1]) {
+        waterSet(a.x + side * (5 + lap), a.y + 1, C);
+        waterSet(a.x + side * (7 - lap), a.y + 2, S);
+      }
+      const spr = reaching ? animFrame("spiritReach", reduced ? 0 : time) : idle;
+      spiritBody(at, spr, full - Math.max(0, bob), 1, reaching ? 0.7 : 0.45);
+    }
+
+    /**
+     * While the spirit waits, the three points it can take a stone from are
+     * ringed with turning dots of mist: whatever stands there is in danger.
+     */
+    function drawSpiritReach(spirit, time, reduced) {
+      const { phase } = spiritPhase(spirit, time);
+      if (phase !== "idle" && phase !== "rise") return;
+      const turn = reduced ? 0 : Math.floor(time * 6);
+      for (const i of spirit.reach || []) {
+        const p = pointToNative(i % size, (i / size) | 0);
+        // Cream dots with an ink rim outside them, so they read on the kaya and
+        // against a neighbour's stone, black or cream.
+        for (let k = 0; k < 20; k++) {
+          if ((k + turn) % 4 >= 2) continue;
+          const ang = (k / 20) * Math.PI * 2;
+          const cx = Math.cos(ang), cy = Math.sin(ang);
+          surf.set(Math.round(p.x + cx * 10), Math.round(p.y + cy * 10), K);
+          surf.set(Math.round(p.x + cx * 9), Math.round(p.y + cy * 9), C);
+          surf.set(Math.round(p.x + cx * 8.5), Math.round(p.y + cy * 8.5), C);
+        }
+      }
+    }
+
+    /**
+     * The stone the spirit takes (effect "spiritTake", drawn instead of the
+     * board's piece, which is already gone): a tendril of mist runs out from
+     * the spirit's hands to it, the stone shivers loose and is drawn along the
+     * tendril, shrinking as it goes, and a splash closes over it at the spirit.
+     */
+    function drawSpiritTake(e, f, p, grey) {
+      if (f.fade !== undefined) {
+        blitPiece(surf, e.code, "normal", p.x, p.y, grey, { coverage: f.fade });
+        return;
+      }
+      const u = f.u;
+      const a = spiritAnchor(e.side, e.sx, e.sy);
+      if (!a) {
+        blitPiece(surf, e.code, "normal", p.x, p.y, grey, { coverage: 1 - u });
+        return;
+      }
+      const hands = { x: a.x, y: a.y - 10 };
+      const GROW = 0.3, PULL = 0.85;
+      // Where the stone is now: at its point, then pulled along to the hands.
+      const pull = u < GROW ? 0 : Math.min(1, (u - GROW) / (PULL - GROW));
+      const ease = pull * pull * (3 - 2 * pull);
+      const sx = Math.round(p.x + (hands.x - p.x) * ease), sy = Math.round(p.y + (hands.y - p.y) * ease);
+      // The tendril, from the hands to the stone (growing out to it first).
+      const reach = u < GROW ? u / GROW : 1;
+      if (u < PULL) {
+        const tx = hands.x + (sx - hands.x) * reach, ty = hands.y + (sy - hands.y) * reach;
+        const len = Math.hypot(tx - hands.x, ty - hands.y);
+        for (let d = 0; d <= len; d += 1) {
+          const k = len === 0 ? 0 : d / len;
+          const wave = Math.sin(d * 0.5 - u * 20) * 1.5;
+          const nx = len === 0 ? 0 : -(ty - hands.y) / len, ny = len === 0 ? 0 : (tx - hands.x) / len;
+          const x = Math.round(hands.x + (tx - hands.x) * k + nx * wave), y = Math.round(hands.y + (ty - hands.y) * k + ny * wave);
+          if (G.ditherOn(x, y, 0.85)) surf.set(x, y, (Math.floor(d) & 3) === 0 ? S : C);
+        }
+      }
+      if (u < PULL) {
+        const shiver = u < GROW ? (Math.floor(u * 40) & 1 ? 1 : -1) : 0;
+        const shape = pull < 0.45 ? "normal" : pull < 0.8 ? "small" : "icon";
+        surf.ramp(G.LIGHT, sx, sy, 8, 0.5, 1, noLight);
+        blitPiece(surf, e.code, shape, sx + shiver, sy, grey, { coverage: pull > 0.85 ? 1 - (pull - 0.85) / 0.15 * 0.7 : 1 });
+      } else {
+        // The splash as the stone goes under with the spirit's catch.
+        const s = (u - PULL) / (1 - PULL);
+        spiritRipple(a, 3 + s * 6, 1 - s * 0.6);
+        for (let k = 0; k < 4; k++) surf.set(a.x - 3 + k * 2, a.y - 2 - Math.round(Math.sin(s * Math.PI) * (2 + (k & 1) * 2)), C);
+      }
+    }
+
     // --- main render ------------------------------------------------------------
     /**
      * state = {
@@ -1677,6 +1886,10 @@
       drawBoat(t, "R" + (st.round === undefined ? 1 : st.round));
       if (st.fireflies !== undefined) drawBoat(t, String(st.fireflies), FIREBOAT);
 
+      // 3c. the river spirit, in the water beside the board (on the scene's own
+      // clock, like the effects: its moments are timed by main.js)
+      if (st.spirit) drawSpirit(st.spirit, time, reduced);
+
       // 4. props: reeds, stone lantern, garland
       for (const rd of reeds) surf.blit(animFrame(rd.anim, t, rd.phase / 3), rd.x, rd.y);
       surf.blit(G.SPRITES.rock, toro.x - 1, H - 5);
@@ -1713,6 +1926,7 @@
       drawWards(overlays, board, busy, time, reduced);
       drawMists(overlays, st.myColor);
       drawFogs(overlays);
+      if (st.spirit) drawSpiritReach(st.spirit, time, reduced);
 
       // 7. last-move ember
       if (st.lastMove && !skip.has(st.lastMove.y * size + st.lastMove.x) && board[st.lastMove.y * size + st.lastMove.x]) {
@@ -1723,6 +1937,10 @@
       // 8. effects in flight
       for (const e of active) {
         const p = pointToNative(e.x, e.y);
+        if (e.kind === "spiritTake") {
+          drawSpiritTake(e, frameAt(timelineFor(e.kind, reduced), time - e.start).frame, p, greyW);
+          continue;
+        }
         const glow = drawEffect(surf, e, time - e.start, p.x, p.y, reduced, greyW);
         if (glow) surf.ramp(G.LIGHT, glow.x, glow.y, glow.r, 0.6, 1, noLight);
       }
@@ -1881,6 +2099,7 @@
       render,
       pointToNative,
       nativeToPoint,
+      spiritAnchor,
       /** Region code at a native pixel: 0 bank, 1 water, 2 frame, 3 kaya, 4 deck front. */
       regionAt: (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? region[(y | 0) * W + (x | 0)] : -1),
     };
@@ -1890,6 +2109,10 @@
     SPACING,
     AMBIENT_FPS,
     STORM_SECONDS,
+    SPIRIT_RISE_SECONDS,
+    SPIRIT_TAKE_SECONDS,
+    SPIRIT_SINK_SECONDS,
+    spiritPhase,
     boltTime,
     stormPhase,
     stormLinger,
