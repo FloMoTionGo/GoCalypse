@@ -3,6 +3,8 @@ import { ArraySchema, StateView } from "@colyseus/schema";
 import { BoardEffect, GoState, MarketItem, PlayerState } from "../state/GoState";
 import { randomGuestName, sanitizeName } from "../util/usernames";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
+import { GameRecorder, Outcome } from "../history/recorder";
+import { historyStore } from "../history/store";
 import {
   applyCaptures,
   axisOf,
@@ -175,6 +177,8 @@ export class GoRoom extends Room<GoState> {
   // Seeded per room, so two tables never play out the same. Tests drive the
   // bot functions directly with a seed of their own.
   private rng = new Rng((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
+  // The game's record for replays (history/), from the start of play; none with HISTORY=off.
+  private recorder?: GameRecorder;
 
   onCreate(options?: { restoreToken?: string }) {
     const restored = takeRestore(options?.restoreToken);
@@ -223,6 +227,7 @@ export class GoRoom extends Room<GoState> {
         const style = player.bot && typeof id === "string" ? styleFor(id) : null;
         if (style) this.playBot(player, id!, style);
       }
+      if (restored.history) this.recorder = GameRecorder.load(restored.history);
     }
     this.setState(state);
     this.refreshSeen();
@@ -282,6 +287,7 @@ export class GoRoom extends Room<GoState> {
       bots: Object.fromEntries(this.botIds),
       positions: this.positions.save(),
       kos: this.kos.save(),
+      history: this.recorder?.save(),
     } satisfies Snapshot);
     if (json === this.lastSaved) return;
     try {
@@ -344,7 +350,21 @@ export class GoRoom extends Room<GoState> {
     // player who actually dropped can still get their own seat back.
     this.lock();
     this.makeRoomForReturns();
+    if (process.env.HISTORY !== "off") {
+      this.recorder = new GameRecorder({ room: this.roomName, size: this.state.size });
+      this.recorder.capture(this.state);
+    }
     this.scheduleBotTurn();
+  }
+
+  /** Keeps the finished (or abandoned) game for replays. A failed write costs the replay, never the game. */
+  private saveHistory(outcome: Outcome) {
+    if (!this.recorder) return;
+    try {
+      historyStore().save(this.recorder.finish(this.state, outcome));
+    } catch (err) {
+      console.error(`GoRoom ${this.roomId}: could not save the game's history:`, err);
+    }
   }
 
   // ---- what each player may see (findings B5) ----------------------------------
@@ -564,7 +584,10 @@ export class GoRoom extends Room<GoState> {
   onDispose() {
     this.botTimer?.clear();
     liveRooms.delete(this);
-    if (!this.shuttingDown) deleteSnapshot(this.roomId);
+    if (this.shuttingDown) return; // the game goes on after the restart, record and all
+    deleteSnapshot(this.roomId);
+    // Everyone left mid-game: still a game played, if anything was played at all.
+    if (this.state.status === "playing" && this.state.turnCount > 0) this.saveHistory("abandoned");
   }
 
   // Defining this makes Colyseus wrap every handler in try/catch. Without it,
@@ -747,12 +770,14 @@ export class GoRoom extends Room<GoState> {
       if (leaving.jar > 0) leaving.jar -= 1;
       leaving.extra = 0; // an unused second stone is lost with the turn
     }
+    this.recorder?.capture(this.state); // the turn's stone, item or pass
     this.state.turnCount += 1;
     const order = this.turnOrder();
     this.state.turnIndex = order[(order.indexOf(this.state.turnIndex) + 1) % order.length];
     this.expireEffects();
     this.positions.record(this.state.board.toArray());
     if (isRollTurn(this.state.turnCount, this.stormEvery)) this.rollForStorm();
+    this.recorder?.capture(this.state); // what the turn change brought: seeds grown, fires out, a storm
     this.scheduleBotTurn();
   }
 
@@ -1055,6 +1080,7 @@ export class GoRoom extends Room<GoState> {
       player.extra -= 1;
       this.state.lastEvent += " -- and moves again";
       this.positions.record(this.state.board.toArray());
+      this.recorder?.capture(this.state);
       this.scheduleBotTurn(); // a seat taken over by a bot mid-turn still has to play its second stone
       return null;
     }
@@ -1205,6 +1231,8 @@ export class GoRoom extends Room<GoState> {
     state.lastEvent =
       `Game over: ${winners.map((p) => p.name).join(", ")} ` +
       `${winners.length === 1 ? "wins" : "share first place"} with ${winners[0].finalScore}.`;
+    this.recorder?.capture(this.state);
+    this.saveHistory("finished");
   }
 
   private handleBuy(client: Client, message: BuyMessage) {

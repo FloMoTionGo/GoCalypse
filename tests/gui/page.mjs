@@ -12,14 +12,26 @@ const EXPECTED = [
 ];
 
 /** A rig with the page's own helpers bound to its browser. */
-export async function guiRig() {
-  const rig = await gameRig();
+export async function guiRig(opts = {}) {
+  const rig = await gameRig(opts);
   const b = rig.browser;
   return Object.assign(rig, {
     /** Problems on the page that aren't expected noise (the clean-console rule). */
     problems: () => b.problems.filter((p) => !EXPECTED.some((re) => re.test(p))),
     assertClean(label = "the page") {
       assert.deepEqual(this.problems(), [], `${label} logged errors`);
+    },
+    /** A real mouse click on the middle of the first element matching `selector`, scrolled into view. */
+    async clickEl(selector) {
+      const p = await b.ev(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return null;
+        el.scrollIntoView({ block: "center" });
+        const r = el.getBoundingClientRect();
+        return r.width && r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+      })()`);
+      assert.ok(p, `${selector} is on screen to click`);
+      await b.click(p.x, p.y);
     },
     /** Page coordinates of a board intersection, scrolled into view. */
     async boardPoint(x, y) {

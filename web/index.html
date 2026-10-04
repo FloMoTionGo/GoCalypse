@@ -8,6 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/colyseus.js@0.16.22/dist/colyseus.js"></script>
   <script src="sprites.js"></script>
   <script src="pixelScene.js"></script>
+  <script src="replay.js"></script>
 </head>
 <body>
   <div id="app">
@@ -44,6 +45,9 @@
 
       <nav id="home-footer" aria-label="More">
         <button id="home-help" class="link-button" type="button">How to play</button>
+        <span class="sep" aria-hidden="true">·</span>
+        <!-- Every game played on the server, to watch again: the #replays dialog (replayView.js). -->
+        <button id="home-replays" class="link-button" type="button">Replays</button>
         <span class="sep" aria-hidden="true">·</span>
         <details id="server-menu">
           <summary>Server</summary>
@@ -168,8 +172,63 @@
     </div>
   </dialog>
 
+  <!-- Replays: every saved game, filtered by the day it ended, and a viewer that plays one back.
+       Two panes, the list and the viewer, one shown at a time; filled in by replayView.js. -->
+  <dialog id="replays" aria-labelledby="replays-title">
+    <button id="replays-close" class="welcome-x" type="button" aria-label="Close">&times;</button>
+    <div class="welcome-body">
+      <h2 id="replays-title">Replays</h2>
+      <section id="replays-list-pane">
+        <p class="welcome-tagline">Every game played on this server, newest first.</p>
+        <div id="replays-filter">
+          <label>From <input id="replays-from" type="date" /></label>
+          <label>To <input id="replays-to" type="date" /></label>
+          <div id="replays-presets" role="group" aria-label="Quick dates">
+            <button class="link-button" type="button" data-preset="today">Today</button>
+            <button class="link-button" type="button" data-preset="week">7 days</button>
+            <button class="link-button" type="button" data-preset="month">30 days</button>
+            <button class="link-button" type="button" data-preset="all">All</button>
+          </div>
+        </div>
+        <p id="replays-status" class="status" role="status"></p>
+        <ul id="replays-list"></ul>
+      </section>
+      <section id="replays-viewer" hidden>
+        <p id="replay-title" class="welcome-tagline"></p>
+        <div id="replay-stage">
+          <canvas id="replay-board" class="px" tabindex="0"
+            aria-label="Replay board. Left and right arrows step, Space plays or pauses, Home and End jump to the start and the end."></canvas>
+          <div id="replay-side">
+            <h3>Standings</h3>
+            <ol id="replay-players"></ol>
+          </div>
+        </div>
+        <div id="replay-controls">
+          <button id="replay-first" class="link-button" type="button" aria-label="First step" title="First step (Home)">&#9198;</button>
+          <button id="replay-back" class="link-button" type="button" aria-label="One step back" title="One step back (left arrow)">&#9664;</button>
+          <button id="replay-play" class="link-button" type="button" aria-label="Play" title="Play or pause (Space)">&#9654;</button>
+          <button id="replay-fwd" class="link-button" type="button" aria-label="One step forward" title="One step forward (right arrow)">&#9654;&#9654;</button>
+          <button id="replay-last" class="link-button" type="button" aria-label="Last step" title="Last step (End)">&#9197;</button>
+          <input id="replay-slider" type="range" min="0" max="0" step="1" value="0" aria-label="Step" />
+          <label class="replay-speed">Speed
+            <select id="replay-speed">
+              <option value="1">1 step/s</option>
+              <option value="2" selected>2 steps/s</option>
+              <option value="4">4 steps/s</option>
+              <option value="8">8 steps/s</option>
+            </select>
+          </label>
+        </div>
+        <p id="replay-step" class="hint"></p>
+        <p id="replay-event" class="status" aria-live="polite"></p>
+        <button id="replay-back-list" class="link-button" type="button">All games</button>
+      </section>
+    </div>
+  </dialog>
+
   <script src="main.js"></script>
   <script src="lobbyBoard.js"></script>
   <script src="logo.js"></script>
+  <script src="replayView.js"></script>
 </body>
 </html>
