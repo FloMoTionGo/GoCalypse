@@ -15,15 +15,15 @@ import { TESTS } from "../lib/paths.mjs";
 // GIT_AUTHOR_* and GIT_CONFIG_PARAMETERS. Inherited, they point a scratch repo's
 // git, and the guards run against it, at the repository being committed: on
 // 2026-10-03 the `git init` and `git config` below rewrote its .git/config
-// (core.bare = true). Every git and guard run here gets this environment instead.
-
-/** The environment without any GIT_* variable: git as a plain shell runs it. */
-const withoutGitEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));
+// (core.bare = true). So this file runs git as a plain shell would: every GIT_*
+// variable goes, once, before any test (node --test gives each file a process of
+// its own), and every git and guard started here inherits that.
+for (const k of Object.keys(process.env)) if (/^GIT_/i.test(k)) delete process.env[k];
 
 /** A repo with one commit: a source file, a test file, CONSTRAINTS.md and pending.json. */
 function repo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gocalypse-guards-"));
-  const git = (...args) => execFileSync("git", args, { cwd: dir, env: withoutGitEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const git = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   git("init", "-q", "-b", "master");
   git("config", "user.email", "test@example.org");
   git("config", "user.name", "Guard Test");
@@ -46,7 +46,6 @@ function repo() {
     fs.writeFileSync(path.join(dir, "MSG"), message);
     const r = spawnSync(process.execPath, [path.join(dir, "tests", "lib", `${tool}.mjs`), ...extra, ...(extra.length ? [] : ["--staged", "--msg", "MSG"])], {
       cwd: dir,
-      env: withoutGitEnv(),
       encoding: "utf8",
     });
     return { code: r.status, out: r.stdout + r.stderr };
@@ -233,7 +232,7 @@ test("both guards leave a merge commit to the commits it brings in", scenario((r
 
 test("a commit is judged by the rules its parent had: the one bringing the guards in is not", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gocalypse-guards-"));
-  const git = (...args) => execFileSync("git", args, { cwd: dir, env: withoutGitEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const git = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   try {
     git("init", "-q", "-b", "master");
     git("config", "user.email", "test@example.org");
@@ -246,7 +245,7 @@ test("a commit is judged by the rules its parent had: the one bringing the guard
     fs.writeFileSync(path.join(dir, "web", "main.js"), "let x = 2; // TODO\n");
     git("add", "-A");
     for (const tool of ["floor-guard", "red-first"]) {
-      const r = spawnSync(process.execPath, [path.join(dir, "tests", "lib", `${tool}.mjs`), "--staged"], { cwd: dir, env: withoutGitEnv(), encoding: "utf8" });
+      const r = spawnSync(process.execPath, [path.join(dir, "tests", "lib", `${tool}.mjs`), "--staged"], { cwd: dir, encoding: "utf8" });
       assert.equal(r.status, 0, `${tool}: ${r.stdout}${r.stderr}`);
       assert.match(r.stdout, /before this check existed/);
     }
@@ -257,30 +256,39 @@ test("a commit is judged by the rules its parent had: the one bringing the guard
 
 // ---- run from a hook -------------------------------------------------------------------------
 //
-// The scenarios above, run with a hook's environment (see withoutGitEnv), must
-// neither read nor write the repository being committed.
+// The scenarios above, run with a hook's environment (see the top of this file),
+// must neither read nor write the repository being committed.
 
 /** A repository with a linked worktree, standing in for the one a hook is called from. */
 function hostRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "gocalypse-host-"));
   const main = path.join(root, "main"), wt = path.join(root, "wt"), hooks = path.join(root, "hooks");
-  const git = (cwd, ...args) => execFileSync("git", args, { cwd, env: withoutGitEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  fs.mkdirSync(main);
-  git(main, "init", "-q", "-b", "master");
-  git(main, "config", "user.email", "host@example.org");
-  git(main, "config", "user.name", "Host");
-  fs.writeFileSync(path.join(main, "host.txt"), "host\n");
-  git(main, "add", "-A");
-  git(main, "commit", "-q", "--no-verify", "-m", "host");
-  git(main, "worktree", "add", "-q", "-b", "side", wt);
-  // A -c core.hooksPath on the host's commit reaches its hooks in GIT_CONFIG_PARAMETERS.
-  fs.mkdirSync(hooks);
-  fs.writeFileSync(path.join(hooks, "pre-commit"), "#!/bin/sh\nexit 1\n");
+  const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  let wtGitDir;
+  try {
+    fs.mkdirSync(main);
+    git(main, "init", "-q", "-b", "master");
+    git(main, "config", "user.email", "host@example.org");
+    git(main, "config", "user.name", "Host");
+    fs.writeFileSync(path.join(main, "host.txt"), "host\n");
+    git(main, "add", "-A");
+    git(main, "commit", "-q", "--no-verify", "-m", "host");
+    git(main, "worktree", "add", "-q", "-b", "side", wt);
+    wtGitDir = git(wt, "rev-parse", "--absolute-git-dir").trim();
+    // A -c core.hooksPath on the host's commit reaches its hooks in GIT_CONFIG_PARAMETERS.
+    // This hook stands in for it: it fails any scratch commit that still sees the host's
+    // -c options -- before a ref can move, so a leak shows in the config or the index.
+    fs.mkdirSync(hooks);
+    fs.writeFileSync(path.join(hooks, "pre-commit"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  } catch (err) {
+    fs.rmSync(root, { recursive: true, force: true });
+    throw err;
+  }
   const sha1 = (file) => crypto.createHash("sha1").update(fs.readFileSync(file)).digest("hex");
   return {
     main,
     wt,
-    wtGitDir: git(wt, "rev-parse", "--absolute-git-dir").trim(),
+    wtGitDir,
     hookEnv: (env) => ({ GIT_PREFIX: "", GIT_AUTHOR_NAME: "Hook Author", GIT_AUTHOR_EMAIL: "hook@example.org", GIT_CONFIG_PARAMETERS: `'core.hooksPath'='${hooks.replace(/\\/g, "/")}'`, ...env }),
     /** What a stray git command would change: the shared config, every ref, the hook's index. */
     state: (index) => ({ config: fs.readFileSync(path.join(main, ".git", "config"), "utf8"), refs: git(main, "for-each-ref", "--format=%(refname) %(objectname)"), index: sha1(index) }),
@@ -296,11 +304,12 @@ function hostRepo() {
 function scenariosUnder(env, cwd) {
   const pattern = "^(floor guard: an honest change is clean|floor guard: a skipped or \\.only test|a commit is judged by the rules its parent had)";
   // NODE_TEST_CONTEXT would tell the child it runs inside this test and make it run nothing.
-  const { NODE_TEST_CONTEXT, ...plain } = withoutGitEnv();
+  const { NODE_TEST_CONTEXT, ...plain } = process.env;
   const r = spawnSync(process.execPath, ["--test", "--test-reporter=tap", `--test-name-pattern=${pattern}`, fileURLToPath(import.meta.url)], {
     cwd,
     env: { ...plain, ...env },
     encoding: "utf8",
+    timeout: 60_000, // a git waiting on a prompt must not hang the pre-commit hook
   });
   return { code: r.status, out: r.stdout + r.stderr };
 }
