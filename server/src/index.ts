@@ -4,23 +4,28 @@ import { matchMaker, Server } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { findRoomForKey, GoDebugRoom, GoRoom } from "./rooms/GoRoom";
 import { deleteSnapshot, loadSnapshots, queueRestore } from "./state/persist";
+import { historyRoutes } from "./history/routes";
+import { historyStore } from "./history/store";
 
 const port = Number(process.env.PORT) || 2567;
 const app = express();
 app.use(express.json());
 
-// The web client is served from elsewhere, so /rejoin needs CORS headers.
+// The web client is served from elsewhere, so /rejoin and /history need CORS headers.
 app.use((req, res, next) => {
   res.set({
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   });
   if (req.method === "OPTIONS") return res.status(204).end();
   next();
 });
 
 app.get("/healthz", (_req, res) => res.status(200).send("ok"));
+
+// Finished games, for the home screen's Replays (history/routes.ts).
+app.use(historyRoutes(historyStore));
 
 // A player whose connection dropped (or whose server restarted) asks for the seat
 // its tab's secret belongs to. The answer is a seat reservation, which the

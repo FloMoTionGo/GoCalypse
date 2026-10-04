@@ -278,7 +278,7 @@ export async function launchBrowser({ width = 1400, height = 1000 } = {}) {
   };
 }
 
-const KEYCODES = { Enter: 13, Escape: 27, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46, End: 35 };
+const KEYCODES = { Enter: 13, Escape: 27, " ": 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46, End: 35, Home: 36 };
 
 /** The launcher alone exits early on Windows and leaves the browser alive, so every process of the profile goes. */
 function killBrowser(child, profile) {
@@ -310,10 +310,11 @@ function killBrowser(child, profile) {
 
 /**
  * The usual GUI test set-up: a server, web/ served, a browser. `page(hash)`
- * opens index.html with these hash parameters against this server.
+ * opens index.html with these hash parameters against this server. A
+ * `dataDir` starts the server on a data folder prepared beforehand.
  */
-export async function gameRig() {
-  const server = await startServer();
+export async function gameRig({ dataDir } = {}) {
+  const server = await startServer({ dataDir });
   const web = await startWeb();
   const browser = await launchBrowser();
   return {

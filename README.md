@@ -358,6 +358,17 @@ player, whose list of things to look at comes from Leela, Gian-Carlo
 Pascutto's Go engine (https://github.com/gcp/Leela, MIT). No Leela source or
 data is copied, and its search and neural networks are left out.
 
+### Replays
+
+Every game is saved by the server when it ends, with no action needed from
+anyone: played to the end, or abandoned after at least one turn (everyone
+left). **Replays** on the home screen lists them, newest first, with who
+finished where. From / To dates (or *Today*, *7 days*, *30 days*, *All*)
+narrow the list to the days the games ended. Pick one to play it back:
+step with the buttons or the arrow keys, jump with Home / End or the slider,
+or press Play (Space). A replay shows the whole board, fog and mist included,
+so a game appears there only once it is over.
+
 ## Architecture
 
 - `server/` — authoritative game server ([Colyseus](https://colyseus.io/)),
@@ -393,10 +404,19 @@ data is copied, and its search and neural networks are left out.
     room in `bots.test.ts`. A client seats them with the `addBots` message.
   - `src/rooms/GoRoom.ts` — room lifecycle: join/leave, turn order, move
     validation, powerup dispatch.
+  - `src/history/` — replays. `recorder.ts` keeps a frame per stone, item,
+    pass or storm (only the cells that changed); it rides in the room's
+    snapshot while the game is on and goes to `store.ts` when it ends: one
+    JSON file per game in `DATA_DIR/history`, the newest 500 kept
+    (`HISTORY_MAX`). `routes.ts` serves `GET /history?from=&to=&limit=`
+    (summaries, newest first; times in ms) and `GET /history/:id`. On by
+    default; `HISTORY=off` records nothing.
 - `web/` — browser client, plain HTML/CSS/JS (no build step, no framework),
   using `colyseus.js` from a CDN `<script>` tag. `main.js` renders the pixel
   scene, player list, Night Market and the hand of item cards
   under the board straight off the synced room state (`room.onStateChange`).
+  `replay.js` (pure, tested in Node) and `replayView.js` (the Replays dialog)
+  list and play back saved games.
 
 ## Running locally
 
