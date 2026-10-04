@@ -10,6 +10,7 @@ import {
   marketStock,
   stallCopies,
   stallRefusal,
+  tonightsStalls,
 } from "./definitions";
 
 const NEW_TIER_1 = ["firefly_jar", "seedling", "mist"];
@@ -68,7 +69,7 @@ test("stock keeps registry order: tier first, then cheap to dear", () => {
 
 test("every item can turn up in a market, so the draw is not stuck on a few", () => {
   const seen = new Set<string>();
-  for (let k = 0; k < 500; k++) for (const p of marketStock()) seen.add(p.id);
+  for (let k = 0; k < 500; k++) for (const p of tonightsStalls()) seen.add(p.id); // the drawn stalls and the Bait's
   assert.deepEqual(Array.from(seen).sort(), allPowerups().map((p) => p.id).sort());
 });
 

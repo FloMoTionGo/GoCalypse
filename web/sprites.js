@@ -804,6 +804,20 @@
     "..AAAAAAAAAAA..",
     ".AAAAAAAAAAAAA.",
   ]));
+  // The Bait: a fish on a line, dangling over ripples.
+  SPRITES.baitIcon = sprite("baitIcon", pad15([
+    ".......A.......",
+    ".......A.......",
+    ".......A.......",
+    "......AA.......",
+    "....TTTT..T....",
+    "...TCTTTTTT....",
+    "...TTTTTTTT....",
+    "....TTTT..T....",
+    "...............",
+    "..S.S.....S.S..",
+    "...S.......S...",
+  ]));
   SPRITES.mistIcon = sprite("mistIcon", pad15([
     "......CCC......",
     ".....CSSSC.CC..",
@@ -920,6 +934,32 @@
     sprite("spiritReach_0", [...SPIRIT_HEAD.slice(0, 2), "C.CCCCCCC.C", "CCCKCCCKCCC", ".CCKCCCKCC.", "..CCCACCC..", "..CCCCCCC..", "..CSCCCSC..", ...SPIRIT_TAIL]),
     sprite("spiritReach_1", ["C...CCC...C", "C..CCCCC..C", "CCCCCCCCCCC", "..CKCCCKC..", "..CKCCCKC..", "..CCAAACC..", "..CCCCCCC..", "..CSCCCSC..", ...SPIRIT_TAIL]),
   ]);
+
+  // The river crab: an amber shell with cream glints, ink eyes on stalks and
+  // ink legs. Idling it snaps its claws, looks about and shuffles sideways;
+  // walking it scuttles; pinching it throws both claws wide. 11 x 8, like the
+  // spirit's width, so both stand on the frame the same way.
+  const CRAB_BODY = ["..AAAAAAA..", ".AACAAACAA.", "..AAAAAAA.."];
+  const CRAB_LEGS_A = [".K.K...K.K.", "K.K.....K.K"];
+  const CRAB_LEGS_B = ["K.K.....K.K", ".K.K...K.K."];
+  anim("crabIdle", 4, [
+    sprite("crabIdle_0", [".AA.....AA.", "A.A.K.K.A.A", ".AA.K.K.AA.", ...CRAB_BODY, ...CRAB_LEGS_A]),
+    sprite("crabIdle_1", ["..A.....A..", ".AA.K.K.AA.", ".AA.K.K.AA.", ...CRAB_BODY, ...CRAB_LEGS_A]), // snap
+    sprite("crabIdle_2", [".AA.....AA.", "A.A.K.K.A.A", ".AA.K.K.AA.", ...CRAB_BODY, ...CRAB_LEGS_B]), // a shuffle
+    sprite("crabIdle_3", [".AA.....AA.", "A.AK.K..A.A", ".AA.K.K.AA.", ...CRAB_BODY, ...CRAB_LEGS_A]), // a look about
+  ]);
+  anim("crabWalk", 8, [
+    sprite("crabWalk_0", ["..A.....A..", ".AA.K.K.AA.", ".AA.K.K.AA.", ...CRAB_BODY, ...CRAB_LEGS_A]),
+    sprite("crabWalk_1", ["..A.....A..", ".AA.K.K.AA.", ".AA.K.K.AA.", ...CRAB_BODY, ...CRAB_LEGS_B]),
+  ]);
+  anim("crabPinch", 6, [
+    sprite("crabPinch_0", ["AA.......AA", "A.A.K.K.A.A", ".AA.K.K.AA.", ...CRAB_BODY, ...CRAB_LEGS_A]),
+    sprite("crabPinch_1", ["A.A.....A.A", "AA..K.K..AA", ".AA.K.K.AA.", ...CRAB_BODY, ...CRAB_LEGS_A]),
+  ]);
+
+  // The Bait: a little amber river fish in an ink outline with a cream eye,
+  // tossed to a creature. The outline keeps it on the water and on the frame alike.
+  SPRITES.baitFish = sprite("baitFish", ["..KKK.K", ".KAAAKA", "KACAAAK", ".KAAAKA", "..KKK.K"]);
 
   SPRITES.flipArrows = sprite("flipArrows", [
     "....AAAAA......",
@@ -1197,6 +1237,9 @@
       case "fog":
         s.blitCentered(SPRITES.fogIcon, c, c);
         break;
+      case "bait":
+        s.blitCentered(SPRITES.baitIcon, c, c);
+        break;
       case "skiff":
         // A stone gliding right, with its wake behind it.
         s.blitCentered(stoneSprite(2, "icon"), 10, 7);
@@ -1218,7 +1261,7 @@
   const POWERUP_ICON_IDS = [
     "driftwood", "lily_pad", "lantern_ward", "turn_lantern", "gust", "remove_stone", "bomb",
     "firefly_jar", "seedling", "mist", "kite", "ferry", "twin_wick", "river_current", "echo_chime", "stepping_stones",
-    "fog", "skiff",
+    "fog", "skiff", "bait",
   ];
 
   // ---------------------------------------------------------------------------

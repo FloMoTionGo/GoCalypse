@@ -76,7 +76,7 @@ test("game: four seats in the sidebar, one of them (you) and three (bot), only m
 
 test("game: the market is open with six stalls; the hand holds the Stone Card and empty places", async () => {
   assert.match(await b.ev("marketStatusEl.textContent"), /6 stalls tonight/);
-  assert.equal(await b.ev("marketItemsEl.querySelectorAll('button.item').length"), 6);
+  assert.equal(await b.ev("marketItemsEl.querySelectorAll('button.item').length"), 7, "the six drawn and the Bait's");
   assert.equal(await b.ev("handEl.querySelectorAll('.stone-card').length"), 1);
   assert.equal(await b.ev("handEl.querySelectorAll('.card-place').length"), 4);
 });

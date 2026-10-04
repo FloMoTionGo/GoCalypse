@@ -41,6 +41,12 @@ export interface PowerupContext {
   placeStone(x: number, y: number, code: number): number | null;
   /** Tells the user something only they should see (Kite). */
   reveal(text: string): void;
+  /**
+   * Feeds a Bait to the river creature whose reach holds this cell (rules/river.ts):
+   * it goes back into the water at once, empty-handed. False when none does;
+   * absent means no creature is out.
+   */
+  feedCreature?(idx: number): boolean;
 }
 
 export interface PowerupDefinition {
@@ -54,6 +60,8 @@ export interface PowerupDefinition {
   points?: 0 | 1 | 2;
   /** True when using it does not take the turn (the player still moves afterwards). */
   free?: boolean;
+  /** On sale in every match, beside the stalls drawn for it (the Bait). */
+  always?: boolean;
   /** Return false to reject the use (e.g. invalid target) without consuming it. */
   apply(ctx: PowerupContext): boolean;
 }

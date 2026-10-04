@@ -462,10 +462,26 @@ function stoneAhead(view: BotView, style: Style, ranked: Candidate[]): boolean {
 }
 
 /**
+ * One of our stones a river creature can take (rules/river.ts): standing in its
+ * reach with nothing shielding it. With `soon`, only from a creature whose
+ * timer runs out before our next turn. The point to toss the Bait on, or null.
+ */
+function baitTarget(view: BotView, soon: boolean): number | null {
+  for (const c of view.creatures || []) {
+    if (soon && c.turnsLeft > view.seats) continue;
+    const stone = c.reach.find((idx) => isOwnStone(view, idx) && !view.isWarded(idx) && !view.isFogged?.(idx));
+    if (stone !== undefined) return stone;
+  }
+  return null;
+}
+
+/**
  * The items that don't take the turn, one at a time: the room uses it and asks
  * again, so each rule below sees the hand and the flags as they now stand.
  * Each fires only while its effect is not lit yet, so the asking ends.
  *
+ *  - a Bait for a river creature about to take one of our stones: its timer
+ *    runs out before our next turn, so it is now or never;
  *  - Stepping Stones and Mist whenever a stone is coming: two stones for one
  *    turn is always worth it, and a hidden front costs nothing;
  *  - Firefly Jar when a capture is in reach, so the doubling pays at once;
@@ -479,6 +495,10 @@ export function chooseFree(view: BotView, style: Style, ranked: Candidate[]): Fr
   const has = (id: string) => view.powerups.indexOf(id) !== -1;
   const ahead = stoneAhead(view, style, ranked);
 
+  if (has("bait")) {
+    const stone = baitTarget(view, true);
+    if (stone !== null) return { id: "bait", target: pointOf(view.size, stone) };
+  }
   if (has("stepping_stones") && !view.extra && ahead) return { id: "stepping_stones" };
   if (has("firefly_jar") && !view.jar && captureInReach(view, style, ranked)) return { id: "firefly_jar" };
   if (has("twin_wick") && !view.twin && ahead) {
@@ -506,8 +526,13 @@ export function chooseBuy(view: BotView, style: Style): string | null {
   const held = (id: string) => view.market.find((m) => m.id === id);
   const powerfulInHand = view.powerups.filter((id) => held(id)?.removal).length;
 
-  for (const id of style.shopping) {
+  // A river creature has one of our stones in reach: a Bait first, whatever the
+  // list says, while there is time to toss it. With none, a Bait is no use yet.
+  const threatened = baitTarget(view, false) !== null;
+  const shopping = threatened ? ["bait", ...style.shopping] : style.shopping;
+  for (const id of shopping) {
     if (view.powerups.indexOf(id) !== -1) continue; // one of each in hand is plenty
+    if (id === "bait" && !threatened) continue;
     // Only six of the stalls open in any match, and the shopping list is
     // written without knowing which: an item that isn't on sale, is sold out
     // or already had its share from this bot is skipped, not waited for. The

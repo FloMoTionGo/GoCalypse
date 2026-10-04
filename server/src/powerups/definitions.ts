@@ -260,6 +260,28 @@ const fog: PowerupDefinition = {
   },
 };
 
+/**
+ * The answer to the river crab and the river spirit (rules/river.ts), so it is
+ * on sale every match: tossed onto one of the points a creature reaches, it
+ * takes the bait and goes back into the water before its timer runs out,
+ * taking nothing. Anyone may feed it, whoever's stones it threatens.
+ */
+const bait: PowerupDefinition = {
+  id: "bait",
+  tier: 1,
+  name: "Bait",
+  description:
+    "Toss a bait to the river crab or the river spirit, on one of the points it reaches: it takes the bait and goes back into the water at once, taking nothing. On sale every night. Doesn't use up your turn.",
+  price: 30,
+  removal: false,
+  free: true,
+  always: true,
+  apply(ctx) {
+    const idx = targetIndex(ctx);
+    return idx !== -1 && !!ctx.feedCreature?.(idx);
+  },
+};
+
 // ---- tier 2 ---------------------------------------------------------------------
 
 const kite: PowerupDefinition = {
@@ -418,7 +440,7 @@ const steppingStones: PowerupDefinition = {
 // Cheap to dear within each tier, tier 1 first: the order the stall reads in.
 const REGISTRY = new Map<string, PowerupDefinition>(
   [
-    fireflyJar, seedling, mist, fog, driftwood, lilyPad, // tier 1
+    fireflyJar, seedling, mist, bait, fog, driftwood, lilyPad, // tier 1
     kite, ferry, skiff, lanternWard, twinWick, turnLantern, // tier 2
     riverCurrent, echoChime, gust, steppingStones, removeStone, bomb, // tier 3
   ]
@@ -477,18 +499,23 @@ export function allPowerups(): PowerupDefinition[] {
   return Array.from(REGISTRY.values());
 }
 
+/** The items on sale in every match, beside the drawn ones (the Bait). */
+export function alwaysStocked(): PowerupDefinition[] {
+  return allPowerups().filter((p) => p.always);
+}
+
 /**
- * The stock for one match: 3 items of tier 1, 2 of tier 2 and 1 of tier 3,
- * drawn fresh per match. There is one market per room, so every player and bot
- * at the table shops from the same stall. Kept in registry order (tier, then
- * price), so it always reads cheap to dear. Only tier 3 holds removal
- * ("powerful") items, so at most one is ever on sale.
+ * The stock drawn for one match: 3 items of tier 1, 2 of tier 2 and 1 of tier
+ * 3, drawn fresh per match from the items not always on sale. There is one
+ * market per room, so every player and bot at the table shops from the same
+ * stall. Kept in registry order (tier, then price), so it always reads cheap to
+ * dear. Only tier 3 holds removal ("powerful") items, so at most one is ever on sale.
  */
 export function marketStock(random: () => number = Math.random): PowerupDefinition[] {
   const all = allPowerups();
   const stock: PowerupDefinition[] = [];
   for (const tier of [1, 2, 3] as const) {
-    const pool = all.filter((p) => p.tier === tier);
+    const pool = all.filter((p) => p.tier === tier && !p.always);
     const slots = Math.min(MARKET_TIER_SLOTS[tier], pool.length);
     // Partial Fisher-Yates: the first `slots` entries are the draw.
     for (let i = 0; i < slots; i++) {
@@ -498,4 +525,10 @@ export function marketStock(random: () => number = Math.random): PowerupDefiniti
     }
   }
   return stock.sort((a, b) => all.indexOf(a) - all.indexOf(b));
+}
+
+/** A match's whole market: the stalls drawn for it and the ones always there, cheap to dear. */
+export function tonightsStalls(random: () => number = Math.random): PowerupDefinition[] {
+  const all = allPowerups();
+  return [...marketStock(random), ...alwaysStocked()].sort((a, b) => all.indexOf(a) - all.indexOf(b));
 }

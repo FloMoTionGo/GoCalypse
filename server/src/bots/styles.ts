@@ -201,10 +201,11 @@ export function magpie(): Style {
     line: 220,
     itemBias: 2400,
     // The whole Night Market, dear things first: the purse is the only limit.
+    // (The Bait only when a river creature reaches one of its stones: items.ts chooseBuy.)
     shopping: [
       "stepping_stones", "echo_chime", "lantern_ward", "turn_lantern", "twin_wick", "skiff", "ferry",
       "firefly_jar", "driftwood", "fog", "seedling", "lily_pad", "mist", "kite",
-      "gust", "river_current", "remove_stone", "bomb",
+      "gust", "river_current", "remove_stone", "bomb", "bait",
     ],
     variation: 3,
   };

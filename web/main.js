@@ -81,10 +81,11 @@ let lastStormSeq = null;
 let turnCount = 0;
 let roundLength = 0;
 let stormUntil = 0; // turnCount when the current storm's fires go out; the lingering weather lasts until then
-// The river spirit as the scene draws it: {side, x, y, reach, rise?, takeAt?, sink?}, clock()
-// times of its moments (pixelScene.js spiritPhase). Kept after it sinks, for the sinking.
-let riverSpirit = null;
-let lastSpiritSeq = null;
+// The river creatures as the scene draws them, by kind: {kind, side, x, y, reach, by, rise?,
+// takeAt?, fedAt?, leave?}, clock() times of their moments (pixelScene.js creaturePhase).
+// Kept after one leaves, for its going back into the water.
+let riverCreatures = { crab: null, spirit: null };
+let lastCreatureSeq = { crab: null, spirit: null };
 
 // A URL hash lets debug.html drive this page from inside an <iframe>
 // (prefill, auto-join, debug room) without touching the manual-join flow.
@@ -266,8 +267,8 @@ function resetRoomState() {
   turnCount = 0;
   roundLength = 0;
   stormUntil = 0;
-  riverSpirit = null;
-  lastSpiritSeq = null;
+  riverCreatures = { crab: null, spirit: null };
+  lastCreatureSeq = { crab: null, spirit: null };
   resultOpened = false;
   closeWelcomeOnStart = false;
   lastPasses = null;
@@ -543,7 +544,8 @@ function frame() {
     effects: snap ? [] : effects.filter((e) => !isVeiled(e.x, e.y, e.code)),
     overlays: snap ? snap.overlays : overlays,
     storm: snap ? null : storm,
-    spirit: riverSpirit, // live scenery, like the weather: drawn as it is now even while looking back
+    // live scenery, like the weather: drawn as it is now even while looking back
+    river: [riverCreatures.crab, riverCreatures.spirit].filter(Boolean),
     round: roundLength > 0 ? Math.floor((snap ? snap.turnCount : turnCount) / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
     passFlash: passFlashAt,
     fireflies: myPlayer ? myPlayer.fireflies : undefined,
@@ -817,33 +819,44 @@ function visibleBoard(state) {
 }
 
 /**
- * Follows the river spirit (server/src/rules/spirit.ts) into riverSpirit. A new
- * `seq` while it is out: it has risen (played only if this page saw it happen;
- * a page that joins while it is up just shows it there). `out` turning false:
- * it acts and sinks. With a stone taken, it holds its pose while the stone comes
- * to it, then sinks; the stone is returned ({took, side, x, y}) for diffTurn.
+ * Follows the river crab and the river spirit (server/src/rules/river.ts) into
+ * riverCreatures. A new `seq` while one is out: it has come up (its climb is
+ * played only if this page saw it happen; a page that joins while it is up just
+ * shows it there). `out` turning false: it leaves. Fed a Bait, it catches it
+ * first; with stones taken, it holds its pose while they come to it; then it
+ * goes back into the water. Returns the stones taken ([{kind, took, side, x, y}])
+ * for diffTurn.
  */
-function followSpirit(sp) {
-  if (!sp) return null;
+function followRiver(river) {
+  const takes = [];
+  if (!river) return takes;
   const now = clock();
-  let took = null;
-  if (sp.out && (sp.seq !== lastSpiritSeq || !riverSpirit)) {
-    riverSpirit = {
-      side: sp.side, x: sp.x, y: sp.y,
-      reach: [sp.reach0, sp.reach1, sp.reach2].filter((i) => i >= 0),
-      rise: lastSpiritSeq === null ? undefined : now,
-    };
-  } else if (!sp.out && riverSpirit && riverSpirit.sink === undefined) {
-    if (sp.took >= 0) {
-      riverSpirit.takeAt = now;
-      riverSpirit.sink = now + P.SPIRIT_TAKE_SECONDS;
-      took = { took: sp.took, side: riverSpirit.side, x: riverSpirit.x, y: riverSpirit.y };
-    } else {
-      riverSpirit.sink = now;
+  for (const kind of ["crab", "spirit"]) {
+    const c = river[kind];
+    if (!c) continue;
+    const view = riverCreatures[kind];
+    if (c.out && (c.seq !== lastCreatureSeq[kind] || !view)) {
+      riverCreatures[kind] = {
+        kind, side: c.side, x: c.x, y: c.y, by: c.by,
+        reach: [c.reach0, c.reach1, c.reach2].filter((i) => i >= 0),
+        rise: lastCreatureSeq[kind] === null ? undefined : now,
+      };
+    } else if (!c.out && view && view.leave === undefined) {
+      const took = [c.took0, c.took1, c.took2].filter((i) => i >= 0);
+      if (c.fed) {
+        view.fedAt = now;
+        view.leave = now + P.RIVER_FEED_SECONDS;
+      } else if (took.length) {
+        view.takeAt = now;
+        view.leave = now + P.RIVER_TAKE_SECONDS;
+        takes.push({ kind, took, side: view.side, x: view.x, y: view.y });
+      } else {
+        view.leave = now;
+      }
     }
+    lastCreatureSeq[kind] = c.seq;
   }
-  lastSpiritSeq = sp.seq;
-  return took;
+  return takes;
 }
 
 function onState(state) {
@@ -868,7 +881,7 @@ function onState(state) {
     startStorm(state);
   }
   if (state.storm) lastStormSeq = state.storm.seq;
-  const spiritTook = followSpirit(state.spirit);
+  const riverTakes = followRiver(state.river);
 
   if (board) {
     const known = new Set(overlays.map(overlayKey));
@@ -876,7 +889,7 @@ function onState(state) {
     const fresh = nextOverlays.filter((o) => !known.has(overlayKey(o)));
     const gone = overlays.filter((o) => !nextKeys.has(overlayKey(o)));
     const act = actionChanged ? { kind: action.kind, id: action.id, x: action.x, y: action.y } : null;
-    effects = effects.concat(P.diffTurn(board, nextBoard, state.size, act, fresh, clock(), gone, spiritTook));
+    effects = effects.concat(P.diffTurn(board, nextBoard, state.size, act, fresh, clock(), gone, riverTakes));
   }
   if ((actionChanged || lastActionSeq === null) && action.kind === "move") {
     lastMove = { x: action.x, y: action.y };
@@ -963,9 +976,11 @@ function stoneChip(code) {
 }
 
 // What the welcome screen says before there is a room to read it from (the home screen's
-// "How to play"). Mirrors SHOP_AFTER_MOVES / HAND_LIMIT / STORM_EVERY_TURNS in server/src/rooms/GoRoom.ts
-// and MARKET_TIER_SLOTS in server/src/powerups/definitions.ts.
-const WELCOME_DEFAULTS = { shopAfter: 5, handLimit: 5, stormEvery: 20, spiritEvery: 5, stalls: [3, 2, 1] };
+// "How to play"). Mirrors SHOP_AFTER_MOVES / HAND_LIMIT / STORM_EVERY_TURNS in server/src/rooms/GoRoom.ts,
+// RIVER_EVERY_TURNS in server/src/rules/river.ts and MARKET_TIER_SLOTS in server/src/powerups/definitions.ts.
+const WELCOME_DEFAULTS = { shopAfter: 5, handLimit: 5, stormEvery: 20, riverEvery: 5, stalls: [3, 2, 1] };
+// The stall that is there every night, beside the drawn ones (alwaysStocked in server/src/powerups/definitions.ts).
+const BAIT = "bait";
 
 /**
  * The welcome screen: how to play, the bots menu while the room waits, and tonight's
@@ -986,13 +1001,13 @@ function openWelcome(state) {
 
   // Rates mirror FIREFLIES_PER_MOVE / _PER_CAPTURE / CONSOLATION_PER_STONE in server/src/rooms/GoRoom.ts.
   // Stock and shares are synced per stall (stallCopies / fairShare in server/src/powerups/definitions.ts).
-  const stalls = state ? Array.from(state.market) : [];
+  const stalls = state ? Array.from(state.market).filter((m) => m.id !== BAIT) : [];
   const perTier = [1, 2, 3].map((tier) => stalls.filter((m) => m.tier === tier));
   const tierCounts = state ? perTier.map((list) => list.length) : WELCOME_DEFAULTS.stalls;
   const shopAfter = state ? state.shopAfter : WELCOME_DEFAULTS.shopAfter;
   const handLimit = state ? state.handLimit : WELCOME_DEFAULTS.handLimit;
   const stormEvery = state ? state.storm.every : WELCOME_DEFAULTS.stormEvery;
-  const spiritEvery = state && state.spirit ? state.spirit.every : WELCOME_DEFAULTS.spiritEvery;
+  const riverEvery = state && state.river ? state.river.every : WELCOME_DEFAULTS.riverEvery;
   const [cozy, tactical, powerful] = perTier.map((list) => list.find((m) => m.stock > 0));
   const stockText =
     cozy && tactical && powerful
@@ -1005,7 +1020,7 @@ function openWelcome(state) {
     `If someone's item removes one of your stones, you get 3 back. ` +
     `Once you've placed ${shopAfter} stones, the Night Market opens in the sidebar. It has ` +
     `${tierCounts[0] + tierCounts[1] + tierCounts[2]} stalls a night: ${tierCounts[0]} cozy, ${tierCounts[1]} tactical ` +
-    `and ${tierCounts[2]} powerful. ` +
+    `and ${tierCounts[2]} powerful, drawn for the night, and the Bait's stall, there every night. ` +
     stockText +
     `Your hand holds ${handLimit} cards under the board: every item you buy flies into it as a card. ` +
     `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels). ` +
@@ -1027,12 +1042,15 @@ function openWelcome(state) {
     `and nobody can play on a burning point until the fire goes out. A fainter storm hangs over the river for all ` +
     `three rounds, and for those rounds every stone turns the same grey: the rules still know whose is whose, so remember. The forecast in the sidebar (unlikely, likely, very likely) ` +
     `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll. ` +
-    // Mirrors SPIRIT_DIE_FACES / SPIRIT_RISES_FROM / SPIRIT_MAX_WAIT in server/src/rules/spirit.ts.
-    `And every ${spiritEvery} turns a D6 is rolled for the river spirit: on a 4, 5 or 6 it rises from the water ` +
-    `somewhere beside the board, and the three edge points nearest it are ringed. Within three turns it takes one ` +
-    `stone standing on them, picked at random, and sinks back; with none there it leaves empty-handed. Its owner gets ` +
-    `3 fireflies back. A ward or a fog keeps a stone safe, and it can't see one under a mist. On a 1, 2 or 3 it ` +
-    `stays under, and the next roll ${spiritEvery} turns later has the same odds.`;
+    // Mirrors RIVER_RISES_FROM / RIVER_CRAB_SHARE / RIVER_ROUNDS in server/src/rules/river.ts.
+    `Once the Night Market is open for everyone, a D6 is rolled for the river every ${riverEvery} turns. On a 5 or 6 ` +
+    `a creature climbs out of the water onto the edge of the board, facing one of the edge points: usually the river ` +
+    `crab, sometimes the river spirit, and never two of a kind at once. The point it faces and its two neighbours ` +
+    `along the edge are ringed, and a timer over its head counts down 3 rounds. When it runs out, the crab pinches one ` +
+    `stone standing on those points, picked at random, and the river spirit steals every one; then it goes back into ` +
+    `the water. Their owners get 3 fireflies back for each. A ward or a fog keeps a stone safe, and a mist hides one. ` +
+    `Or feed it a Bait first, on sale every night: click one of its ringed points, and it takes the bait and goes back ` +
+    `into the water with nothing. It doesn't use up your turn, and anyone may feed it.`;
 
   // Mirrors territoryScore / finalResults in server/src/rules/endgame.ts.
   const yourTwo = seated ? `your ${base} total and your ${pattern} total` : `your two totals, one per front`;
@@ -2231,8 +2249,9 @@ function renderMarket(state) {
   const powerfulFull = powerfulHeld() >= state.powerfulLimit;
 
   const items = Array.from(state.market);
+  const drawn = items.filter((m) => m.id !== BAIT).length;
   marketStatusEl.textContent = open
-    ? `${items.length} stalls tonight, shared by the table.`
+    ? `${drawn} stalls tonight and the Bait's, shared by the table.`
     : `Opens after ${state.shopAfter} moves (${Math.min(moves, state.shopAfter)}/${state.shopAfter}).`;
 
   const sig = JSON.stringify([open, wallet, bought, held, powerfulFull, items.map((m) => [m.id, m.left])]);

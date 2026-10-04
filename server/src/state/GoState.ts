@@ -94,28 +94,44 @@ export class StormState extends Schema {
 }
 
 /**
- * The river spirit (rules/spirit.ts). `seq` changes each time it rises, which is
- * what the client watches to play its rise. It keeps its spot after it sinks
- * back, so the client can draw it going under where it stood. Like the storm's
- * strikes, the reach is three plain fields.
+ * One river creature, the crab or the spirit (rules/river.ts). `seq` changes
+ * each time it comes up, which is what the client watches to play its climb. It
+ * keeps its spot after it leaves, so the client can draw it going back into the
+ * water where it stood. Like the storm's strikes, the reach and the stones it
+ * took are plain fields.
  */
-export class SpiritState extends Schema {
+export class CreatureState extends Schema {
+  @type("string") kind: string = ""; // "crab" | "spirit"
   @type("number") seq: number = 0;
-  @type("number") every: number = 5; // a D6 is rolled every this many turns
-  @type("number") roll: number = 0; // the last D6 roll (0 before the first one)
-  @type("number") rolledAt: number = 0; // turnCount of that roll
-  @type("boolean") out: boolean = false; // up beside the board right now
-  @type("string") side: string = ""; // "top" | "right" | "bottom" | "left": the river it rose from
+  @type("boolean") out: boolean = false; // on the pier right now
+  @type("string") side: string = ""; // "top" | "right" | "bottom" | "left": the river it came out of
   @type("number") x: number = -1; // the edge point it faces
   @type("number") y: number = -1;
   @type("number") reach0: number = -1; // board indices of the outer-ring points it can take from
   @type("number") reach1: number = -1;
   @type("number") reach2: number = -1;
-  @type("number") rose: number = 0; // turnCount it rose
-  @type("number") by: number = 0; // it has acted by this turnCount
-  // The turn it acts on, drawn when it rose. The players only know "by".
-  @view(SERVER_ONLY) @type("number") strikeAt: number = 0;
-  @type("number") took: number = -1; // board index of the stone it took as it last sank, -1 for none
+  @type("number") rose: number = 0; // turnCount it came up
+  @type("number") by: number = 0; // its timer runs out on this turnCount: it acts and leaves
+  @type("number") took0: number = -1; // board indices of the stones it took as it last left, -1 for none
+  @type("number") took1: number = -1;
+  @type("number") took2: number = -1;
+  @type("boolean") fed: boolean = false; // it last left because someone fed it a Bait
+}
+
+function creature(kind: string): CreatureState {
+  const c = new CreatureState();
+  c.kind = kind;
+  return c;
+}
+
+/** The river's D6 (rules/river.ts) and the two creatures it can bring, at most one of each. */
+export class RiverState extends Schema {
+  @type("number") every: number = 5; // a D6 is rolled every this many turns
+  @type("number") roll: number = 0; // the last D6 roll (0 before the first one)
+  @type("number") rolledAt: number = 0; // turnCount of that roll
+  @type("string") came: string = ""; // the creature that roll brought: "crab", "spirit" or "" for none
+  @type(CreatureState) crab = creature("crab");
+  @type(CreatureState) spirit = creature("spirit");
 }
 
 /** The most recent move or powerup use, so clients can pick the matching animation. */
@@ -156,5 +172,5 @@ export class GoState extends Schema {
   @type([BoardEffect]) effects = new ArraySchema<BoardEffect>();
   @type(LastAction) action = new LastAction();
   @type(StormState) storm = new StormState();
-  @type(SpiritState) spirit = new SpiritState();
+  @type(RiverState) river = new RiverState();
 }

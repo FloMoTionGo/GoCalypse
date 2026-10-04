@@ -152,14 +152,16 @@ fallback that keeps a stalled table moving, included (`everyoneElsePassed` in
 ### Fireflies & the Night Market
 
 Placing a stone earns **3 fireflies**, capturing earns **5 per stone**, and
-losing a stone to someone's item — or to a lightning fire — pays you **3** as
-consolation. A player's **Night Market** opens after their **5th move**.
+losing a stone to someone's item — or to a lightning fire or a river creature —
+pays you **3** as consolation. A player's **Night Market** opens after their **5th move**.
 Buying never takes your turn; using an item does. Items that fail (bad
 target) aren't used up.
 
 Items come in three **tiers**, and the market stocks **six per match: 3 of
-tier 1, 2 of tier 2 and 1 of tier 3**, drawn fresh each match. The stall is one
-per room, so every player and bot at the table shops from the same six. Only
+tier 1, 2 of tier 2 and 1 of tier 3**, drawn fresh each match, and beside them
+the **Bait**'s stall, there every match (the answer to the river creatures,
+below). The market is one per room, so every player and bot at the table shops
+from the same stalls. Only
 tier 3 holds powerful (removal) items, so **at most one** is ever on sale. Your
 **hand holds five cards** and only **one powerful item** at a time; a
 purchase past either limit is refused with a notice. The hand is a row of
@@ -206,6 +208,7 @@ Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400. (Wi
 | Firefly Jar | 25 | Free. Your captures earn double fireflies for the rest of this turn and your next 3. |
 | Seedling | 30 | Plant a seed on an empty point. After 2 rounds, if the point is still empty and the stone would have a liberty, it grows into your stone: left click plants a solid seed, right click a gray or transparent one (Esc cancels). |
 | Mist | 30 | Free. Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on. (The server doesn't send the others that stone at all, only you get it.) |
+| Bait | 30 | Free, and on sale every match. Toss it on one of the points a river crab or river spirit reaches: it takes the bait and goes back into the water at once, taking nothing. Anyone may feed it. Refused (and kept) with no creature reaching that point. |
 | Fog | 35 | Rolls a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed (like a ward over the whole area), and nobody can see them, the caster and the stones' owners included, and the move recall strip leaves them out too (the server sends nobody the stones under it). No stone can be placed inside it (moves, Ferry, Skiff, Echo Chime and growing seeds are all refused there). |
 | Driftwood | 30 | Neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Can't smother a group. |
 | Lily Pad | 40 | Reserves an empty point for 3 rounds: only you may play there. |
@@ -271,6 +274,41 @@ colours aren't in the browser to be read.
 
 `go_debug` rooms roll every **6** turns instead, so a storm can actually be
 watched in a test session (`src/rules/storm.ts`, `GoDebugRoom`).
+
+### The river crab and the river spirit
+
+Once the Night Market is open for the whole table (turn 20 at four seats), the
+room rolls a **D6 every 5 turns**. On a **5 or 6** a creature climbs out of the
+river onto the board's wooden frame, in front of a random edge point (any of
+the 52, on all four sides): the **river crab** two times in three, the **river
+spirit** one time in three. At most one of each is out at a time: a roll for
+one already out brings nothing, and a second creature only comes up where its
+reach doesn't touch the first one's. A 1 to 4 brings nothing, and the next roll
+has the same odds (no build-up, unlike the storm).
+
+Its **reach** is three points of the outer ring: the one it faces and that
+point's two neighbours along the ring (turning the corner at a corner), ringed
+with turning dots. A **timer over its head** counts down **3 rounds** (12 turns
+at four seats). When it runs out the creature acts and goes back into the water:
+the **crab pinches one** stone in its reach, picked at random; the **spirit
+steals every one**. Warded and fogged stones are safe, it can't see a stone
+under a mist, and driftwood isn't a stone. Owners get the usual 3-firefly
+consolation per stone, and nobody gets a prisoner. A **Bait** tossed on one of
+its points sends it back early with nothing; a game that ends while one is out
+sends it back too.
+
+The scene animates each one climbing out of the water onto the frame, idling
+there (the crab snapping its claws and shuffling, the spirit bobbing with its
+wisps swaying), taking its stones (the crab's claw, the spirit's tendrils of
+mist), catching a Bait, and going back into the water. Bots buy a Bait when a
+creature has one of their stones in reach, feed it when its timer runs out
+before their next turn, and rank points in a reach a capture lower.
+
+`go_debug` rooms roll the river's D6 every **2** turns instead
+(`src/rules/river.ts`, `GoDebugRoom`). `GoState.river` carries the last roll,
+what it brought (`came`) and both creatures: where each faces, its reach, the
+turn its timer runs out (`by`), and as it leaves the stones it took and whether
+it was fed.
 
 Board code 9 is driftwood and codes 10-13 are Twin Wick stones (see `goRules.ts`). Timed markers (wards, lily pads,
 driftwood timers, lightning fires) are `GoState.effects`; `GoState.action`
@@ -341,6 +379,9 @@ data is copied, and its search and neural networks are left out.
   - `src/rules/storm.ts` — when the D20 is rolled, what a roll plus the calm
     bonus means, the forecast, and where the bolts land, kept apart from room
     state so it can be tested.
+  - `src/rules/river.ts` — the river crab and the river spirit: their D6,
+    which creature comes, where it stands and what it reaches, its 3-round
+    timer and what it takes, likewise apart from room state.
   - `src/powerups/` — the Night Market's stock (`definitions.ts`); add a
     powerup by implementing `PowerupDefinition` (with a price) and adding it
     to the registry. The client needs a sprite/icon for new ids

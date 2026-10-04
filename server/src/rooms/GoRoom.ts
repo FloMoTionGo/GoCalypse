@@ -1,6 +1,6 @@
 import { Client, Delayed, Room } from "colyseus";
 import { ArraySchema, StateView } from "@colyseus/schema";
-import { BoardEffect, GoState, MarketItem, PlayerState } from "../state/GoState";
+import { BoardEffect, CreatureState, GoState, MarketItem, PlayerState } from "../state/GoState";
 import { randomGuestName, sanitizeName } from "../util/usernames";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import {
@@ -35,8 +35,16 @@ import {
   STONE_CARD,
 } from "../rules/stoneCard";
 import { KoWatch, PositionHistory } from "../rules/ko";
-import { copiesBought, fairShare, getPowerup, marketStock, stallCopies, stallRefusal } from "../powerups/definitions";
-import { EffectKind, PowerupContext } from "../powerups/types";
+import {
+  alwaysStocked,
+  copiesBought,
+  fairShare,
+  getPowerup,
+  stallCopies,
+  stallRefusal,
+  tonightsStalls,
+} from "../powerups/definitions";
+import { EffectKind, PowerupContext, PowerupDefinition } from "../powerups/types";
 import {
   BOT_NAMES,
   BotAction,
@@ -66,15 +74,17 @@ import {
   stormLevel,
 } from "../rules/storm";
 import {
+  creatureReach,
+  creatureRisesOn,
+  CREATURE_KINDS,
+  CreatureKind,
+  pickKind,
   pickSpot,
-  pickVictim,
-  rollSpiritDie,
-  SPIRIT_EVERY_TURNS,
-  SPIRIT_MAX_WAIT,
-  spiritReach,
-  spiritRisesOn,
-  strikeDelay,
-} from "../rules/spirit";
+  RIVER_EVERY_TURNS,
+  rollRiverDie,
+  takes,
+  timerTurns,
+} from "../rules/river";
 
 interface JoinOptions {
   name?: string;
@@ -125,6 +135,7 @@ const CONSOLATION_PER_STONE = 3; // paid to the owner of a stone removed by some
 const HAND_LIMIT = 5; // cards a player may hold at once, the Stone Card included
 const POWERFUL_LIMIT = 1; // removal items a player may hold at once
 const DEBUG_STORM_EVERY_TURNS = 6; // debug rooms roll far more often, so storms can be watched
+const DEBUG_RIVER_EVERY_TURNS = 2; // and the river's D6 too, so the crab, the spirit and the Bait can be tried
 // Bots are only ever seated on request (the welcome screen's "add bots"), or to
 // take over a seat whose player is gone for good (ideas.md D-G8).
 const BOT_THINK_MIN_MS = 700;
@@ -171,9 +182,9 @@ export class GoRoom extends Room<GoState> {
   protected startingFireflies = 0;
   protected shopAfterMoves = SHOP_AFTER_MOVES;
   protected stormEvery = STORM_EVERY_TURNS;
-  protected spiritEvery = SPIRIT_EVERY_TURNS;
-  // The river spirit's dice (its D6, spot, wait and pick). Tests script it.
-  protected spiritRandom: () => number = Math.random;
+  protected riverEvery = RIVER_EVERY_TURNS;
+  // The river's dice (its D6, the creature, the spot and the crab's pick). Tests script it.
+  protected riverRandom: () => number = Math.random;
   private botTimer?: Delayed;
   private botStyles = new Map<string, Style>();
   // player color -> the styleFor id of the bot on that seat, saved with the game so a restore seats the same bot.
@@ -197,28 +208,20 @@ export class GoRoom extends Room<GoState> {
     state.handLimit = HAND_LIMIT;
     state.powerfulLimit = POWERFUL_LIMIT;
     state.storm.every = this.stormEvery;
-    state.spirit.every = this.spiritEvery;
+    state.river.every = this.riverEvery;
     for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
       state.board.push(0);
     }
     this.positions.record(state.board.toArray());
-    // Six stalls: 3 of tier 1, 2 of tier 2 and 1 of tier 3, drawn per match and the same for everyone at the table.
-    for (const def of marketStock()) {
-      const item = new MarketItem();
-      item.id = def.id;
-      item.name = def.name;
-      item.description = def.description;
-      item.price = def.price;
-      item.removal = def.removal;
-      item.tier = def.tier;
-      item.points = def.points ?? 1;
-      item.free = !!def.free;
-      item.stock = item.left = stallCopies(def.tier, MAX_PLAYERS);
-      item.share = fairShare(item.stock, MAX_PLAYERS);
-      state.market.push(item);
-    }
+    // Six stalls drawn per match (3 of tier 1, 2 of tier 2 and 1 of tier 3) and the
+    // Bait's, which is there every match; the same for everyone at the table.
+    for (const def of tonightsStalls()) state.market.push(this.stall(def));
     if (restored) {
       restoreState(state, restored.state);
+      // A game saved before the Bait was sold: its stall opens now.
+      for (const def of alwaysStocked()) {
+        if (!state.market.some((m) => m.id === def.id)) state.market.push(this.stall(def));
+      }
       // A game saved before stalls had stock: stock them now, less what was already bought.
       for (const item of state.market) {
         if (item.stock > 0) continue;
@@ -765,12 +768,15 @@ export class GoRoom extends Room<GoState> {
     const order = this.turnOrder();
     this.state.turnIndex = order[(order.indexOf(this.state.turnIndex) + 1) % order.length];
     this.expireEffects();
-    // The spirit acts on the board the fires and seeds left, and what it takes
-    // is part of the position the ko rule remembers.
-    this.spiritActs();
-    if (isRollTurn(this.state.turnCount, this.spiritEvery)) this.rollForSpirit();
+    // The river's die first, so a creature still on the pier blocks its kind
+    // even on the turn its timer runs out. Then those whose timer has run out
+    // act, on the board the fires and seeds left: what they take is part of
+    // the position the ko rule remembers.
+    if (isRollTurn(this.state.turnCount, this.riverEvery) && this.marketOpenForAll()) this.rollForCreature();
+    this.creaturesAct();
     this.positions.record(this.state.board.toArray());
     if (isRollTurn(this.state.turnCount, this.stormEvery)) this.rollForStorm();
+    this.flushRiverNews(); // after the storm, which writes its event afresh
     this.scheduleBotTurn();
   }
 
@@ -825,75 +831,126 @@ export class GoRoom extends Room<GoState> {
       `The fires burn for ${FIRE_ROUNDS} rounds.`;
   }
 
-  // ---- the river spirit (rules/spirit.ts) ---------------------------------------
+  // ---- the river crab and the river spirit (rules/river.ts) ------------------------
 
-  /** Adds the spirit's news to the turn's event, so whatever the turn did still reads first. */
-  private spiritNews(text: string) {
-    const event = this.state.lastEvent.trim();
-    this.state.lastEvent = event ? `${event}${/[.!?]$/.test(event) ? "" : "."} ${text}` : text;
+  /** News from the river this turn, added to the turn's event once it is written (flushRiverNews). */
+  private riverNews: string[] = [];
+
+  /** Adds the river's news to the turn's event, so whatever the turn did still reads first. */
+  private flushRiverNews() {
+    for (const text of this.riverNews.splice(0)) {
+      const event = this.state.lastEvent.trim();
+      this.state.lastEvent = event ? `${event}${/[.!?]$/.test(event) ? "" : "."} ${text}` : text;
+    }
+  }
+
+  /** The Night Market is open for every seat: no creature comes before anyone could buy a Bait. */
+  private marketOpenForAll(): boolean {
+    return this.state.turnCount >= this.state.shopAfter * this.state.players.length;
+  }
+
+  private creatureOf(kind: CreatureKind): CreatureState {
+    return this.state.river[kind];
+  }
+
+  private creatureReachOf(c: CreatureState): number[] {
+    return [c.reach0, c.reach1, c.reach2].filter((idx) => idx >= 0);
+  }
+
+  /** The creature as the news names it: "river crab" or "river spirit". */
+  private creatureName(c: CreatureState): string {
+    return `river ${c.kind}`;
   }
 
   /**
-   * Every `spiritEvery` turns a D6 is rolled out of sight. On a 4, 5 or 6 a
-   * spirit rises from the river at a random spot beside the board, and draws
-   * the turn it will act on: one to SPIRIT_MAX_WAIT turns away. A 1, 2 or 3
-   * keeps it under until the next roll, at the same odds.
+   * Every `riverEvery` turns a D6 is rolled. On a 5 or 6 a creature climbs out
+   * of the river onto the pier, the crab two times in three, the spirit one in
+   * three, at a spot whose reach keeps clear of any other creature's. Its timer
+   * runs RIVER_ROUNDS rounds. A kind already out is not brought twice: that
+   * roll brings nothing, as a 1 to 4 does, and the next has the same odds.
    */
-  private rollForSpirit() {
+  private rollForCreature() {
     const state = this.state;
-    const spirit = state.spirit;
-    if (state.status !== "playing" || spirit.out) return;
+    const river = state.river;
+    if (state.status !== "playing") return;
 
-    const roll = rollSpiritDie(this.spiritRandom);
-    spirit.roll = roll;
-    spirit.rolledAt = state.turnCount;
-    if (!spiritRisesOn(roll)) return;
+    const roll = rollRiverDie(this.riverRandom);
+    river.roll = roll;
+    river.rolledAt = state.turnCount;
+    river.came = "";
+    if (!creatureRisesOn(roll)) return;
 
-    const spot = pickSpot(state.size, this.spiritRandom);
-    const reach = spiritReach(state.size, spot.x, spot.y);
-    spirit.side = spot.side;
-    spirit.x = spot.x;
-    spirit.y = spot.y;
-    spirit.reach0 = reach[0] ?? -1;
-    spirit.reach1 = reach[1] ?? -1;
-    spirit.reach2 = reach[2] ?? -1;
-    spirit.rose = state.turnCount;
-    spirit.by = state.turnCount + SPIRIT_MAX_WAIT;
-    spirit.strikeAt = state.turnCount + strikeDelay(this.spiritRandom);
-    spirit.took = -1;
-    spirit.out = true;
-    spirit.seq += 1;
-    this.spiritNews(`A river spirit rises from the water beside (${spot.x}, ${spot.y}).`);
+    const kind = pickKind(this.riverRandom);
+    const c = this.creatureOf(kind);
+    if (c.out) return;
+    const taken = CREATURE_KINDS.filter((k) => k !== kind && this.creatureOf(k).out).flatMap((k) => this.creatureReachOf(this.creatureOf(k)));
+    const spot = pickSpot(state.size, this.riverRandom, taken);
+    if (!spot) return;
+
+    const reach = creatureReach(state.size, spot.x, spot.y);
+    c.side = spot.side;
+    c.x = spot.x;
+    c.y = spot.y;
+    c.reach0 = reach[0] ?? -1;
+    c.reach1 = reach[1] ?? -1;
+    c.reach2 = reach[2] ?? -1;
+    c.rose = state.turnCount;
+    c.by = state.turnCount + timerTurns(state.players.length);
+    c.took0 = c.took1 = c.took2 = -1;
+    c.fed = false;
+    c.out = true;
+    c.seq += 1;
+    river.came = kind;
+    this.riverNews.push(
+      `A ${this.creatureName(c)} climbs out of the water beside (${spot.x}, ${spot.y}): ` +
+        `in 3 rounds it will ${kind === "crab" ? "pinch a stone" : "steal every stone"} within its reach.`
+    );
   }
 
   /**
-   * On the turn it drew, the spirit takes one of the stones within its reach,
-   * picked at random, and sinks back; with none in reach it sinks back
-   * empty-handed. It can't take what a ward or a fog shields, nor a stone it
-   * can't see under a mist, and driftwood is no stone. Nobody is credited the
-   * stone; its owner gets the consolation an item's removal pays.
+   * A creature whose timer has run out acts and goes back into the water: the
+   * crab pinches one of the stones within its reach, picked at random, the
+   * spirit steals every one. Neither can take what a ward or a fog shields,
+   * nor a stone it can't see under a mist, and driftwood is no stone. Nobody is
+   * credited the stones; their owners get the consolation an item's removal pays.
    */
-  private spiritActs() {
+  private creaturesAct() {
     const state = this.state;
-    const spirit = state.spirit;
-    if (!spirit.out || state.turnCount < spirit.strikeAt) return;
+    for (const kind of CREATURE_KINDS) {
+      const c = this.creatureOf(kind);
+      if (!c.out || state.turnCount < c.by) continue;
 
-    const candidates = [spirit.reach0, spirit.reach1, spirit.reach2].filter(
-      (idx) =>
-        idx >= 0 &&
-        isPlayerStone(state.board[idx]) &&
-        !this.isWarded(idx) &&
-        this.effectAt("mist", idx) === undefined
-    );
-    const victim = pickVictim(candidates, this.spiritRandom);
-    if (victim >= 0) this.removePieces([victim], 0);
-    spirit.took = victim;
-    spirit.out = false;
-    this.spiritNews(
-      victim >= 0
-        ? `The river spirit takes the stone on (${victim % state.size}, ${Math.floor(victim / state.size)}) and sinks back.`
-        : "The river spirit finds no stone within reach and sinks back."
-    );
+      const candidates = this.creatureReachOf(c).filter(
+        (idx) => isPlayerStone(state.board[idx]) && !this.isWarded(idx) && this.effectAt("mist", idx) === undefined
+      );
+      const taken = takes(kind, candidates, this.riverRandom);
+      if (taken.length) this.removePieces(taken, 0);
+      c.took0 = taken[0] ?? -1;
+      c.took1 = taken[1] ?? -1;
+      c.took2 = taken[2] ?? -1;
+      c.out = false;
+      const where = taken.map((idx) => `(${idx % state.size}, ${Math.floor(idx / state.size)})`).join(", ");
+      this.riverNews.push(
+        taken.length
+          ? `The ${this.creatureName(c)} ${kind === "crab" ? "pinches" : "steals"} the stone${taken.length === 1 ? "" : "s"} on ${where} and goes back into the water.`
+          : `The ${this.creatureName(c)} finds no stone within reach and goes back into the water.`
+      );
+    }
+  }
+
+  /**
+   * A Bait tossed on `idx`: the creature whose reach holds it takes the bait and
+   * goes back into the water at once, taking nothing. Reaches never overlap, so
+   * the point names one creature at most.
+   */
+  private feedCreature(idx: number): boolean {
+    const c = CREATURE_KINDS.map((k) => this.creatureOf(k)).find((x) => x.out && this.creatureReachOf(x).includes(idx));
+    if (!c) return false;
+    c.out = false;
+    c.fed = true;
+    c.took0 = c.took1 = c.took2 = -1;
+    this.riverNews.push(`The ${this.creatureName(c)} takes the bait and goes back into the water.`);
+    return true;
   }
 
   /** Puts the chance of the next roll breaking a storm, in numbers and in words, where clients can read it. */
@@ -959,6 +1016,10 @@ export class GoRoom extends Room<GoState> {
       extra: player.extra,
       repeats: (board) => this.positions.repeats(board),
       retakesKo: (idx, captured) => this.kos.blocks(idx, captured, this.state.turnCount),
+      // The river creatures stand in plain sight, timers and all.
+      creatures: CREATURE_KINDS.map((k) => this.creatureOf(k))
+        .filter((c) => c.out)
+        .map((c) => ({ kind: c.kind, reach: this.creatureReachOf(c), turnsLeft: c.by - this.state.turnCount })),
     };
   }
 
@@ -1286,10 +1347,12 @@ export class GoRoom extends Room<GoState> {
     // Turns stop here, so a storm still in its three rounds would leave its
     // weather hanging over the final board for good.
     if (state.storm.until > state.turnCount) state.storm.until = state.turnCount;
-    // Nor is there a turn left for the river spirit to act on: it goes back under.
-    if (state.spirit.out) {
-      state.spirit.out = false;
-      state.spirit.took = -1;
+    // Nor is there a turn left for a river creature to act on: it goes back into the water.
+    for (const kind of CREATURE_KINDS) {
+      const c = this.creatureOf(kind);
+      if (!c.out) continue;
+      c.out = false;
+      c.took0 = c.took1 = c.took2 = -1;
     }
     state.status = "finished";
     this.openViews();
@@ -1299,6 +1362,22 @@ export class GoRoom extends Room<GoState> {
     state.lastEvent =
       `Game over: ${winners.map((p) => p.name).join(", ")} ` +
       `${winners.length === 1 ? "wins" : "share first place"} with ${winners[0].finalScore}.`;
+  }
+
+  /** A stall for this item, stocked for a full table: its copies shared, a fair share each. */
+  private stall(def: PowerupDefinition): MarketItem {
+    const item = new MarketItem();
+    item.id = def.id;
+    item.name = def.name;
+    item.description = def.description;
+    item.price = def.price;
+    item.removal = def.removal;
+    item.tier = def.tier;
+    item.points = def.points ?? 1;
+    item.free = !!def.free;
+    item.stock = item.left = stallCopies(def.tier, MAX_PLAYERS);
+    item.share = fairShare(item.stock, MAX_PLAYERS);
+    return item;
   }
 
   private handleBuy(client: Client, message: BuyMessage) {
@@ -1393,6 +1472,7 @@ export class GoRoom extends Room<GoState> {
         if (player.bot) return;
         this.clients.getById(player.sessionId)?.send("reveal", text);
       },
+      feedCreature: (idx) => this.feedCreature(idx),
     };
 
     if (!definition.apply(ctx)) {
@@ -1403,6 +1483,7 @@ export class GoRoom extends Room<GoState> {
     if (definition.free) {
       // Costs nothing but the item: no turn, no reset of the passes, no animation.
       this.state.lastEvent = `${player.name} used ${definition.name}`;
+      this.flushRiverNews(); // a Bait's creature going back
       return null;
     }
     this.clearPasses();
@@ -1553,11 +1634,13 @@ export class GoRoom extends Room<GoState> {
 
 /**
  * Same rules in a separate matchmaking pool (web/debug.html): everyone starts
- * rich enough to try the whole market, and the sky is rolled far more often so
- * a thunderstorm can actually be watched in a test session.
+ * rich enough to try the whole market, and the sky and the river are rolled
+ * far more often so a thunderstorm or a river creature can actually be watched
+ * in a test session.
  */
 export class GoDebugRoom extends GoRoom {
   protected startingFireflies = 1200;
   protected shopAfterMoves = 0; // the market is open from the first turn
   protected stormEvery = DEBUG_STORM_EVERY_TURNS;
+  protected riverEvery = DEBUG_RIVER_EVERY_TURNS;
 }

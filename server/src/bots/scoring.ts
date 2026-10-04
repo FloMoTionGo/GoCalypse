@@ -69,6 +69,17 @@ export interface BotView {
   repeats?(board: number[]): boolean;
   /** Whether a stone on `idx` lifting `captured` would take back a ko held for the round. Absent means none is. */
   retakesKo?(idx: number, captured: Captured[]): boolean;
+  /**
+   * The river creatures on the pier (rules/river.ts): the points each can take
+   * a stone from, and the turns until its timer runs out. Absent means none.
+   */
+  creatures?: Creature[];
+}
+
+export interface Creature {
+  kind: string; // "crab" | "spirit"
+  reach: number[];
+  turnsLeft: number;
 }
 
 export interface Candidate {
@@ -305,13 +316,16 @@ function holdsKo(board: number[], size: number, idx: number, captured: Captured[
 export function rankMoves(view: BotView, style: Style): Candidate[] {
   const { size } = view;
   const scored: Candidate[] = [];
+  // A new stone where a river creature can reach it is likely lost when its
+  // timer runs out: it is worth a capture less.
+  const reached = new Set((view.creatures || []).flatMap((c) => c.reach));
 
   for (let idx = 0; idx < view.board.length; idx++) {
     if (view.board[idx] !== 0) continue;
     const { x, y } = pointOf(size, idx);
     for (const axis of AXES) {
       const score = scoreMove(view, x, y, axis, style);
-      if (score !== null) scored.push({ x, y, axis, score });
+      if (score !== null) scored.push({ x, y, axis, score: reached.has(idx) ? score - style.capture : score });
     }
   }
 

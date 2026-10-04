@@ -404,15 +404,16 @@
     { ms: 110, kind: "burn", cov: 0, smoke: 2 },
   ];
 
-  // The river spirit takes a stone (see the river spirit notes below): a mist
-  // tendril runs out to it, the stone is drawn along it into the spirit's
-  // hands, and a splash closes over it. `u` is the take's progress, 0..1.
-  const SPIRIT_RISE_SECONDS = 1.2;
-  const SPIRIT_TAKE_SECONDS = 1.4;
-  const SPIRIT_SINK_SECONDS = 1.0;
-  const SPIRIT_TAKE_FRAMES = 14;
-  const SPIRIT_TAKE_TIMELINE = Array.from({ length: SPIRIT_TAKE_FRAMES }, (_, k) => ({
-    ms: (SPIRIT_TAKE_SECONDS * 1000) / SPIRIT_TAKE_FRAMES, kind: "spiritTake", u: k / (SPIRIT_TAKE_FRAMES - 1),
+  // A river creature takes a stone (see the river creature notes below): the
+  // crab's claw or the spirit's mist tendril runs out to it, and the stone is
+  // drawn along it into the creature's hold. `u` is the take's progress, 0..1.
+  const RIVER_CLIMB_SECONDS = 1.6; // out of the water and onto the frame
+  const RIVER_TAKE_SECONDS = 1.4;
+  const RIVER_FEED_SECONDS = 0.9; // a Bait drops into its hold
+  const RIVER_LEAVE_SECONDS = 1.2; // off the frame and under the water
+  const RIVER_TAKE_FRAMES = 14;
+  const RIVER_TAKE_TIMELINE = Array.from({ length: RIVER_TAKE_FRAMES }, (_, k) => ({
+    ms: (RIVER_TAKE_SECONDS * 1000) / RIVER_TAKE_FRAMES, kind: "riverTake", u: k / (RIVER_TAKE_FRAMES - 1),
   }));
 
   const TIMELINES = {
@@ -433,9 +434,9 @@
     gust: [GUST_TIMELINE, REDUCED_CAPTURE_TIMELINE],
     snipe: [SNIPE_TIMELINE, REDUCED_CAPTURE_TIMELINE],
     firework: [FIREWORK_TIMELINE, [{ ms: 150, kind: "burst", r: 0, flash: true }]],
-    spiritTake: [SPIRIT_TAKE_TIMELINE, [
-      { ms: 150, kind: "spiritTake", fade: 0.66 },
-      { ms: 150, kind: "spiritTake", fade: 0.33 },
+    riverTake: [RIVER_TAKE_TIMELINE, [
+      { ms: 150, kind: "riverTake", fade: 0.66 },
+      { ms: 150, kind: "riverTake", fade: 0.33 },
     ]],
   };
   /** Effect kinds that draw their own piece at the cell while playing (the board already shows the end state). */
@@ -524,12 +525,15 @@
    * Picks the matching animation per changed cell: driftwood drops in or
    * drifts away, a flipped stone turns over, the Gust/Snipe target gets its
    * own exit, everything else that vanished is captured (Firework included).
-   * `spirit` ({took, side, x, y}) names the stone the river spirit took in this
-   * update: it leaves in the spirit's hands rather than as a capture.
+   * `takes` ([{kind, took: [board indices], side, x, y}]) names the stones the
+   * river creatures took in this update: they leave in the crab's claw or the
+   * spirit's hands rather than as captures.
    */
-  function diffTurn(prev, next, size, action, newOverlays, time, goneOverlays, spirit) {
+  function diffTurn(prev, next, size, action, newOverlays, time, goneOverlays, takes) {
     const effects = [];
     if (!prev || prev.length !== next.length) return effects;
+    const takenBy = new Map();
+    for (const t of takes || []) for (const i of t.took || []) takenBy.set(i, t);
     const used = action && action.kind === "powerup" ? action.id : null;
     const isTarget = (x, y) => action && action.x === x && action.y === y;
     // A Ferry's or Skiff's stone lands on the action's point and leaves a point in line with it:
@@ -560,8 +564,9 @@
         effects.push(b === G.DRIFTWOOD ? makeEffect("drop", x, y, { code: b }, time) : placeEffect(x, y, b, time));
       } else if (b === 0) {
         if (ferried.has(i)) continue;
-        if (spirit && spirit.took === i) {
-          effects.push(makeEffect("spiritTake", x, y, { code: a, side: spirit.side, sx: spirit.x, sy: spirit.y }, time));
+        if (takenBy.has(i)) {
+          const t = takenBy.get(i);
+          effects.push(makeEffect("riverTake", x, y, { code: a, creature: t.kind, side: t.side, sx: t.x, sy: t.y }, time));
         } else if (burntOut.has(i)) effects.push(makeEffect("burnAway", x, y, { code: a }, time));
         else if (a === G.DRIFTWOOD && !inBurst(x, y)) effects.push(makeEffect("driftAway", x, y, { code: a }, time));
         else if (used === "gust" && isTarget(x, y)) effects.push(makeEffect("gust", x, y, { code: a }, time));
@@ -997,27 +1002,37 @@
   // Scene
   // ---------------------------------------------------------------------------
   // ---------------------------------------------------------------------------
-  // The river spirit (server/src/rules/spirit.ts). main.js hands render() what
-  // it knows of it, with clock times for its moments:
-  //   {side, x, y, reach: [board indices], rise?, takeAt?, sink?}
-  // and its four animations follow from those: it rises out of the river
-  // (rise), idles on the water until it acts (idle), lifts its arms while the
-  // stone it takes is drawn to it (take, with the "spiritTake" board effect),
-  // and sinks back under (sink). No rise time: it was already up.
+  // The river crab and the river spirit (server/src/rules/river.ts). main.js
+  // hands render() what it knows of each one, with clock times for its moments:
+  //   {kind, side, x, y, reach: [board indices], by, rise?, takeAt?, fedAt?, leave?}
+  // and its animations follow from those: it climbs out of the river onto the
+  // board's frame (climb), idles there with its timer over its head until it
+  // runs out (idle), takes its stones (take, with the "riverTake" board
+  // effect) or a Bait (feed), and goes back into the water (leave). No rise
+  // time: it was already up when the page joined.
   // ---------------------------------------------------------------------------
-  function spiritPhase(spirit, time) {
-    if (!spirit) return { phase: "gone", u: 1 };
-    if (spirit.sink !== undefined && time >= spirit.sink) {
-      const u = (time - spirit.sink) / SPIRIT_SINK_SECONDS;
-      return u >= 1 ? { phase: "gone", u: 1 } : { phase: "sink", u };
+  function creaturePhase(c, time) {
+    if (!c) return { phase: "gone", u: 1 };
+    if (c.leave !== undefined && time >= c.leave) {
+      const u = (time - c.leave) / RIVER_LEAVE_SECONDS;
+      return u >= 1 ? { phase: "gone", u: 1 } : { phase: "leave", u };
     }
-    if (spirit.takeAt !== undefined && time >= spirit.takeAt) {
-      return { phase: "take", u: Math.min(1, (time - spirit.takeAt) / SPIRIT_TAKE_SECONDS) };
+    if (c.fedAt !== undefined && time >= c.fedAt) {
+      return { phase: "feed", u: Math.min(1, (time - c.fedAt) / RIVER_FEED_SECONDS) };
     }
-    if (spirit.rise !== undefined && time - spirit.rise < SPIRIT_RISE_SECONDS) {
-      return { phase: "rise", u: Math.max(0, (time - spirit.rise) / SPIRIT_RISE_SECONDS) };
+    if (c.takeAt !== undefined && time >= c.takeAt) {
+      return { phase: "take", u: Math.min(1, (time - c.takeAt) / RIVER_TAKE_SECONDS) };
+    }
+    if (c.rise !== undefined && time - c.rise < RIVER_CLIMB_SECONDS) {
+      return { phase: "climb", u: Math.max(0, (time - c.rise) / RIVER_CLIMB_SECONDS) };
     }
     return { phase: "idle", u: 0 };
+  }
+
+  /** The rounds left on a creature's timer that runs out on turn `by` (server: rules/river.ts roundsLeft). */
+  function riverRoundsLeft(by, turnCount, roundLength) {
+    if (by === undefined || turnCount === undefined || !(roundLength > 0)) return 0;
+    return Math.max(0, Math.ceil((by - turnCount) / roundLength));
   }
   const easeOut = (u) => 1 - (1 - u) * (1 - u);
 
@@ -1424,8 +1439,13 @@
     /** A small ink tag on the upper right of a point, showing the rounds left (amber on the last one). */
     function drawTimerTag(cx, cy, rounds) {
       if (rounds <= 0) return;
+      const w = G.textWidth(G.FONT_SMALL, String(rounds)) + 2;
+      drawTimerBox(cx + 9 - w, cy - 10, rounds);
+    }
+
+    /** The timer tag itself, its top-left at (x0, y0): 7 rows of ink, the digits in cream. */
+    function drawTimerBox(x0, y0, rounds) {
       const font = G.FONT_SMALL, text = String(rounds), w = G.textWidth(font, text) + 2;
-      const x0 = cx + 9 - w, y0 = cy - 10;
       for (let y = 0; y < 7; y++) {
         for (let x = 0; x < w; x++) {
           if ((x === 0 || x === w - 1) && (y === 0 || y === 6)) continue; // round the corners
@@ -1636,14 +1656,28 @@
       }
     }
 
-    // --- the river spirit ------------------------------------------------------------
+    // --- the river crab and the river spirit -------------------------------------------
     /**
-     * Where the spirit stands in the river, in front of edge point (x, y) on
-     * `side`: the point where it meets the water (its waterline). Its body
-     * rises from there, so the top channel, the side streams and the wide river
-     * below all have room for it. Null for a side it can't be on.
+     * Where a creature stands on the pier, in front of edge point (x, y) on
+     * `side`: the point under its feet, on the board's wooden frame (between
+     * the board's edge and the kaya), so it covers no point of the grid. Its
+     * body rises from there. Null for a side it can't be on.
      */
-    function spiritAnchor(side, x, y) {
+    function creatureAnchor(side, x, y) {
+      const p = pointToNative(x, y);
+      if (side === "top") return { x: p.x, y: L.kayaY - 1 };
+      if (side === "bottom") return { x: p.x, y: L.boardBottom - 1 };
+      if (side === "left") return { x: L.boardX + (FRAME >> 1) - 1, y: p.y + 5 };
+      if (side === "right") return { x: L.boardRight - (FRAME >> 1), y: p.y + 5 };
+      return null;
+    }
+
+    /**
+     * Where it comes out of the river and goes back in, in front of the same
+     * point: its waterline. The top channel, the side streams and the wide
+     * river below all have room for it.
+     */
+    function waterAnchor(side, x, y) {
       const p = pointToNative(x, y);
       if (side === "top") return { x: p.x, y: L.boardY - 3 };
       if (side === "bottom") return { x: p.x, y: L.riverY0 + 12 };
@@ -1652,86 +1686,147 @@
       return null;
     }
 
-    /** Rings opening (or closing) on the water around the waterline: a flat ellipse of radius r. */
-    function spiritRipple(a, r, coverage) {
+    /** The middle of its timer tag: on the water beside it, where the board leaves room. */
+    function timerAnchor(side, x, y) {
+      const a = creatureAnchor(side, x, y);
+      if (!a) return null;
+      if (side === "top") return { x: a.x, y: L.boardY - 6 };
+      if (side === "bottom") return { x: a.x, y: L.frontBottom + 5 };
+      if (side === "left") return { x: L.boardX - (LEFT >> 1), y: a.y - 4 };
+      return { x: L.boardRight + (STREAM >> 1), y: a.y - 4 };
+    }
+
+    /** Rings opening (or closing) on the water around a waterline: a flat ellipse of radius r. */
+    function riverRipple(w, r, coverage) {
       if (r <= 0 || coverage <= 0) return;
       const steps = Math.max(8, Math.round(r * 5));
       for (let k = 0; k < steps; k++) {
         const ang = (k / steps) * Math.PI * 2;
-        const x = Math.round(a.x + Math.cos(ang) * r);
-        const y = Math.round(a.y + 1 + Math.sin(ang) * r * 0.4);
+        const x = Math.round(w.x + Math.cos(ang) * r);
+        const y = Math.round(w.y + 1 + Math.sin(ang) * r * 0.4);
         if (G.ditherOn(x, y, coverage)) waterSet(x, y, C);
       }
     }
 
-    /** The spirit's body, `shown` rows of it above the waterline (all of it when up), with its glow. */
-    function spiritBody(a, spr, shown, coverage, glow) {
-      const rows = Math.round(shown);
-      if (rows <= 0 || coverage <= 0) return;
-      if (glow > 0) surf.ramp(G.LIGHT, a.x, a.y - 6, 9, glow, 1, noLight);
-      const part = rows >= spr.h ? spr : topRows(spr, rows);
-      surf.blit(part, a.x - ((spr.w - 1) >> 1), a.y - rows + 1, coverage < 1 ? { coverage } : undefined);
+    /** The creature's frame for a pose: "idle", "walk" (the crab scuttling) or "reach" (claws wide, arms up). */
+    function creatureSprite(kind, pose, time, reduced) {
+      const t = reduced ? 0 : time;
+      if (kind === "crab") return animFrame(pose === "reach" ? "crabPinch" : pose === "walk" ? "crabWalk" : "crabIdle", t);
+      return animFrame(pose === "reach" ? "spiritReach" : "spiritIdle", t);
     }
 
     /**
-     * The spirit beside the board, in whichever of its moments it is (spiritPhase):
-     * rising out of the river through opening rings and a little spray; idling,
-     * bobbing on its own wake with its wisps swaying and an occasional blink;
-     * reaching, arms up, while the stone it takes comes to it; sinking back
-     * under as the rings close over it. With reduced motion it simply stands
-     * still while it is up, and is gone the moment it sinks.
+     * Its body standing on (f.x, f.y), `rows` of it showing above a waterline
+     * (all of it on the pier), with the spirit's glow.
      */
-    function drawSpirit(spirit, time, reduced) {
-      const { phase, u } = spiritPhase(spirit, time);
-      if (phase === "gone" || (reduced && phase === "sink")) return;
-      const a = spiritAnchor(spirit.side, spirit.x, spirit.y);
-      if (!a) return;
-      const idle = animFrame("spiritIdle", reduced ? 0 : time);
+    function creatureBody(kind, spr, f, rows, coverage, glow) {
+      const shown = Math.round(rows);
+      if (shown <= 0 || coverage <= 0) return;
+      if (kind === "spirit" && glow > 0) surf.ramp(G.LIGHT, f.x, f.y - 6, 9, glow, 1, noLight);
+      const part = shown >= spr.h ? spr : topRows(spr, shown);
+      // Above a waterline the rows below it are under water: the shown rows end at f.y.
+      surf.blit(part, f.x - ((spr.w - 1) >> 1), f.y - (shown >= spr.h ? spr.h : shown) + 1, coverage < 1 ? { coverage } : undefined);
+    }
+
+    /** Where it is on its way between the water and the frame, `s` 0 (water) .. 1 (frame), with a little hop. */
+    function onTheWay(w, a, s) {
+      const e = s * s * (3 - 2 * s);
+      return { x: Math.round(w.x + (a.x - w.x) * e), y: Math.round(w.y + (a.y - w.y) * e - Math.sin(s * Math.PI) * 3) };
+    }
+
+    /**
+     * A river creature on the pier, in whichever of its moments it is
+     * (creaturePhase): climbing out of the river through opening rings and onto
+     * the frame; idling there (the crab snapping its claws and shuffling, the
+     * spirit bobbing with its wisps swaying) with its timer over its head;
+     * reaching while the stones it takes come to it; catching a Bait; going
+     * back over the edge and under the water as the rings close. With reduced
+     * motion it simply stands on the frame while it is up, and is gone the
+     * moment it leaves.
+     */
+    function drawCreature(c, time, reduced, turnCount, roundLength) {
+      const { phase, u } = creaturePhase(c, time);
+      if (phase === "gone" || (reduced && phase === "leave")) return;
+      const a = creatureAnchor(c.side, c.x, c.y);
+      const w = waterAnchor(c.side, c.x, c.y);
+      if (!a || !w) return;
+      const kind = c.kind === "crab" ? "crab" : "spirit";
+      const idle = creatureSprite(kind, "idle", time, reduced);
       const full = idle.h;
-      if (phase === "rise" && !reduced) {
-        const up = easeOut(u);
-        spiritRipple(a, 2 + u * 7, 1 - u * 0.7);
-        if (u < 0.45) {
-          // Spray thrown up as it breaks the surface.
-          for (let k = 0; k < 5; k++) {
-            const sx = a.x + Math.round((k - 2) * (2 + u * 6));
-            const sy = a.y - Math.round(Math.sin((u / 0.45) * Math.PI) * (3 + (k & 1) * 2));
-            surf.set(sx, sy, (k & 1) ? C : S);
+      const SURFACE = 0.4; // the part of the climb (and, backwards, of the leaving) spent in the water
+
+      if (phase === "climb" && !reduced) {
+        if (u < SURFACE) {
+          const s = u / SURFACE;
+          riverRipple(w, 2 + s * 6, 1 - s * 0.5);
+          if (s < 0.6) {
+            // Spray (the spirit) or bubbles (the crab) as it breaks the surface.
+            for (let k = 0; k < 5; k++) {
+              const sx = w.x + Math.round((k - 2) * (2 + s * 5));
+              const sy = w.y - Math.round(Math.sin((s / 0.6) * Math.PI) * (3 + (k & 1) * 2));
+              surf.set(sx, sy, kind === "crab" ? ((k & 1) ? C : S) : (k & 1) ? C : S);
+            }
           }
+          creatureBody(kind, idle, w, full * easeOut(s), Math.min(1, 0.3 + s), 0.45 * s);
+          return;
         }
-        spiritBody(a, idle, full * up, Math.min(1, 0.25 + u), 0.45 * up);
+        const s = (u - SURFACE) / (1 - SURFACE);
+        riverRipple(w, 8, 0.5 * (1 - s));
+        const spr = creatureSprite(kind, kind === "crab" ? "walk" : "idle", time, reduced);
+        creatureBody(kind, spr, onTheWay(w, a, s), spr.h, 1, 0.45);
         return;
       }
-      if (phase === "sink") {
-        const down = easeOut(u);
-        spiritRipple(a, 9 - u * 7, 0.4 + u * 0.5);
-        spiritBody(a, idle, full * (1 - down), 1 - u * 0.6, 0.45 * (1 - down));
+      if (phase === "leave") {
+        if (u < 1 - SURFACE) {
+          const s = u / (1 - SURFACE);
+          const spr = creatureSprite(kind, kind === "crab" ? "walk" : "idle", time, reduced);
+          creatureBody(kind, spr, onTheWay(w, a, 1 - s), spr.h, 1, 0.45);
+          return;
+        }
+        const s = (u - (1 - SURFACE)) / SURFACE;
+        riverRipple(w, 8 - s * 6, 0.4 + s * 0.5);
+        creatureBody(kind, idle, w, full * (1 - easeOut(s)), 1 - s * 0.6, 0.45 * (1 - s));
         // Bubbles left where it went down.
-        for (let k = 0; k < 3; k++) if (G.ditherOn(k, Math.floor(time * 8), 0.5)) waterSet(a.x - 3 + k * 3, a.y - 1 - ((k + Math.floor(u * 6)) % 3), C);
+        for (let k = 0; k < 3; k++) if (G.ditherOn(k, Math.floor(time * 8), 0.5)) waterSet(w.x - 3 + k * 3, w.y - 1 - ((k + Math.floor(s * 6)) % 3), C);
         return;
       }
-      const reaching = phase === "take";
-      const bob = reduced ? 0 : Math.round(Math.sin(time * 2.2) * 1);
-      const at = { x: a.x, y: a.y + bob };
-      // Its wake: a ring of foam lapping at the waterline, either side of it.
-      const lap = reduced ? 0 : Math.floor(time * 3) & 1;
-      for (const side of [-1, 1]) {
-        waterSet(a.x + side * (5 + lap), a.y + 1, C);
-        waterSet(a.x + side * (7 - lap), a.y + 2, S);
+
+      // On the frame: idling, reaching for its stones, or catching a Bait.
+      const reaching = phase === "take" || (phase === "feed" && u >= 0.45);
+      const bob = reduced || kind === "crab" ? 0 : Math.round(Math.sin(time * 2.2));
+      const spr = reaching ? creatureSprite(kind, "reach", time, reduced) : idle;
+      creatureBody(kind, spr, { x: a.x, y: a.y + bob }, spr.h, 1, reaching ? 0.7 : 0.45);
+      if (phase === "feed") {
+        // The Bait drops into its hold and is gone, with a little flash of thanks.
+        if (u < 0.5) {
+          const s = u / 0.5;
+          const fish = G.SPRITES.baitFish;
+          surf.blit(fish, a.x - (fish.w >> 1), Math.round(a.y - 24 + s * 14), undefined);
+        } else if (u < 0.8) {
+          for (const [dx, dy] of [[-4, -13], [4, -13], [0, -16], [-6, -9], [6, -9]]) surf.set(a.x + dx, a.y + dy, (Math.floor(u * 20) & 1) ? C : A);
+        }
+        return;
       }
-      const spr = reaching ? animFrame("spiritReach", reduced ? 0 : time) : idle;
-      spiritBody(at, spr, full - Math.max(0, bob), 1, reaching ? 0.7 : 0.45);
+      if (phase === "idle") {
+        const rounds = riverRoundsLeft(c.by, turnCount, roundLength);
+        const t = timerAnchor(c.side, c.x, c.y);
+        // On the last round the tag blinks: it is about to act.
+        if (rounds > 0 && t && (rounds > 1 || reduced || Math.floor(time * 3) % 3 !== 0)) {
+          const tw = G.textWidth(G.FONT_SMALL, String(rounds)) + 2;
+          drawTimerBox(t.x - (tw >> 1), t.y - 3, rounds);
+        }
+      }
     }
 
     /**
-     * While the spirit waits, the three points it can take a stone from are
-     * ringed with turning dots of mist: whatever stands there is in danger.
+     * While a creature waits, the three points it can take a stone from are
+     * ringed with turning dots: whatever stands there is in danger.
      */
-    function drawSpiritReach(spirit, time, reduced) {
-      const { phase } = spiritPhase(spirit, time);
-      if (phase !== "idle" && phase !== "rise") return;
+    function drawCreatureReach(c, time, reduced) {
+      const { phase } = creaturePhase(c, time);
+      if (phase !== "idle" && phase !== "climb") return;
       const turn = reduced ? 0 : Math.floor(time * 6);
-      for (const i of spirit.reach || []) {
+      for (const i of c.reach || []) {
         const p = pointToNative(i % size, (i / size) | 0);
         // Cream dots with an ink rim outside them, so they read on the kaya and
         // against a neighbour's stone, black or cream.
@@ -1747,51 +1842,61 @@
     }
 
     /**
-     * The stone the spirit takes (effect "spiritTake", drawn instead of the
-     * board's piece, which is already gone): a tendril of mist runs out from
-     * the spirit's hands to it, the stone shivers loose and is drawn along the
-     * tendril, shrinking as it goes, and a splash closes over it at the spirit.
+     * A stone a creature takes (effect "riverTake", drawn instead of the
+     * board's piece, which is already gone): the spirit's tendril of mist, or
+     * the crab's amber claw, runs out from it to the stone; the stone shivers
+     * loose and is drawn back along it, shrinking as it goes, and vanishes into
+     * the creature's hold with a glint.
      */
-    function drawSpiritTake(e, f, p, grey) {
+    function drawRiverTake(e, f, p, grey) {
       if (f.fade !== undefined) {
         blitPiece(surf, e.code, "normal", p.x, p.y, grey, { coverage: f.fade });
         return;
       }
       const u = f.u;
-      const a = spiritAnchor(e.side, e.sx, e.sy);
+      const a = creatureAnchor(e.side, e.sx, e.sy);
       if (!a) {
         blitPiece(surf, e.code, "normal", p.x, p.y, grey, { coverage: 1 - u });
         return;
       }
-      const hands = { x: a.x, y: a.y - 10 };
+      const crab = e.creature === "crab";
+      const hold = { x: a.x, y: a.y - (crab ? 7 : 9) };
       const GROW = 0.3, PULL = 0.85;
-      // Where the stone is now: at its point, then pulled along to the hands.
+      // Where the stone is now: at its point, then pulled along to the hold.
       const pull = u < GROW ? 0 : Math.min(1, (u - GROW) / (PULL - GROW));
       const ease = pull * pull * (3 - 2 * pull);
-      const sx = Math.round(p.x + (hands.x - p.x) * ease), sy = Math.round(p.y + (hands.y - p.y) * ease);
-      // The tendril, from the hands to the stone (growing out to it first).
+      const sx = Math.round(p.x + (hold.x - p.x) * ease), sy = Math.round(p.y + (hold.y - p.y) * ease);
+      // The tendril or the claw, from the hold to the stone (growing out to it first).
       const reach = u < GROW ? u / GROW : 1;
       if (u < PULL) {
-        const tx = hands.x + (sx - hands.x) * reach, ty = hands.y + (sy - hands.y) * reach;
-        const len = Math.hypot(tx - hands.x, ty - hands.y);
+        const tx = hold.x + (sx - hold.x) * reach, ty = hold.y + (sy - hold.y) * reach;
+        const len = Math.hypot(tx - hold.x, ty - hold.y);
         for (let d = 0; d <= len; d += 1) {
           const k = len === 0 ? 0 : d / len;
-          const wave = Math.sin(d * 0.5 - u * 20) * 1.5;
-          const nx = len === 0 ? 0 : -(ty - hands.y) / len, ny = len === 0 ? 0 : (tx - hands.x) / len;
-          const x = Math.round(hands.x + (tx - hands.x) * k + nx * wave), y = Math.round(hands.y + (ty - hands.y) * k + ny * wave);
-          if (G.ditherOn(x, y, 0.85)) surf.set(x, y, (Math.floor(d) & 3) === 0 ? S : C);
+          const wave = crab ? 0 : Math.sin(d * 0.5 - u * 20) * 1.5;
+          const nx = len === 0 ? 0 : -(ty - hold.y) / len, ny = len === 0 ? 0 : (tx - hold.x) / len;
+          const x = Math.round(hold.x + (tx - hold.x) * k + nx * wave), y = Math.round(hold.y + (ty - hold.y) * k + ny * wave);
+          if (crab) surf.set(x, y, (Math.floor(d) % 5) === 4 ? K : A);
+          else if (G.ditherOn(x, y, 0.85)) surf.set(x, y, (Math.floor(d) & 3) === 0 ? S : C);
+        }
+        if (crab) {
+          // The pincer, open on the way out and shut on the stone.
+          const tip = { x: Math.round(tx), y: Math.round(ty) };
+          const open = u < GROW ? 2 : 1;
+          surf.set(tip.x - open, tip.y - 1, A); surf.set(tip.x + open, tip.y - 1, A);
+          surf.set(tip.x - open, tip.y + 1, K); surf.set(tip.x + open, tip.y + 1, K);
         }
       }
       if (u < PULL) {
         const shiver = u < GROW ? (Math.floor(u * 40) & 1 ? 1 : -1) : 0;
         const shape = pull < 0.45 ? "normal" : pull < 0.8 ? "small" : "icon";
-        surf.ramp(G.LIGHT, sx, sy, 8, 0.5, 1, noLight);
+        if (!crab) surf.ramp(G.LIGHT, sx, sy, 8, 0.5, 1, noLight);
         blitPiece(surf, e.code, shape, sx + shiver, sy, grey, { coverage: pull > 0.85 ? 1 - (pull - 0.85) / 0.15 * 0.7 : 1 });
       } else {
-        // The splash as the stone goes under with the spirit's catch.
+        // The glint as the stone vanishes into its hold.
         const s = (u - PULL) / (1 - PULL);
-        spiritRipple(a, 3 + s * 6, 1 - s * 0.6);
-        for (let k = 0; k < 4; k++) surf.set(a.x - 3 + k * 2, a.y - 2 - Math.round(Math.sin(s * Math.PI) * (2 + (k & 1) * 2)), C);
+        const r = Math.round(1 + s * 3);
+        for (const [dx, dy] of [[-r, 0], [r, 0], [0, -r], [0, r]]) surf.set(hold.x + dx, hold.y + dy, s < 0.5 ? C : A);
       }
     }
 
@@ -1886,10 +1991,6 @@
       drawBoat(t, "R" + (st.round === undefined ? 1 : st.round));
       if (st.fireflies !== undefined) drawBoat(t, String(st.fireflies), FIREBOAT);
 
-      // 3c. the river spirit, in the water beside the board (on the scene's own
-      // clock, like the effects: its moments are timed by main.js)
-      if (st.spirit) drawSpirit(st.spirit, time, reduced);
-
       // 4. props: reeds, stone lantern, garland
       for (const rd of reeds) surf.blit(animFrame(rd.anim, t, rd.phase / 3), rd.x, rd.y);
       surf.blit(G.SPRITES.rock, toro.x - 1, H - 5);
@@ -1899,6 +2000,12 @@
       // 5. board labels (the hovered row/column label is drawn later as a tag)
       const hover = st.hover && st.hover.x >= 0 && st.hover.y >= 0 && st.hover.x < size && st.hover.y < size ? st.hover : null;
       drawLabels(hover);
+
+      // 5b. the river crab and the river spirit, on the frame over the labels or on
+      // their way in and out of the water (on the scene's own clock, like the
+      // effects: their moments are timed by main.js)
+      const river = st.river || [];
+      for (const c of river) drawCreature(c, time, reduced, st.turnCount, st.roundLength || 0);
 
       // 6. lily pads, stones and wards (effects in flight draw their own piece/marker)
       const skip = new Set();
@@ -1926,7 +2033,7 @@
       drawWards(overlays, board, busy, time, reduced);
       drawMists(overlays, st.myColor);
       drawFogs(overlays);
-      if (st.spirit) drawSpiritReach(st.spirit, time, reduced);
+      for (const c of river) drawCreatureReach(c, time, reduced);
 
       // 7. last-move ember
       if (st.lastMove && !skip.has(st.lastMove.y * size + st.lastMove.x) && board[st.lastMove.y * size + st.lastMove.x]) {
@@ -1937,8 +2044,8 @@
       // 8. effects in flight
       for (const e of active) {
         const p = pointToNative(e.x, e.y);
-        if (e.kind === "spiritTake") {
-          drawSpiritTake(e, frameAt(timelineFor(e.kind, reduced), time - e.start).frame, p, greyW);
+        if (e.kind === "riverTake") {
+          drawRiverTake(e, frameAt(timelineFor(e.kind, reduced), time - e.start).frame, p, greyW);
           continue;
         }
         const glow = drawEffect(surf, e, time - e.start, p.x, p.y, reduced, greyW);
@@ -2099,7 +2206,9 @@
       render,
       pointToNative,
       nativeToPoint,
-      spiritAnchor,
+      creatureAnchor,
+      waterAnchor,
+      timerAnchor,
       /** Region code at a native pixel: 0 bank, 1 water, 2 frame, 3 kaya, 4 deck front. */
       regionAt: (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? region[(y | 0) * W + (x | 0)] : -1),
     };
@@ -2109,10 +2218,12 @@
     SPACING,
     AMBIENT_FPS,
     STORM_SECONDS,
-    SPIRIT_RISE_SECONDS,
-    SPIRIT_TAKE_SECONDS,
-    SPIRIT_SINK_SECONDS,
-    spiritPhase,
+    RIVER_CLIMB_SECONDS,
+    RIVER_TAKE_SECONDS,
+    RIVER_FEED_SECONDS,
+    RIVER_LEAVE_SECONDS,
+    creaturePhase,
+    roundsLeft: riverRoundsLeft,
     boltTime,
     stormPhase,
     stormLinger,

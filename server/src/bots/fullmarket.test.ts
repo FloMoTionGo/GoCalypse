@@ -37,7 +37,7 @@ function put(v: BotView, x: number, y: number, color: number) {
   v.board[boardIndex(v.size, x, y)] = stoneCode(color, "base");
 }
 
-const FREE = ["firefly_jar", "mist", "kite", "twin_wick", "stepping_stones"];
+const FREE = ["firefly_jar", "mist", "kite", "twin_wick", "stepping_stones", "bait"];
 
 test("the shark's shopping list is the whole market", () => {
   const list = magpie().shopping;
