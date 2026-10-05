@@ -12,6 +12,7 @@ import { isSettled, regionAt, sidesOf, territoryScore } from "../rules/endgame";
 import { chooseAction, chooseBuy } from "./index";
 import { playMatch } from "./selfplay";
 import { Rng } from "./rng";
+import * as scoring from "./scoring";
 import { BotView, isPointless, rankMoves, scoreMove } from "./scoring";
 import {
   DRIFTER_ID,
@@ -558,4 +559,68 @@ test("a stone on the other front saves nothing: it isn't the twin's group there"
   b[boardIndex(5, 2, 0)] = stoneCode(2, "pattern");
   assert.equal(scoreMove(view(5, 1, { board: b }), 1, 1, "pattern", SAVES_ONLY), 0);
   assert.equal(scoreMove(view(5, 1, { board: b }), 1, 1, "base", SAVES_ONLY), SAVES_ONLY.save);
+});
+
+// ---- area over combat --------------------------------------------------------
+//
+// Prisoners count only up to the territory of their front (rules/endgame.ts), so
+// a bot judges a capture by the room left under that cap, and pays for the open
+// ground a move claims. The names are typed loosely here so these tests compile
+// before the area weight exists (red first).
+
+type AreaScoring = typeof scoring & {
+  estimateArea(board: number[], size: number): Record<"black" | "white" | "gray" | "transparent", number>;
+};
+const { estimateArea } = scoring as AreaScoring;
+const withArea = (style: Style, area: number) => ({ ...style, area }) as Style;
+const CAPTURE_ONLY = withArea(TAKES_ONLY, 0);
+
+test("a capture past the prisoner cap is worth less than the same capture under it", () => {
+  const under = scoreMove(captureOffered(), 2, 3, "base", CAPTURE_ONLY)!;
+  const over = scoreMove(captureOffered({ prisoners: { base: 200, pattern: 0 } }), 2, 3, "base", CAPTURE_ONLY)!;
+  assert.equal(under, CAPTURE_ONLY.capture);
+  assert.ok(over < under, `over the cap ${over}, under it ${under}`);
+});
+
+test("a capture past the prisoner cap pays no capture weight at all", () => {
+  const over = scoreMove(captureOffered({ prisoners: { base: 200, pattern: 0 } }), 2, 3, "base", CAPTURE_ONLY);
+  assert.equal(over, 0);
+});
+
+test("the area estimate hands open ground to the nearest side, and a tie to no one", () => {
+  const size = 9;
+  const b = new Array(size * size).fill(0);
+  b[boardIndex(size, 1, 4)] = stoneCode(1, "base"); // black
+  b[boardIndex(size, 7, 4)] = stoneCode(2, "base"); // white, the mirror image
+  const area = estimateArea(b, size);
+  assert.ok(area.black > 0);
+  assert.equal(area.black, area.white);
+  assert.ok(area.black + area.white < size * size - 2, "the middle column is nobody's");
+  // Both stones are walls on the pattern front, and nobody plays there.
+  assert.deepEqual([area.gray, area.transparent], [0, 0]);
+});
+
+test("a move into open ground is paid the area weight for the ground it claims", () => {
+  const size = 9;
+  const b = new Array(size * size).fill(0);
+  b[boardIndex(size, 2, 2)] = stoneCode(1, "base");
+  b[boardIndex(size, 6, 6)] = stoneCode(2, "base");
+  const v = view(size, 1, { board: b });
+  const plain = scoreMove(v, 2, 6, "base", withArea(reed(), 0))!;
+  const paid = scoreMove(v, 2, 6, "base", withArea(reed(), 100))!;
+  assert.ok(paid > plain, `with an area weight ${paid}, without ${plain}`);
+});
+
+test("the shipped recruits capture far fewer stones than they place", () => {
+  // Under the cap a fight scores only as far as the ground behind it, and the
+  // recruits are weighted to build rather than brawl. Before the cap, about half
+  // of all stones placed in a match were captured again.
+  let placed = 0;
+  let taken = 0;
+  for (const seed of [11, 12, 13, 14]) {
+    const match = playMatch(seed, TABLE);
+    placed += match.stones;
+    taken += match.results.reduce((n, r) => n + r.basePrisoners + r.patternPrisoners, 0);
+  }
+  assert.ok(taken < 0.3 * placed, `${taken} of ${placed} stones placed were captured`);
 });

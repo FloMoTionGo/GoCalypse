@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { finalResults, Prisoners, sidesOf, SIDE_CODE, territoryOwners, territoryScore } from "./endgame";
+import * as endgame from "./endgame";
+import { finalResults, PlayerResult, Prisoners, sidesOf, SIDE_CODE, territoryOwners, territoryScore } from "./endgame";
+
+// The prisoner cap's names, typed here so these tests compile before the rule exists (red first).
+type Capped = PlayerResult & { baseCounted: number; patternCounted: number };
+const { countedPrisoners } = endgame as typeof endgame & { countedPrisoners(prisoners: number, territory: number): number };
+const capped = (...args: Parameters<typeof finalResults>) => finalResults(...args) as Capped[];
 
 /**
  * A board from rows of text: "." is empty, 1-4 a player's solid stone, 5-8 a
@@ -155,16 +161,44 @@ test("a player's final score is the lower of their two sides, and the higher one
 //
 // Territory belongs to a side and is shared by the two seats that hold it.
 // Prisoners belong to the player who played the capturing move, which is why
-// taking a group yourself beats leaving it to the ally on your front.
+// taking a group yourself beats leaving it to the ally on your front. They
+// count only up to the territory on their front, though: a front scores at most
+// twice its ground, so fighting can never stand in for holding land.
 
 test("prisoners are added to the front the dead group was judged on", () => {
-  const [p1] = finalResults({ black: 10, white: 0, gray: 4, transparent: 0 }, [1], [
+  const [p1] = finalResults({ black: 10, white: 0, gray: 6, transparent: 0 }, [1], [
     { base: 3, pattern: 5 },
   ]);
   assert.deepEqual([p1.baseTerritory, p1.basePrisoners, p1.base], [10, 3, 13]);
-  assert.deepEqual([p1.patternTerritory, p1.patternPrisoners, p1.pattern], [4, 5, 9]);
-  assert.equal(p1.score, 9); // the lower front, prisoners included
+  assert.deepEqual([p1.patternTerritory, p1.patternPrisoners, p1.pattern], [6, 5, 11]);
+  assert.equal(p1.score, 11); // the lower front, prisoners included
   assert.equal(p1.tiebreak, 13);
+});
+
+test("prisoners count only up to the territory of their front", () => {
+  const [p1] = capped({ black: 10, white: 0, gray: 4, transparent: 0 }, [1], [
+    { base: 3, pattern: 9 },
+  ]);
+  assert.deepEqual([p1.basePrisoners, p1.baseCounted, p1.base], [3, 3, 13]);
+  // Nine taken on the pattern front, but only four points held there: four count.
+  assert.deepEqual([p1.patternPrisoners, p1.patternCounted, p1.pattern], [9, 4, 8]);
+  assert.equal(p1.score, 8);
+  assert.equal(p1.tiebreak, 13);
+});
+
+test("a front with no territory scores none of its prisoners", () => {
+  const [p1] = capped({ black: 0, white: 7, gray: 5, transparent: 0 }, [1], [
+    { base: 12, pattern: 0 },
+  ]);
+  assert.deepEqual([p1.basePrisoners, p1.baseCounted, p1.base], [12, 0, 0]);
+  assert.equal(p1.score, 0);
+});
+
+test("countedPrisoners is the lower of prisoners and territory, and never negative", () => {
+  assert.equal(countedPrisoners(3, 10), 3);
+  assert.equal(countedPrisoners(10, 3), 3);
+  assert.equal(countedPrisoners(4, 0), 0);
+  assert.equal(countedPrisoners(0, 0), 0);
 });
 
 test("two players on one side share its territory but not its prisoners", () => {
@@ -182,16 +216,16 @@ test("two players on one side share its territory but not its prisoners", () => 
 });
 
 test("prisoners can lift the front that was holding a score down", () => {
-  // Both players hold the same ground. One took five stones on the front that
+  // Both players hold the same ground. One took three stones on the front that
   // was its lower one, and that is the whole difference between them.
-  const territoryOnly = finalResults({ black: 6, white: 6, gray: 2, transparent: 2 }, [1, 2]);
-  assert.deepEqual(territoryOnly.map((r) => r.score), [2, 2]);
+  const territoryOnly = finalResults({ black: 6, white: 6, gray: 3, transparent: 3 }, [1, 2]);
+  assert.deepEqual(territoryOnly.map((r) => r.score), [3, 3]);
 
-  const withPrisoners = finalResults({ black: 6, white: 6, gray: 2, transparent: 2 }, [1, 2], [
-    { base: 0, pattern: 5 },
+  const withPrisoners = finalResults({ black: 6, white: 6, gray: 3, transparent: 3 }, [1, 2], [
+    { base: 0, pattern: 3 },
     NONE,
   ]);
-  assert.deepEqual(withPrisoners.map((r) => r.score), [6, 2]);
+  assert.deepEqual(withPrisoners.map((r) => r.score), [6, 3]);
   assert.deepEqual(withPrisoners.map((r) => r.place), [1, 2]);
 });
 

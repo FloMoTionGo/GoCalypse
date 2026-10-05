@@ -138,6 +138,22 @@ test("four passes in a row end the game: scored, placed and announced", () => {
   assert.match(state.lastEvent, /^Game over: .* (wins|share first place) with \d+\.$/);
 });
 
+test("the room's final count takes prisoners only up to the territory of their front", () => {
+  const { room, clients } = startedRoom();
+  // Black walls in the base front, gray the pattern front: color 2 (white+gray)
+  // holds no base territory at all, so the five stones it took there count for nothing.
+  put(room, 3, 3, stoneCode(1, "base"));
+  put(room, 9, 9, stoneCode(1, "pattern"));
+  const two = room.state.players.find((p: any) => p.color === 2);
+  two.basePrisoners = 5;
+  passAround(room, clients, 4);
+  assert.equal(room.state.status, "finished");
+  assert.deepEqual([two.baseTerritory, two.basePrisoners], [0, 5]);
+  assert.ok(two.patternTerritory > 5);
+  assert.equal(two.finalScore, 0);
+  assert.equal(two.tiebreak, two.patternTerritory);
+});
+
 test("a finished game takes no more moves, passes or buys", () => {
   const { room, clients } = startedRoom({ debug: true });
   passAround(room, clients, 4);

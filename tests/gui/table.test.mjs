@@ -161,3 +161,29 @@ test("table: Results closes, and the Results button opens it again", async () =>
   assert.match(await b.ev("roomStatusEl.textContent"), /Game finished/);
   rig.assertClean("the table");
 });
+
+test("table: Results shows prisoners past the cap as captured but not counted", async () => {
+  // The finished table rarely has a front that took more than it holds, so the
+  // window is drawn once more from a copy of the state with one that has.
+  const r = await b.ev(`(() => {
+    const players = Array.from(lastState.players).map((p, i) => ({
+      name: p.name, color: p.color, sessionId: p.sessionId, bot: p.bot, place: i + 1,
+      baseTerritory: 4, basePrisoners: i === 0 ? 9 : 2, patternTerritory: 6, patternPrisoners: 0,
+      finalScore: 6, tiebreak: i === 0 ? 8 : 6,
+    }));
+    openResult({ players, size: lastState.size });
+    const row = document.querySelectorAll("#result-table .result-row:not(.head)")[0];
+    const sides = Array.from(row.querySelectorAll(".side"));
+    const out = { total: sides[0].querySelector(".side-total").textContent,
+      breakdown: sides[0].querySelector(".side-breakdown").textContent,
+      title: sides[0].title,
+      hint: document.querySelector("#result .hint").textContent };
+    openResult(lastState);
+    return out;
+  })()`);
+  assert.match(r.total, / 8$/);
+  assert.equal(r.breakdown, "4 territory + 4 of 9 captured");
+  assert.match(r.title, /only 4 count/);
+  assert.match(r.hint, /never more prisoners than territory/);
+  rig.assertClean("the table");
+});
