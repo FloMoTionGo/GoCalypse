@@ -20,9 +20,15 @@
 // accounting GoRoom already uses for fireflies, and it is why taking a group
 // yourself is worth more than leaving it to the ally who shares your front.
 //
-// That gives each player two totals -- territory + prisoners on the base front,
-// and the same on the pattern front. The lower of the two is their final score;
-// the higher only breaks a tie.
+// Prisoners count only up to the territory on their front, though: a player
+// with 4 points of ground on a front and 9 prisoners taken there counts 4 of
+// them. A front is worth at most twice its ground, so fighting can win you
+// points only as far as you also hold land -- the cap is what keeps a table of
+// four from turning into a capture race.
+//
+// That gives each player two totals -- territory + counted prisoners on the
+// base front, and the same on the pattern front. The lower of the two is their
+// final score; the higher only breaks a tie.
 
 import { boardIndex, neighbors, StoneView, stoneCode, viewValue } from "./goRules";
 
@@ -44,8 +50,10 @@ export interface PlayerResult {
   patternTerritory: number; // territory of this player's pattern side (gray or transparent)
   basePrisoners: number; // base-front stones this player captured
   patternPrisoners: number; // pattern-front stones this player captured
-  base: number; // baseTerritory + basePrisoners
-  pattern: number; // patternTerritory + patternPrisoners
+  baseCounted: number; // the base prisoners that count: no more than baseTerritory
+  patternCounted: number; // the pattern prisoners that count: no more than patternTerritory
+  base: number; // baseTerritory + baseCounted
+  pattern: number; // patternTerritory + patternCounted
   score: number; // the lower of the two: the final score
   tiebreak: number; // the higher of the two
   place: number; // 1 = first; players level on score and tiebreak share a place
@@ -173,6 +181,11 @@ export function sidesOf(color: number): { base: Side; pattern: Side } {
   };
 }
 
+/** The prisoners that count on a front: never more than the territory held there. */
+export function countedPrisoners(prisoners: number, territory: number): number {
+  return Math.max(0, Math.min(prisoners, territory));
+}
+
 /**
  * Final scores and places for the given combos, in the order they are given.
  * `prisoners` runs alongside `colors`: one entry per player, since two players
@@ -188,14 +201,18 @@ export function finalResults(
     const took = prisoners[i] ?? { base: 0, pattern: 0 };
     const baseTerritory = territory[sides.base];
     const patternTerritory = territory[sides.pattern];
-    const base = baseTerritory + took.base;
-    const pattern = patternTerritory + took.pattern;
+    const baseCounted = countedPrisoners(took.base, baseTerritory);
+    const patternCounted = countedPrisoners(took.pattern, patternTerritory);
+    const base = baseTerritory + baseCounted;
+    const pattern = patternTerritory + patternCounted;
     return {
       color,
       baseTerritory,
       patternTerritory,
       basePrisoners: took.base,
       patternPrisoners: took.pattern,
+      baseCounted,
+      patternCounted,
       base,
       pattern,
       score: Math.min(base, pattern),

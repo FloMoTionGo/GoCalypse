@@ -1062,7 +1062,8 @@ function openWelcome(state) {
     `The board is then counted once on each front, the Japanese way: only territory, the empty points your side ` +
     `walls in on its own. A stone is worth nothing in itself, only the ground it surrounds, and a stone of the ` +
     `other front (a gray one on black against white) counts for no one there. On top of that you count your prisoners: the stones you captured ` +
-    `yourself on that side. Your score is the lower of ${yourTwo}; the higher one only breaks ties. ` +
+    `yourself on that side, but never more prisoners than territory: with 4 points of ground there, at most 4 of them count, ` +
+    `so a fight only pays as far as you also hold land. Your score is the lower of ${yourTwo}; the higher one only breaks ties. ` +
     `${sharers} -- but prisoners are yours alone, so take the capture rather than leave it to them. ` +
     `Nothing is taken off as dead at the end: capture what should go before you pass.`;
 
@@ -1444,12 +1445,14 @@ function openResult(state) {
       player.name + (room && player.sessionId === room.sessionId ? " (you)" : player.bot ? " (bot)" : "");
     who.append(swatches, name);
 
-    // One front: the side's territory plus the prisoners this player took there.
-    // The lower of the two totals is the score; the higher one is only the tie-break.
-    // Spelled out on its own line (not "10+2") so it's clear at a glance which
-    // number is captured stones and which is territory.
+    // One front: the side's territory plus the prisoners this player took there,
+    // but never more prisoners than territory (countedPrisoners in
+    // server/src/rules/endgame.ts). The lower of the two totals is the score; the
+    // higher one is only the tie-break. Spelled out on its own line (not "10+2")
+    // so it's clear at a glance which number is captured stones and which is territory.
     const side = (label, territory, prisoners) => {
-      const total = territory + prisoners;
+      const counted = Math.max(0, Math.min(prisoners, territory));
+      const total = territory + counted;
       const cell = document.createElement("span");
       cell.className = "side" + (total === player.finalScore ? " low" : "");
       const totalLine = document.createElement("span");
@@ -1459,10 +1462,15 @@ function openResult(state) {
       if (prisoners > 0) {
         const breakdown = document.createElement("span");
         breakdown.className = "side-breakdown";
-        breakdown.textContent = `${territory} territory + ${prisoners} captured`;
+        breakdown.textContent =
+          counted < prisoners
+            ? `${territory} territory + ${counted} of ${prisoners} captured`
+            : `${territory} territory + ${prisoners} captured`;
         cell.appendChild(breakdown);
       }
-      cell.title = `${territory} territory + ${prisoners} prisoner${prisoners === 1 ? "" : "s"}`;
+      cell.title =
+        `${territory} territory + ${prisoners} prisoner${prisoners === 1 ? "" : "s"}` +
+        (counted < prisoners ? `, of which only ${counted} count: never more prisoners than territory` : "");
       return cell;
     };
 

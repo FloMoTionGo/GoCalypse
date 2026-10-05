@@ -274,6 +274,8 @@ function isBlocked(view: BotView, idx: number): boolean {
  */
 function planSeedling(view: BotView, ranked: Candidate[]): ItemPlan | null {
   for (const next of ranked.slice(1, 6)) {
+    // The same point on the other front is still the point we play this turn.
+    if (next.x === ranked[0].x && next.y === ranked[0].y) continue;
     const cell = boardIndex(view.size, next.x, next.y);
     if (isBlocked(view, cell) || view.hasSeed?.(cell)) continue;
     return { id: "seedling", target: { x: next.x, y: next.y }, axis: next.axis, score: Math.trunc(next.score / 2) };

@@ -1,12 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as endgame from "./endgame";
-import { finalResults, PlayerResult, Prisoners, sidesOf, SIDE_CODE, territoryOwners, territoryScore } from "./endgame";
-
-// The prisoner cap's names, typed here so these tests compile before the rule exists (red first).
-type Capped = PlayerResult & { baseCounted: number; patternCounted: number };
-const { countedPrisoners } = endgame as typeof endgame & { countedPrisoners(prisoners: number, territory: number): number };
-const capped = (...args: Parameters<typeof finalResults>) => finalResults(...args) as Capped[];
+import { countedPrisoners, finalResults, Prisoners, sidesOf, SIDE_CODE, territoryOwners, territoryScore } from "./endgame";
 
 /**
  * A board from rows of text: "." is empty, 1-4 a player's solid stone, 5-8 a
@@ -176,7 +170,7 @@ test("prisoners are added to the front the dead group was judged on", () => {
 });
 
 test("prisoners count only up to the territory of their front", () => {
-  const [p1] = capped({ black: 10, white: 0, gray: 4, transparent: 0 }, [1], [
+  const [p1] = finalResults({ black: 10, white: 0, gray: 4, transparent: 0 }, [1], [
     { base: 3, pattern: 9 },
   ]);
   assert.deepEqual([p1.basePrisoners, p1.baseCounted, p1.base], [3, 3, 13]);
@@ -187,7 +181,7 @@ test("prisoners count only up to the territory of their front", () => {
 });
 
 test("a front with no territory scores none of its prisoners", () => {
-  const [p1] = capped({ black: 0, white: 7, gray: 5, transparent: 0 }, [1], [
+  const [p1] = finalResults({ black: 0, white: 7, gray: 5, transparent: 0 }, [1], [
     { base: 12, pattern: 0 },
   ]);
   assert.deepEqual([p1.basePrisoners, p1.baseCounted, p1.base], [12, 0, 0]);

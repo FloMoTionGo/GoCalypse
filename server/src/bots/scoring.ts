@@ -11,8 +11,9 @@ import {
   stoneCode,
   StoneView,
   twinCode,
+  viewValue,
 } from "../rules/goRules";
-import { isSettled, Prisoners, regionAt, sidesOf, territoryScore } from "../rules/endgame";
+import { countedPrisoners, isSettled, Prisoners, regionAt, Side, sidesOf, Territory, territoryScore } from "../rules/endgame";
 import { koOpenedBy } from "../rules/ko";
 import { Rng } from "./rng";
 import { Style } from "./styles";
@@ -97,6 +98,17 @@ const LINE = [-120, 30, 100, 95, 70, 50, 35]; // 0 = the first line
 const EXTENSION = [0, 25, 75, 100, 80, 45, 15]; // 0 = touching one of our own
 const LOCALITY = [100, 100, 80, 55, 35, 20, 10]; // 0 = the last move itself
 
+// How far (in steps over empty points) a side's stones reach into open ground
+// in the area estimate. Three is the classic extension's gap and a little more:
+// close enough to be ground a side could defend, far enough to see an empty
+// corner as somebody's before it is walled in.
+const AREA_REACH = 3;
+
+// The most ground one move is paid for. A first stone on an empty front claims
+// two dozen points of estimate; uncapped, that dwarfs every other term and every
+// item, and the opening becomes a race to empty fronts rather than shape.
+const AREA_GAIN_CAP = 10;
+
 function table(values: number[], i: number): number {
   return values[Math.min(Math.max(i, 0), values.length - 1)];
 }
@@ -136,6 +148,70 @@ function distanceToOwnSide(view: BotView, x: number, y: number, code: number, ax
 }
 
 /**
+ * Steps from each empty point to the nearest stone of `side` on one front,
+ * over empty points only: any stone (or driftwood) stops the walk, exactly as
+ * it stops a territory flood. -1 where the side does not reach.
+ */
+function reachOf(board: number[], size: number, front: StoneView, side: Side): Int16Array {
+  const dist = new Int16Array(board.length).fill(-1);
+  const queue: number[] = [];
+  for (let i = 0; i < board.length; i++) {
+    if (board[i] !== 0 && viewValue(front, board[i]) === side) {
+      dist[i] = 0;
+      queue.push(i);
+    }
+  }
+  for (let head = 0; head < queue.length; head++) {
+    const i = queue[head];
+    const d = dist[i];
+    if (d >= AREA_REACH) continue;
+    const x = i % size;
+    const y = (i - x) / size;
+    for (const n of [x > 0 ? i - 1 : -1, x < size - 1 ? i + 1 : -1, y > 0 ? i - size : -1, y < size - 1 ? i + size : -1]) {
+      if (n < 0 || board[n] !== 0 || dist[n] !== -1) continue;
+      dist[n] = d + 1;
+      queue.push(n);
+    }
+  }
+  return dist;
+}
+
+/**
+ * A rough count of the ground each side will end up with: every empty point
+ * goes to the side whose stones are strictly nearest on that front, if they are
+ * within AREA_REACH steps, and to no one on a tie. The real count
+ * (territoryScore) only sees regions already walled in, so for most of a game it
+ * says nothing; this is what a bot reads instead, to tell building from brawling.
+ */
+export function estimateArea(board: number[], size: number): Territory {
+  const area: Territory = { black: 0, white: 0, gray: 0, transparent: 0 };
+  const fronts: [StoneView, Side, Side][] = [
+    ["base", "black", "white"],
+    ["pattern", "gray", "transparent"],
+  ];
+  for (const [front, a, b] of fronts) {
+    const da = reachOf(board, size, front, a);
+    const db = reachOf(board, size, front, b);
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] !== 0) continue;
+      if (da[i] >= 0 && (db[i] < 0 || da[i] < db[i])) area[a] += 1;
+      else if (db[i] >= 0 && (da[i] < 0 || db[i] < da[i])) area[b] += 1;
+    }
+  }
+  return area;
+}
+
+/**
+ * The estimated ground of this bot's two sides, summed over both fronts. Only
+ * its own: counting the rival's loss too pays a stone for touching theirs (it
+ * cuts their reach short), and that measured as more contact, not less.
+ */
+function ownArea(area: Territory, color: number): number {
+  const { base, pattern } = sidesOf(color);
+  return area[base] + area[pattern];
+}
+
+/**
  * What this point is worth to this bot on this front, or null if the move is
  * illegal (or is one no bot should make: filling its own eye).
  *
@@ -149,7 +225,8 @@ export function scoreMove(
   x: number,
   y: number,
   axis: StoneView,
-  style: Style
+  style: Style,
+  areaBefore?: Territory
 ): number | null {
   const { size } = view;
   if (!isOnBoard(size, x, y)) return null;
@@ -235,10 +312,33 @@ export function scoreMove(
   if (view.retakesKo?.(idx, captured)) return null; // and a ko is held for a round
 
   // ---- what the move took -------------------------------------------------
-  // Paid in full to the mover: the room credits captures per player, so taking
-  // the stones yourself is worth more than leaving them to the ally who shares
-  // this front.
-  let score = style.capture * captured.length;
+  // Paid to the mover: the room credits captures per player, so taking the
+  // stones yourself is worth more than leaving them to the ally who shares this
+  // front. But prisoners count only up to the territory on their front
+  // (countedPrisoners, rules/endgame.ts), so only the stones that still fit
+  // under that cap are paid -- the ground this side can expect to hold there,
+  // less what this bot has already taken. Past the cap a capture is worth what
+  // it does for the ground and for the stones it saves, and nothing more.
+  const sides = sidesOf(view.color);
+  const areaAfter = style.area !== 0 || captured.length > 0 ? estimateArea(after, size) : null;
+  let counted = 0;
+  if (areaAfter) {
+    for (const front of AXES) {
+      const taken = captured.filter((c) => c.view === front).length;
+      if (taken === 0) continue;
+      const room = Math.max(0, areaAfter[sides[front]] - view.prisoners[front]);
+      counted += Math.min(taken, room);
+    }
+  }
+  let score = style.capture * counted;
+
+  // ---- the ground it claims -----------------------------------------------
+  // Paid per point of estimated ground this bot's sides gain, on both fronts (a
+  // stone is a wall on the front it did not pick, so it moves that one too).
+  if (style.area !== 0 && areaAfter) {
+    const before = areaBefore ?? estimateArea(view.board, size);
+    score += style.area * Math.min(AREA_GAIN_CAP, ownArea(areaAfter, view.color) - ownArea(before, view.color));
+  }
 
   if (ownChains > 1) score += style.connect * (ownChains - 1);
   if (enemyChains > 1) score += style.cut * (enemyChains - 1);
@@ -259,6 +359,11 @@ export function scoreMove(
     // is a smaller mistake than a whole group.
     score -= style.selfAtari * Math.min(mine.group.length, 6);
   }
+  // Two liberties is one turn from atari in two-player Go. Here three seats move
+  // before this one comes back, and any stone fills a liberty whoever plays it,
+  // so a group left on two is very often lost before it can be helped: most of
+  // what four bots used to capture in the middle game was exactly that.
+  if (mine.liberties === 2) score -= style.thin * Math.min(mine.group.length, 6);
 
   const seenAfter = new Set<number>();
   let atariStones = 0;
@@ -319,12 +424,14 @@ export function rankMoves(view: BotView, style: Style): Candidate[] {
   // A new stone where a river creature can reach it is likely lost when its
   // timer runs out: it is worth a capture less.
   const reached = new Set((view.creatures || []).flatMap((c) => c.reach));
+  // The ground before the move is the same for every candidate: count it once.
+  const before = style.area !== 0 ? estimateArea(view.board, size) : undefined;
 
   for (let idx = 0; idx < view.board.length; idx++) {
     if (view.board[idx] !== 0) continue;
     const { x, y } = pointOf(size, idx);
     for (const axis of AXES) {
-      const score = scoreMove(view, x, y, axis, style);
+      const score = scoreMove(view, x, y, axis, style, before);
       if (score !== null) scored.push({ x, y, axis, score: reached.has(idx) ? score - style.capture : score });
     }
   }
@@ -358,6 +465,8 @@ const TACTICAL: Style = {
   locality: 0,
   extension: 0,
   line: 0,
+  area: 0,
+  thin: 0,
   selfAtari: 0,
   hemmed: 0,
   axisBias: 0,
@@ -371,7 +480,7 @@ const TACTICAL: Style = {
 /**
  * The bot's two fronts, by the axis a stone is played on. Each is what the
  * final count would give it there: its side's territory plus the prisoners it
- * took on that front. Prisoners are not a constant that cancels out of the
+ * took on that front, no more of them than that territory. Prisoners are not a constant that cancels out of the
  * comparison below -- they decide WHICH front is the lower one, and the lower
  * front is the score.
  */
@@ -383,8 +492,8 @@ function frontsOf(
 ): { mine: number; other: number } {
   const territory = territoryScore(board, view.size);
   const sides = sidesOf(view.color);
-  const base = territory[sides.base] + took.base;
-  const pattern = territory[sides.pattern] + took.pattern;
+  const base = territory[sides.base] + countedPrisoners(took.base, territory[sides.base]);
+  const pattern = territory[sides.pattern] + countedPrisoners(took.pattern, territory[sides.pattern]);
   return axis === "base" ? { mine: base, other: pattern } : { mine: pattern, other: base };
 }
 
@@ -405,10 +514,12 @@ function frontsOf(
  *
  * A move is worth a turn when any of these holds:
  *
- *  1. it takes or saves stones (the TACTICAL probe) -- prisoners count, and a
- *     group left standing is a group that counts against nobody;
+ *  1. it takes stones that still count under the prisoner cap, or saves stones
+ *     (the TACTICAL probe) -- a group left standing is a group that counts
+ *     against nobody;
  *  2. it raises the bot's score, the lower of its two fronts, each of them that
- *     side's territory plus the prisoners this bot took there;
+ *     side's territory plus the prisoners this bot took there, up to that
+ *     territory;
  *  3. the point is still open ground -- the empty region it sits in is walled in
  *     by no one, or contested between two sides -- and playing it does not cost
  *     the bot anything.
@@ -428,16 +539,17 @@ export function isPointless(view: BotView, move: Candidate): boolean {
   const tactical = scoreMove(view, move.x, move.y, move.axis, TACTICAL);
   if (tactical === null || tactical > 0) return false; // takes or saves: always worth it
 
-  // Nothing is captured past this point: TACTICAL pays for a capture, so any
-  // move that takes a stone has already returned above. That is why the same
-  // prisoner count is used on both sides of the comparison -- this move cannot
-  // add to it, and the two fronts move only with the ground.
+  // A capture can still get this far: TACTICAL pays only for the stones that
+  // fit under the prisoner cap, so one past it is judged like any other move,
+  // by what it does for the score -- with the stones it takes added on.
   const after = view.board.slice();
   const code = stoneCode(view.color, move.axis);
   after[boardIndex(view.size, move.x, move.y)] = code;
-  applyCaptures(after, view.size, move.x, move.y, code, (i) => view.isWarded(i));
+  const taken = applyCaptures(after, view.size, move.x, move.y, code, (i) => view.isWarded(i));
+  const took = { ...view.prisoners };
+  for (const c of taken) took[c.view] += 1;
   const before = frontsOf(view, view.board, move.axis, view.prisoners);
-  const now = frontsOf(view, after, move.axis, view.prisoners);
+  const now = frontsOf(view, after, move.axis, took);
   const was = Math.min(before.mine, before.other);
   const is = Math.min(now.mine, now.other);
   if (is > was) return false; // the score rises: always worth the turn

@@ -1350,7 +1350,7 @@ export class GoRoom extends Room<GoState> {
     return null;
   }
 
-  /** Scores the board as it stands -- territory plus prisoners, rules/endgame.ts -- and closes the game. */
+  /** Scores the board as it stands -- territory plus prisoners up to that territory, rules/endgame.ts -- and closes the game. */
   private finishGame() {
     const state = this.state;
     this.botTimer?.clear();
