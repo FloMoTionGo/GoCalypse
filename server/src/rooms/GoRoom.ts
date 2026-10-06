@@ -1365,6 +1365,8 @@ export class GoRoom extends Room<GoState> {
     state.players.forEach((player, i) => {
       player.baseTerritory = results[i].baseTerritory;
       player.patternTerritory = results[i].patternTerritory;
+      player.baseCounted = results[i].baseCounted;
+      player.patternCounted = results[i].patternCounted;
       player.finalScore = results[i].score;
       player.tiebreak = results[i].tiebreak;
       player.place = results[i].place;

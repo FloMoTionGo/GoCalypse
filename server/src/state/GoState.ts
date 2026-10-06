@@ -32,6 +32,10 @@ export class PlayerState extends Schema {
   // Filled in once when the game ends (rules/endgame.ts); all 0 until then.
   @type("number") baseTerritory: number = 0; // territory of this player's base side (black or white)
   @type("number") patternTerritory: number = 0; // territory of this player's pattern side (gray or transparent)
+  // The prisoners that count: no more than the territory on their front. Sent so
+  // Results shows the server's own count, whichever rule it runs.
+  @type("number") baseCounted: number = 0;
+  @type("number") patternCounted: number = 0;
   @type("number") finalScore: number = 0; // the lower of (territory + prisoners, no more than territory) on each front
   @type("number") tiebreak: number = 0; // the higher of the two
   @type("number") place: number = 0; // 1 = winner; players level on both numbers share a place

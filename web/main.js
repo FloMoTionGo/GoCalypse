@@ -1447,11 +1447,14 @@ function openResult(state) {
 
     // One front: the side's territory plus the prisoners this player took there,
     // but never more prisoners than territory (countedPrisoners in
-    // server/src/rules/endgame.ts). The lower of the two totals is the score; the
-    // higher one is only the tie-break. Spelled out on its own line (not "10+2")
-    // so it's clear at a glance which number is captured stones and which is territory.
-    const side = (label, territory, prisoners) => {
-      const counted = Math.max(0, Math.min(prisoners, territory));
+    // server/src/rules/endgame.ts). The server sends how many counted; a server
+    // from before the cap sends nothing and counted them all, and Pages ships this
+    // client before the server is deployed, so its count is the one shown. The
+    // lower of the two totals is the score; the higher one is only the tie-break.
+    // Spelled out on its own line (not "10+2") so it's clear at a glance which
+    // number is captured stones and which is territory.
+    const side = (label, territory, prisoners, sent) => {
+      const counted = typeof sent === "number" ? sent : prisoners;
       const total = territory + counted;
       const cell = document.createElement("span");
       cell.className = "side" + (total === player.finalScore ? " low" : "");
@@ -1481,8 +1484,8 @@ function openResult(state) {
     row.append(
       place,
       who,
-      side(baseName, player.baseTerritory, player.basePrisoners),
-      side(patternName, player.patternTerritory, player.patternPrisoners),
+      side(baseName, player.baseTerritory, player.basePrisoners, player.baseCounted),
+      side(patternName, player.patternTerritory, player.patternPrisoners, player.patternCounted),
       score
     );
     table.appendChild(row);
