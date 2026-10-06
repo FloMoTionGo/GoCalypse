@@ -169,6 +169,7 @@ test("table: Results shows prisoners past the cap as captured but not counted", 
     const players = Array.from(lastState.players).map((p, i) => ({
       name: p.name, color: p.color, sessionId: p.sessionId, bot: p.bot, place: i + 1,
       baseTerritory: 4, basePrisoners: i === 0 ? 9 : 2, patternTerritory: 6, patternPrisoners: 0,
+      baseCounted: i === 0 ? 4 : 2, patternCounted: 0,
       finalScore: 6, tiebreak: i === 0 ? 8 : 6,
     }));
     openResult({ players, size: lastState.size });
@@ -185,5 +186,30 @@ test("table: Results shows prisoners past the cap as captured but not counted", 
   assert.equal(r.breakdown, "4 territory + 4 of 9 captured");
   assert.match(r.title, /only 4 count/);
   assert.match(r.hint, /never more prisoners than territory/);
+  rig.assertClean("the table");
+});
+
+test("table: Results from a server without the prisoner cap counts every prisoner and highlights its score", async () => {
+  // The Pages client ships before the Fly server: a server from before the cap
+  // sends no counted prisoners, and its scores count every one. The window must
+  // show that server's own totals, and mark the one that is the score.
+  const r = await b.ev(`(() => {
+    const players = Array.from(lastState.players).map((p, i) => ({
+      name: p.name, color: p.color, sessionId: p.sessionId, bot: p.bot, place: i + 1,
+      baseTerritory: 5, basePrisoners: 14, patternTerritory: 20, patternPrisoners: 17,
+      finalScore: 19, tiebreak: 37,
+    }));
+    openResult({ players, size: lastState.size });
+    const row = document.querySelectorAll("#result-table .result-row:not(.head)")[0];
+    const side = row.querySelectorAll(".side")[0];
+    const out = { total: side.querySelector(".side-total").textContent,
+      breakdown: side.querySelector(".side-breakdown").textContent,
+      low: side.classList.contains("low") };
+    openResult(lastState);
+    return out;
+  })()`);
+  assert.match(r.total, / 19$/);
+  assert.equal(r.breakdown, "5 territory + 14 captured");
+  assert.equal(r.low, true);
   rig.assertClean("the table");
 });

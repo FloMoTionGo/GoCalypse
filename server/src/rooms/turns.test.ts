@@ -154,6 +154,22 @@ test("the room's final count takes prisoners only up to the territory of their f
   assert.equal(two.tiebreak, two.patternTerritory);
 });
 
+test("the room sends each player's counted prisoners with the final count", () => {
+  // Results reads these instead of applying the cap itself, so a client that is
+  // newer than its server never shows a total the server did not count.
+  const { room, clients } = startedRoom();
+  put(room, 3, 3, stoneCode(1, "base"));
+  put(room, 9, 9, stoneCode(1, "pattern"));
+  const one = room.state.players.find((p: any) => p.color === 1);
+  const two = room.state.players.find((p: any) => p.color === 2);
+  one.basePrisoners = 3;
+  two.basePrisoners = 5;
+  two.patternPrisoners = 2;
+  passAround(room, clients, 4);
+  assert.deepEqual([one.baseCounted, one.patternCounted], [3, 0]);
+  assert.deepEqual([two.baseCounted, two.patternCounted], [0, 2]);
+});
+
 test("a finished game takes no more moves, passes or buys", () => {
   const { room, clients } = startedRoom({ debug: true });
   passAround(room, clients, 4);
