@@ -1,22 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {"test": "river: the distance between two edge points is the shorter way round the ring; off the ring there is none", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "river: a lured creature faces its point from that point's side; at a corner, from the side it walked in along", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "river: with both creatures out, the nearer one along the ring takes the bait; on a tie, the crab", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: tossed on an edge point, the creature walks over to face it, and reaches that point and its two ring neighbours", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: the timer runs on as it was, and when it runs out the creature takes from its new reach only", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: refused and kept off the ring, with no creature out, on the point it already faces, and with no point", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: never onto a rival's stone: a lure whose new reach holds another player's stone is refused and kept", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: a rival's stone the creature couldn't take, under a ward or a fog, doesn't stop it", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: anyone may lure a creature away from anyone's stones", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: with both out, the nearer creature along the ring takes the bait; on a tie, the crab", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: using it still doesn't take the turn", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "lure: the Bait says it lures: an edge point, the creature walks over and takes from there", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "bots: a bot holding a Bait lures a creature about to take its stone to an edge point clear of every stone", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "bots: a bot never lures a creature onto a rival's stone, even when that is the only way to save its own", "feature": "bait-lure", "tier": "server", "since": "2026-10-24"},
-    {"test": "river creatures over the wire: a Bait bought and tossed on an edge point lures the creature there, its timer unchanged", "feature": "bait-lure", "tier": "integration", "since": "2026-10-24"},
-    {"test": "river creatures: a lured creature walks along the frame to its new spot, round the corner, then catches the bait and waits", "feature": "bait-lure", "tier": "web", "since": "2026-10-24"},
-    {"test": "board: an armed Bait aims only at edge points, and says so", "feature": "bait-lure", "tier": "gui", "since": "2026-10-24"}
-  ]
+  "pending": []
 }

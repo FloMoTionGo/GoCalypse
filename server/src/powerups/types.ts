@@ -42,11 +42,12 @@ export interface PowerupContext {
   /** Tells the user something only they should see (Kite). */
   reveal(text: string): void;
   /**
-   * Feeds a Bait to the river creature whose reach holds this cell (rules/river.ts):
-   * it goes back into the water at once, empty-handed. False when none does;
-   * absent means no creature is out.
+   * Lures a river creature to this edge point with a Bait (rules/river.ts): the
+   * nearer one walks over to face it, its timer unchanged. False when it may
+   * not: nothing is out, the point is off the ring or already faced, or the new
+   * reach holds another player's stone the creature could take.
    */
-  feedCreature?(idx: number): boolean;
+  lureCreature?(idx: number): boolean;
 }
 
 export interface PowerupDefinition {

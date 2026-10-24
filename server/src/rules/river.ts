@@ -5,9 +5,10 @@
 // rounds, its timer over its head, then acts and goes back into the water: the
 // crab pinches one of the stones within its reach, picked at random; the spirit
 // steals every one. Its reach is three points of the outer ring: the one it
-// faces and that point's two neighbours along the ring. A Bait sends it back
-// early, empty-handed (powerups/definitions.ts). A miss changes nothing: every
-// roll has the same odds (unlike the storm's, rules/storm.ts).
+// faces and that point's two neighbours along the ring. A Bait tossed onto an
+// edge point lures it there along the frame, its timer running on as it was
+// (powerups/definitions.ts). A miss changes nothing: every roll has the same
+// odds (unlike the storm's, rules/storm.ts).
 //
 // The decisions live here, away from room state, so they can be tested without
 // a server; rooms/GoRoom.ts keeps the timers and web/pixelScene.js draws them.
@@ -118,4 +119,74 @@ export function takes(kind: CreatureKind, candidates: number[], random: () => nu
   if (candidates.length === 0) return [];
   if (kind === "spirit") return candidates.slice();
   return [candidates[Math.min(candidates.length - 1, Math.floor(random() * candidates.length))]];
+}
+
+/** Steps between two edge points the shorter way round the ring, or -1 if either is off it. */
+export function ringDistance(size: number, a: number, b: number): number {
+  const ring = outerRing(size);
+  const i = ring.indexOf(a), j = ring.indexOf(b);
+  if (i === -1 || j === -1) return -1;
+  const d = Math.abs(i - j);
+  return Math.min(d, ring.length - d);
+}
+
+/** The side of the board both edge points lie on, if they share one. */
+function sharedSide(size: number, a: number, b: number): RiverSide | null {
+  const last = size - 1;
+  const [ax, ay, bx, by] = [a % size, Math.floor(a / size), b % size, Math.floor(b / size)];
+  if (ay === 0 && by === 0) return "top";
+  if (ax === last && bx === last) return "right";
+  if (ay === last && by === last) return "bottom";
+  if (ax === 0 && bx === 0) return "left";
+  return null;
+}
+
+/**
+ * The edge points a creature walks over from the point it faces (`from`) to
+ * `to`, both included, the shorter way round the ring (clockwise on a tie).
+ */
+export function ringPath(size: number, from: number, to: number): number[] {
+  const ring = outerRing(size);
+  const i = ring.indexOf(from), j = ring.indexOf(to);
+  if (i === -1 || j === -1) return [];
+  const n = ring.length;
+  const forward = (j - i + n) % n;
+  const step = forward <= n - forward ? 1 : -1;
+  const path = [ring[i]];
+  for (let k = i; k !== j; ) {
+    k = (k + step + n) % n;
+    path.push(ring[k]);
+  }
+  return path;
+}
+
+/**
+ * Where a creature lured from the point it faces (`from`) to edge point `idx`
+ * stands: in front of `idx`, on the side it walked in along -- which matters
+ * only at a corner. Null when `idx` is not an edge point.
+ */
+export function spotFacing(size: number, idx: number, from: number): RiverSpot | null {
+  const path = ringPath(size, from, idx);
+  if (path.length === 0) return null;
+  const x = idx % size, y = Math.floor(idx / size);
+  const walkedAlong = path.length >= 2 ? sharedSide(size, path[path.length - 2], idx) : null;
+  const side = walkedAlong ?? riverSpots(size).find((s) => s.x === x && s.y === y)!.side;
+  return { side, x, y };
+}
+
+/** Of the creatures out, each with the edge point it faces (`at`), the nearer one along the ring to `idx`; the crab on a tie. */
+export function nearerCreature<T extends { kind: CreatureKind; at: number }>(size: number, idx: number, creatures: T[]): T | null {
+  let best: T | null = null;
+  let bestDistance = Infinity;
+  for (const kind of CREATURE_KINDS) {
+    for (const c of creatures) {
+      if (c.kind !== kind) continue;
+      const d = ringDistance(size, c.at, idx);
+      if (d >= 0 && d < bestDistance) {
+        best = c;
+        bestDistance = d;
+      }
+    }
+  }
+  return best;
 }

@@ -73,26 +73,6 @@ test("river creatures over the wire: every client sees a crab or a spirit come u
   }
 });
 
-test("river creatures over the wire: a Bait bought and fed by the player on turn sends it back into the water", async () => {
-  const kind = outNow(rooms[0])[0];
-  const r = onTurn();
-  const c = r.state.river[kind];
-  const target = reachOf(c)[1];
-  r.send("buy", { id: "bait" });
-  await until(() => Array.from(me(r).powerups).includes("bait"), 5000, "the Bait in hand");
-  const turn = r.state.turnCount;
-  r.send("usePowerup", { id: "bait", target: { x: target % size, y: (target / size) | 0 } });
-  await until(() => rooms.every((x) => x.state.river[kind].out === false), 5000, `the ${kind} gone back`);
-  await wait(60);
-  for (const x of rooms) {
-    assert.equal(x.state.river[kind].fed, true);
-    assert.deepEqual(tookOf(x.state.river[kind]), []);
-  }
-  assert.equal(r.state.turnCount, turn, "the Bait didn't use up the turn");
-  assert.equal(onTurn(), r);
-  assert.ok(!Array.from(me(r).powerups).includes("bait"), "used up");
-});
-
 test("river creatures over the wire: a Bait bought and tossed on an edge point lures the creature there, its timer unchanged", async () => {
   for (let t = 0; t < 120 && outNow(rooms[0]).length === 0; t++) await playTurn();
   const kind = outNow(rooms[0])[0];

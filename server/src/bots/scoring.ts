@@ -79,6 +79,7 @@ export interface BotView {
 
 export interface Creature {
   kind: string; // "crab" | "spirit"
+  at?: number; // the edge point it faces (absent: the middle of its reach)
   reach: number[];
   turnsLeft: number;
 }

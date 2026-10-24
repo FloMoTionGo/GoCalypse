@@ -1016,12 +1016,14 @@
   // ---------------------------------------------------------------------------
   // The river crab and the river spirit (server/src/rules/river.ts). main.js
   // hands render() what it knows of each one, with clock times for its moments:
-  //   {kind, side, x, y, reach: [board indices], by, rise?, takeAt?, fedAt?, leave?}
+  //   {kind, side, x, y, reach: [board indices], by, rise?, takeAt?, fedAt?, leave?, walkAt?, path?}
   // and its animations follow from those: it climbs out of the river onto the
   // board's frame (climb), idles there with its timer over its head until it
   // runs out (idle), takes its stones (take, with the "riverTake" board
-  // effect) or a Bait (feed), and goes back into the water (leave). No rise
-  // time: it was already up when the page joined.
+  // effect) or a Bait (feed, from servers before the Bait lured), and goes
+  // back into the water (leave). Lured by a Bait, it walks along the frame
+  // (walk, along `path` from riverPath) and catches the bait where it ends up
+  // (catch). No rise time: it was already up when the page joined.
   // ---------------------------------------------------------------------------
   function creaturePhase(c, time) {
     if (!c) return { phase: "gone", u: 1 };
@@ -1035,10 +1037,71 @@
     if (c.takeAt !== undefined && time >= c.takeAt) {
       return { phase: "take", u: Math.min(1, (time - c.takeAt) / RIVER_TAKE_SECONDS) };
     }
+    if (c.walkAt !== undefined && time >= c.walkAt) {
+      const walk = walkSeconds(c.path || []);
+      if (time < c.walkAt + walk) return { phase: "walk", u: (time - c.walkAt) / walk };
+      if (time < c.walkAt + walk + RIVER_FEED_SECONDS) return { phase: "catch", u: (time - c.walkAt - walk) / RIVER_FEED_SECONDS };
+    }
     if (c.rise !== undefined && time - c.rise < RIVER_CLIMB_SECONDS) {
       return { phase: "climb", u: Math.max(0, (time - c.rise) / RIVER_CLIMB_SECONDS) };
     }
     return { phase: "idle", u: 0 };
+  }
+
+  // The board's outer ring, clockwise from the top-left corner (server: rules/river.ts outerRing).
+  function outerRing(size) {
+    if (size <= 1) return size === 1 ? [0] : [];
+    const ring = [];
+    const last = size - 1;
+    for (let x = 0; x < last; x++) ring.push(x);
+    for (let y = 0; y < last; y++) ring.push(y * size + last);
+    for (let x = last; x > 0; x--) ring.push(last * size + x);
+    for (let y = last; y > 0; y--) ring.push(y * size);
+    return ring;
+  }
+
+  /** The side both edge points lie on, if they share one. */
+  function sharedSide(size, a, b) {
+    const last = size - 1;
+    const [ax, ay, bx, by] = [a % size, (a / size) | 0, b % size, (b / size) | 0];
+    if (ay === 0 && by === 0) return "top";
+    if (ax === last && bx === last) return "right";
+    if (ay === last && by === last) return "bottom";
+    if (ax === 0 && bx === 0) return "left";
+    return null;
+  }
+
+  /**
+   * The spots a lured creature walks through on the frame, from where it stood
+   * to where it faces now, the shorter way round the ring (clockwise on a tie,
+   * as rules/river.ts ringPath): one spot per edge point, and at a corner one on
+   * each side of it, so it turns the corner rather than cut across it.
+   */
+  function riverPath(size, from, to) {
+    const ring = outerRing(size);
+    const i = ring.indexOf(from.y * size + from.x), j = ring.indexOf(to.y * size + to.x);
+    if (i === -1 || j === -1) return [to];
+    const n = ring.length;
+    const forward = (j - i + n) % n;
+    const step = forward <= n - forward ? 1 : -1;
+    const path = [{ side: from.side, x: from.x, y: from.y }];
+    for (let k = i; k !== j; ) {
+      const a = ring[k];
+      k = (k + step + n) % n;
+      const b = ring[k];
+      const side = sharedSide(size, a, b) || to.side;
+      if (path[path.length - 1].side !== side) path.push({ side, x: a % size, y: (a / size) | 0 });
+      path.push({ side, x: b % size, y: (b / size) | 0 });
+    }
+    if (path[path.length - 1].side !== to.side) path.push({ side: to.side, x: to.x, y: to.y });
+    return path;
+  }
+
+  /** How long the walk along `path` takes: a quarter of a second an edge point, at most 2 s. */
+  function walkSeconds(path) {
+    let steps = 0;
+    for (let k = 1; k < path.length; k++) if (path[k].x !== path[k - 1].x || path[k].y !== path[k - 1].y) steps++;
+    return Math.min(2, steps * 0.25);
   }
 
   /** The rounds left on a creature's timer that runs out on turn `by` (server: rules/river.ts roundsLeft). */
@@ -1766,6 +1829,20 @@
       const kind = c.kind === "crab" ? "crab" : "spirit";
       const idle = creatureSprite(kind, "idle", time, reduced);
       const full = idle.h;
+
+      if (phase === "walk" && !reduced) {
+        // Along the frame from spot to spot, round the corners, with a little hop to each step.
+        const path = c.path;
+        const along = u * (path.length - 1);
+        const k = Math.min(path.length - 2, Math.floor(along));
+        const p0 = creatureAnchor(path[k].side, path[k].x, path[k].y);
+        const p1 = creatureAnchor(path[k + 1].side, path[k + 1].x, path[k + 1].y);
+        const s = along - k;
+        const at = { x: Math.round(p0.x + (p1.x - p0.x) * s), y: Math.round(p0.y + (p1.y - p0.y) * s - Math.sin(s * Math.PI) * 2) };
+        const spr = creatureSprite(kind, kind === "crab" ? "walk" : "idle", time, reduced);
+        creatureBody(kind, spr, at, spr.h, 1, 0.45);
+        return;
+      }
       const SURFACE = 0.4; // the part of the climb (and, backwards, of the leaving) spent in the water
 
       if (phase === "climb" && !reduced) {
@@ -1805,11 +1882,12 @@
       }
 
       // On the frame: idling, reaching for its stones, or catching a Bait.
-      const reaching = phase === "take" || (phase === "feed" && u >= 0.45);
+      const catching = phase === "feed" || phase === "catch";
+      const reaching = phase === "take" || (catching && u >= 0.45);
       const bob = reduced || kind === "crab" ? 0 : Math.round(Math.sin(time * 2.2));
       const spr = reaching ? creatureSprite(kind, "reach", time, reduced) : idle;
       creatureBody(kind, spr, { x: a.x, y: a.y + bob }, spr.h, 1, reaching ? 0.7 : 0.45);
-      if (phase === "feed") {
+      if (catching) {
         // The Bait drops into its hold and is gone, with a little flash of thanks.
         if (u < 0.5) {
           const s = u / 0.5;
@@ -1836,10 +1914,18 @@
      * ringed with turning dots: whatever stands there is in danger.
      */
     function drawCreatureReach(c, time, reduced) {
-      const { phase } = creaturePhase(c, time);
-      if (phase !== "idle" && phase !== "climb") return;
+      const { phase, u } = creaturePhase(c, time);
+      if (phase !== "idle" && phase !== "climb" && phase !== "walk" && phase !== "catch") return;
       const turn = reduced ? 0 : Math.floor(time * 6);
-      for (const i of c.reach || []) {
+      let reach = c.reach || [];
+      if (phase === "walk" && !reduced) {
+        // The rings move along with it: around the edge point it is passing.
+        const p = c.path[Math.round(u * (c.path.length - 1))];
+        const ring = outerRing(size);
+        const at = ring.indexOf(p.y * size + p.x);
+        reach = [-1, 0, 1].map((d) => ring[(at + d + ring.length) % ring.length]);
+      }
+      for (const i of reach) {
         const p = pointToNative(i % size, (i / size) | 0);
         // Cream dots with an ink rim outside them, so they read on the kaya and
         // against a neighbour's stone, black or cream.
@@ -2248,6 +2334,8 @@
     RIVER_FEED_SECONDS,
     RIVER_LEAVE_SECONDS,
     creaturePhase,
+    riverPath,
+    walkSeconds,
     roundsLeft: riverRoundsLeft,
     boltTime,
     stormPhase,

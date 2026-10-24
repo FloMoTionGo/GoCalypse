@@ -17,6 +17,7 @@ import {
   twinCode,
 } from "../rules/goRules";
 import { copiesBought, stallRefusal } from "../powerups/definitions";
+import { CreatureKind, creatureReach, nearerCreature, outerRing, ringDistance } from "../rules/river";
 import { AXES, BotView, Candidate, fightsUs, isPointless, pointOf, rankMoves, scoreMove } from "./scoring";
 import { Style } from "./styles";
 
@@ -465,17 +466,36 @@ function stoneAhead(view: BotView, style: Style, ranked: Candidate[]): boolean {
 }
 
 /**
- * One of our stones a river creature can take (rules/river.ts): standing in its
- * reach with nothing shielding it. With `soon`, only from a creature whose
- * timer runs out before our next turn. The point to toss the Bait on, or null.
+ * Where to toss a Bait (rules/river.ts): a river creature has our stones in its
+ * reach with nothing shielding them -- with `soon`, one whose timer runs out
+ * before our next turn -- and an edge point would lure it to a reach holding
+ * fewer of ours and none of anyone else's, since a lure is only ever defensive
+ * (D-Q3). The point saving the most, the nearest of those; or null.
  */
 function baitTarget(view: BotView, soon: boolean): number | null {
-  for (const c of view.creatures || []) {
+  const size = view.size;
+  const takeable = (idx: number) => isPlayerStone(view.board[idx]) && !view.isWarded(idx) && !view.isFogged?.(idx);
+  const ours = (reach: number[]) => reach.filter((idx) => takeable(idx) && isOwnStone(view, idx)).length;
+  const out = (view.creatures || []).map((c) => ({ ...c, kind: c.kind as CreatureKind, at: c.at ?? c.reach[1] ?? c.reach[0] }));
+  let best: number | null = null;
+  let bestScore = 0;
+  for (const c of out) {
     if (soon && c.turnsLeft > view.seats) continue;
-    const stone = c.reach.find((idx) => isOwnStone(view, idx) && !view.isWarded(idx) && !view.isFogged?.(idx));
-    if (stone !== undefined) return stone;
+    const atRisk = ours(c.reach);
+    if (atRisk === 0) continue;
+    for (const idx of outerRing(size)) {
+      if (idx === c.at || nearerCreature(size, idx, out)?.kind !== c.kind) continue;
+      const reach = creatureReach(size, idx % size, Math.floor(idx / size));
+      if (reach.some((i) => takeable(i) && !isOwnStone(view, i))) continue;
+      const saved = atRisk - ours(reach);
+      const score = saved * 4 * size - ringDistance(size, c.at, idx);
+      if (saved > 0 && score > bestScore) {
+        best = idx;
+        bestScore = score;
+      }
+    }
   }
-  return null;
+  return best;
 }
 
 /**
@@ -484,7 +504,7 @@ function baitTarget(view: BotView, soon: boolean): number | null {
  * Each fires only while its effect is not lit yet, so the asking ends.
  *
  *  - a Bait for a river creature about to take one of our stones: its timer
- *    runs out before our next turn, so it is now or never;
+ *    runs out before our next turn, so it is now or never to lure it away;
  *  - Stepping Stones and Mist whenever a stone is coming: two stones for one
  *    turn is always worth it, and a hidden front costs nothing;
  *  - Firefly Jar when a capture is in reach, so the doubling pays at once;

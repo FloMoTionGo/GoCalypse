@@ -281,14 +281,14 @@ const bait: PowerupDefinition = {
   tier: 1,
   name: "Bait",
   description:
-    "Toss a bait to the river crab or the river spirit, on one of the points it reaches: it takes the bait and goes back into the water at once, taking nothing. On sale every night.",
+    "Toss a bait onto an edge point: the river crab or spirit walks over to it and takes its stones from there when its timer runs out. Never onto another player's stones. On sale every night.",
   price: 30,
   removal: false,
   free: true,
   always: true,
   apply(ctx) {
     const idx = targetIndex(ctx);
-    return idx !== -1 && !!ctx.feedCreature?.(idx);
+    return idx !== -1 && !!ctx.lureCreature?.(idx);
   },
 };
 

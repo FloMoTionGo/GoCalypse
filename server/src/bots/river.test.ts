@@ -52,19 +52,6 @@ function threatened(turnsLeft: number, extra: Partial<BotView> = {}) {
   } as Partial<BotView>);
 }
 
-test("bots: a bot holding a Bait feeds a creature that will take its stone before its next turn", () => {
-  const style = magpie();
-  const ranked = (v: BotView) => rankMoves(v, style);
-  const soon = threatened(3, { powerups: ["bait"] });
-  assert.deepEqual(chooseFree(soon, style, ranked(soon)), { id: "bait", target: { x: 4, y: 0 } });
-  const later = threatened(9, { powerups: ["bait"] });
-  assert.equal(chooseFree(later, style, ranked(later))?.id === "bait", false, "not while there are rounds to spare");
-  const rival = threatened(3, { powerups: ["bait"], color: 2 });
-  assert.equal(chooseFree(rival, style, ranked(rival))?.id === "bait", false, "not for a rival's stone alone");
-  const warded = threatened(3, { powerups: ["bait"], isWarded: (i: number) => i === at(4, 0) });
-  assert.equal(chooseFree(warded, style, ranked(warded))?.id === "bait", false, "not for a stone a ward already keeps");
-});
-
 test("bots: a bot buys a Bait when a creature has its stone in reach, and not otherwise", () => {
   const style = magpie();
   assert.equal(chooseBuy(threatened(9), style), "bait");

@@ -82,7 +82,7 @@ let turnCount = 0;
 let roundLength = 0;
 let stormUntil = 0; // turnCount when the current storm's fires go out; the lingering weather lasts until then
 // The river creatures as the scene draws them, by kind: {kind, side, x, y, reach, by, rise?,
-// takeAt?, fedAt?, leave?}, clock() times of their moments (pixelScene.js creaturePhase).
+// takeAt?, fedAt?, leave?, walkAt?, path?}, clock() times of their moments (pixelScene.js creaturePhase).
 // Kept after one leaves, for its going back into the water.
 let riverCreatures = { crab: null, spirit: null };
 let lastCreatureSeq = { crab: null, spirit: null };
@@ -576,10 +576,17 @@ function burningAt(x, y) {
   return overlays.some((o) => o.kind === "fire" && o.x === x && o.y === y);
 }
 
+/** An edge point of the board: where a Bait can lure a river creature to. */
+function onEdge(p) {
+  const n = lastState ? lastState.size : 13;
+  return !!p && (p.x === 0 || p.y === 0 || p.x === n - 1 || p.y === n - 1);
+}
+
 /** What the hovered point shows: a powerup reticle, the split stone preview, or just the coordinates. */
 function hoverKind() {
   if (!hoverPoint || viewId !== null) return "none";
   if (selectedPowerup === STONE_CARD) return "card";
+  if (selectedPowerup === "bait") return onEdge(hoverPoint) ? "target" : "none"; // it lures to edge points only
   if (selectedPowerup) return "target";
   if (!isMyTurn || !myPlayer) return "none";
   if (burningAt(hoverPoint.x, hoverPoint.y)) return "none"; // nothing can be played into a fire
@@ -780,6 +787,8 @@ function targetingText() {
     : `${item.name}: pick one of your stones, each marked with an ember -- right click to cancel.`;
   return item.id === "seedling"
     ? "Seedling: click for a solid seed, right click for a gray or transparent one -- Esc to cancel."
+    : item.id === "bait"
+    ? "Bait: pick an edge point to lure the creature to -- right click to cancel."
     : item.points >= 2
     ? firstTarget
       ? `${item.name}: now the empty point to move it to -- right click to cancel.`
@@ -875,10 +884,12 @@ function visibleBoard(state) {
  * Follows the river crab and the river spirit (server/src/rules/river.ts) into
  * riverCreatures. A new `seq` while one is out: it has come up (its climb is
  * played only if this page saw it happen; a page that joins while it is up just
- * shows it there). `out` turning false: it leaves. Fed a Bait, it catches it
- * first; with stones taken, it holds its pose while they come to it; then it
- * goes back into the water. Returns the stones taken ([{kind, took, side, x, y}])
- * for diffTurn.
+ * shows it there). A new `seq` with a `from` spot while this page already shows
+ * it on the pier: a Bait lured it, and it walks along the frame to its new spot.
+ * `out` turning false: it leaves. Fed a Bait (a server from before the Bait
+ * lured), it catches it first; with stones taken, it holds its pose while they
+ * come to it; then it goes back into the water. Returns the stones taken
+ * ([{kind, took, side, x, y}]) for diffTurn.
  */
 function followRiver(river) {
   const takes = [];
@@ -888,7 +899,16 @@ function followRiver(river) {
     const c = river[kind];
     if (!c) continue;
     const view = riverCreatures[kind];
-    if (c.out && (c.seq !== lastCreatureSeq[kind] || !view)) {
+    const lured = c.out && view && view.leave === undefined && c.seq !== lastCreatureSeq[kind] && c.fromX >= 0 && !!c.fromSide;
+    if (lured) {
+      const from = { side: c.fromSide, x: c.fromX, y: c.fromY };
+      riverCreatures[kind] = {
+        kind, side: c.side, x: c.x, y: c.y, by: c.by,
+        reach: [c.reach0, c.reach1, c.reach2].filter((i) => i >= 0),
+        walkAt: now,
+        path: P.riverPath(lastState ? lastState.size : 13, from, { side: c.side, x: c.x, y: c.y }),
+      };
+    } else if (c.out && (c.seq !== lastCreatureSeq[kind] || !view)) {
       riverCreatures[kind] = {
         kind, side: c.side, x: c.x, y: c.y, by: c.by,
         reach: [c.reach0, c.reach1, c.reach2].filter((i) => i >= 0),
@@ -1099,8 +1119,9 @@ function openWelcome(state) {
     `along the edge are ringed, and a timer over its head counts down 3 rounds. When it runs out, the crab pinches one ` +
     `stone standing on those points, picked at random, and the river spirit steals every one; then it goes back into ` +
     `the water. Their owners get 3 fireflies back for each. A ward or a fog keeps a stone safe, and a mist hides one. ` +
-    `Or feed it a Bait first, on sale every night: click one of its ringed points, and it takes the bait and goes back ` +
-    `into the water with nothing. It doesn't use up your turn, and anyone may feed it.`;
+    `Or lure it away with a Bait, on sale every night: click an edge point, and the creature nearer to it along the edge ` +
+    `walks over and waits there instead, its timer running on. Never onto another player's stones, only away from them. ` +
+    `It doesn't use up your turn, and anyone may lure it.`;
 
   // Mirrors territoryScore / finalResults in server/src/rules/endgame.ts.
   const yourTwo = seated ? `your ${base} total and your ${pattern} total` : `your two totals, one per front`;

@@ -83,10 +83,12 @@ import {
   creatureRisesOn,
   CREATURE_KINDS,
   CreatureKind,
+  nearerCreature,
   pickKind,
   pickSpot,
   RIVER_EVERY_TURNS,
   rollRiverDie,
+  spotFacing,
   takes,
   timerTurns,
 } from "../rules/river";
@@ -960,6 +962,8 @@ export class GoRoom extends Room<GoState> {
     c.by = state.turnCount + timerTurns(state.players.length);
     c.took0 = c.took1 = c.took2 = -1;
     c.fed = false;
+    c.fromSide = "";
+    c.fromX = c.fromY = -1;
     c.out = true;
     c.seq += 1;
     river.came = kind;
@@ -982,9 +986,7 @@ export class GoRoom extends Room<GoState> {
       const c = this.creatureOf(kind);
       if (!c.out || state.turnCount < c.by) continue;
 
-      const candidates = this.creatureReachOf(c).filter(
-        (idx) => isPlayerStone(state.board[idx]) && !this.isWarded(idx) && this.effectAt("mist", idx) === undefined
-      );
+      const candidates = this.creatureReachOf(c).filter((idx) => this.creatureCanTake(idx));
       const taken = takes(kind, candidates, this.riverRandom);
       if (taken.length) this.removePieces(taken, 0);
       c.took0 = taken[0] ?? -1;
@@ -1000,18 +1002,43 @@ export class GoRoom extends Room<GoState> {
     }
   }
 
+  /** A stone a creature could take from here: a player's stone no ward or fog shields and no mist hides. */
+  private creatureCanTake(idx: number): boolean {
+    return isPlayerStone(this.state.board[idx]) && !this.isWarded(idx) && this.effectAt("mist", idx) === undefined;
+  }
+
   /**
-   * A Bait tossed on `idx`: the creature whose reach holds it takes the bait and
-   * goes back into the water at once, taking nothing. Reaches never overlap, so
-   * the point names one creature at most.
+   * A Bait tossed on edge point `idx` by the player of `color`: the creature
+   * nearer to it along the ring (the crab on a tie) walks over along the frame
+   * and faces it, with its reach moved along and its timer as it was. Only ever
+   * defensive (D-Q3): refused when the new reach holds a stone of another player
+   * that it could take. Also refused off the ring, with nothing out, and on the
+   * point it already faces.
    */
-  private feedCreature(idx: number): boolean {
-    const c = CREATURE_KINDS.map((k) => this.creatureOf(k)).find((x) => x.out && this.creatureReachOf(x).includes(idx));
-    if (!c) return false;
-    c.out = false;
-    c.fed = true;
-    c.took0 = c.took1 = c.took2 = -1;
-    this.riverNews.push(`The ${this.creatureName(c)} takes the bait and goes back into the water.`);
+  private lureCreature(idx: number, color: number): boolean {
+    const size = this.state.size;
+    const out = CREATURE_KINDS.map((k) => this.creatureOf(k))
+      .filter((c) => c.out)
+      .map((c) => ({ kind: c.kind as CreatureKind, at: boardIndex(size, c.x, c.y), c }));
+    const near = nearerCreature(size, idx, out);
+    if (!near || near.at === idx) return false;
+    const spot = spotFacing(size, idx, near.at);
+    if (!spot) return false;
+    const reach = creatureReach(size, spot.x, spot.y);
+    if (reach.some((i) => this.creatureCanTake(i) && ownerOf(this.state.board[i]) !== color)) return false;
+
+    const c = near.c;
+    c.fromSide = c.side;
+    c.fromX = c.x;
+    c.fromY = c.y;
+    c.side = spot.side;
+    c.x = spot.x;
+    c.y = spot.y;
+    c.reach0 = reach[0] ?? -1;
+    c.reach1 = reach[1] ?? -1;
+    c.reach2 = reach[2] ?? -1;
+    c.seq += 1;
+    this.riverNews.push(`The ${this.creatureName(c)} walks over to (${spot.x}, ${spot.y}) for the bait.`);
     return true;
   }
 
@@ -1081,7 +1108,12 @@ export class GoRoom extends Room<GoState> {
       // The river creatures stand in plain sight, timers and all.
       creatures: CREATURE_KINDS.map((k) => this.creatureOf(k))
         .filter((c) => c.out)
-        .map((c) => ({ kind: c.kind, reach: this.creatureReachOf(c), turnsLeft: c.by - this.state.turnCount })),
+        .map((c) => ({
+          kind: c.kind,
+          at: boardIndex(this.state.size, c.x, c.y),
+          reach: this.creatureReachOf(c),
+          turnsLeft: c.by - this.state.turnCount,
+        })),
     };
   }
 
@@ -1550,7 +1582,7 @@ export class GoRoom extends Room<GoState> {
         if (player.bot) return;
         this.clients.getById(player.sessionId)?.send("reveal", text);
       },
-      feedCreature: (idx) => this.feedCreature(idx),
+      lureCreature: (idx) => this.lureCreature(idx, player.color),
     };
 
     if (!definition.apply(ctx)) {

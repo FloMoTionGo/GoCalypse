@@ -122,7 +122,12 @@ export class CreatureState extends Schema {
   @type("number") took0: number = -1; // board indices of the stones it took as it last left, -1 for none
   @type("number") took1: number = -1;
   @type("number") took2: number = -1;
-  @type("boolean") fed: boolean = false; // it last left because someone fed it a Bait
+  @type("boolean") fed: boolean = false; // it last left because someone fed it a Bait (before the Bait lured; old replays)
+  // Where it stood before a Bait last lured it (ideas.md §11.7), for its walk
+  // along the frame; -1 / "" when it hasn't been lured since it came up.
+  @type("string") fromSide: string = "";
+  @type("number") fromX: number = -1;
+  @type("number") fromY: number = -1;
 }
 
 function creature(kind: string): CreatureState {

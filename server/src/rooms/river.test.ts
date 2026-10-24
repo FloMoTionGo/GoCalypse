@@ -209,7 +209,7 @@ test("river creatures: a game that ends while they are out sends them back into 
 
 test("river creatures: a bot's view shows each one that is out, with its reach and the turns it has left", () => {
   const { room } = risen(CRAB);
-  assert.deepEqual(room.botView(0).creatures, [{ kind: "crab", reach: [idx(5, 0), idx(6, 0), idx(7, 0)], turnsLeft: 12 }]);
+  assert.deepEqual(room.botView(0).creatures, [{ kind: "crab", at: idx(6, 0), reach: [idx(5, 0), idx(6, 0), idx(7, 0)], turnsLeft: 12 }]);
   room.state.river.crab.out = false;
   assert.deepEqual(room.botView(0).creatures, []);
 });
