@@ -78,7 +78,8 @@ test("targeting: the points a Skiff or a Ferry can take the picked stone to are 
 });
 
 test("targeting: a first pick that isn't one of my stones is refused with a notice, and nothing is sent", async () => {
-  await b.ev(`setSelectedPowerup(null); setSelectedPowerup("skiff"); true`);
+  // A debug room's storm (every 6 turns) greys every stone, and then any stone is taken: not this test's case.
+  await b.ev(`stormUntil = 0; setSelectedPowerup(null); setSelectedPowerup("skiff"); true`);
   await b.ev(SENT);
   const p = await rig.freePoint(3);
   await rig.clickBoard(p.x, p.y);

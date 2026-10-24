@@ -34,6 +34,8 @@
   const RIVER = 30; // river below the deck (incl. the near bank strip)
   const FAR_BANK = 4; // near-camera bank at the very bottom
   const AMBIENT_FPS = 10;
+  const BLINK_SECONDS = 0.5; // a picked stone's ember: on for BLINK_ON of every BLINK_SECONDS
+  const BLINK_ON = 0.3;
 
   // Region codes for the static layer.
   const R_BANK = 0, R_WATER = 1, R_FRAME = 2, R_KAYA = 3, R_FRONT = 4;
@@ -2111,7 +2113,18 @@
       // enlarged, in the centre of every stone of yours on the board, so you
       // don't have to work out which ones are yours by memory. main.js decides
       // which points qualify (none while the storm greys the board); this just draws them.
-      if (st.highlightMine) {
+      // Once a Ferry's or Skiff's stone is picked it is the only one, and it
+      // blinks (`highlightBlink`; steady with reduced motion), while the points
+      // it can go to (`landings`) show the reticle, faint.
+      if (st.landings) {
+        const mark = animFrame("reticle", reduced ? 0 : time);
+        for (const i of st.landings) {
+          const p = pointToNative(i % size, (i / size) | 0);
+          surf.blitCentered(mark, p.x, p.y, { coverage: 0.5 });
+        }
+      }
+      const emberOn = !st.highlightBlink || reduced || ((time % BLINK_SECONDS) + BLINK_SECONDS) % BLINK_SECONDS < BLINK_ON;
+      if (st.highlightMine && emberOn) {
         const ember = animFrame("emberBig", reduced ? 0 : time);
         for (const i of st.highlightMine) {
           if (!board[i]) continue; // hidden under a fog, or no longer there

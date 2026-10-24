@@ -557,6 +557,8 @@ function frame() {
     stormUntil,
     reducedMotion: reduced,
     highlightMine: snap ? null : ownStoneHighlight(displayBoard),
+    highlightBlink: !snap && !!firstTarget, // a Ferry's or Skiff's picked stone
+    landings: snap ? null : landingHints(displayBoard),
   });
   imageData.data.set(scene.rgba);
   boardCtx.putImageData(imageData, 0, 0);
@@ -606,11 +608,22 @@ function onBoardClick(evt) {
 
   if (selectedPowerup) {
     const item = marketItem(selectedPowerup);
-    if (item && item.points >= 2 && !firstTarget) {
-      // Ferry: first the stone, then the empty point beside it.
-      firstTarget = p;
-      setTargetingHint();
-      return;
+    if (item && item.points >= 2) {
+      // Ferry and Skiff: first one of your stones, then where it goes. Another of
+      // your stones picks that one instead; the picked stone again un-picks it.
+      // While the storm greys the stones, any stone is taken: there is no telling.
+      const mineAt = stormGreys() || (myPlayer && isMyStoneCode(board[p.y * lastState.size + p.x], myPlayer.color));
+      if (firstTarget && firstTarget.x === p.x && firstTarget.y === p.y) {
+        firstTarget = null;
+        setTargetingHint();
+        return;
+      }
+      if (!firstTarget || (mineAt && !stormGreys())) {
+        if (!mineAt) return showNotice(`${item.name}: pick one of your own stones first.`);
+        firstTarget = p;
+        setTargetingHint();
+        return;
+      }
     }
     room.send("usePowerup", { id: selectedPowerup, target: firstTarget || p, target2: firstTarget ? p : undefined });
     setSelectedPowerup(null);
@@ -667,16 +680,50 @@ function stormGreys() {
 /**
  * Every point on `boardArr` that's my own stone, while an item that needs one
  * is armed and waiting for it. None while the storm greys the board: arming an
- * item and cancelling it again must not show which grey stones are mine.
+ * item and cancelling it again must not show which grey stones are mine. Once a
+ * Ferry's or Skiff's stone is picked, that stone alone (it blinks: see frame()),
+ * storm or not, since it is the one just clicked.
  */
 function ownStoneHighlight(boardArr) {
-  if (!myPlayer || firstTarget || !selectedPowerup || !OWN_STONE_TARGET_ITEMS.has(selectedPowerup)) return null;
+  if (!myPlayer || !selectedPowerup || !OWN_STONE_TARGET_ITEMS.has(selectedPowerup)) return null;
+  if (firstTarget) return [firstTarget.y * lastState.size + firstTarget.x];
   if (stormGreys()) return null;
   const points = [];
   for (let i = 0; i < boardArr.length; i++) {
     if (isMyStoneCode(boardArr[i], myPlayer.color)) points.push(i);
   }
   return points;
+}
+
+/**
+ * Where a Ferry or a Skiff can take the stone on `from`: board indices. A Ferry
+ * steps to an empty point beside it; a Skiff glides along its row or column over
+ * empty points, as far as the way is clear. Mirrors ferry / skiff in
+ * server/src/powerups/definitions.ts and the points placeStone refuses (burning,
+ * fogged, a rival's lily pad); keep them in sync. A fogged point or a rival's
+ * mist may hide a stone, so a Skiff's way stops there.
+ */
+function landingPoints(id, from, cells, size, list = overlays) {
+  if (!from) return [];
+  const on = (kind, x, y) => list.some((o) => o.kind === kind && o.x === x && o.y === y);
+  const mine = myPlayer ? myPlayer.color : 0;
+  const lands = (x, y) => !on("fire", x, y) && !list.some((o) => o.kind === "lily" && o.owner !== mine && o.x === x && o.y === y);
+  const hidden = (x, y) => on("fog", x, y) || list.some((o) => o.kind === "mist" && o.owner !== mine && o.x === x && o.y === y);
+  const out = [];
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    for (let x = from.x + dx, y = from.y + dy; x >= 0 && y >= 0 && x < size && y < size; x += dx, y += dy) {
+      if (cells[y * size + x] || hidden(x, y)) break;
+      if (lands(x, y)) out.push(y * size + x);
+      if (id !== "skiff") break;
+    }
+  }
+  return out;
+}
+
+/** The landing points of the armed Ferry or Skiff once its stone is picked, else null. */
+function landingHints(boardArr) {
+  if (!firstTarget || !lastState || (selectedPowerup !== "ferry" && selectedPowerup !== "skiff")) return null;
+  return landingPoints(selectedPowerup, firstTarget, boardArr, lastState.size);
 }
 
 /**
