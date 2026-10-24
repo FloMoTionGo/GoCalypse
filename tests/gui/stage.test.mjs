@@ -60,9 +60,8 @@ test("stage: 1536x864 at 125% is the same picture in device px as 1400x1000 at 1
 test("header: the turn lantern is lit on my turn, dark on another's", async () => {
   await rig.waitMyTurn();
   assert.equal(await b.ev("document.getElementById('hdr-turn').classList.contains('my-turn')"), true);
-  const p = await rig.freePoint();
-  await b.ev(`room.send("move", { x: ${p.x}, y: ${p.y}, axis: "base" }); true`);
-  await b.waitFor("!isMyTurn", 5000, "a bot's turn");
+  await b.ev("passButton.click(); true"); // a pass is always taken on my turn
+  await b.waitFor("!isMyTurn", 10000, "a bot's turn");
   assert.equal(await b.ev("document.getElementById('hdr-turn').classList.contains('my-turn')"), false);
 });
 

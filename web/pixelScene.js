@@ -2324,9 +2324,53 @@
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // The stage (ideas.md §11.9): the whole game screen in art pixels -- one art
+  // pixel is one scene pixel -- and the whole number k of device pixels each one
+  // takes. The scene and the sidebar side by side; above them the header; under
+  // the scene the hand of cards (or, when that gives a bigger k, the hand in the
+  // sidebar) and the hint, notice and last-event lines. main.js lays the page
+  // out to these numbers (sizeCanvas, --px in style.css).
+  // ---------------------------------------------------------------------------
+  const STAGE = {
+    header: 18, // the header row
+    gap: 6, // between the scene and the sidebar, and under the header
+    sidebar: 120, // the sidebar column
+    hand: 61, // the hand row: 3 above the cards, 52 of card, 6 for the Kata's UPGRADABLE under it
+    status: 22, // the hint, notice and last-event lines under it all
+    capW: 1920, // the most device pixels the stage may take, whatever the screen
+    capH: 1080,
+  };
+
+  function stageSize(size, handInSidebar) {
+    const L = computeLayout(size);
+    return {
+      w: L.width + STAGE.gap + STAGE.sidebar,
+      h: STAGE.header + STAGE.gap + L.height + (handInSidebar ? 0 : STAGE.hand) + STAGE.status,
+    };
+  }
+
+  /**
+   * The largest whole k for which the stage fits the window in device pixels,
+   * and never more than 1920x1080 of them, so the picture is the same on every
+   * screen from 1080p up and Windows' display scaling doesn't matter; at least 1.
+   * The hand goes into the sidebar only to save a stage that would otherwise be
+   * drawn at k=1 (the big boards, D-Q4), never to grow one past the picture it
+   * has with the hand under the board.
+   */
+  function pickScale(innerW, innerH, dpr, size) {
+    const W = Math.min(innerW * dpr, STAGE.capW), H = Math.min(innerH * dpr, STAGE.capH);
+    const fit = (s) => Math.max(1, Math.min(Math.floor(W / s.w), Math.floor(H / s.h)));
+    const under = fit(stageSize(size, false)), side = fit(stageSize(size, true));
+    return under === 1 && side > 1 ? { k: side, handInSidebar: true } : { k: under, handInSidebar: false };
+  }
+
   return {
     SPACING,
     AMBIENT_FPS,
+    STAGE,
+    stageSize,
+    pickScale,
     seedStep,
     STORM_SECONDS,
     RIVER_CLIMB_SECONDS,

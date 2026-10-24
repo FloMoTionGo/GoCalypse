@@ -8,8 +8,6 @@
 const G = window.GoSprites;
 const P = window.GoPixelScene;
 
-const MIN_SCALE = 1; // native pixel -> device pixels; the real scale fits the window
-const MAX_SCALE = 6;
 const FRAME_INTERVAL = 1 / 30;
 
 const lobbyEl = document.getElementById("lobby");
@@ -147,7 +145,7 @@ welcomeBotsAddButton.addEventListener("click", seatPickedBots);
 passButton.addEventListener("click", () => room && room.send("pass"));
 document.getElementById("leave-button").addEventListener("click", () => {
   const playing = lastState && lastState.status === "playing";
-  if (playing && !confirm("Leave the game? A random bot takes your seat.")) return;
+  if (playing && !confirm("Leave the table? A bot takes your seat straight away and plays it out.")) return;
   leaving = true;
   try {
     sessionStorage.removeItem(PLAYER_KEY_STORE);
@@ -295,15 +293,13 @@ function attachRoom(joined) {
     room = null;
     if (leaving) {
       leaving = false;
-      gameEl.hidden = true;
-      lobbyEl.hidden = false;
+      showGame(false);
       joinButton.disabled = false;
       setLobbyStatus("You left the game.", false);
       return;
     }
     const inGame = lastState && lastState.status === "playing";
-    gameEl.hidden = true;
-    lobbyEl.hidden = false;
+    showGame(false);
     joinButton.disabled = true;
     // 1012 = the server is restarting (Fly stops an idle machine); anything else in a lobby stays manual.
     if (inGame || code === 1012) {
@@ -318,9 +314,20 @@ function attachRoom(joined) {
     setLobbyStatus(`Room error ${code}: ${message || ""}`, true);
   });
 
-  lobbyEl.hidden = true;
-  gameEl.hidden = false;
+  showGame(true);
   sizeCanvas(); // a resize while a previous game was hidden was skipped; catch up now that #game is visible
+}
+
+/**
+ * The table or the home screen. At the table the page is the stage (sizeCanvas):
+ * no page zoom, and --px is set to whole device pixels; back home, the home
+ * screen's own sizes (style.css :root) come back.
+ */
+function showGame(on) {
+  gameEl.hidden = !on;
+  lobbyEl.hidden = on;
+  document.documentElement.classList.toggle("in-game", on);
+  if (!on) for (const v of ["--px", "--min-font", "--stage-w", "--stage-h", "--scene-w"]) document.documentElement.style.removeProperty(v);
 }
 
 async function connect() {
@@ -427,68 +434,39 @@ function pageRect(el) {
 }
 
 /**
- * Make the scene as large as it can be while the whole page still fits on one
- * screen: the largest whole number of device pixels per native pixel that
- * leaves room for the sidebar and the lines under the board. Whole device
- * pixels (not CSS pixels) keep every sprite pixel crisp on fractional-DPI
- * displays.
+ * Lays the game screen out as one stage (ideas.md §11.9): the whole of it in art
+ * pixels -- one art pixel is one scene pixel -- each drawn as k device pixels, k
+ * the largest whole number that fits the window, capped at 1920x1080 device px
+ * (P.pickScale). Whole device pixels keep every sprite crisp on any display, and
+ * the same physical window gives the same picture whatever Windows' scaling.
+ * Everything in style.css is sized in --px, one art pixel in CSS px; on the big
+ * boards the hand may move into the sidebar.
  */
 function sizeCanvas() {
   if (!scene || gameEl.hidden) return; // #game has size 0 while hidden; wait for attachRoom to show it
-  const z = uiZoom();
-  const dpr = devicePx();
+  const dpr = window.devicePixelRatio || 1;
+  const size = scene.layout.size;
+  const { k, handInSidebar } = P.pickScale(window.innerWidth, window.innerHeight, dpr, size);
+  const stage = P.stageSize(size, handInSidebar);
+  const root = document.documentElement.style;
+  root.setProperty("--px", `${k / dpr}px`);
+  root.setProperty("--min-font", `${11 / dpr}px`); // never under 11 device px (D-Q5)
+  root.setProperty("--stage-w", String(stage.w));
+  root.setProperty("--stage-h", String(stage.h));
+  root.setProperty("--scene-w", String(scene.width));
+  boardEl.style.width = `${(scene.width * k) / dpr}px`;
+  boardEl.style.height = `${(scene.height * k) / dpr}px`;
+  const foot = document.getElementById("board-foot");
   const sidebar = document.getElementById("sidebar");
-  const body = document.getElementById("game-body");
-  const gap = 20;
-  const sideW = sidebar ? sidebar.getBoundingClientRect().width / z : 220;
-  const bodyLeft = body ? body.getBoundingClientRect().left / z : 16;
-  const availW = Math.max(120, window.innerWidth / z - bodyLeft * 2 - sideW - gap);
-  // Room for the header above and, below, the row of cards (with the recall strip)
-  // and the hint / notice / last-event lines. The cards grow with the board.
-  const top = body ? body.getBoundingClientRect().top / z : 60;
-  const availH = Math.max(120, window.innerHeight / z - top - 66);
-
-  let scale = MIN_SCALE;
-  for (let s = MAX_SCALE; s > MIN_SCALE; s--) {
-    if ((scene.width * s) / dpr <= availW && (scene.height * s) / dpr + handLayout(s, dpr).height <= availH) {
-      scale = s;
-      break;
-    }
-  }
-  boardEl.style.width = `${(scene.width * scale) / dpr}px`;
-  boardEl.style.height = `${(scene.height * scale) / dpr}px`;
-  // One card pixel in CSS px: a whole number of device pixels, so the cards stay as crisp as the board.
-  // Set on the root, since a card in flight lives outside the board's column.
-  const hand = handLayout(scale, dpr);
-  document.documentElement.style.setProperty("--card-px", `${hand.k / dpr}px`);
-  // No room for the recall strip beside the cards: it goes under them, so the cards
-  // don't jump down when the strip first shows up.
-  document.getElementById("board-foot").classList.toggle("stacked", !hand.oneRow);
+  gameEl.classList.toggle("hand-side", handInSidebar);
+  if (handInSidebar && foot.parentElement !== sidebar) sidebar.prepend(foot);
+  else if (!handInSidebar && foot.parentElement === sidebar) boardHintEl.before(foot);
   hideCardZoom(); // drawn at the old card size
 }
 
-// The hand of cards under the board, in card pixels (see #board-foot / #hand in style.css).
-const CARD_ROW_GAP = 3; // between the board and the cards
-const CARD_GAP = 2; // between two cards
-const RECALL_W = 160; // CSS px the recall strip takes beside the cards, its gap included
-const RECALL_ROW = 34; // ... or the row it takes under them when the two don't fit side by side
-const CARD_HINT_ROW = 6; // card pixels under the cards for the Kata's UPGRADABLE hint
-
-/**
- * For a board at `scale` device pixels per native pixel: `k`, the device pixels
- * per card pixel, and the CSS height the row(s) under the board take. The cards
- * follow the board between 2 and 3 CSS px per card pixel (below that the names
- * can't be read, above it the cards eat the screen), but never grow wider than
- * the board; the recall strip goes under them when there's no room beside.
- */
-function handLayout(scale, dpr) {
-  const places = (lastState && lastState.handLimit) || 5;
-  const boardW = (scene.width * scale) / dpr;
-  const handW = (k) => ((places * G.CARD_W + (places - 1) * CARD_GAP) * k) / dpr;
-  let k = Math.max(1, Math.round(Math.min(3 * dpr, Math.max(2 * dpr, scale))));
-  while (k > 1 && handW(k) > boardW) k--;
-  const oneRow = handW(k) + RECALL_W <= boardW;
-  return { k, oneRow, height: ((G.CARD_H + CARD_ROW_GAP + CARD_HINT_ROW) * k) / dpr + (oneRow ? 0 : RECALL_ROW) };
+/** One art pixel in CSS px, as sizeCanvas set it (style.css --px). */
+function artPx() {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--px")) || 2;
 }
 
 function reducedMotion() {
@@ -850,15 +828,82 @@ function recallBlocked() {
 
 function renderRecall() {
   const back = history.length - 1;
-  recallEl.hidden = back < 1;
   const off = viewOffset();
   recallStepsEl.textContent = off === 0 ? "0" : `-${off}`;
   const snap = viewedSnap();
-  recallStepsEl.title = snap ? `${off} back: ${snap.event}` : "Moves back from the live board";
+  const title = snap ? `${off} back: ${snap.event}` : "Moves back from the live board";
+  recallStepsEl.title = title;
+  const count = document.getElementById("recall-count");
+  pixelText(count, recallStepsEl.textContent, off > 0 ? G.INDEX.C : G.INDEX.A);
+  count.title = title;
   document.getElementById("recall-back").disabled = off >= back;
   document.getElementById("recall-fwd").disabled = off === 0;
+  document.getElementById("recall-live").classList.toggle("on", off === 0); // lit while the live board is on show
   recallEl.classList.toggle("looking", off > 0);
   boardEl.classList.toggle("recalling", off > 0);
+}
+
+// ---- the header (ideas.md §11.8) ------------------------------------------------------
+
+/**
+ * Gives a plank button its faces (sprites.js plankLabel): normal, hover and
+ * disabled, as images; style.css shows the one for its state. `label` is a word
+ * in the big pixel font or an icon sprite.
+ */
+function plank(button, label) {
+  const name = typeof label === "string" ? label : label.name;
+  if (button.dataset.plank === name) return;
+  button.dataset.plank = name;
+  button.replaceChildren(
+    ...[["normal", "n"], ["hover", "h"], ["disabled", "d"]].map(([state, cls]) => {
+      const spr = G.plankLabel(label, state);
+      const img = artImg(`plank_${name}_${state}`, spr);
+      img.classList.add(cls);
+      return img;
+    })
+  );
+}
+
+/** Sets an <img> to `text` in the big pixel font, in palette colour `color`. */
+function pixelText(img, text, color) {
+  const key = `big_${text}_${color}`;
+  if (img.dataset.text === key) return;
+  img.dataset.text = key;
+  const spr = G.textSprite(G.FONT_BIG, text, color);
+  img.src = spriteUrl(`text_${key}`, spr);
+  img.style.width = `calc(${spr.w} * var(--px))`;
+  img.style.height = `calc(${spr.h} * var(--px))`;
+}
+
+/**
+ * The turn lantern in the middle of the header: the current player's two stones
+ * in a paper lantern, lit amber and swaying on my turn, slate on another's; then
+ * their name and the round (R12, as on the boat's sign). Waiting for players it
+ * says how many are seated (2/4) beside ADD BOTS; once the game is over, RESULTS.
+ */
+function renderHeader(state, players) {
+  const turnEl = document.getElementById("hdr-turn");
+  const lantern = document.getElementById("hdr-lantern");
+  const nameEl = document.getElementById("hdr-name");
+  const label = document.getElementById("hdr-label");
+  const playing = state.status === "playing";
+  const current = playing ? players[state.turnIndex] : null;
+  const who = current || myPlayer || players[0];
+  const lit = playing && isMyTurn;
+  turnEl.classList.toggle("my-turn", lit);
+  if (who) {
+    const spr = G.turnLantern(who.color, lit);
+    lantern.src = spriteUrl(`lantern_${who.color}_${lit ? 1 : 0}`, spr);
+    lantern.style.width = `calc(${spr.w} * var(--px))`;
+    lantern.style.height = `calc(${spr.h} * var(--px))`;
+  }
+  lantern.hidden = !who;
+  nameEl.textContent = playing && current ? current.name : "";
+  nameEl.hidden = !nameEl.textContent;
+  const round = roundLength > 0 ? Math.floor(turnCount / roundLength) + 1 : 1;
+  const text = playing ? (lit ? `YOUR TURN  R${round}` : `R${round}`) : state.status === "waiting" ? `${players.length}/4` : "";
+  if (text) pixelText(label, text, lit ? G.INDEX.A : G.INDEX.S);
+  label.hidden = !text;
 }
 
 // ---- state --------------------------------------------------------------------------
@@ -1423,6 +1468,7 @@ function renderStatus(state, players) {
     finished: "Game finished",
   }[state.status] || state.status;
   roomStatusEl.textContent = statusLabel;
+  renderHeader(state, players);
 
   if (state.status !== "playing") {
     turnIndicatorEl.textContent = "";
@@ -1624,6 +1670,8 @@ function renderResultTerritory(state) {
     img.src = canvas.toDataURL();
     img.width = canvas.width * 2;
     img.height = canvas.height * 2;
+    img.style.width = `calc(${canvas.width} * var(--px))`;
+    img.style.height = `calc(${canvas.height} * var(--px))`;
     wrap.append(caption, img);
     container.appendChild(wrap);
   }
@@ -1711,6 +1759,10 @@ function spriteUrl(key, spr) {
   return url;
 }
 
+/**
+ * A sprite as an <img> at `scale` / 2 art pixels per sprite pixel: scale 2 draws
+ * one sprite pixel as one art pixel, whole device pixels at any k.
+ */
 function spriteImg(key, spr, scale) {
   const img = document.createElement("img");
   img.className = "px";
@@ -1718,7 +1770,14 @@ function spriteImg(key, spr, scale) {
   img.src = spriteUrl(key, spr);
   img.width = spr.w * scale;
   img.height = spr.h * scale;
+  img.style.width = `calc(${(spr.w * scale) / 2} * var(--px))`;
+  img.style.height = `calc(${(spr.h * scale) / 2} * var(--px))`;
   return img;
+}
+
+/** A sprite as an <img>, one sprite pixel to one art pixel. */
+function artImg(key, spr) {
+  return spriteImg(key, spr, 2);
 }
 
 function fireflies(amount) {
@@ -1818,11 +1877,8 @@ function renderPlayers(state) {
         const cells = Array.from(player.card);
         const mini = spriteImg(`card_grid_${player.color}_${cells.join("")}`, G.cardGrid(cells, player.color), 1);
         mini.classList.add("card-mini");
-        // Whole device pixels per card pixel: under the page's 0.9 zoom a 1:1 size
-        // squeezes 27 pixels into 24, and nearest-neighbour drops grid lines.
-        const dpr = devicePx();
-        const side = (mini.width * Math.max(1, Math.round(dpr))) / dpr;
-        mini.style.width = mini.style.height = `${side}px`;
+        // One card pixel to one art pixel: whole device pixels, so no grid line is dropped.
+        mini.style.width = mini.style.height = `calc(${mini.width} * var(--px))`;
         mini.title = `${KATA_NAME}: ${cardStones(cells)} of ${CARD_CELLS} stones`;
         row.append(mini);
       }
@@ -2159,7 +2215,7 @@ function showCardZoom(card) {
   if (zoomedCard === card) return;
   hideCardZoom();
   if (!card.isConnected || card.classList.contains("incoming")) return;
-  const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-px")) || 2;
+  const px = artPx();
   const b = pageRect(boardEl);
   const margin = 8;
   // As large as asked, unless the window is too small for that; whole device pixels per card pixel.
@@ -2194,7 +2250,7 @@ function showCardZoom(card) {
     zoom.setAttribute("aria-hidden", "true");
   }
   zoom.tabIndex = -1;
-  zoom.style.setProperty("--card-px", `${zpx}px`);
+  zoom.style.setProperty("--px", `${zpx}px`);
   Object.assign(zoom.style, { left: `${left}px`, top: `${top}px` });
   document.body.appendChild(zoom);
   if (live) {
@@ -2451,3 +2507,13 @@ function tag(text) {
   span.textContent = text;
   return span;
 }
+
+// The header's planks get their faces once the helpers above exist.
+plank(document.getElementById("recall-back"), "<");
+plank(document.getElementById("recall-fwd"), ">");
+plank(document.getElementById("recall-live"), "LIVE");
+plank(passButton, "PASS");
+plank(helpButton, "?");
+plank(document.getElementById("leave-button"), G.SPRITES.leaveBoat);
+plank(botsButton, "ADD BOTS");
+plank(resultButton, "RESULTS");

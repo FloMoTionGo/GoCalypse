@@ -1,16 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {"test": "stage: k is the largest whole scale that fits the window's physical pixels, capped at 1920x1080, never 0", "feature": "stage", "tier": "web", "since": "2026-10-24"},
-    {"test": "stage: the scene, a gap and the sidebar across; the header, the scene, the hand and the status lines down", "feature": "stage", "tier": "web", "since": "2026-10-24"},
-    {"test": "sprites: the big pixel font spells every capital letter, and the header's marks", "feature": "stage", "tier": "web", "since": "2026-10-24"},
-    {"test": "sprites: a plank button is drawn to any size in the palette, with hover and disabled faces", "feature": "stage", "tier": "web", "since": "2026-10-24"},
-    {"test": "sprites: the turn lantern holds a player's two stones, lit on their turn and dark otherwise", "feature": "stage", "tier": "web", "since": "2026-10-24"},
-    {"test": "stage: at 1400x1000 the whole game fits the window, with no scrollbars", "feature": "stage", "tier": "gui", "since": "2026-10-24"},
-    {"test": "stage: 1536x864 at 125% is the same picture in device px as 1400x1000 at 100%", "feature": "stage", "tier": "gui", "since": "2026-10-24"},
-    {"test": "header: the turn lantern is lit on my turn, dark on another's", "feature": "stage", "tier": "gui", "since": "2026-10-24"},
-    {"test": "header: the history buttons sit in the header and step back and forward", "feature": "stage", "tier": "gui", "since": "2026-10-24"},
-    {"test": "header: PASS, How to play and Leave are pixel planks, named for screen readers", "feature": "stage", "tier": "gui", "since": "2026-10-24"},
-    {"test": "header: Leave asks first, saying a bot takes the seat; cancelling keeps me at the table", "feature": "stage", "tier": "gui", "since": "2026-10-24"}
-  ]
+  "pending": []
 }

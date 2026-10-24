@@ -59,17 +59,33 @@
     </section>
 
     <section id="game" hidden>
+      <!-- One row of pixel art (ideas.md §11.8): the history on the left, the turn lantern in the
+           middle, the actions on the right. The planks are real buttons with their faces as images
+           (renderHeader / plank() in main.js); their words are in aria-label. -->
       <header id="game-header">
-        <div id="toolbar">
-          <button id="help-button" class="link-button" type="button">How to play</button>
-          <button id="bots-button" class="link-button" type="button" hidden>Add bots</button>
-          <button id="result-button" class="link-button" type="button" hidden>Results</button>
-          <button id="pass-button" class="link-button" type="button" hidden>Pass</button>
-          <button id="leave-button" class="link-button" type="button">Leave game</button>
+        <div id="hdr-history">
+          <div id="recall">
+            <button id="recall-back" class="plank" type="button" aria-label="One move back" title="One move back (left arrow)"></button>
+            <img id="recall-count" class="px" alt="" />
+            <span id="recall-steps" class="visually-hidden" title="Moves back from the live board"></span>
+            <button id="recall-fwd" class="plank" type="button" aria-label="One move forward" title="One move forward (right arrow)"></button>
+            <button id="recall-live" class="plank" type="button" aria-label="Live" title="Back to the live board (Esc)"></button>
+          </div>
         </div>
-        <div class="header-right">
-          <div id="room-status"></div>
-          <div id="turn-indicator"></div>
+        <div id="hdr-turn">
+          <img id="hdr-lantern" class="px" alt="" />
+          <span id="hdr-name"></span>
+          <img id="hdr-label" class="px" alt="" />
+          <button id="bots-button" class="plank" type="button" aria-label="Add bots" hidden></button>
+          <button id="result-button" class="plank" type="button" aria-label="Results" hidden></button>
+          <!-- The same in words, for screen readers. -->
+          <div id="room-status" class="visually-hidden" aria-live="polite"></div>
+          <div id="turn-indicator" class="visually-hidden" aria-live="polite"></div>
+        </div>
+        <div id="hdr-actions">
+          <button id="pass-button" class="plank" type="button" aria-label="Pass" hidden></button>
+          <button id="help-button" class="plank" type="button" aria-label="How to play" title="How to play"></button>
+          <button id="leave-button" class="plank" type="button" aria-label="Leave game" title="Leave the table"></button>
         </div>
       </header>
 
@@ -77,14 +93,9 @@
         <div id="board-wrap">
           <canvas id="board" class="px"></canvas>
           <!-- Under the board, never over it (the river carries the round and firefly boats):
-               the recall strip, and the hand of item cards (renderHand() in main.js). -->
+               the hand of item cards (renderHand() in main.js); on the big boards it moves into
+               the sidebar (sizeCanvas). -->
           <div id="board-foot">
-            <div id="recall" hidden>
-              <button id="recall-back" type="button" aria-label="One move back" title="One move back (left arrow)">&#9664;</button>
-              <span id="recall-steps" title="Moves back from the live board"></span>
-              <button id="recall-fwd" type="button" aria-label="One move forward" title="One move forward (right arrow)">&#9654;</button>
-              <button id="recall-live" type="button" title="Back to the live board (Esc)">Live</button>
-            </div>
             <div id="hand" role="group" aria-label="Hand"></div>
           </div>
           <p id="board-hint" class="hint">Left click: your black or white stone &middot; Right click: your gray or transparent stone</p>

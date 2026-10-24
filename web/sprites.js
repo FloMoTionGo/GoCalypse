@@ -1068,6 +1068,34 @@
     A: [".##.", "#..#", "#..#", "####", "#..#", "#..#"],
     S: [".###", "#...", ".##.", "...#", "...#", "###."],
     R: ["###.", "#..#", "###.", "#.#.", "#..#", "#..#"], // the sign on the boat reads "R3": the round being played
+    // The rest of the capitals and a few marks, for the header's labels (PASS, LIVE, YOUR TURN, ADD BOTS).
+    B: ["###.", "#..#", "###.", "#..#", "#..#", "###."],
+    C: [".###", "#...", "#...", "#...", "#...", ".###"],
+    D: ["###.", "#..#", "#..#", "#..#", "#..#", "###."],
+    E: ["####", "#...", "###.", "#...", "#...", "####"],
+    F: ["####", "#...", "###.", "#...", "#...", "#..."],
+    G: [".###", "#...", "#.##", "#..#", "#..#", ".###"],
+    H: ["#..#", "#..#", "####", "#..#", "#..#", "#..#"],
+    I: ["###", ".#.", ".#.", ".#.", ".#.", "###"],
+    J: ["..##", "...#", "...#", "...#", "#..#", ".##."],
+    K: ["#..#", "#.#.", "##..", "#.#.", "#..#", "#..#"],
+    L: ["#...", "#...", "#...", "#...", "#...", "####"],
+    M: ["#...#", "##.##", "#.#.#", "#...#", "#...#", "#...#"],
+    N: ["#..#", "##.#", "#.##", "#..#", "#..#", "#..#"],
+    O: [".##.", "#..#", "#..#", "#..#", "#..#", ".##."],
+    Q: [".##.", "#..#", "#..#", "#..#", "#.#.", ".#.#"],
+    T: ["###", ".#.", ".#.", ".#.", ".#.", ".#."],
+    U: ["#..#", "#..#", "#..#", "#..#", "#..#", ".##."],
+    V: ["#...#", "#...#", "#...#", ".#.#.", ".#.#.", "..#.."],
+    W: ["#...#", "#...#", "#...#", "#.#.#", "##.##", "#...#"],
+    X: ["#..#", "#..#", ".##.", ".##.", "#..#", "#..#"],
+    Y: ["#.#", "#.#", "#.#", ".#.", ".#.", ".#."],
+    Z: ["####", "...#", "..#.", ".#..", "#...", "####"],
+    "?": [".##.", "#..#", "..#.", ".#..", "....", ".#.."],
+    "/": ["...#", "..#.", "..#.", ".#..", ".#..", "#..."],
+    "-": ["...", "...", "###", "...", "...", "..."],
+    "<": ["...#", "..##", ".###", "..##", "...#", "...."],
+    ">": ["#...", "##..", "###.", "##..", "#...", "...."],
   };
   function buildFont(name, rowsByChar, height) {
     const glyphs = {};
@@ -1515,6 +1543,88 @@
   }
 
   /** Render a string as a standalone sprite (for sprite sheets). */
+  // ---------------------------------------------------------------------------
+  // The header (ideas.md §11.8): plank buttons and the turn lantern.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * A wooden plank button, `w` x `h` pixels, drawn to size (a 9-slice: the
+   * corners, edges and face are the same at any size, so it never blurs): an
+   * ink outline with cut corners, the face, a cream bevel along the top and a
+   * slate shadow under it. "hover" lights the face cream; "disabled" is ink with
+   * a slate rim and no shadow.
+   */
+  function plankButton(w, h, state = "normal") {
+    const s = new Surface(w, h);
+    s.fill(TRANSPARENT);
+    const off = state === "disabled";
+    const rim = off ? S : K, face = off ? K : state === "hover" ? C : A, bevel = off ? K : C;
+    for (let y = 0; y < h - 1; y++) {
+      for (let x = 0; x < w; x++) {
+        const edgeX = x === 0 || x === w - 1, edgeY = y === 0 || y === h - 2;
+        if (edgeX && edgeY) continue; // the cut corners
+        s.set(x, y, edgeX || edgeY ? rim : y === 1 ? bevel : face);
+      }
+    }
+    for (let x = 1; x < w - 1; x++) s.set(x, h - 1, off ? TRANSPARENT : S); // the shadow it stands on
+    return makeSprite(`plank_${w}x${h}_${state}`, w, h, s.px);
+  }
+
+  /** A plank with a label in the big pixel font (or an icon sprite) centred on its face. */
+  function plankLabel(label, state = "normal", opts = {}) {
+    const pad = opts.pad ?? 3;
+    const icon = typeof label === "string" ? null : label;
+    const lw = icon ? icon.w : textWidth(FONT_BIG, label), lh = icon ? icon.h : FONT_BIG.height;
+    const w = opts.w || lw + 2 * pad + 2, h = opts.h || lh + 6;
+    const s = new Surface(w, h);
+    s.fill(TRANSPARENT);
+    s.blit(plankButton(w, h, state), 0, 0);
+    const x = (w - lw) >> 1, y = 2 + ((h - 4 - lh) >> 1);
+    if (icon) s.blit(icon, x, y);
+    else drawText(s, FONT_BIG, label, x, y, state === "disabled" ? S : K);
+    return makeSprite(`plank_${typeof label === "string" ? label : label.name}_${w}x${h}_${state}`, w, h, s.px);
+  }
+
+  // Leave: a little boat pushing off, for the plank that takes you away from the table.
+  SPRITES.leaveBoat = sprite("leaveBoat", [
+    "....K....",
+    "...KC....",
+    "..KCC....",
+    "....K....",
+    "KKKKKKKKK",
+    ".KKKKKKK.",
+  ]);
+
+  /**
+   * The turn lantern: a hanging paper lantern holding the player's two stones,
+   * their solid one and their gray or transparent one. Lit amber on their turn,
+   * slate while someone else plays.
+   */
+  const lanternCache = {};
+  function turnLantern(color, lit) {
+    const key = `${color}_${lit ? 1 : 0}`;
+    if (lanternCache[key]) return lanternCache[key];
+    const W = 17, H = 16;
+    const s = new Surface(W, H);
+    s.fill(TRANSPARENT);
+    const paper = lit ? A : S;
+    s.set(8, 0, K); // the hook
+    for (let x = 5; x <= 11; x++) s.set(x, 1, K); // the cap
+    for (let x = 2; x <= 14; x++) { s.set(x, 2, K); s.set(x, 13, K); } // the rims
+    // The paper: round-bellied, narrower at the rims than across the middle, with its ribs.
+    for (let y = 3; y <= 12; y++) {
+      const inset = y === 3 || y === 12 ? 1 : 0;
+      for (let x = inset; x < W - inset; x++) s.set(x, y, x === inset || x === W - 1 - inset ? K : paper);
+    }
+    if (lit) for (let y = 3; y <= 12; y += 3) s.set(14, y, C); // a glint down its side
+    for (let x = 5; x <= 11; x++) s.set(x, 14, K); // the bottom cap
+    s.set(8, 15, lit ? A : S); // the tassel
+    const base = stoneSprite(color, "mini"), pattern = stoneSprite(patternCode(color), "mini");
+    if (base) s.blit(base, 1, 4);
+    if (pattern) s.blit(pattern, 9, 4);
+    return (lanternCache[key] = makeSprite(`turnLantern_${key}`, W, H, s.px));
+  }
+
   function textSprite(font, text, color) {
     const w = Math.max(1, textWidth(font, text)), h = font.height;
     const s = new Surface(w, h);
@@ -1569,6 +1679,9 @@
     ANIMS,
     FONT_SMALL,
     FONT_BIG,
+    plankButton,
+    plankLabel,
+    turnLantern,
     textWidth,
     drawText,
     textSprite,
