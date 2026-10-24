@@ -117,6 +117,26 @@ test("an item card whose use takes the turn carries the turn icon in its top-rig
   }
 });
 
+test("a stall's mini card is a quarter of a hand card in its tier's colour; a sold copy is only a dotted outline", () => {
+  const frame = { 1: G.INDEX.T, 2: G.INDEX.A, 3: G.INDEX.C };
+  assert.equal(G.CARD_W * 13, G.CARD_H * 9, "hand cards are 9:13");
+  const seen = new Set();
+  for (const tier of [1, 2, 3]) {
+    const left = G.miniCard(tier, "left");
+    const gone = G.miniCard(tier, "gone");
+    for (const spr of [left, gone]) {
+      assert.deepEqual([spr.w, spr.h], [9, 13], `tier ${tier}`);
+      assert.ok(inPalette(spr));
+    }
+    assert.ok(left.px.includes(frame[tier]), `tier ${tier}: its frame colour`);
+    const opaque = (spr) => spr.px.filter((c) => c !== G.TRANSPARENT).length;
+    assert.ok(opaque(gone) > 0 && opaque(gone) < opaque(left) / 2, `tier ${tier}: a sold copy is an outline`);
+    assert.ok(gone.px.every((c) => c === G.TRANSPARENT || c === G.INDEX.S), "the outline is slate");
+    seen.add(left.px.join());
+  }
+  assert.equal(seen.size, 3, "the tiers look different");
+});
+
 test("the catalog (pixel-preview.html) lists the sprites", () => {
   const cat = G.catalog();
   const entries = Array.isArray(cat) ? cat : Object.values(cat);

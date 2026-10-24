@@ -1,4 +1,9 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {"test": "a stall's mini card is a quarter of a hand card in its tier's colour; a sold copy is only a dotted outline", "feature": "stall-minis", "tier": "web", "since": "2026-10-24"},
+    {"test": "cards: each stall shows its copies as mini cards, one filled for every copy left", "feature": "stall-minis", "tier": "gui", "since": "2026-10-24"},
+    {"test": "cards: a buy takes one filled mini card off its stall", "feature": "stall-minis", "tier": "gui", "since": "2026-10-24"},
+    {"test": "cards: a sold-out stall shows only outlines", "feature": "stall-minis", "tier": "gui", "since": "2026-10-24"}
+  ]
 }

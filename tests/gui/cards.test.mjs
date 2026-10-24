@@ -67,3 +67,43 @@ test("cards: a card in my hand says whether using it takes the turn", async () =
   assert.match(bait.label, /Doesn't take your turn/);
   rig.assertClean("the cards");
 });
+
+/** Per stall, in market order: its stock and left, and the mini cards its row shows. */
+const MINIS = `Array.from(marketItemsEl.querySelectorAll("button.item")).map((el, i) => {
+  const m = lastState.market[i], row = el.querySelector(".stock");
+  return { id: m.id, stock: m.stock, left: m.left,
+    filled: row ? row.querySelectorAll("img.mini-left").length : -1,
+    outlines: row ? row.querySelectorAll("img.mini-gone").length : -1,
+    words: row ? row.getAttribute("aria-label") : "", oldLabel: !!el.querySelector(".left") };
+})`;
+
+test("cards: each stall shows its copies as mini cards, one filled for every copy left", async () => {
+  for (const s of await b.ev(MINIS)) {
+    assert.equal(s.filled, s.left, `${s.id}: ${s.left} left`);
+    assert.equal(s.filled + s.outlines, s.stock, `${s.id}: ${s.stock} copies in all`);
+    assert.equal(s.oldLabel, false, `${s.id}: no "N left" text any more`);
+    assert.match(s.words, new RegExp(`${s.left} of ${s.stock} left`), `${s.id}: the words are still there for a screen reader`);
+  }
+});
+
+test("cards: a buy takes one filled mini card off its stall", async () => {
+  const before = await b.ev(MINIS);
+  const pick = before.find((s) => s.id !== "bait" && s.left === s.stock && s.stock > 1);
+  assert.ok(pick, "a stall nobody has bought from");
+  await b.ev(`room.send("buy", { id: ${JSON.stringify(pick.id)} }); true`);
+  await b.waitFor(`lastState.market.find((m) => m.id === ${JSON.stringify(pick.id)}).left === ${pick.left - 1}`, 5000, "the buy");
+  await b.waitFor(`(${MINIS}).find((s) => s.id === ${JSON.stringify(pick.id)}).filled === ${pick.left - 1}`, 3000, "one mini card fewer");
+  const after = (await b.ev(MINIS)).find((s) => s.id === pick.id);
+  assert.equal(after.outlines, 1);
+});
+
+test("cards: a sold-out stall shows only outlines", async () => {
+  const one = (await b.ev(MINIS)).find((s) => s.stock === 1);
+  assert.ok(one, "the tier 3 stall holds a single copy");
+  await b.ev(`room.send("buy", { id: ${JSON.stringify(one.id)} }); true`);
+  await b.waitFor(`lastState.market.find((m) => m.id === ${JSON.stringify(one.id)}).left === 0`, 5000, "the last copy bought");
+  await b.waitFor(`(${MINIS}).find((s) => s.id === ${JSON.stringify(one.id)}).filled === 0`, 3000, "the stall emptied");
+  const s = (await b.ev(MINIS)).find((x) => x.id === one.id);
+  assert.deepEqual([s.filled, s.outlines], [0, 1]);
+  rig.assertClean("the stalls");
+});
