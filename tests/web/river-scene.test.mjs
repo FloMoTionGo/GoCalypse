@@ -181,3 +181,37 @@ test("river creatures: the crab's stone and every stone the spirit steals leave 
     assert.ok(inPalette(lifting));
   }
 });
+
+// The Bait lures a creature (ideas.md §11.7): main.js hands the scene the way
+// it walks along the frame (P.riverPath) and when it set off; the creature
+// walks, catches the bait when it gets there, and waits at its new spot.
+test("river creatures: a lured creature walks along the frame to its new spot, round the corner, then catches the bait and waits", () => {
+  const from = { side: "top", x: 6, y: 0 }, to = { side: "right", x: 12, y: 4 };
+  const path = P.riverPath(N, from, to);
+  assert.deepEqual(path[0], from);
+  assert.deepEqual(path.at(-1), to);
+  assert.ok(path.some((s) => s.side === "top" && s.x === 12 && s.y === 0) && path.some((s) => s.side === "right" && s.x === 12 && s.y === 0), "round the corner");
+  assert.equal(path.length, 12);
+  const walk = P.walkSeconds(path);
+  assert.ok(walk > 1 && walk <= 2, `about a quarter of a second a point, at most 2 s: ${walk}`);
+  assert.equal(P.walkSeconds(P.riverPath(N, from, { side: "top", x: 8, y: 0 })), 0.5);
+
+  const phase = (c, t) => P.creaturePhase(c, t).phase;
+  const scene = P.createScene({ size: N });
+  const W = scene.width;
+  const none = Uint8ClampedArray.from(scene.render(base()));
+  for (const kind of KINDS) {
+    const c = { ...up(kind, { rise: undefined }), ...to, reach: [12 + 3 * N, 12 + 4 * N, 12 + 5 * N], walkAt: 40, path };
+    assert.equal(phase(c, 40.01), "walk", kind);
+    assert.equal(phase(c, 40 + walk + 0.01), "catch");
+    assert.equal(phase(c, 40 + walk + P.RIVER_FEED_SECONDS + 0.01), "idle");
+    const frame = (t) => Uint8ClampedArray.from(scene.render(base({ time: t, river: [c] })));
+    const start = scene.creatureAnchor("top", 6, 0), corner = scene.creatureAnchor("top", 12, 0), end = scene.creatureAnchor("right", 12, 4);
+    assert.ok(changed(frame(40.01), none, W, start.x, start.y - 4, 9) > 10, `${kind} sets off where it stood`);
+    const mid = frame(40 + walk * (6 / 11));
+    assert.ok(changed(mid, none, W, corner.x, corner.y - 4, 9) > 10, `${kind} passes the corner`);
+    assert.ok(inPalette(mid));
+    assert.equal(changed(mid, none, W, end.x, end.y - 4, 6), 0, `${kind} is not there yet`);
+    assert.ok(changed(frame(40 + walk + 0.3), none, W, end.x, end.y - 4, 9) > 10, `${kind} catches the bait at its new spot`);
+  }
+});

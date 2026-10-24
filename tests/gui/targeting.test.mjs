@@ -121,3 +121,19 @@ test("board: no stone preview over a rival's sprouting seed; a fresh seed, or my
   })()`);
   assert.deepEqual(r, { sprout: "none", fresh: "stone", mine: "stone" });
 });
+
+test("board: an armed Bait aims only at edge points, and says so", async () => {
+  const r = await b.ev(`(() => {
+    const keep = [hoverPoint, selectedPowerup];
+    selectedPowerup = "bait";
+    hoverPoint = { x: 4, y: 4 };
+    const inside = hoverKind();
+    hoverPoint = { x: 0, y: 4 };
+    const edge = hoverKind();
+    const hint = targetingText();
+    [hoverPoint, selectedPowerup] = keep;
+    return { inside, edge, hint };
+  })()`);
+  assert.deepEqual([r.inside, r.edge], ["none", "target"]);
+  assert.match(r.hint, /Bait: pick an edge point to lure the creature to/);
+});

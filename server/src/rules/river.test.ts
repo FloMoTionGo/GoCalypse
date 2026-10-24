@@ -136,3 +136,48 @@ test("river: the crab pinches one stone in reach at random, the spirit steals ev
   assert.deepEqual(takes("spirit", [6], () => 0.5), [6]);
   assert.deepEqual(takes("spirit", [], () => 0.5), []);
 });
+
+// ---- the Bait lures a creature (ideas.md §11.7) --------------------------------------
+// Tossed onto an edge point, the Bait draws a creature along the frame to it:
+// the nearer one along the ring if both are out, the crab on a tie.
+interface LureRules {
+  ringDistance(size: number, a: number, b: number): number;
+  spotFacing(size: number, idx: number, from: number): Spot | null;
+  nearerCreature<T extends { kind: Kind; at: number }>(size: number, idx: number, creatures: T[]): T | null;
+}
+const lure = (): LureRules => require("./river");
+const P13 = (x: number, y: number) => boardIndex(13, x, y);
+
+test("river: the distance between two edge points is the shorter way round the ring; off the ring there is none", () => {
+  const { ringDistance } = lure();
+  assert.equal(ringDistance(13, P13(0, 0), P13(12, 0)), 12, "along the top");
+  assert.equal(ringDistance(13, P13(11, 0), P13(12, 1)), 2, "round the corner");
+  assert.equal(ringDistance(13, P13(6, 0), P13(6, 12)), 24, "half way round, either way");
+  assert.equal(ringDistance(13, P13(1, 0), P13(0, 1)), 2, "the short way, across the top-left corner");
+  assert.equal(ringDistance(13, P13(4, 0), P13(4, 0)), 0);
+  assert.equal(ringDistance(13, P13(4, 0), P13(4, 4)), -1, "an inside point is on no ring");
+});
+
+test("river: a lured creature faces its point from that point's side; at a corner, from the side it walked in along", () => {
+  const { spotFacing } = lure();
+  assert.deepEqual(spotFacing(13, P13(9, 0), P13(6, 0)), { side: "top", x: 9, y: 0 });
+  assert.deepEqual(spotFacing(13, P13(12, 5), P13(6, 0)), { side: "right", x: 12, y: 5 });
+  assert.deepEqual(spotFacing(13, P13(12, 0), P13(9, 0)), { side: "top", x: 12, y: 0 }, "walked in along the top");
+  assert.deepEqual(spotFacing(13, P13(12, 0), P13(12, 4)), { side: "right", x: 12, y: 0 }, "walked up the right side");
+  assert.deepEqual(spotFacing(13, P13(0, 12), P13(0, 6)), { side: "left", x: 0, y: 12 });
+  assert.deepEqual(spotFacing(13, P13(0, 12), P13(5, 12)), { side: "bottom", x: 0, y: 12 });
+  assert.equal(spotFacing(13, P13(5, 5), P13(6, 0)), null, "not an edge point");
+});
+
+test("river: with both creatures out, the nearer one along the ring takes the bait; on a tie, the crab", () => {
+  const { nearerCreature } = lure();
+  const out = [
+    { kind: "crab" as Kind, at: P13(6, 0) },
+    { kind: "spirit" as Kind, at: P13(6, 12) },
+  ];
+  assert.equal(nearerCreature(13, P13(2, 0), out)?.kind, "crab");
+  assert.equal(nearerCreature(13, P13(12, 10), out)?.kind, "spirit");
+  assert.equal(nearerCreature(13, P13(0, 6), out)?.kind, "crab", "12 steps from both");
+  assert.equal(nearerCreature(13, P13(0, 6), [out[1]])?.kind, "spirit", "alone, it comes whatever the way");
+  assert.equal(nearerCreature(13, P13(0, 6), []), null);
+});

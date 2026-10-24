@@ -93,6 +93,39 @@ test("river creatures over the wire: a Bait bought and fed by the player on turn
   assert.ok(!Array.from(me(r).powerups).includes("bait"), "used up");
 });
 
+test("river creatures over the wire: a Bait bought and tossed on an edge point lures the creature there, its timer unchanged", async () => {
+  for (let t = 0; t < 120 && outNow(rooms[0]).length === 0; t++) await playTurn();
+  const kind = outNow(rooms[0])[0];
+  assert.ok(kind, "a creature is out");
+  const r = onTurn();
+  const c = r.state.river[kind];
+  const ring = [];
+  for (let i = 0; i < size * size; i++) if (onRing(i)) ring.push(i);
+  // Two steps along the edge from the point it faces, away from any other creature's reach.
+  const others = outNow(r).filter((k) => k !== kind).flatMap((k) => reachOf(r.state.river[k]));
+  const face = c.y * size + c.x;
+  const near = ring.filter((i) => Math.abs((i % size) - c.x) + Math.abs(((i / size) | 0) - c.y) === 2);
+  const target = near.find((i) => !others.some((o) => Math.abs((o % size) - (i % size)) + Math.abs(((o / size) | 0) - ((i / size) | 0)) <= 3));
+  assert.ok(target !== undefined && target !== face, "a point to lure it to");
+  const { by, seq } = c;
+  r.send("buy", { id: "bait" });
+  await until(() => Array.from(me(r).powerups).includes("bait"), 5000, "the Bait in hand");
+  const turn = r.state.turnCount;
+  r.send("usePowerup", { id: "bait", target: { x: target % size, y: (target / size) | 0 } });
+  await until(() => rooms.every((x) => x.state.river[kind].seq === seq + 1), 5000, `the ${kind} lured`);
+  await wait(60);
+  for (const x of rooms) {
+    const lured = x.state.river[kind];
+    assert.equal(lured.out, true, "still on the pier");
+    assert.equal(lured.y * size + lured.x, target, "facing the bait point");
+    assert.ok(reachOf(lured).includes(target));
+    assert.equal(lured.by, by, "its timer unchanged");
+    assert.equal(lured.fed, false);
+  }
+  assert.equal(r.state.turnCount, turn, "the Bait didn't use up the turn");
+  assert.ok(!Array.from(me(r).powerups).includes("bait"), "used up");
+});
+
 test("river creatures over the wire: when its timer runs out it has gone back into the water, with stones from its reach only", async () => {
   for (let t = 0; t < 120 && outNow(rooms[0]).length === 0; t++) await playTurn();
   const kind = outNow(rooms[0])[0];
