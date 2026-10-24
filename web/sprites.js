@@ -1356,7 +1356,7 @@
     return (cardCache[key] = makeSprite(`card_${id}_${t}${turn ? "_turn" : ""}`, W, H, s.px));
   }
 
-  // The Stone Card (server/src/rules/stoneCard.ts): a 3x3 go board on a card,
+  // The Kata, once the Stone Card (server/src/rules/stoneCard.ts): a 3x3 go board on a card,
   // cells row by row, 0 empty, 1 the owner's base stone, 2 their other one.
   // The grid is also drawn on its own, small, beside each player's name.
   const CARD_GRID_STEP = 9; // card pixels between two lines of the 3x3 grid
@@ -1393,7 +1393,7 @@
   }
 
   const stoneCardCache = {};
-  /** The Stone Card's face: an amber-framed card, the grid where an item's art would be, two panels for the page's text. */
+  /** The Kata's face: an amber-framed card, the grid where an item's art would be, two panels for the page's text, the turn icon. */
   function stoneCard(cells, playerColor) {
     const key = `${playerColor}:${Array.from(cells).join("")}`;
     if (key in stoneCardCache) return stoneCardCache[key];
@@ -1419,6 +1419,7 @@
     }
     s.blit(grid, gx, CARD_GRID_Y);
     for (let x = 6; x < W - 6; x += 2) s.set(x, STONE_CARD_TEXT_Y - 2, S);
+    s.blit(SPRITES.turnIcon, W - SPRITES.turnIcon.w, 0); // playing it takes the turn, as an item's would
     return (stoneCardCache[key] = makeSprite(`stone_card_${key}`, W, H, s.px));
   }
 

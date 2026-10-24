@@ -175,9 +175,10 @@ purchase past either limit is refused with a notice. The hand is a row of
 portrait cards under the board: a bought item flies in from its stall as a
 card, and on your turn you pick a card to use it.
 
-### The Stone Card
+### The Kata (型)
 
-Every player starts with an empty **Stone Card** in their hand, taking one of
+Every player starts with an empty **Kata** (型, "a set form"; it was called the
+Stone Card, and is still `stone_card` on the wire and in saved games) in their hand, taking one of
 its five places: a 3x3 go board. The mouse buttons are fixed: **left click**
 puts your solid stone on a point, **right click** your gray or transparent one;
 hovering an empty point shows both, see-through and split down the middle. The

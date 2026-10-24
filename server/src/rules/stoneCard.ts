@@ -1,6 +1,8 @@
 import { isOnBoard, Point, stoneCode, StoneView } from "./goRules";
 
-// The Stone Card: every player is dealt one at the start, an empty 3x3 go
+// The Kata (型, "a set form"), once called the Stone Card, and still `stone_card`
+// on the wire, in snapshots and in saved games: every player is dealt one at
+// the start, an empty 3x3 go
 // board. It sits in the hand like an item, but it is never sold. Its owner puts
 // stones on it at any time -- the first for free, each one after that for
 // fireflies -- may switch a stone to their other front or take it off again
@@ -14,7 +16,7 @@ import { isOnBoard, Point, stoneCode, StoneView } from "./goRules";
 // or a game saved before the card existed.
 
 export const STONE_CARD = "stone_card";
-export const STONE_CARD_NAME = "Stone Card";
+export const STONE_CARD_NAME = "Kata"; // what players are told it is called
 export const CARD_CELLS = 9;
 export const CARD_CENTRE = 4;
 export const CARD_EMPTY = 0;

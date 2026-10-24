@@ -174,7 +174,7 @@ test("game: a stone goes on the Stone Card with a click on its grid, any time, f
   await b.ev(`handEl.querySelector('.stone-card .card-cell[style*="--col: 1"][style*="--row: 1"]').click(); true`);
   await b.waitFor("myPlayer.card[4] === 1", 5000, "the centre stone on my card");
   assert.equal(await b.ev("myPlayer.fireflies"), before, "the first stone is free");
-  await b.waitFor(`/1 of 9/.test(handEl.querySelector('.stone-card .card-text').textContent)`, 3000, "the card's text");
+  await b.waitFor(`handEl.querySelector('.stone-card .card-text').textContent.startsWith("1/9")`, 3000, "the card's text");
 });
 
 test("game: the client's Stone Card prices match the server's", async () => {
@@ -200,7 +200,7 @@ test("game: the Stone Card is played on my turn with a click on the card and one
   await rig.waitMyTurn();
   await b.ev(`handEl.querySelector('.stone-card').click(); true`);
   await b.waitFor("selectedPowerup === 'stone_card'", 3000, "the card armed");
-  assert.match(await b.ev("boardHintEl.textContent"), /Stone Card/);
+  assert.match(await b.ev("boardHintEl.textContent"), /Kata/);
   const p = await rig.freePoint();
   await rig.playAt(p.x, p.y, "left", mine(p.x, p.y), "the card's stone on the board");
   await b.waitFor("!Array.from(myPlayer.powerups).includes('stone_card')", 3000, "the card used up");

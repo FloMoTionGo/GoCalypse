@@ -472,7 +472,7 @@ const CARD_ROW_GAP = 3; // between the board and the cards
 const CARD_GAP = 2; // between two cards
 const RECALL_W = 160; // CSS px the recall strip takes beside the cards, its gap included
 const RECALL_ROW = 34; // ... or the row it takes under them when the two don't fit side by side
-const CARD_HINT_ROW = 6; // card pixels under the cards for the Stone Card's UPGRADABLE hint
+const CARD_HINT_ROW = 6; // card pixels under the cards for the Kata's UPGRADABLE hint
 
 /**
  * For a board at `scale` device pixels per native pixel: `k`, the device pixels
@@ -764,7 +764,7 @@ function stoneHint() {
 
 function targetingText() {
   if (selectedPowerup === STONE_CARD) {
-    return "Stone Card: click the point for its centre -- the see-through stones are the ones that land. Right click to cancel.";
+    return `${KATA_NAME}: click the point for its centre -- the see-through stones are the ones that land. Right click to cancel.`;
   }
   const item = selectedPowerup && marketItem(selectedPowerup);
   if (!item) return "";
@@ -1071,15 +1071,12 @@ function openWelcome(state) {
     stockText +
     `Your hand holds ${handLimit} cards under the board: every item you buy flies into it as a card. ` +
     `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels). ` +
-    `One place is taken from the start by your Stone Card, an empty 3x3 board: build a shape on it, then play it ` +
-    `once per game as one move that places all its stones at the same moment, so nobody can answer in between. ` +
-    `Every stone after the first is an extra move you buy. Click a point on it to put your solid ` +
-    `stone there, right click for your pattern stone: the first is free, the next costs 100 fireflies and each one after ` +
-    `it 25 more, up to all nine. Clicking a stone on the card with its own button again takes it off (no refund), ` +
-    `the other button switches it to your other stone for free. None of this costs ` +
-    `a turn, and it works while others move too; hover the card for a big copy you can click on. Play the card on your ` +
-    `turn like an item: the point you click takes its centre, and every stone that lands on an empty point is placed. ` +
-    `Stones that can't be placed there are left out; after that the card is gone. Everyone can see everyone's card.`;
+    `One place is taken from the start by your ${KATA_NAME} (${KATA_KANJI}, a set form), an empty 3x3 board: build a ` +
+    `shape on it, then play it once per game as one move that places all its stones at once, so nobody can answer in ` +
+    `between. The first stone is free, the next costs 100 fireflies and each one after it 25 more, up to nine. Click a ` +
+    `point on it for your solid stone, right click for your pattern one; a stone's own button takes it off (no refund), ` +
+    `the other switches it. Building costs no turn, even while others move; playing it does: the point you click takes ` +
+    `its centre. Everyone can see everyone's ${KATA_NAME}.`;
 
   // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
   document.getElementById("welcome-weather").textContent =
@@ -1786,7 +1783,7 @@ function renderPlayers(state) {
         const dpr = devicePx();
         const side = (mini.width * Math.max(1, Math.round(dpr))) / dpr;
         mini.style.width = mini.style.height = `${side}px`;
-        mini.title = `Stone Card: ${cardStones(cells)} of ${CARD_CELLS} stones`;
+        mini.title = `${KATA_NAME}: ${cardStones(cells)} of ${CARD_CELLS} stones`;
         row.append(mini);
       }
       playersEl.appendChild(row);
@@ -1865,9 +1862,11 @@ function renderHand(state) {
   for (let i = owned.length - fresh; i < owned.length; i++) flyCard(i);
 }
 
-// ---- the Stone Card: mirrors server/src/rules/stoneCard.ts ---------------------------------
+// ---- the Kata (型), once the Stone Card: mirrors server/src/rules/stoneCard.ts --------------
 
-const STONE_CARD = "stone_card";
+const STONE_CARD = "stone_card"; // its id, as the server and saved games know it
+const KATA_NAME = "Kata"; // what it is called (STONE_CARD_NAME there)
+const KATA_KANJI = "型";
 const CARD_CELLS = 9;
 const CARD_SECOND_COST = 100;
 const CARD_COST_STEP = 25;
@@ -1910,7 +1909,7 @@ function cardGhost() {
 }
 
 /**
- * The Stone Card: its face (sprites.js stoneCard) with a button on each point of
+ * The Kata: its face (sprites.js stoneCard) with a button on each point of
  * its grid that can be used. An empty point takes your solid stone on a click
  * and your pattern stone on a right click (the first free, then for fireflies),
  * with both shown see-through on hover. On a stone, the button of its own front
@@ -1937,22 +1936,26 @@ function stoneCardEl(player, armed) {
   card.setAttribute("role", "button");
   card.setAttribute(
     "aria-label",
-    `Stone Card, ${stones} of ${CARD_CELLS} stones: one move that places all of them at once, once per game. ` +
-      `Play it on your turn: its stones land around the point you pick.`,
+    `${KATA_NAME}, ${stones} of ${CARD_CELLS} stones: one move that places all of them at once, once per game. ` +
+      `Play it on your turn: its stones land around the point you pick. Takes your turn.`,
   );
   card.classList.toggle("active", armed);
   card.classList.toggle("upgradable", upgradable);
 
   const name = document.createElement("span");
   name.className = "card-name";
-  name.textContent = "Stone Card";
+  const kanji = document.createElement("span");
+  kanji.className = "kanji";
+  kanji.lang = "ja";
+  kanji.textContent = KATA_KANJI;
+  name.append(kanji, ` ${KATA_NAME}`);
+  // Numbers, not instructions (those are on its tooltips and in its help): stones
+  // on it, the moves it saves over playing them one by one, the next stone's price.
   const text = document.createElement("span");
   text.className = "card-text";
   text.textContent =
-    stones === 0
-      ? "Empty. Click a point for your first stone, right click for a pattern one: it's free."
-      : `${stones} of ${CARD_CELLS}. ${cost === null ? "Full." : `Next stone: ${cost} fireflies.`} ` +
-        `Same button takes a stone off, the other switches it.`;
+    `${stones}/${CARD_CELLS} · +${Math.max(0, stones - 1)} · ` +
+    (cost === null ? "full" : cost === 0 ? "next free" : `next ${cost}`);
   card.append(spriteImg(`stone_card_${player.color}_${cells.join("")}`, G.stoneCard(cells, player.color), 1), name, text);
 
   cells.forEach((c, i) => {
@@ -2005,8 +2008,8 @@ function stoneCardEl(player, armed) {
 
   const pick = () => {
     if (!playing) return;
-    if (!isMyTurn) return showNotice("Play the Stone Card on your turn. Putting stones on it works any time.");
-    if (stones === 0) return showNotice("Put a stone on your Stone Card first: the first one is free.");
+    if (!isMyTurn) return showNotice(`Play the ${KATA_NAME} on your turn. Putting stones on it works any time.`);
+    if (stones === 0) return showNotice(`Put a stone on your ${KATA_NAME} first: the first one is free.`);
     hideCardZoom();
     pickCard(STONE_CARD, Number(card.dataset.index));
   };
@@ -2021,9 +2024,10 @@ function stoneCardEl(player, armed) {
 }
 
 /**
- * What the Stone Card is for and how it plays, beside its enlarged copy (showCardZoom): the card
- * face only has room for its stone count and price. Mirrors rules/stoneCard.ts and applyPlayCard
- * in rooms/GoRoom.ts; the numbers follow the card as it is now.
+ * What the Kata is for and how it plays, beside its enlarged copy (showCardZoom), in
+ * three short blocks: what it is, building it, playing it. The face only has its
+ * numbers. Mirrors rules/stoneCard.ts and applyPlayCard in rooms/GoRoom.ts; the
+ * numbers follow the card as it is now.
  */
 function stoneCardHelp(player) {
   const cells = Array.from(player.card);
@@ -2034,56 +2038,42 @@ function stoneCardHelp(player) {
   const help = document.createElement("div");
   help.className = "card-help";
   help.setAttribute("aria-hidden", "true"); // the card's own aria-label says the same, shorter
-  const add = (tag, text, cls) => {
-    const el = document.createElement(tag);
-    el.textContent = text;
-    if (cls) el.className = cls;
-    help.append(el);
-    return el;
-  };
-  const list = (lines) => {
-    const ul = add("ul", "");
-    for (const line of lines) ul.append(Object.assign(document.createElement("li"), { textContent: line }));
+  const block = (tag, title, text) => {
+    const div = document.createElement("div");
+    div.className = "help-block";
+    const head = document.createElement(tag);
+    head.textContent = title;
+    const p = document.createElement("p");
+    p.textContent = text;
+    div.append(head, p);
+    help.append(div);
   };
 
-  add("h4", "Stone Card");
-  add("p", "One move that places a whole shape of your stones at once. You get it once per game.", "lead");
-  add(
-    "p",
-    stones === 0
-      ? "Empty: put your first stone on it, it's free."
-      : stones === 1
-        ? "1 stone on it: played now, it is just a normal move. Add stones to make it count."
-        : `${stones} stones on it: played now, it places up to ${stones} stones in one move, ${stones - 1} more than a normal move.`,
-    "now",
+  block(
+    "h4",
+    `${KATA_KANJI} ${KATA_NAME} · ${stones} of ${CARD_CELLS} stones`,
+    `All its stones land in one move, once per game` +
+      (stones > 1 ? `: ${stones - 1} more than a normal move. ` : ". ") +
+      `Playing it takes your turn.`
   );
-
-  add("h5", "Why use it");
-  list([
-    "Every stone after the first is an extra move, bought with fireflies.",
-    "They all land at the same moment, so nobody can answer in between: close a net, make two eyes or capture in one go.",
-    "You choose when and where: build the shape early, play it once the board shows where it fits.",
-  ]);
-
-  add("h5", "Build it · any time, also while others move");
-  list([
-    `Left click an empty point: your ${baseName} stone. Right click: your ${otherName} stone.`,
+  const price =
     cost === null
-      ? "The card is full: all nine points are taken."
+      ? "Full."
       : cost === 0
-        ? `The first stone is free. The next costs ${CARD_SECOND_COST} fireflies, then ${CARD_COST_STEP} more each.`
-        : `Next stone: ${cost} fireflies${player.fireflies < cost ? ` (you have ${player.fireflies})` : ""}` +
-          `${stones < CARD_CELLS - 1 ? `, then ${CARD_COST_STEP} more each` : ""}.`,
-    "A stone's own button takes it off (no refund); the other button switches it, free.",
-    "Everyone can see your card beside your name.",
-  ]);
-
-  add("h5", "Play it · on your turn, takes the turn");
-  list([
-    "Click the card, then a point on the board: that point takes the centre stone, the others land around it as drawn, never rotated.",
-    "A stone whose point is taken, burning, fogged, under someone else's lily pad or off the board, or that would have no liberties, is left out. Captures count and pay as usual.",
-    "If no stone would land, or the board would repeat (ko), the card stays in your hand. Once played, it is gone.",
-  ]);
+        ? `First free, then ${CARD_SECOND_COST}, ${CARD_SECOND_COST + CARD_COST_STEP} … ${CARD_SECOND_COST + CARD_COST_STEP * 7} fireflies.`
+        : `Next: ${cost} fireflies${player.fireflies < cost ? ` (you have ${player.fireflies})` : ""}.`;
+  block(
+    "h5",
+    "Build · any time",
+    `Click a point: your ${baseName} stone · right click: your ${otherName}. ${price} ` +
+      `On a stone, its own button takes it off (no refund), the other switches it.`
+  );
+  block(
+    "h5",
+    "Play · your turn",
+    `Click the ${KATA_NAME}, then the centre point. Never rotated. Points taken, burning, fogged or under a rival's ` +
+      `lily pad are skipped. If nothing lands, or it repeats a board (ko), you keep it.`
+  );
   return help;
 }
 
@@ -2121,7 +2111,7 @@ let zoomedCard = null; // the hand's card on show, or null
 /**
  * Shows a copy of `card` at CARD_ZOOM times its size, centred over the board and
  * kept on screen, so its description can be read. It only looks: the pointer
- * passes through it to the hand below. The Stone Card is the exception: its
+ * passes through it to the hand below. The Kata is the exception: its
  * copy is a live card (stoneCardEl) standing on top of it, overlapping it, so
  * the pointer can move up onto the copy and put stones on it at that size.
  */

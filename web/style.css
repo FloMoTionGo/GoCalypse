@@ -663,11 +663,12 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .card-help.again { animation: none; }
 .card-help h4 { margin: 0 0 2px; color: var(--amber); font-size: 16px; }
 .card-help h5 { margin: 9px 0 3px; color: var(--amber); font-size: 12px; letter-spacing: 0.03em; }
-.card-help p { margin: 0; }
-.card-help .lead { color: var(--cream); }
-.card-help .now { margin-top: 6px; padding: 4px 8px; background: rgba(244, 232, 200, 0.08); border-left: 2px solid var(--amber); }
-.card-help ul { margin: 0; padding-left: 16px; }
-.card-help li { margin: 1px 0; color: rgba(244, 232, 200, 0.88); }
+.card-help p { margin: 0; color: rgba(244, 232, 200, 0.88); }
+/* Three short blocks (main.js stoneCardHelp): what the Kata is, building it, playing it. */
+.card-help .help-block + .help-block { margin-top: 8px; }
+.card-help .help-block:first-child p { color: var(--cream); }
+/* The Kata's kanji (型) in its name: a touch larger than the word. */
+.stone-card .card-name .kanji { font-size: 1.25em; margin-right: 0.1em; }
 @media (prefers-reduced-motion: reduce) { .card-help { animation: none; } }
 .card-cell.set:hover:not(:disabled), .card-cell.set:focus-visible { box-shadow: inset 0 0 0 var(--card-px) var(--amber); }
 /* An empty point under the pointer: both stones it could take, see-through and split as on the board

@@ -1,10 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {"test": "the card is called the Kata (型) in all the server says, and keeps its id stone_card", "feature": "kata", "tier": "server", "since": "2026-10-24"},
-    {"test": "the Kata's face wears the turn icon on its top-right corner: playing it takes the turn", "feature": "kata", "tier": "web", "since": "2026-10-24"},
-    {"test": "cards: the Kata's face shows its name and kanji, and exact numbers instead of instructions", "feature": "kata", "tier": "gui", "since": "2026-10-24"},
-    {"test": "cards: the Kata's help is three short blocks, and says it takes the turn", "feature": "kata", "tier": "gui", "since": "2026-10-24"},
-    {"test": "cards: nothing on the page calls it the Stone Card any more", "feature": "kata", "tier": "gui", "since": "2026-10-24"}
-  ]
+  "pending": []
 }

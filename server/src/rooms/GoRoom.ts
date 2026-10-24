@@ -35,6 +35,7 @@ import {
   newCard,
   nextStoneCost,
   STONE_CARD,
+  STONE_CARD_NAME,
 } from "../rules/stoneCard";
 import { KoWatch, PositionHistory } from "../rules/ko";
 import {
@@ -1527,7 +1528,7 @@ export class GoRoom extends Room<GoState> {
     return null;
   }
 
-  // ---- the Stone Card (rules/stoneCard.ts) -------------------------------------
+  // ---- the Kata, once the Stone Card (rules/stoneCard.ts) ----------------------
 
   /** The seat's card while it is still in the hand, else null. */
   private cardInHand(player: PlayerState): number[] | null {
@@ -1557,12 +1558,12 @@ export class GoRoom extends Room<GoState> {
     if (!Number.isInteger(cell) || cell < 0 || cell >= CARD_CELLS) return "";
     if (card[cell] !== CARD_EMPTY) return "";
     const cost = nextStoneCost(card);
-    if (cost === null) return "Your Stone Card is full.";
-    if (player.fireflies < cost) return `Not enough fireflies: the next stone on your card costs ${cost}.`;
+    if (cost === null) return `Your ${STONE_CARD_NAME} is full.`;
+    if (player.fireflies < cost) return `Not enough fireflies: the next stone on your ${STONE_CARD_NAME} costs ${cost}.`;
 
     player.fireflies -= cost;
     player.card[cell] = cellFor(message.axis === "pattern" ? "pattern" : "base");
-    this.state.lastEvent = `${player.name} put a stone on their Stone Card (${cardStones(card) + 1} of ${CARD_CELLS})`;
+    this.state.lastEvent = `${player.name} put a stone on their ${STONE_CARD_NAME} (${cardStones(card) + 1} of ${CARD_CELLS})`;
     return null;
   }
 
@@ -1624,9 +1625,9 @@ export class GoRoom extends Room<GoState> {
     if (!card) return "";
     const size = this.state.size;
     if (!t || typeof t.x !== "number" || typeof t.y !== "number" || !isOnBoard(size, t.x, t.y)) {
-      return "The Stone Card needs a point on the board for its centre.";
+      return `The ${STONE_CARD_NAME} needs a point on the board for its centre.`;
     }
-    if (cardStones(card) === 0) return "Your Stone Card is empty: put a stone on it first.";
+    if (cardStones(card) === 0) return `Your ${STONE_CARD_NAME} is empty: put a stone on it first.`;
     const centre = { x: t.x, y: t.y };
     const landings = cardLandings(card, centre, player.color, size);
 
@@ -1657,7 +1658,7 @@ export class GoRoom extends Room<GoState> {
     this.clearPasses();
     this.recordAction("powerup", STONE_CARD, centre.x, centre.y, player.color);
     this.state.lastEvent =
-      `${player.name} played their Stone Card: ${landed} stone${landed === 1 ? "" : "s"}` +
+      `${player.name} played their ${STONE_CARD_NAME}: ${landed} stone${landed === 1 ? "" : "s"}` +
       `${captured ? `, captured ${captured}` : ""}`;
     this.advanceTurn();
     return null;

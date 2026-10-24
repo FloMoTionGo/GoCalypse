@@ -360,6 +360,6 @@ test("the card is called the Kata (型) in all the server says, and keeps its id
   for (const text of said.filter(Boolean)) {
     assert.doesNotMatch(text, /Stone Card/, text);
   }
-  assert.ok(said.filter((text) => /Kata/.test(text)).length >= 4, said.join(" | "));
+  assert.ok(said.filter((text) => /\bKata\b/.test(text)).length >= 4, said.join(" | "));
   t.close();
 });
