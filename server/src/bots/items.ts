@@ -268,9 +268,9 @@ function isBlocked(view: BotView, idx: number): boolean {
 }
 
 /**
- * Seedling -- a stone that grows in two rounds' time on a point we would
+ * Seedling -- a stone that grows in three rounds' time on a point we would
  * rather have played next. Worth half the point: it is a stone, but a late
- * one, and anybody who plays there first kills it.
+ * one, and anybody who plays there in its first round kills it.
  */
 function planSeedling(view: BotView, ranked: Candidate[]): ItemPlan | null {
   for (const next of ranked.slice(1, 6)) {

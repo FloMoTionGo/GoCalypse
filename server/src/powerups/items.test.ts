@@ -163,18 +163,6 @@ test("Mist marks the next stone once", () => {
   assert.equal(use(t, "mist"), false);
 });
 
-test("Seedling plants on an empty point for 2 rounds, and not on a stone or a second time", () => {
-  const t = table();
-  assert.equal(use(t, "seedling", { x: 3, y: 3 }), true);
-  const seed = Array.from(t.state.effects).find((e) => e.kind === "seed")!;
-  assert.equal(seed.until, 2 * 4);
-  assert.equal(seed.owner, 1);
-  assert.equal(use(t, "seedling", { x: 3, y: 3 }), false, "already planted");
-  t.put(5, 5, stoneCode(2, "base"));
-  assert.equal(use(t, "seedling", { x: 5, y: 5 }), false, "occupied");
-  assert.equal(use(t, "seedling", { x: -1, y: 0 }), false, "off the board");
-});
-
 test("Seedling plants on an empty point for 3 rounds, and not on a stone, a seed or off the board", () => {
   const t = table();
   assert.equal(use(t, "seedling", { x: 3, y: 3 }), true);

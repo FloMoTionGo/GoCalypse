@@ -38,6 +38,7 @@ import {
   STONE_CARD_NAME,
 } from "../rules/stoneCard";
 import { KoWatch, PositionHistory } from "../rules/ko";
+import { seedStep } from "../rules/seed";
 import {
   alwaysStocked,
   copiesBought,
@@ -659,8 +660,21 @@ export class GoRoom extends Room<GoState> {
     return this.effectAt("ward", idx) !== undefined || this.effectAt("fog", idx) !== undefined;
   }
 
-  private lilyOwnerAt(idx: number): number {
-    return this.effectAt("lily", idx)?.owner ?? 0;
+  /**
+   * Whom a point is kept for: the owner of a lily pad on it, or the planter of
+   * a seed past its first round (rules/seed.ts); 0 when it is open to anyone.
+   * Items and bots read it as `lilyOwnerAt`.
+   */
+  private reservedFor(idx: number): number {
+    const lily = this.effectAt("lily", idx);
+    if (lily) return lily.owner;
+    const seed = this.effectAt("seed", idx);
+    return seed && this.seedStepOf(seed) > 1 ? seed.owner : 0;
+  }
+
+  /** A seed's step: 1 seed, 2 sprout, 3 sapling (rules/seed.ts). */
+  private seedStepOf(seed: BoardEffect): number {
+    return seedStep(seed.until, this.state.turnCount, this.state.players.length);
   }
 
   /** Under a fog: nothing may be placed there until it lifts. */
@@ -670,6 +684,12 @@ export class GoRoom extends Room<GoState> {
 
   private isBurning(idx: number): boolean {
     return this.effectAt("fire", idx) !== undefined;
+  }
+
+  /** A seed past its first round stands here: lightning passes it by. */
+  private isSprouting(idx: number): boolean {
+    const seed = this.effectAt("seed", idx);
+    return seed !== undefined && this.seedStepOf(seed) > 1;
   }
 
   private addEffect(kind: EffectKind, x: number, y: number, owner: number, rounds: number, axis: StoneView = "base") {
@@ -715,14 +735,15 @@ export class GoRoom extends Room<GoState> {
 
     // A seed that is still on an empty point grows into its planter's stone, if
     // that stone would be legal there; otherwise it withers. Only a ko keeps it
-    // waiting: it tries again next turn, as a player would once the ko is free.
+    // waiting, or a fog over it: it tries again next turn, as a player would
+    // once the ko is free or the fog has lifted.
     // Placed after the effects are cleared, so a lily pad or ward that lapsed in
     // the same turn no longer counts.
     for (const seed of grownSeeds) {
       const planter = this.state.players.findIndex((p) => p.color === seed.owner);
       if (planter === -1) continue;
       const grew = this.tryPlaceStone(planter, seed.x, seed.y, stoneCode(seed.owner, seed.axis));
-      if (grew === "ko") {
+      if (grew === "ko" || (grew === null && this.isFogged(boardIndex(size, seed.x, seed.y)))) {
         this.addEffect("seed", seed.x, seed.y, seed.owner, 0, seed.axis);
         this.state.effects[this.state.effects.length - 1].until = turnCount + 1;
       } else if (grew !== null) {
@@ -829,7 +850,7 @@ export class GoRoom extends Room<GoState> {
     const size = state.size;
     const candidates: number[] = [];
     for (let idx = 0; idx < size * size; idx++) {
-      if (!this.isWarded(idx) && !this.isBurning(idx)) candidates.push(idx);
+      if (!this.isWarded(idx) && !this.isBurning(idx) && !this.isSprouting(idx)) candidates.push(idx);
     }
     if (!isStormRoll(roll, state.storm.calm) || candidates.length === 0) {
       state.storm.calm += 1; // calm: the next roll is likelier
@@ -1034,7 +1055,7 @@ export class GoRoom extends Room<GoState> {
       card: Array.from(player.card),
       powerfulLimit: POWERFUL_LIMIT,
       isWarded: (idx) => this.isWarded(idx),
-      lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
+      lilyOwnerAt: (idx) => this.reservedFor(idx),
       isBurning: (idx) => this.isBurning(idx),
       isFogged: (idx) => this.isFogged(idx) || rivalMist.has(idx), // "may not play here, can't see why"
       hasSeed: (idx) => this.effectAt("seed", idx) !== undefined,
@@ -1182,8 +1203,13 @@ export class GoRoom extends Room<GoState> {
     const player = this.state.players[playerIndex];
     if (this.isBurning(idx)) return "That point is still burning after the storm.";
     if (this.isFogged(idx)) return "That point is lost in fog: no stone can be placed there.";
-    const lily = this.lilyOwnerAt(idx);
-    if (lily && lily !== player.color) return "That point is reserved by someone's lily pad.";
+    const lily = this.reservedFor(idx);
+    if (lily && lily !== player.color) {
+      return this.effectAt("lily", idx)
+        ? "That point is reserved by someone's lily pad."
+        : "A seed is sprouting there: only its planter may play on it.";
+    }
+    const seed = this.effectAt("seed", idx);
 
     // Twin Wick: this stone fights on both fronts, whichever button was pressed.
     const code = player.twin ? twinCode(player.color) : stoneCode(player.color, axis);
@@ -1210,6 +1236,7 @@ export class GoRoom extends Room<GoState> {
     });
 
     if (lily) this.removeEffectsAt("lily", idx);
+    if (seed) this.removeEffectsAt("seed", idx); // trampled, or its planter played there first
     player.score += captured.length;
     this.creditPrisoners(player, captured);
     player.moves += 1;
@@ -1225,9 +1252,10 @@ export class GoRoom extends Room<GoState> {
     const turn = this.state.turnCount;
     this.kos.open(rawBoard, idx, captured, turn, turn + this.state.players.length);
     this.recordAction("move", "", x, y, player.color);
+    const planter = seed && seed.owner !== player.color ? this.state.players.find((p) => p.color === seed.owner) : undefined;
     this.state.lastEvent = `${player.name} played (${x}, ${y})${
       captured.length ? `, captured ${captured.length}` : ""
-    }`;
+    }${planter ? ` and trampled ${planter.name}'s seed` : ""}`;
     if (player.extra > 0) {
       // Stepping Stones: this stone was the first of two, so the turn stays put.
       player.extra -= 1;
@@ -1264,8 +1292,9 @@ export class GoRoom extends Room<GoState> {
    * Puts a stone on an empty point for an item (Ferry, Skiff, Echo Chime, a
    * growing seed): captures are made and credited, and it is refused (null,
    * nothing changed) when the point is burning, reserved by someone else's lily
-   * pad, the stone would have no liberties, or it breaks a ko rule a move would
-   * (findings B12). It leaves the turn alone and opens no ko of its own.
+   * pad or sprouting seed, the stone would have no liberties, or it breaks a ko
+   * rule a move would (findings B12). A fresh seed under it is trampled. It
+   * leaves the turn alone and opens no ko of its own.
    */
   private placeStoneFor(playerIndex: number, x: number, y: number, code: number): number | null {
     const placed = this.tryPlaceStone(playerIndex, x, y, code);
@@ -1283,10 +1312,11 @@ export class GoRoom extends Room<GoState> {
 
     const idx = boardIndex(size, x, y);
     if (checkKo && (this.positions.repeats(raw) || this.kos.blocks(idx, captured, this.state.turnCount))) return "ko";
-    const lily = this.lilyOwnerAt(idx);
+    const lily = this.reservedFor(idx);
     board[idx] = code;
     for (const { point } of captured) board[boardIndex(size, point.x, point.y)] = 0;
     if (lily) this.removeEffectsAt("lily", idx);
+    this.removeEffectsAt("seed", idx); // a stone on a seed tramples it
     player.score += captured.length;
     this.creditPrisoners(player, captured);
     player.fireflies += this.captureFireflies(player, captured.length);
@@ -1297,7 +1327,7 @@ export class GoRoom extends Room<GoState> {
    * The rules placeStoneFor goes by, on a plain board: puts `code` on (x, y) of
    * `raw` and lifts what it captures, or returns null and leaves `raw` as it was
    * when the point is off the board, taken, burning, fogged, under a rival's
-   * lily pad, or the stone would have no liberties. A Stone Card is tried out
+   * lily pad or sprouting seed, or the stone would have no liberties. A Stone Card is tried out
    * on a copy with this before any of its stones touch the synced board.
    */
   private landStone(raw: number[], color: number, x: number, y: number, code: number): Captured[] | null {
@@ -1305,7 +1335,7 @@ export class GoRoom extends Room<GoState> {
     if (!isOnBoard(size, x, y)) return null;
     const idx = boardIndex(size, x, y);
     if (raw[idx] !== 0 || this.isBurning(idx) || this.isFogged(idx)) return null;
-    const lily = this.lilyOwnerAt(idx);
+    const lily = this.reservedFor(idx);
     if (lily && lily !== color) return null;
 
     raw[idx] = code;
@@ -1491,7 +1521,7 @@ export class GoRoom extends Room<GoState> {
       target2: points >= 2 ? target2 : undefined,
       axis: message.axis === "pattern" ? "pattern" : "base",
       isWarded: (idx) => this.isWarded(idx),
-      lilyOwnerAt: (idx) => this.lilyOwnerAt(idx),
+      lilyOwnerAt: (idx) => this.reservedFor(idx),
       isBurning: (idx) => this.isBurning(idx),
       addEffect: (kind, x, y, owner, rounds, axis) => this.addEffect(kind, x, y, owner, rounds, axis),
       removePieces: (indices, byColor) => this.removePieces(indices, byColor),

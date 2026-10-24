@@ -17,6 +17,16 @@
   const { K, C, A, T, S } = G.INDEX;
   const ANIMS = G.ANIMS;
 
+  // A seed grows in three steps, one round each; mirrors server/src/rules/seed.ts.
+  const SEED_ROUNDS = 3;
+  const SEED_SPRITES = [() => G.SPRITES.seedBoard, () => G.SPRITES.sproutBoard, () => G.SPRITES.saplingBoard];
+  /** A seed's step (1 seed, 2 sprout, 3 sapling) from the turns it has left; a ko-delayed one stays a sapling. */
+  function seedStep(until, turnCount, seats) {
+    const roundsLeft = Math.ceil((until - turnCount) / Math.max(1, seats));
+    if (!Number.isFinite(roundsLeft)) return 1; // no timer known: draw it as planted
+    return Math.min(SEED_ROUNDS, Math.max(1, SEED_ROUNDS + 1 - roundsLeft));
+  }
+
   // ---------------------------------------------------------------------------
   // Layout (native pixels)
   // ---------------------------------------------------------------------------
@@ -1392,17 +1402,18 @@
     }
 
     /**
-     * Seedlings sprout on empty points. A mist puffs over the stone it hides: the
+     * Seedlings sprout on empty points, drawn by their step (seedStep): a seed,
+     * a sprout, a sapling. A mist puffs over the stone it hides: the
      * others see only the cloud (main.js takes the stone out of what it hands
      * over), its owner sees their stone through a thinner one.
      */
-    function drawSeeds(overlays, board, busy, hideOwners) {
+    function drawSeeds(overlays, board, busy, hideOwners, turnCount, roundLength) {
       for (const o of overlays) {
         if (o.kind !== "seed") continue;
         const i = o.y * size + o.x;
         if (board[i]) continue;
         const p = pointToNative(o.x, o.y);
-        surf.blitCentered(G.SPRITES.seedBoard, p.x, p.y);
+        surf.blitCentered(SEED_SPRITES[seedStep(o.until, turnCount, roundLength) - 1](), p.x, p.y);
         // The stone it will grow into: the solid one, or the gray/transparent one for a right-click seed.
         const mark = o.owner && !hideOwners && G.stoneSprite(o.axis === "pattern" ? G.patternCode(o.owner) : o.owner, "mini");
         if (mark) blitHaloed(mark, p.x - 7, p.y - 7);
@@ -2030,7 +2041,7 @@
         });
       }
       drawLilyPads(overlays, board, busy, hideOwners);
-      drawSeeds(overlays, board, busy, hideOwners);
+      drawSeeds(overlays, board, busy, hideOwners, st.turnCount || 0, st.roundLength || 0);
       drawStones(board, skip, greyW);
       drawWards(overlays, board, busy, time, reduced);
       drawMists(overlays, st.myColor);
@@ -2230,6 +2241,7 @@
   return {
     SPACING,
     AMBIENT_FPS,
+    seedStep,
     STORM_SECONDS,
     RIVER_CLIMB_SECONDS,
     RIVER_TAKE_SECONDS,

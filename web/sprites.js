@@ -908,6 +908,33 @@
     "....A....",
     "..AAAAA..",
   ]);
+  // A seed past its first round (server/src/rules/seed.ts): a sprout, then a sapling.
+  SPRITES.sproutBoard = sprite("sproutBoard", [
+    "....T....",
+    "...TCT...",
+    "..TTCTT..",
+    ".TT.T.TT.",
+    "TCT.T.TCT",
+    ".TT.T.TT.",
+    "....T....",
+    "..T.T.T..",
+    "...TTT...",
+    "....A....",
+    "..AAAAA..",
+  ]);
+  SPRITES.saplingBoard = sprite("saplingBoard", [
+    "...TTT...",
+    ".TTCTTTT.",
+    "TTCTTTTCT",
+    "TCTTTTTTT",
+    "TTTTTCTTT",
+    ".TTTTTTT.",
+    "...TKT...",
+    "....K....",
+    "....K....",
+    "...AKA...",
+    "..AAAAA..",
+  ]);
   SPRITES.mistPuff = sprite("mistPuff", [
     "....CCCC.....",
     "..CCSSSSCC.C.",

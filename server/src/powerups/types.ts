@@ -14,7 +14,7 @@ export interface PowerupContext {
   axis?: "base" | "pattern";
   /** Cell is inside an active Lantern Ward: can't be captured or removed. */
   isWarded(idx: number): boolean;
-  /** Owner color of an active Lily Pad on this cell, or 0. */
+  /** Whom this cell is kept for: the owner of a Lily Pad, or of a seed past its first round; else 0. */
   lilyOwnerAt(idx: number): number;
   /** Cell is burning after a lightning strike: nothing may be placed on it. */
   isBurning(idx: number): boolean;
@@ -34,7 +34,7 @@ export interface PowerupContext {
    * Puts a stone with this board code on an empty point as if it had been
    * played: captures are made and credited to the user, and it is refused
    * (null, board untouched) if the point is burning or reserved by someone
-   * else's lily pad, the stone would have no liberties, or it breaks a ko rule
+   * else's lily pad or seed, the stone would have no liberties, or it breaks a ko rule
    * a move would (repeats a position, or takes back a held ko). Returns the
    * number of captures. It does not touch the turn or open a ko.
    */

@@ -564,9 +564,12 @@ function frame() {
   boardCtx.putImageData(imageData, 0, 0);
 }
 
-function lilyOwnerAt(x, y) {
-  const pad = overlays.find((o) => o.kind === "lily" && o.x === x && o.y === y);
-  return pad ? pad.owner : 0;
+/** Whom a point is kept for: a lily pad's owner, or a seed's planter once it sprouts (server reservedFor). */
+function lilyOwnerAt(x, y, list = overlays) {
+  const pad = list.find((o) => o.kind === "lily" && o.x === x && o.y === y);
+  if (pad) return pad.owner;
+  const seed = list.find((o) => o.kind === "seed" && o.x === x && o.y === y);
+  return seed && P.seedStep(seed.until, turnCount, roundLength) > 1 ? seed.owner : 0;
 }
 
 function burningAt(x, y) {
@@ -700,14 +703,17 @@ function ownStoneHighlight(boardArr) {
  * steps to an empty point beside it; a Skiff glides along its row or column over
  * empty points, as far as the way is clear. Mirrors ferry / skiff in
  * server/src/powerups/definitions.ts and the points placeStone refuses (burning,
- * fogged, a rival's lily pad); keep them in sync. A fogged point or a rival's
+ * fogged, a rival's lily pad or sprouting seed); keep them in sync. A fogged point or a rival's
  * mist may hide a stone, so a Skiff's way stops there.
  */
 function landingPoints(id, from, cells, size, list = overlays) {
   if (!from) return [];
   const on = (kind, x, y) => list.some((o) => o.kind === kind && o.x === x && o.y === y);
   const mine = myPlayer ? myPlayer.color : 0;
-  const lands = (x, y) => !on("fire", x, y) && !list.some((o) => o.kind === "lily" && o.owner !== mine && o.x === x && o.y === y);
+  const lands = (x, y) => {
+    const keeper = lilyOwnerAt(x, y, list);
+    return !on("fire", x, y) && (!keeper || keeper === mine);
+  };
   const hidden = (x, y) => on("fog", x, y) || list.some((o) => o.kind === "mist" && o.owner !== mine && o.x === x && o.y === y);
   const out = [];
   for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {

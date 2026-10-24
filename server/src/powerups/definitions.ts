@@ -10,6 +10,7 @@ import {
   stoneCode,
   viewsOf,
 } from "../rules/goRules";
+import { SEED_ROUNDS, seedStep } from "../rules/seed";
 import { STONE_CARD, STONE_CARD_NAME } from "../rules/stoneCard";
 import { PowerupContext, PowerupDefinition } from "./types";
 
@@ -172,8 +173,16 @@ const bomb: PowerupDefinition = {
         if (ctx.state.board[idx] !== 0 && !ctx.isWarded(idx)) cells.push(idx);
       }
     }
-    if (cells.length === 0) return false; // nothing to burst: keep the item
+    // Seeds in their first round burn with the stones; a sprout has taken root.
+    const { effects, turnCount, players } = ctx.state;
+    const seeds: number[] = [];
+    effects.forEach((e, i) => {
+      if (e.kind !== "seed" || Math.abs(e.x - target!.x) > 1 || Math.abs(e.y - target!.y) > 1) return;
+      if (seedStep(e.until, turnCount, players.length) === 1) seeds.push(i);
+    });
+    if (cells.length === 0 && seeds.length === 0) return false; // nothing to burst: keep the item
     ctx.removePieces(cells, ownColor(ctx));
+    for (const i of seeds.reverse()) effects.splice(i, 1);
     return true;
   },
 };
@@ -205,7 +214,7 @@ const seedling: PowerupDefinition = {
   tier: 1,
   name: "Seedling",
   description:
-    "Plant a seed on an empty point. After 2 rounds, if the point is still empty and the stone would have a liberty, it grows into your stone.",
+    "Plant a seed. In its first round anyone can trample it; after that only you may play there. It grows into your stone after 3 rounds.",
   price: 30,
   removal: false,
   apply(ctx) {
@@ -215,7 +224,7 @@ const seedling: PowerupDefinition = {
     if (owner && owner !== ownColor(ctx)) return false;
     const { x, y } = ctx.target!;
     if (ctx.state.effects.some((e) => e.kind === "seed" && e.x === x && e.y === y)) return false;
-    ctx.addEffect("seed", x, y, ownColor(ctx), 2, ctx.axis === "pattern" ? "pattern" : "base");
+    ctx.addEffect("seed", x, y, ownColor(ctx), SEED_ROUNDS, ctx.axis === "pattern" ? "pattern" : "base");
     return true;
   },
 };
