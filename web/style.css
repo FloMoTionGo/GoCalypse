@@ -600,8 +600,10 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .player-row.passed { opacity: 0.4; }
 .player-row .pass-flag { margin-left: 8px; color: var(--amber); font-size: 11px; text-transform: uppercase; }
 .item .tier { color: var(--slate); font-size: 10px; font-weight: 400; }
-.item .left { color: var(--slate); font-size: 10px; font-weight: 400; white-space: nowrap; }
-.item .left.last { color: var(--amber); }
+/* A stall's stock as tiny cards (main.js stockRow): filled copies left, dotted outlines sold; the last one glows. */
+.item .stock { display: flex; flex-wrap: wrap; gap: 2px; margin: 3px 0 2px; }
+.item .stock img { flex-shrink: 0; }
+.item .stock img.last { filter: drop-shadow(0 0 2px var(--amber)); }
 
 /* The Stone Card (stoneCardEl in main.js): its name and text sit lower than an item's, under the
    3x3 grid (sprites.js STONE_CARD_NAME_Y / STONE_CARD_TEXT_Y), and each open point of the grid is a

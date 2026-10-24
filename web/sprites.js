@@ -1422,6 +1422,39 @@
     return (stoneCardCache[key] = makeSprite(`stone_card_${key}`, W, H, s.px));
   }
 
+  // A stall's stock, one tiny card per copy: a quarter of a hand card (9 x 13, the
+  // same 9:13 ratio), its corners cut. A copy still for sale is a card back in its
+  // tier's colour around ink, with a gem; a sold one only its outline, dotted in slate.
+  const MINI_W = 9, MINI_H = 13;
+  const inMini = (x, y) => x >= 0 && y >= 0 && x < MINI_W && y < MINI_H &&
+    Math.min(x, MINI_W - 1 - x) + Math.min(y, MINI_H - 1 - y) >= 1;
+  const miniCache = {};
+  function miniCard(tier, state) {
+    const t = tier === 2 || tier === 3 ? tier : 1;
+    const gone = state === "gone";
+    const key = `${t}:${gone ? "gone" : "left"}`;
+    if (key in miniCache) return miniCache[key];
+    const s = new Surface(MINI_W, MINI_H);
+    s.fill(TRANSPARENT);
+    const frame = CARD_FRAME[t];
+    for (let y = 0; y < MINI_H; y++) {
+      for (let x = 0; x < MINI_W; x++) {
+        if (!inMini(x, y)) continue;
+        const edge = !inMini(x - 1, y) || !inMini(x + 1, y) || !inMini(x, y - 1) || !inMini(x, y + 1);
+        if (gone) {
+          if (edge && ((x + y) & 1) === 0) s.set(x, y, S);
+        } else {
+          s.set(x, y, edge ? frame : K);
+        }
+      }
+    }
+    if (!gone) {
+      const cx = MINI_W >> 1, cy = MINI_H >> 1;
+      for (const [dx, dy] of [[0, -1], [-1, 0], [0, 0], [1, 0], [0, 1]]) s.set(cx + dx, cy + dy, frame);
+    }
+    return (miniCache[key] = makeSprite(`mini_card_${key.replace(":", "_")}`, MINI_W, MINI_H, s.px));
+  }
+
   /** An empty place in the hand: the card's outline, dotted in slate. */
   let cardSlotSprite = null;
   function cardSlot() {
@@ -1495,6 +1528,7 @@
     CARD_NAME_Y,
     CARD_TEXT_Y,
     itemCard,
+    miniCard,
     cardSlot,
     cardGrid,
     stoneCard,

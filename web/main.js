@@ -2320,13 +2320,6 @@ function renderMarket(state) {
       tier.title = `Tier ${m.tier}`;
       name.append(" ", tier);
       if (!m.free) name.append(" ", turnIcon());
-      if (counted && !soldOut) {
-        const left = document.createElement("span");
-        left.className = "left";
-        left.classList.toggle("last", m.left === 1);
-        left.textContent = `${m.left} left`;
-        name.append(" ", left);
-      }
       title.append(
         name,
         soldOut ? tag("sold out") : hadShare ? tag("bought") : blocked ? tag("no room") : fireflies(m.price)
@@ -2334,13 +2327,37 @@ function renderMarket(state) {
       const desc = document.createElement("span");
       desc.className = "desc";
       desc.textContent = m.description;
-      text.append(title, desc);
+      text.append(title);
+      if (counted) text.append(stockRow(m));
+      text.append(desc);
 
       button.append(spriteImg(`icon_${m.id}`, G.powerupIcon(m.id) || G.SPRITES.fireflyIcon, 2), text);
       button.addEventListener("click", () => room && room.send("buy", { id: m.id }));
       marketItemsEl.appendChild(button);
     }
   });
+}
+
+/**
+ * A stall's stock as tiny cards in the hand cards' ratio (sprites.js miniCard): one
+ * in the tier's colour for every copy still for sale, a dotted outline for every
+ * copy sold. The last copy glows. The numbers stay in the row's words.
+ */
+function stockRow(m) {
+  const row = document.createElement("span");
+  row.className = "stock";
+  const words = m.left > 0 ? `${m.left} of ${m.stock} left tonight, ${m.share} to a player` : `0 of ${m.stock} left: sold out tonight`;
+  row.setAttribute("role", "img");
+  row.setAttribute("aria-label", words);
+  row.title = words;
+  for (let i = 0; i < m.stock; i++) {
+    const left = i < m.left;
+    const img = spriteImg(`mini_card_${m.tier}_${left ? "left" : "gone"}`, G.miniCard(m.tier, left ? "left" : "gone"), 1);
+    img.classList.add(left ? "mini-left" : "mini-gone");
+    if (left && m.left === 1) img.classList.add("last");
+    row.append(img);
+  }
+  return row;
 }
 
 /** The turn icon (sprites.js turnIcon): using this item takes your turn. */
