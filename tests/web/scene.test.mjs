@@ -172,3 +172,44 @@ test("star points sit on the grid, symmetric about the centre", () => {
     }
   }
 });
+
+/** Pixels that differ between two renders within `r` of native point (x, y). */
+function diffNear(scene, a, b, x, y, r = 7) {
+  let d = 0;
+  for (let yy = y - r; yy <= y + r; yy++) {
+    for (let xx = x - r; xx <= x + r; xx++) {
+      const i = (yy * scene.width + xx) * 4;
+      if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) d++;
+    }
+  }
+  return d;
+}
+
+test("a picked stone's ember blinks: on, then off a moment later; with reduced motion it stays on", () => {
+  const scene = P.createScene({ size: 13 });
+  const at = 6 * 13 + 6;
+  const { x, y } = scene.pointToNative(6, 6);
+  const state = (time, extra = {}) => {
+    const s = base(13, { time, ambientTime: time, ...extra });
+    s.board[at] = 1;
+    return s;
+  };
+  for (const [time, on] of [[10.1, true], [10.4, false], [10.6, true], [10.9, false]]) {
+    const plain = scene.render(state(time)).slice();
+    const lit = scene.render(state(time, { highlightMine: [at], highlightBlink: true })).slice();
+    assert.equal(diffNear(scene, plain, lit, x, y) > 0, on, `t=${time}: the ember is ${on ? "on" : "off"}`);
+    const still = scene.render(state(time, { highlightMine: [at], highlightBlink: true, reducedMotion: true })).slice();
+    const stillPlain = scene.render(state(time, { reducedMotion: true })).slice();
+    assert.ok(diffNear(scene, stillPlain, still, x, y) > 0, `t=${time}: reduced motion keeps it on`);
+  }
+});
+
+test("landing points are marked on the board, and only there", () => {
+  const scene = P.createScene({ size: 13 });
+  const plain = scene.render(base(13)).slice();
+  const marked = scene.render(base(13, { landings: [3 * 13 + 4, 3 * 13 + 9] })).slice();
+  for (const [px, py, on] of [[4, 3, true], [9, 3, true], [6, 6, false], [4, 9, false]]) {
+    const p = scene.pointToNative(px, py);
+    assert.equal(diffNear(scene, plain, marked, p.x, p.y, 5) > 0, on, `(${px}, ${py})`);
+  }
+});

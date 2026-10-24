@@ -1,4 +1,11 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {"test": "a picked stone's ember blinks: on, then off a moment later; with reduced motion it stays on", "feature": "pick-blink", "tier": "web", "since": "2026-10-24"},
+    {"test": "landing points are marked on the board, and only there", "feature": "pick-blink", "tier": "web", "since": "2026-10-24"},
+    {"test": "targeting: after the stone to move is picked, only that stone is marked, and it blinks", "feature": "pick-blink", "tier": "gui", "since": "2026-10-24"},
+    {"test": "targeting: the points a Skiff or a Ferry can take the picked stone to are marked", "feature": "pick-blink", "tier": "gui", "since": "2026-10-24"},
+    {"test": "targeting: a first pick that isn't one of my stones is refused with a notice, and nothing is sent", "feature": "pick-blink", "tier": "gui", "since": "2026-10-24"},
+    {"test": "targeting: another of my stones re-picks; the picked stone again un-picks", "feature": "pick-blink", "tier": "gui", "since": "2026-10-24"}
+  ]
 }
