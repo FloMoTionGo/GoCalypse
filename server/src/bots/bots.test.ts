@@ -717,3 +717,13 @@ test("the recruits keep their two fronts close", () => {
   gap /= 4 * seeds.length;
   assert.ok(gap < 11, `the fronts ended ${gap} points apart on average`);
 });
+
+test("a 4-bot match on 19x19 and on 25x25 ends on passes, well inside its turn cap", () => {
+  // The weights were tuned on 13x13 (ideas.md §11.10): no retune, but every game must end.
+  for (const size of [19, 25]) {
+    const match = playMatch(20261025 + size, [heron(), tanuki(), oldToad(), moth()], { size });
+    assert.equal(match.finished, true, `${size}x${size} ended`);
+    assert.equal(match.board.length, size * size);
+    assert.ok(match.stones > size * size * 0.3, `${size}x${size}: ${match.stones} stones, a real game`);
+  }
+});

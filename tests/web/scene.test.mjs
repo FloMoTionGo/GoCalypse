@@ -227,3 +227,19 @@ test("landing points are marked on the board, and only there", () => {
     assert.equal(diffNear(scene, plain, marked, p.x, p.y, 5) > 0, on, `(${px}, ${py})`);
   }
 });
+
+test("19x19 and 25x25 boards render, with their star points at 3-9-15 and 3-12-21", () => {
+  const stars = (n) => P.starPoints(n).map((p) => `${p.x},${p.y}`).sort();
+  const grid = (cs) => cs.flatMap((x) => cs.map((y) => `${x},${y}`)).sort();
+  assert.deepEqual(stars(19), grid([3, 9, 15]));
+  assert.deepEqual(stars(25), grid([3, 12, 21]));
+  for (const n of [19, 25]) {
+    const scene = P.createScene({ size: n });
+    const rgba = scene.render(base(n));
+    assert.equal(rgba.length, scene.width * scene.height * 4);
+    const star = scene.pointToNative(3, 3), plain = scene.pointToNative(4, 4);
+    const at = (p) => Array.from(rgba.slice((p.y * scene.width + p.x) * 4, (p.y * scene.width + p.x) * 4 + 3)).join();
+    const around = (p) => [-1, 0, 1].flatMap((d) => [at({ x: p.x + d, y: p.y + 1 }), at({ x: p.x + 1, y: p.y + d })]).join("|");
+    assert.notEqual(around(star), around(plain), `${n}x${n}: a star point is drawn at (3, 3)`);
+  }
+});
