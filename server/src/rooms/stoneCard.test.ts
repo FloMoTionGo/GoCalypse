@@ -17,6 +17,7 @@ import {
   LANDING_ORDER,
   nextStoneCost,
   STONE_CARD,
+  STONE_CARD_NAME,
 } from "../rules/stoneCard";
 import { BOT_CARD_STONES, chooseCardUpgrade, planCard } from "../bots/card";
 import { Rng } from "../bots/rng";
@@ -336,4 +337,29 @@ test("a saved game with a field that no longer exists still restores", () => {
   restoreState(state, { retiredLimit: 7, size: 13, players: [], market: [], effects: [] });
   assert.equal(state.handLimit, 5);
   assert.equal((state as any).retiredLimit, undefined);
+});
+
+test("the card is called the Kata (型) in all the server says, and keeps its id stone_card", () => {
+  assert.equal(STONE_CARD, "stone_card", "the id snapshots and saved games hold");
+  assert.equal(STONE_CARD_NAME, "Kata");
+  const t = table();
+  const seat = t.onTurn();
+  const me = t.state.players[seat];
+  const said: string[] = [t.room.applyUsePowerup(seat, { id: STONE_CARD, target: { x: 6, y: 6 } })];
+  said.push(t.room.applyUsePowerup(seat, { id: STONE_CARD }));
+  assert.equal(t.room.applyUpgradeCard(seat, { cell: CARD_CENTRE, axis: "base" }), null);
+  said.push(t.state.lastEvent);
+  me.fireflies = 0;
+  said.push(t.room.applyUpgradeCard(seat, { cell: 0, axis: "base" }));
+  me.card.clear();
+  for (let i = 0; i < 9; i++) me.card.push(CARD_BASE);
+  me.fireflies = 1000;
+  said.push(t.room.applyUpgradeCard(seat, { cell: 0, axis: "base" }) || "");
+  assert.equal(t.room.applyUsePowerup(seat, { id: STONE_CARD, target: { x: 6, y: 6 } }), null);
+  said.push(t.state.lastEvent);
+  for (const text of said.filter(Boolean)) {
+    assert.doesNotMatch(text, /Stone Card/, text);
+  }
+  assert.ok(said.filter((text) => /Kata/.test(text)).length >= 4, said.join(" | "));
+  t.close();
 });

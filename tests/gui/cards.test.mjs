@@ -107,3 +107,51 @@ test("cards: a sold-out stall shows only outlines", async () => {
   assert.deepEqual([s.filled, s.outlines], [0, 1]);
   rig.assertClean("the stalls");
 });
+
+// The Stone Card is the Kata (型) now (ideas.md §11.4): its id stays stone_card.
+const KATA = `handEl.querySelector('.card[data-id="stone_card"]')`;
+
+test("cards: the Kata's face shows its name and kanji, and exact numbers instead of instructions", async () => {
+  const face = await b.ev(`({ name: ${KATA}.querySelector(".card-name").textContent, text: ${KATA}.querySelector(".card-text").textContent,
+    label: ${KATA}.getAttribute("aria-label") })`);
+  assert.match(face.name, /型/);
+  assert.match(face.name, /Kata/);
+  assert.match(face.text, /^\d\/9\b/, face.text);
+  assert.ok(face.text.length <= 40, `${face.text.length} characters: ${face.text}`);
+  assert.doesNotMatch(face.text, /click|button/i, "no instructions on the face");
+  assert.match(face.label, /Kata/);
+  assert.match(face.label, /Takes your turn/);
+});
+
+test("cards: the Kata's help is three short blocks, and says it takes the turn", async () => {
+  const help = await b.ev(`(() => {
+    const h = stoneCardHelp(myPlayer);
+    return { blocks: Array.from(h.querySelectorAll(".help-block")).map((el) => el.textContent.trim()), all: h.textContent };
+  })()`);
+  assert.equal(help.blocks.length, 3, help.blocks.join(" | "));
+  for (const block of help.blocks) {
+    const words = block.split(/\s+/).length;
+    assert.ok(words <= 45, `${words} words: ${block}`);
+  }
+  assert.match(help.all, /Kata/);
+  assert.match(help.all, /takes your turn/i);
+  assert.doesNotMatch(help.all, /Stone Card/);
+});
+
+test("cards: nothing on the page calls it the Stone Card any more", async () => {
+  await b.ev("helpButton.click(); true");
+  await b.waitFor("welcomeEl.open", 3000, "How to play");
+  const texts = await b.ev(`(() => {
+    const out = [document.getElementById("welcome").textContent, gameEl.textContent];
+    out.push(...Array.from(document.querySelectorAll("[title], [aria-label]")).map((el) => (el.getAttribute("title") || "") + " " + (el.getAttribute("aria-label") || "")));
+    setSelectedPowerup("stone_card");
+    out.push(boardHintEl.textContent);
+    setSelectedPowerup(null);
+    return out;
+  })()`);
+  await b.ev("welcomeCloseButton.click(); true");
+  for (const t of texts) assert.doesNotMatch(t, /Stone Card/, t.slice(0, 200));
+  assert.ok(texts.some((t) => /\bKata\b/.test(t)), "the Kata is named");
+  assert.match(texts.at(-1), /Kata/, "the aiming hint");
+  rig.assertClean("the Kata");
+});

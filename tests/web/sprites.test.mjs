@@ -137,6 +137,20 @@ test("a stall's mini card is a quarter of a hand card in its tier's colour; a so
   assert.equal(seen.size, 3, "the tiers look different");
 });
 
+test("the Kata's face wears the turn icon on its top-right corner: playing it takes the turn", () => {
+  const icon = G.SPRITES.turnIcon;
+  for (const cells of [Array(9).fill(0), [0, 1, 2, 0, 1, 2, 0, 1, 2]]) {
+    const card = G.stoneCard(cells, 2);
+    for (let y = 0; y < icon.h; y++) {
+      for (let x = 0; x < icon.w; x++) {
+        const v = icon.px[y * icon.w + x];
+        if (v === G.TRANSPARENT) continue;
+        assert.equal(card.px[y * G.CARD_W + G.CARD_W - icon.w + x], v, `icon pixel (${x}, ${y})`);
+      }
+    }
+  }
+});
+
 test("the catalog (pixel-preview.html) lists the sprites", () => {
   const cat = G.catalog();
   const entries = Array.isArray(cat) ? cat : Object.values(cat);
