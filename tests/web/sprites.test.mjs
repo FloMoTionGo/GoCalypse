@@ -89,6 +89,34 @@ test("text: width grows with the text, and drawText writes only inside the surfa
   assert.equal(s.px.length, 40 * 12);
 });
 
+test("the turn icon is a 9x9 ring around a 1, in palette colours", () => {
+  const icon = G.SPRITES.turnIcon;
+  assert.ok(icon, "SPRITES.turnIcon");
+  assert.deepEqual([icon.w, icon.h], [9, 9]);
+  assert.ok(inPalette(icon));
+  const opaque = icon.px.filter((c) => c !== G.TRANSPARENT).length;
+  assert.ok(opaque >= 25 && opaque < 81, `${opaque} opaque pixels: a ring with a hole, not a blob`);
+});
+
+test("an item card whose use takes the turn carries the turn icon in its top-right corner, and nowhere else", () => {
+  for (const [id, tier] of [["driftwood", 1], ["skiff", 2], ["remove_stone", 3]]) {
+    const plain = G.itemCard(id, tier);
+    const marked = G.itemCard(id, tier, { turn: true });
+    assert.equal(G.itemCard(id, tier, { turn: false }).px.join(), plain.px.join(), `${id}: no flag, no icon`);
+    assert.ok(inPalette(marked));
+    let changed = 0;
+    for (let y = 0; y < G.CARD_H; y++) {
+      for (let x = 0; x < G.CARD_W; x++) {
+        const i = y * G.CARD_W + x;
+        if (plain.px[i] === marked.px[i]) continue;
+        changed++;
+        assert.ok(x >= G.CARD_W - 13 && y < 13, `${id}: pixel (${x}, ${y}) changed outside the top-right corner`);
+      }
+    }
+    assert.ok(changed >= 20, `${id}: the icon shows (${changed} pixels)`);
+  }
+});
+
 test("the catalog (pixel-preview.html) lists the sprites", () => {
   const cat = G.catalog();
   const entries = Array.isArray(cat) ? cat : Object.values(cat);

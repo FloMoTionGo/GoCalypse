@@ -117,3 +117,9 @@ test("a stall refuses when it is sold out or the player has had their share", ()
   assert.match(stallRefusal({ ...stall, left: 0 }, 0)!, /sold out/);
   assert.match(stallRefusal({ name: "Gust", left: 1, share: 1 }, 1)!, /one to a player/);
 });
+
+test("item descriptions leave the turn to the card's turn icon: none says whether it uses up the turn", () => {
+  for (const p of allPowerups()) {
+    assert.doesNotMatch(p.description, /use[sd]? up (your|the) turn/i, p.id);
+  }
+});

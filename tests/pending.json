@@ -1,4 +1,11 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    { "test": "item descriptions leave the turn to the card's turn icon: none says whether it uses up the turn", "feature": "turn-icon", "tier": "server", "since": "2026-10-24" },
+    { "test": "the turn icon is a 9x9 ring around a 1, in palette colours", "feature": "turn-icon", "tier": "web", "since": "2026-10-24" },
+    { "test": "an item card whose use takes the turn carries the turn icon in its top-right corner, and nowhere else", "feature": "turn-icon", "tier": "web", "since": "2026-10-24" },
+    { "test": "cards: every market stall whose item takes the turn shows the turn icon, and only those", "feature": "turn-icon", "tier": "gui", "since": "2026-10-24" },
+    { "test": "cards: How to play marks the items that take the turn, and says what the icon means", "feature": "turn-icon", "tier": "gui", "since": "2026-10-24" },
+    { "test": "cards: a card in my hand says whether using it takes the turn", "feature": "turn-icon", "tier": "gui", "since": "2026-10-24" }
+  ]
 }
