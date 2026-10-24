@@ -22,7 +22,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get("/healthz", (_req, res) => res.status(200).send("ok"));
+// The pid lets the test harness tell its own server from another one that took the port first.
+app.get("/healthz", (_req, res) => res.status(200).set("X-Pid", String(process.pid)).send("ok"));
 
 // Finished games, for the home screen's Replays (history/routes.ts).
 app.use(historyRoutes(historyStore));

@@ -50,11 +50,27 @@ export function tempDir(label) {
  * Starts server/build/index.js on a free port. `dataDir` holds its snapshots;
  * pass the same one to a second start to test a restart. The log is kept for
  * failure messages (server.log()).
+ *
+ * freePort() lets the port go before the server binds it, so two test files
+ * starting at once can be handed the same one: the second server then dies of
+ * EADDRINUSE while the first answers its health check, and the two files share
+ * one server until the first stops it under the other. So the check must be
+ * answered by this server's own process (healthz sends its pid), and a server
+ * that lost its port is started again on another.
  */
 export async function startServer({ dataDir = tempDir("data"), port } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await startServerOnce(dataDir, port || (await freePort()));
+    } catch (err) {
+      if (port || attempt >= 3 || !err.lostPort) throw err;
+    }
+  }
+}
+
+async function startServerOnce(dataDir, port) {
   const entry = path.join(SERVER_BUILD, "index.js");
   if (!fs.existsSync(entry)) throw new Error(`${entry} is missing: build the server first (node tests/run.mjs builds it)`);
-  port = port || (await freePort());
   let log = "";
   const child = spawn(process.execPath, [entry], {
     cwd: path.dirname(SERVER_BUILD),
@@ -66,10 +82,16 @@ export async function startServer({ dataDir = tempDir("data"), port } = {}) {
   const exited = new Promise((r) => child.on("exit", r));
   const httpUrl = `http://127.0.0.1:${port}`;
   try {
-    await until(async () => (await fetch(`${httpUrl}/healthz`)).ok, 15000, `the server on port ${port}`);
+    await until(async () => {
+      if (child.exitCode !== null) return "exited";
+      const res = await fetch(`${httpUrl}/healthz`);
+      return res.ok && res.headers.get("x-pid") === String(child.pid) && "up";
+    }, 15000, `the server on port ${port}`).then((how) => {
+      if (how === "exited") throw new Error(`the server on port ${port} exited`);
+    });
   } catch (err) {
     child.kill();
-    throw new Error(`${err.message}\n--- server log ---\n${log}`);
+    throw Object.assign(new Error(`${err.message}\n--- server log ---\n${log}`), { lostPort: /EADDRINUSE/.test(log) });
   }
   return {
     port,
