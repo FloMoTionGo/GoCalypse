@@ -212,6 +212,22 @@ function ownArea(area: Territory, color: number): number {
 }
 
 /**
+ * The front this bot leans to: the lower of its two, because the lower one is
+ * its score (rules/endgame.ts) and ground piled onto the higher one is wasted.
+ * Each front is its side's estimated ground there plus the prisoners this bot
+ * took on it, no more of them than that ground, as the final count has it.
+ * While the two are level -- an empty board, say -- it leans to the front its
+ * Style prefers, and that is when four bots look most unlike each other.
+ */
+export function leaningFront(view: BotView, prefers: StoneView, area: Territory): StoneView {
+  const sides = sidesOf(view.color);
+  const base = area[sides.base] + countedPrisoners(view.prisoners.base, area[sides.base]);
+  const pattern = area[sides.pattern] + countedPrisoners(view.prisoners.pattern, area[sides.pattern]);
+  if (base === pattern) return prefers;
+  return base < pattern ? "base" : "pattern";
+}
+
+/**
  * What this point is worth to this bot on this front, or null if the move is
  * illegal (or is one no bot should make: filling its own eye).
  *
@@ -393,7 +409,10 @@ export function scoreMove(
     score += Math.trunc((style.locality * table(LOCALITY, d)) / 100);
   }
 
-  if (axis === style.prefers) score += style.axisBias;
+  if (style.axisBias !== 0) {
+    const lean = leaningFront(view, style.prefers, areaBefore ?? estimateArea(view.board, size));
+    if (axis === lean) score += style.axisBias;
+  }
 
   return score;
 }
@@ -425,7 +444,8 @@ export function rankMoves(view: BotView, style: Style): Candidate[] {
   // timer runs out: it is worth a capture less.
   const reached = new Set((view.creatures || []).flatMap((c) => c.reach));
   // The ground before the move is the same for every candidate: count it once.
-  const before = style.area !== 0 ? estimateArea(view.board, size) : undefined;
+  // The area weight pays against it, and the front a bot leans to is read off it.
+  const before = style.area !== 0 || style.axisBias !== 0 ? estimateArea(view.board, size) : undefined;
 
   for (let idx = 0; idx < view.board.length; idx++) {
     if (view.board[idx] !== 0) continue;

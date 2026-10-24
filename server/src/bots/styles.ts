@@ -34,8 +34,8 @@ export interface Style {
   thin: number; // subtracted: the group the stone joins is left on two liberties
   selfAtari: number; // subtracted: one liberty left and nothing taken for it
   hemmed: number; // subtracted per neighbour that is a wall on the played front
-  axisBias: number; // added when the move is on `prefers`
-  prefers: StoneView; // the front this one reaches for first
+  axisBias: number; // added when the move is on the front it leans to: its lower one, or `prefers` while level
+  prefers: StoneView; // the front it reaches for while its two fronts are level
   itemBias: number; // added to every item score: how readily it spends a turn at the market
   shopping: string[]; // what it buys, in order
   variation: number; // how many of the best points it draws from
@@ -57,7 +57,7 @@ const BALANCED: Style = {
   thin: 700,
   selfAtari: 1600,
   hemmed: 80,
-  axisBias: 0,
+  axisBias: 300,
   prefers: "base",
   itemBias: 0,
   shopping: ["lantern_ward", "driftwood", "firefly_jar", "ferry", "fog", "gust", "river_current", "remove_stone"],
@@ -76,8 +76,15 @@ const BALANCED: Style = {
  *  - `hemmed` prices driftwood. It takes a liberty like any stone and can
  *    never be taken back off the board, so a point hemmed in by logs is worth
  *    less than one hemmed in by enemies.
- *  - `axisBias` + `prefers` decide which war a bot would rather fight, which
- *    is the most visible difference between two of them at the same table.
+ *  - `axisBias` pulls a bot towards the war it is losing. A player's score is
+ *    the lower of its two fronts, so it is paid on the lower one (by the area
+ *    estimate plus the prisoners that count, scoring.ts `leaningFront`).
+ *    `prefers` decides only while the two are level: the opening, where it
+ *    is the most visible difference between two bots at the same table. The
+ *    favourite used to hold all game, and it cost the bot with the strongest
+ *    pull most: Moyo, pinned to the pattern front, scored 3.5 points a game
+ *    less. 300 is where a table of four scores best; 600 brings more ko
+ *    retakes, and every bot gains on its own from 300 (tasks/bot_strength).
  */
 
 /** Holds its stones together, takes the calm extension, fights only for something real. */
@@ -95,7 +102,7 @@ export function heron(): Style {
     extension: 750,
     line: 480,
     hemmed: 140,
-    axisBias: 200,
+    axisBias: 300,
     prefers: "base",
     itemBias: -400,
     shopping: ["lantern_ward", "fog", "lily_pad", "seedling", "driftwood", "ferry", "echo_chime", "remove_stone"],
@@ -118,7 +125,7 @@ export function tanuki(): Style {
     extension: 225,
     line: 192,
     hemmed: 40,
-    axisBias: 150,
+    axisBias: 300,
     prefers: "base",
     itemBias: 300,
     shopping: ["gust", "remove_stone", "river_current", "firefly_jar", "twin_wick", "skiff", "lantern_ward", "bomb"],
@@ -141,7 +148,7 @@ export function oldToad(): Style {
     extension: 450,
     line: 352,
     hemmed: 90,
-    axisBias: 0,
+    axisBias: 300,
     prefers: "base",
     itemBias: 900,
     shopping: [
@@ -152,7 +159,7 @@ export function oldToad(): Style {
   };
 }
 
-/** Fights the pattern war and builds with walls: the other three keep bumping into it. */
+/** Opens on the pattern war and builds with walls: the other three keep bumping into it. */
 export function moth(): Style {
   return {
     ...BALANCED,

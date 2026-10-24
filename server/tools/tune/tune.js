@@ -134,7 +134,7 @@ function mutate(style, name, random) {
     const step = 0.1 + random() * 0.15;
     const scaled = style[key] * (random() < 0.5 ? 1 - step : 1 + step);
     // A weight sitting at zero can never grow by a percentage, so give it a
-    // floor to climb off. axisBias is the one that starts there for most.
+    // floor to climb off.
     const moved = Math.abs(style[key]) < 50 ? (random() < 0.5 ? 0 : 100) : scaled;
     next[key] = clampToGuard(name, key, Math.max(0, Math.round(moved)));
   }
