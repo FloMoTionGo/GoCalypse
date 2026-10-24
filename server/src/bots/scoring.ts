@@ -334,13 +334,14 @@ export function scoreMove(
   // (countedPrisoners, rules/endgame.ts), so only the stones that still fit
   // under that cap are paid -- the ground this side can expect to hold there,
   // less what this bot has already taken. Past the cap a capture is worth what
-  // it does for the ground and for the stones it saves, and nothing more.
+  // it does for the ground and for the stones it saves, and nothing more; so is
+  // a kill across the fronts (Captured.cross), which books no prisoner at all.
   const sides = sidesOf(view.color);
   const areaAfter = style.area !== 0 || captured.length > 0 ? estimateArea(after, size) : null;
   let counted = 0;
   if (areaAfter) {
     for (const front of AXES) {
-      const taken = captured.filter((c) => c.view === front).length;
+      const taken = captured.filter((c) => c.view === front && !c.cross).length;
       if (taken === 0) continue;
       const room = Math.max(0, areaAfter[sides[front]] - view.prisoners[front]);
       counted += Math.min(taken, room);
@@ -567,7 +568,7 @@ export function isPointless(view: BotView, move: Candidate): boolean {
   after[boardIndex(view.size, move.x, move.y)] = code;
   const taken = applyCaptures(after, view.size, move.x, move.y, code, (i) => view.isWarded(i));
   const took = { ...view.prisoners };
-  for (const c of taken) took[c.view] += 1;
+  for (const c of taken) if (!c.cross) took[c.view] += 1;
   const before = frontsOf(view, view.board, move.axis, view.prisoners);
   const now = frontsOf(view, after, move.axis, took);
   const was = Math.min(before.mine, before.other);

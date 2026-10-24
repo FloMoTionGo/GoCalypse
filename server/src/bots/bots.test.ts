@@ -247,9 +247,14 @@ test("a match by a frozen style still comes out move for move the same", () => {
   // their front. A capture now pays only for the stones that fit under that cap
   // (the bot's estimated ground there, less what it took already), and the pass
   // judgement counts prisoners the same way, so this frozen style plays a longer game.
+  //
+  // 2026-10-25, 5ecc2340 -> 47eebda9: cross-front kills score nothing (ideas.md
+  // §11.6, asked for by the user on 2026-10-24). A kill by a stone of the other
+  // front books no prisoner, so the bot pays it no capture weight, and selfplay
+  // stops counting it as one. The match is shorter: 269 turns, 257 stones.
   const match = playMatch(20260922, [PINNED, PINNED, PINNED, PINNED]);
-  assert.equal(digest(match.board), "5ecc2340");
-  assert.deepEqual([match.turns, match.stones, match.finished], [322, 316, true]);
+  assert.equal(digest(match.board), "47eebda9");
+  assert.deepEqual([match.turns, match.stones, match.finished], [269, 257, true]);
 });
 
 test("the drifter still only offers legal points", () => {

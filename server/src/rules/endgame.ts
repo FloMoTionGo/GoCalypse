@@ -14,7 +14,9 @@
 // does not spoil a region for anyone, exactly like the edge of the board.
 //
 // On top of its side's territory, each player counts the PRISONERS it took
-// itself: stones it captured on that front over the match. Territory belongs to
+// itself: stones it captured on that front over the match. Only stones taken by
+// a stone of that same front count: a black stone that smothers a gray group
+// kills it, but books no prisoner (GoRoom counts it as smothered). Territory belongs to
 // a side and is therefore shared by the two seats that hold it; prisoners
 // belong to the player who played the capturing move, which is the same
 // accounting GoRoom already uses for fireflies, and it is why taking a group

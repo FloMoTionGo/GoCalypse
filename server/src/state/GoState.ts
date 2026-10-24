@@ -27,6 +27,9 @@ export class PlayerState extends Schema {
   // front total when the board is scored (rules/endgame.ts).
   @type("number") basePrisoners: number = 0;
   @type("number") patternPrisoners: number = 0;
+  // Stones this player killed with a stone of the other front (black smothering
+  // gray): gone from the board, but no prisoners, so no points (ideas.md §11.6).
+  @type("number") smothered: number = 0;
   @view() @type("number") fireflies: number = 0; // market currency, earned this match
   @type("number") moves: number = 0; // stones placed; the market opens after GoState.shopAfter
   // Filled in once when the game ends (rules/endgame.ts); all 0 until then.

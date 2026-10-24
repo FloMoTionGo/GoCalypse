@@ -163,6 +163,7 @@ export interface Captured {
   point: Point;
   color: number; // the board code that was removed
   view: StoneView; // the front the dead group was judged on
+  cross: boolean; // killed by a stone of the other front: it scores no prisoner (ideas.md §11.6)
 }
 
 /**
@@ -181,7 +182,9 @@ export interface Captured {
  * Returns the list of captured points, each tagged with the code that was
  * removed and the front its group was judged on. The front matters for a twin
  * stone, which fights on both and can die on either: it decides which front
- * the prisoner is credited to (rules/endgame.ts).
+ * the prisoner is credited to (rules/endgame.ts). A kill is `cross` when the
+ * placed stone doesn't fight on that front (black smothering gray): the stones
+ * die all the same, but nobody books them as prisoners. A twin never crosses.
  */
 export function applyCaptures(
   board: number[],
@@ -212,7 +215,7 @@ export function applyCaptures(
       if (liberties === 0 && !shielded) {
         for (const p of group) {
           const pIdx = index(size, p.x, p.y);
-          captured.push({ point: p, color: board[pIdx], view });
+          captured.push({ point: p, color: board[pIdx], view, cross: !viewsOf(placedCode).includes(view) });
           board[pIdx] = 0;
         }
       }

@@ -1113,7 +1113,8 @@ function openWelcome(state) {
     `walls in on its own. A stone is worth nothing in itself, only the ground it surrounds, and a stone of the ` +
     `other front (a gray one on black against white) counts for no one there. On top of that you count your prisoners: the stones you captured ` +
     `yourself on that side, but never more prisoners than territory: with 4 points of ground there, at most 4 of them count, ` +
-    `so a fight only pays as far as you also hold land. Your score is the lower of ${yourTwo}; the higher one only breaks ties. ` +
+    `so a fight only pays as far as you also hold land. Stones you kill with your other front (black smothering gray) score ` +
+    `nothing: they leave the board, but they are no prisoners. Your score is the lower of ${yourTwo}; the higher one only breaks ties. ` +
     `${sharers} -- but prisoners are yours alone, so take the capture rather than leave it to them. ` +
     `Nothing is taken off as dead at the end: capture what should go before you pass.`;
 
@@ -1499,7 +1500,19 @@ function openResult(state) {
     name.className = "name";
     name.textContent =
       player.name + (room && player.sessionId === room.sessionId ? " (you)" : player.bot ? " (bot)" : "");
-    who.append(swatches, name);
+    // Stones killed with a stone of the other front: gone, but no prisoners. A
+    // server from before that rule sends no count (undefined), and says nothing.
+    if (player.smothered > 0) {
+      const named = document.createElement("span");
+      named.className = "name-col";
+      const note = document.createElement("span");
+      note.className = "side-breakdown";
+      note.textContent = `${player.smothered} smothered (0 points)`;
+      named.append(name, note);
+      who.append(swatches, named);
+    } else {
+      who.append(swatches, name);
+    }
 
     // One front: the side's territory plus the prisoners this player took there,
     // but never more prisoners than territory (countedPrisoners in

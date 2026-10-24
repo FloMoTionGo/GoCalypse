@@ -203,10 +203,11 @@ function planFlip(view: BotView, style: Style): ItemPlan | null {
     // Since the storm rules a flip no longer refuses when it strands the group
     // it leaves: it captures it. So the stones it takes have to be counted by
     // side -- the room credits every one of them to us, our own included, which
-    // is exactly the trade a bot should not make.
+    // is exactly the trade a bot should not make. A rival's stone killed across
+    // the fronts books no prisoner, so it pays nothing.
     let score = 0;
-    for (const { color } of captured) {
-      score += fightsUs(view, color) ? style.capture : -style.capture;
+    for (const { color, cross } of captured) {
+      score += fightsUs(view, color) ? (cross ? 0 : style.capture) : -style.capture;
     }
     const before = findGroup(view.board, view.size, p.x, p.y, oldAxis);
     const after = findGroup(trial, view.size, p.x, p.y, axisOf(trial[idx]));
@@ -364,7 +365,7 @@ function planGlide(view: BotView, style: Style, id: "ferry" | "skiff"): ItemPlan
       if (view.repeats?.(trial)) continue;
 
       let score = 0;
-      for (const c of captured) score += fightsUs(view, c.color) ? style.capture : -style.capture;
+      for (const c of captured) score += fightsUs(view, c.color) ? (c.cross ? 0 : style.capture) : -style.capture;
       const after = findGroup(trial, size, dest.x, dest.y, axis);
       if (before.liberties === 1 && after.liberties >= 2) score += style.save;
       if (after.liberties === 1 && captured.length === 0) score -= style.selfAtari;
@@ -452,7 +453,7 @@ function captureInReach(view: BotView, style: Style, ranked: Candidate[]): boole
     const board = view.board.slice();
     board[boardIndex(view.size, move.x, move.y)] = code;
     const captured = applyCaptures(board, view.size, move.x, move.y, code, (i) => view.isWarded(i));
-    if (captured.some((c) => fightsUs(view, c.color))) return true;
+    if (captured.some((c) => fightsUs(view, c.color))) return true; // a smothered stone still pays its fireflies
   }
   return false;
 }

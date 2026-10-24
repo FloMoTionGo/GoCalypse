@@ -22,6 +22,7 @@ import {
   ownerOf,
   stoneCode,
   StoneView,
+  viewValue,
 } from "../rules/goRules";
 import { finalResults, territoryOwners, territoryScore } from "../rules/endgame";
 import {
@@ -136,6 +137,18 @@ const SHOP_AFTER_MOVES = 5;
 const FIREFLIES_PER_MOVE = 3;
 const FIREFLIES_PER_CAPTURE = 5;
 const CONSOLATION_PER_STONE = 3; // paid to the owner of a stone removed by someone's item
+
+/** ", smothered 3 gray stones (no points)" for the kills a stone made across the fronts, or "". */
+function smotheredNews(captured: Captured[]): string {
+  const byLook = new Map<string, number>();
+  for (const c of captured) {
+    if (!c.cross) continue;
+    const look = viewValue(c.view, c.color) ?? "";
+    byLook.set(look, (byLook.get(look) ?? 0) + 1);
+  }
+  const parts = Array.from(byLook, ([look, n]) => `${n} ${look} stone${n === 1 ? "" : "s"}`);
+  return parts.length ? `, smothered ${parts.join(" and ")} (no points)` : "";
+}
 const HAND_LIMIT = 5; // cards a player may hold at once, the Stone Card included
 const POWERFUL_LIMIT = 1; // removal items a player may hold at once
 const DEBUG_STORM_EVERY_TURNS = 6; // debug rooms roll far more often, so storms can be watched
@@ -1255,7 +1268,7 @@ export class GoRoom extends Room<GoState> {
     const planter = seed && seed.owner !== player.color ? this.state.players.find((p) => p.color === seed.owner) : undefined;
     this.state.lastEvent = `${player.name} played (${x}, ${y})${
       captured.length ? `, captured ${captured.length}` : ""
-    }${planter ? ` and trampled ${planter.name}'s seed` : ""}`;
+    }${planter ? ` and trampled ${planter.name}'s seed` : ""}${smotheredNews(captured)}`;
     if (player.extra > 0) {
       // Stepping Stones: this stone was the first of two, so the turn stays put.
       player.extra -= 1;
@@ -1274,11 +1287,13 @@ export class GoRoom extends Room<GoState> {
    * front its group was judged on -- so a twin stone counts on whichever of its
    * two fronts actually ran out of liberties. Stones swept off by a removal
    * item are not prisoners: their owner is already paid consolation fireflies,
-   * and nobody surrounded them.
+   * and nobody surrounded them. Nor are stones killed across the fronts: they
+   * are counted as smothered, for no points.
    */
   private creditPrisoners(player: PlayerState, captured: Captured[]) {
     for (const c of captured) {
-      if (c.view === "pattern") player.patternPrisoners += 1;
+      if (c.cross) player.smothered += 1;
+      else if (c.view === "pattern") player.patternPrisoners += 1;
       else player.basePrisoners += 1;
     }
   }

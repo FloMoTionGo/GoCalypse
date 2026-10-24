@@ -1,15 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {"test": "cross-front: a black stone filling a gray group's last liberty kills it across the fronts", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "cross-front: a transparent stone taking the same gray group kills it on its own front", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "cross-front: a twin stone fights on both fronts, so its kills never cross", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "cross-front: a Turn the Lantern capture is judged by the flipped stone's new front", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "a cross-front capture kills the stones and pays the fireflies, but books no prisoners: they are smothered", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "a same-front capture books a prisoner on that front, and nothing smothered", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "an item's stone smothers just as a move does: a Turn the Lantern kill across the fronts books nothing", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "a snapshot from before smothered stones loads them as 0", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "a cross-front capture pays no capture weight: the stones die, but score no prisoners", "feature": "cross-front", "tier": "server", "since": "2026-10-24"},
-    {"test": "table: Results shows the stones a player smothered, for no points; an older server's Results shows none", "feature": "cross-front", "tier": "gui", "since": "2026-10-24"}
-  ]
+  "pending": []
 }

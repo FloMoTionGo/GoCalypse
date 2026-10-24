@@ -106,7 +106,7 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
     if (captured.length === 0 && isSuicide(board, size, action.x, action.y)) {
       throw new Error(`bot played a suicide at turn ${turns}`);
     }
-    for (const c of captured) took[seat][c.view] += 1;
+    for (const c of captured) if (!c.cross) took[seat][c.view] += 1; // a smothered stone is no prisoner
 
     positions.record(board);
     kos.open(board, idx, captured, turns, turns + SEATS);

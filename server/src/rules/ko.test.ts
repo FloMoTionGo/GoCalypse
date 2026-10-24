@@ -110,7 +110,7 @@ test("a stone that is not the ko's own is not held by it", () => {
   const kos = new KoWatch(SIZE);
   const taken = take(parse(KO), 2, 1, 1);
   kos.open(taken.board, boardIndex(SIZE, 2, 1), taken.captured, 0, 4);
-  const other = [{ point: { x: 2, y: 1 }, color: 3, view: "base" as const }];
+  const other = [{ point: { x: 2, y: 1 }, color: 3, view: "base" as const, cross: false }];
   assert.equal(kos.blocks(boardIndex(SIZE, 1, 1), other, 1), false);
 });
 

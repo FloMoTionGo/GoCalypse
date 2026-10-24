@@ -360,6 +360,7 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .result-row .who { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .result-row .swatch-pair { display: flex; gap: 2px; flex-shrink: 0; background: var(--amber); padding: 2px; border-radius: 2px; }
 .result-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-row .name-col { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 /* The lower total is the score and reads bright; the higher one is only the tie-break. */
 .result-row .side { display: flex; flex-direction: column; gap: 1px; color: var(--slate); font-weight: 400; }
 .result-row .side.low { color: var(--cream); }
