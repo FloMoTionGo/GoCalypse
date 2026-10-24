@@ -102,3 +102,22 @@ test("targeting: another of my stones re-picks; the picked stone again un-picks"
   await b.ev("setSelectedPowerup(null); true");
   rig.assertClean("the aiming");
 });
+
+test("board: no stone preview over a rival's sprouting seed; a fresh seed, or my own, still offers it", async () => {
+  const r = await b.ev(`(() => {
+    const n = lastState.size, i = Array.from(board).findIndex((c, k) => !c && !overlays.some((o) => o.y * n + o.x === k));
+    const x = i % n, y = (i / n) | 0, rival = myPlayer.color % 4 + 1, keep = hoverPoint;
+    const L = roundLength, seed = { kind: "seed", x, y, owner: rival, until: turnCount + 2 * L, axis: "base" };
+    hoverPoint = { x, y };
+    overlays.push(seed);
+    const sprout = hoverKind();
+    seed.until = turnCount + 3 * L;
+    const fresh = hoverKind();
+    seed.owner = myPlayer.color; seed.until = turnCount + L;
+    const mine = hoverKind();
+    overlays.pop();
+    hoverPoint = keep;
+    return { sprout, fresh, mine };
+  })()`);
+  assert.deepEqual(r, { sprout: "none", fresh: "stone", mine: "stone" });
+});

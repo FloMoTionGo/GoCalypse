@@ -151,6 +151,16 @@ test("the Kata's face wears the turn icon on its top-right corner: playing it ta
   }
 });
 
+test("a seed grows on the board in three pictures: a seed, a sprout and a sapling", () => {
+  const steps = [G.SPRITES.seedBoard, G.SPRITES.sproutBoard, G.SPRITES.saplingBoard];
+  for (const [i, spr] of steps.entries()) {
+    assert.ok(spr, `step ${i + 1}`);
+    assert.ok(spr.w <= 15 && spr.h <= 15, `step ${i + 1} fits a point`);
+    assert.ok(inPalette(spr));
+  }
+  assert.equal(new Set(steps.map((s) => s.px.join())).size, 3);
+});
+
 test("the catalog (pixel-preview.html) lists the sprites", () => {
   const cat = G.catalog();
   const entries = Array.isArray(cat) ? cat : Object.values(cat);

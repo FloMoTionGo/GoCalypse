@@ -1,4 +1,20 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {"test": "seedStep: 3 rounds, a seed, a sprout, then a sapling, by the rounds it has left", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "a seed takes 3 rounds to grow, through seed, sprout and sapling, into its planter's stone", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "in its first round a rival's stone tramples the seed: the stone stands, the seed is gone", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "from its second round only its planter may play there: a rival's stone is refused", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "the planter may play on their own sprouting seed: the stone stands, the seed is gone", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "a sprouting seed is safe from rivals' items: driftwood, a lily pad and the stones items place", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "a Firework clears a seed in its first round, but not a sprout", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "lightning never strikes a sprouting seed", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "a seed under a fog when it is due waits a turn, as for a ko", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "bots read a rival's sprouting seed as reserved, as they read a rival's lily pad", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "Seedling says how it grows: 3 rounds, trampled only in the first", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "Seedling plants on an empty point for 3 rounds, and not on a stone, a seed or off the board", "feature": "seed-steps", "tier": "server", "since": "2026-10-24"},
+    {"test": "a seed grows on the board in three pictures: a seed, a sprout and a sapling", "feature": "seed-steps", "tier": "web", "since": "2026-10-24"},
+    {"test": "a seed is drawn by its step: seed, sprout, sapling, as its rounds run down", "feature": "seed-steps", "tier": "web", "since": "2026-10-24"},
+    {"test": "board: no stone preview over a rival's sprouting seed; a fresh seed, or my own, still offers it", "feature": "seed-steps", "tier": "gui", "since": "2026-10-24"}
+  ]
 }

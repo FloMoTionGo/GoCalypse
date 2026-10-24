@@ -204,6 +204,20 @@ test("a picked stone's ember blinks: on, then off a moment later; with reduced m
   }
 });
 
+test("a seed is drawn by its step: seed, sprout, sapling, as its rounds run down", () => {
+  assert.deepEqual([12, 9, 8, 5, 4, 1].map((left) => P.seedStep(100 + left, 100, 4)), [1, 1, 2, 2, 3, 3]);
+  const scene = P.createScene({ size: 13 });
+  const { x, y } = scene.pointToNative(6, 6);
+  const pics = [12, 8, 4].map((left) => {
+    const s = base(13, { turnCount: 100, overlays: [{ kind: "seed", x: 6, y: 6, owner: 1, until: 100 + left, axis: "base" }] });
+    const rgba = scene.render(s);
+    const out = [];
+    for (let yy = y; yy <= y + 4; yy++) for (let xx = x - 4; xx <= x + 4; xx++) out.push(rgba.slice((yy * scene.width + xx) * 4, (yy * scene.width + xx) * 4 + 3).join());
+    return out.join("|");
+  });
+  assert.equal(new Set(pics).size, 3, "three different pictures under the timer and the owner's mark");
+});
+
 test("landing points are marked on the board, and only there", () => {
   const scene = P.createScene({ size: 13 });
   const plain = scene.render(base(13)).slice();
