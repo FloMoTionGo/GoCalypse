@@ -572,6 +572,10 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 .item img { flex-shrink: 0; }
 .item .text { flex: 1 1 auto; min-width: 0; }
 .item .title { display: flex; justify-content: space-between; gap: 6px; font-weight: 700; font-size: 13px; }
+/* The turn icon (main.js turnIcon): this item's use takes the turn. Drawn at 2x, set beside the name. */
+.turn-icon { vertical-align: middle; flex-shrink: 0; }
+.item .turn-icon { margin: -3px 0 -3px 2px; vertical-align: -4px; }
+#welcome-turn-legend { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--cream); font-size: 13px; }
 .item .desc {
   color: var(--slate);
   line-height: 1.25;

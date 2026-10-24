@@ -1076,6 +1076,10 @@ function openWelcome(state) {
     note.textContent = "Each night the market stocks a few of eighteen items. Tonight's are listed here once you sit down.";
     list.append(note);
   }
+  const legend = document.createElement("p");
+  legend.id = "welcome-turn-legend";
+  legend.append(turnIcon(), " Using an item with this mark takes your turn. Items without it don't: play your stone after.");
+  list.append(legend);
   for (const m of stalls) {
     const row = document.createElement("div");
     row.className = "welcome-item";
@@ -1084,7 +1088,9 @@ function openWelcome(state) {
     title.className = "title";
     const name = document.createElement("span");
     name.textContent = m.name;
-    title.append(name, fireflies(m.price));
+    title.append(name);
+    if (!m.free) title.append(turnIcon());
+    title.append(fireflies(m.price));
     const desc = document.createElement("div");
     desc.className = "desc";
     desc.textContent = m.description;
@@ -2041,7 +2047,14 @@ function itemCard(id) {
   card.type = "button";
   card.className = "card";
   card.dataset.id = id;
-  card.setAttribute("aria-label", `${item.name} (tier ${["", "I", "II", "III"][item.tier] || item.tier}): ${item.description}`);
+  // Using it takes the turn unless the item is `free`: the card wears the turn icon then.
+  const turn = !item.free;
+  card.dataset.turn = turn ? "1" : "0";
+  card.setAttribute(
+    "aria-label",
+    `${item.name} (tier ${["", "I", "II", "III"][item.tier] || item.tier}): ${item.description} ` +
+      (turn ? "Takes your turn." : "Doesn't take your turn.")
+  );
   card.title = ""; // hovering shows the card enlarged instead; "" also keeps the hand's tooltip off it
   const name = document.createElement("span");
   name.className = "card-name";
@@ -2049,7 +2062,7 @@ function itemCard(id) {
   const text = document.createElement("span");
   text.className = "card-text";
   text.textContent = item.description;
-  card.append(spriteImg(`card_${id}_${item.tier}`, G.itemCard(id, item.tier), 1), name, text);
+  card.append(spriteImg(`card_${id}_${item.tier}_${turn ? 1 : 0}`, G.itemCard(id, item.tier, { turn }), 1), name, text);
   return card;
 }
 
@@ -2306,6 +2319,7 @@ function renderMarket(state) {
       tier.textContent = ["", "I", "II", "III"][m.tier] || "";
       tier.title = `Tier ${m.tier}`;
       name.append(" ", tier);
+      if (!m.free) name.append(" ", turnIcon());
       if (counted && !soldOut) {
         const left = document.createElement("span");
         left.className = "left";
@@ -2327,6 +2341,14 @@ function renderMarket(state) {
       marketItemsEl.appendChild(button);
     }
   });
+}
+
+/** The turn icon (sprites.js turnIcon): using this item takes your turn. */
+function turnIcon() {
+  const img = spriteImg("turn_icon", G.SPRITES.turnIcon, 2);
+  img.classList.add("turn-icon");
+  img.title = "Takes your turn";
+  return img;
 }
 
 function tag(text) {

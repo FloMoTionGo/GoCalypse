@@ -996,6 +996,21 @@
     "...a...",
   ]);
 
+  // The turn icon: a cream ring around a 1, its arrowhead turning clockwise at
+  // the top right, on an ink disc. It marks every item whose use takes the turn
+  // (a card's top-right corner, its stall, How to play); free items go without.
+  SPRITES.turnIcon = sprite("turnIcon", [
+    "...CCCA..",
+    ".CCKKKAA.",
+    ".CKKCKAK.",
+    "CKKCCKKKC",
+    "CKKKCKKKC",
+    "CKKKCKKKC",
+    ".CKCCCKC.",
+    ".CCKKKCC.",
+    "...CCC...",
+  ]);
+
   // ---------------------------------------------------------------------------
   // Pixel fonts: 3x5 for the board margin, 4x6 for the highlighted label.
   // ---------------------------------------------------------------------------
@@ -1288,11 +1303,16 @@
     return cx + cy >= 2;
   }
 
-  /** Card-face sprite for an item: CARD_W x CARD_H, tier 1..3 (anything else reads as 1). */
+  /**
+   * Card-face sprite for an item: CARD_W x CARD_H, tier 1..3 (anything else reads
+   * as 1). With `turn`, the turn icon sits on its top-right corner: using the item
+   * takes the turn.
+   */
   const cardCache = {};
-  function itemCard(id, tier) {
+  function itemCard(id, tier, opts) {
     const t = tier === 2 || tier === 3 ? tier : 1;
-    const key = `${id}:${t}`;
+    const turn = !!(opts && opts.turn);
+    const key = `${id}:${t}${turn ? ":turn" : ""}`;
     if (key in cardCache) return cardCache[key];
     const W = CARD_W, H = CARD_H, frame = CARD_FRAME[t];
     const s = new Surface(W, H);
@@ -1331,7 +1351,9 @@
         }
       }
     }
-    return (cardCache[key] = makeSprite(`card_${id}_${t}`, W, H, s.px));
+    // Clear of the third gem (it reaches x = 26), over the cut corner like a stamp.
+    if (turn) s.blit(SPRITES.turnIcon, W - SPRITES.turnIcon.w, 0);
+    return (cardCache[key] = makeSprite(`card_${id}_${t}${turn ? "_turn" : ""}`, W, H, s.px));
   }
 
   // The Stone Card (server/src/rules/stoneCard.ts): a 3x3 go board on a card,

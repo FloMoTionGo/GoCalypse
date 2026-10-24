@@ -22,7 +22,8 @@ import { PowerupContext, PowerupDefinition } from "./types";
 // The Night Market's stock. Add a powerup by defining it here and adding it
 // to REGISTRY -- the room builds the market from this list, and the client
 // renders whatever the market holds (it only needs a sprite for new ids).
-// Every item targets one board cell, and using one takes your turn.
+// Most items target one board cell; using one takes your turn unless it is `free`
+// (the client marks the others' cards with the turn icon).
 
 function targetIndex(ctx: PowerupContext): number {
   const { target, size } = ctx;
@@ -186,7 +187,7 @@ const fireflyJar: PowerupDefinition = {
   id: "firefly_jar",
   tier: 1,
   name: "Firefly Jar",
-  description: "Your captures earn double fireflies for the rest of this turn and your next 3. Doesn't use up your turn.",
+  description: "Your captures earn double fireflies for the rest of this turn and your next 3.",
   price: 25,
   removal: false,
   points: 0,
@@ -224,7 +225,7 @@ const mist: PowerupDefinition = {
   tier: 1,
   name: "Mist",
   description:
-    "Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on. Doesn't use up your turn.",
+    "Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on.",
   price: 30,
   removal: false,
   points: 0,
@@ -271,7 +272,7 @@ const bait: PowerupDefinition = {
   tier: 1,
   name: "Bait",
   description:
-    "Toss a bait to the river crab or the river spirit, on one of the points it reaches: it takes the bait and goes back into the water at once, taking nothing. On sale every night. Doesn't use up your turn.",
+    "Toss a bait to the river crab or the river spirit, on one of the points it reaches: it takes the bait and goes back into the water at once, taking nothing. On sale every night.",
   price: 30,
   removal: false,
   free: true,
@@ -289,7 +290,7 @@ const kite: PowerupDefinition = {
   tier: 2,
   name: "Kite",
   description:
-    "Fly a kite over an enemy stone: only you see what its player is holding and how many fireflies they have. Doesn't use up your turn.",
+    "Fly a kite over an enemy stone: only you see what its player is holding and how many fireflies they have.",
   price: 45,
   removal: false,
   free: true,
@@ -367,7 +368,7 @@ const twinWick: PowerupDefinition = {
   tier: 2,
   name: "Twin Wick",
   description:
-    "Your next stone fights on both fronts at once: it joins and captures on both, but is lost if either of its groups runs out of liberties. Doesn't use up your turn.",
+    "Your next stone fights on both fronts at once: it joins and captures on both, but is lost if either of its groups runs out of liberties.",
   price: 70,
   removal: false,
   points: 0,
@@ -424,7 +425,7 @@ const steppingStones: PowerupDefinition = {
   id: "stepping_stones",
   tier: 3,
   name: "Stepping Stones",
-  description: "Place two stones this turn: your next move doesn't end your turn. Doesn't use up your turn.",
+  description: "Place two stones this turn: your next move doesn't end your turn.",
   price: 200,
   removal: false,
   points: 0,
