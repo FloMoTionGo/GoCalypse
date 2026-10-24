@@ -11,6 +11,7 @@ import {
   isSuicide,
   ownerOf,
   stoneCode,
+  twinCode,
 } from "./goRules";
 
 // Player identity: 1 = black+gray, 2 = white+gray, 3 = black+transparent, 4 = white+transparent.
@@ -289,4 +290,68 @@ test("flipStone captures a former group-mate the flip strands", () => {
   assert.equal(ownerOf(captured![0].color), 1);
   assert.equal(board[boardIndex(size, 0, 0)], 0);
   assert.equal(board[boardIndex(size, 1, 0)], stoneCode(3, "pattern"));
+});
+
+// ---- cross-front kills (ideas.md §11.6) --------------------------------------------
+// A capture is cross-front when the stone that took the dead group's last
+// liberty does not fight on that group's front. The stones still die; the room
+// books no prisoners for them.
+
+/** Read loosely, so these fail on their own until Captured carries the flag. */
+const crossOf = (c: unknown) => (c as { cross?: boolean }).cross;
+
+/** A gray (player 1) stone at (2,2) on a 5x5 board, hemmed in on three sides by transparent stones. */
+function grayInAtari() {
+  const size = 5;
+  const board = new Array(size * size).fill(0);
+  board[boardIndex(size, 2, 2)] = stoneCode(1, "pattern");
+  board[boardIndex(size, 1, 2)] = stoneCode(3, "pattern");
+  board[boardIndex(size, 3, 2)] = stoneCode(3, "pattern");
+  board[boardIndex(size, 2, 1)] = stoneCode(3, "pattern");
+  return { size, board };
+}
+
+test("cross-front: a black stone filling a gray group's last liberty kills it across the fronts", () => {
+  const { size, board } = grayInAtari();
+  board[boardIndex(size, 2, 3)] = stoneCode(2, "base");
+  const captured = applyCaptures(board, size, 2, 3, stoneCode(2, "base"));
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].view, "pattern");
+  assert.equal(crossOf(captured[0]), true);
+});
+
+test("cross-front: a transparent stone taking the same gray group kills it on its own front", () => {
+  const { size, board } = grayInAtari();
+  board[boardIndex(size, 2, 3)] = stoneCode(3, "pattern");
+  const captured = applyCaptures(board, size, 2, 3, stoneCode(3, "pattern"));
+  assert.equal(captured.length, 1);
+  assert.equal(crossOf(captured[0]), false);
+});
+
+test("cross-front: a twin stone fights on both fronts, so its kills never cross", () => {
+  const { size, board } = grayInAtari();
+  board[boardIndex(size, 2, 3)] = twinCode(4); // white and transparent
+  const captured = applyCaptures(board, size, 2, 3, twinCode(4));
+  assert.equal(captured.length, 1);
+  assert.equal(crossOf(captured[0]), false);
+});
+
+test("cross-front: a Turn the Lantern capture is judged by the flipped stone's new front", () => {
+  const size = 3;
+  // Player 3's black stone turns transparent and takes the gray stone beside it: its own front now.
+  const same = new Array(size * size).fill(0);
+  same[boardIndex(size, 0, 0)] = stoneCode(1, "pattern");
+  same[boardIndex(size, 1, 0)] = stoneCode(3, "pattern");
+  same[boardIndex(size, 0, 1)] = stoneCode(3, "base");
+  const took = flipStone(same, size, 0, 1)!;
+  assert.equal(took.length, 1);
+  assert.equal(crossOf(took[0]), false);
+  // A black stone stranded by the flip dies on the base front, which the flipped stone has left.
+  const left = new Array(size * size).fill(0);
+  left[boardIndex(size, 0, 0)] = stoneCode(1, "base");
+  left[boardIndex(size, 1, 0)] = stoneCode(3, "base");
+  left[boardIndex(size, 0, 1)] = stoneCode(2, "base");
+  const stranded = flipStone(left, size, 1, 0)!;
+  assert.equal(stranded.length, 1);
+  assert.equal(crossOf(stranded[0]), true);
 });

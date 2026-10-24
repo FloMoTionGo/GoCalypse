@@ -592,6 +592,14 @@ test("a capture past the prisoner cap pays no capture weight at all", () => {
   assert.equal(over, 0);
 });
 
+test("a cross-front capture pays no capture weight: the stones die, but score no prisoners", () => {
+  // A gray stone of ours fills the white stone's last liberty: it dies on the base front, which gray does not fight on.
+  const v = captureOffered();
+  const across = scoreMove(v, 2, 3, "pattern", CAPTURE_ONLY);
+  assert.equal(across, 0);
+  assert.equal(scoreMove(v, 2, 3, "base", CAPTURE_ONLY), CAPTURE_ONLY.capture, "the same kill with a black stone pays");
+});
+
 test("the area estimate hands open ground to the nearest side, and a tie to no one", () => {
   const size = 9;
   const b = new Array(size * size).fill(0);

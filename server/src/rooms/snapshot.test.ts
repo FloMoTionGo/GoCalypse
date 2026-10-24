@@ -87,3 +87,13 @@ test("a made-up restore token gives a fresh room", () => {
   assert.equal(room.state.status, "waiting");
   assert.equal(room.state.players.length, 0);
 });
+
+test("a snapshot from before smothered stones loads them as 0", () => {
+  const { room, clients } = startedRoom();
+  move(room, clients, 3, 3);
+  room.saveSnapshot();
+  const snap = read(room);
+  for (const p of snap.state.players) delete p.smothered;
+  const back = makeRoom({ restoreToken: queueRestore(snap) });
+  assert.deepEqual(back.state.players.map((p: any) => p.smothered), [0, 0, 0, 0]);
+});

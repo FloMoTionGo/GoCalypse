@@ -213,3 +213,26 @@ test("table: Results from a server without the prisoner cap counts every prisone
   assert.equal(r.low, true);
   rig.assertClean("the table");
 });
+
+test("table: Results shows the stones a player smothered, for no points; an older server's Results shows none", async () => {
+  const r = await b.ev(`(() => {
+    const row = (smothered) => {
+      const players = Array.from(lastState.players).map((p, i) => ({
+        name: p.name, color: p.color, sessionId: p.sessionId, bot: p.bot, place: i + 1,
+        baseTerritory: 4, basePrisoners: 2, patternTerritory: 6, patternPrisoners: 0, baseCounted: 2, patternCounted: 0,
+        finalScore: 6, tiebreak: 6, smothered: i === 0 ? smothered : 0,
+      }));
+      openResult({ players, size: lastState.size });
+      const rows = document.querySelectorAll("#result-table .result-row:not(.head)");
+      return { first: rows[0].textContent, second: rows[1].textContent };
+    };
+    const out = { now: row(3), old: row(undefined), hint: document.querySelector("#result .hint").textContent };
+    openResult(lastState);
+    return out;
+  })()`);
+  assert.match(r.now.first, /3 smothered \(0 points\)/);
+  assert.doesNotMatch(r.now.second, /smothered/, "none smothered, nothing said");
+  assert.doesNotMatch(r.old.first, /smothered|undefined/);
+  assert.match(r.hint, /other front/);
+  rig.assertClean("the table");
+});
