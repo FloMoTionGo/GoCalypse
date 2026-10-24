@@ -630,3 +630,77 @@ test("the shipped recruits capture far fewer stones than they place", () => {
   }
   assert.ok(taken < 0.4 * placed, `${taken} of ${placed} stones placed were captured`);
 });
+
+// ---- the lower front ---------------------------------------------------------
+//
+// A player's score is the LOWER of its two fronts (rules/endgame.ts), so a bot
+// leans to the front it is behind on: `axisBias` is paid there, judged by the
+// estimated ground plus the prisoners that count, and `prefers` only decides
+// while the two are level. Every other weight is zero here, so a score is
+// either the bias or nothing.
+
+const LEANS_ONLY: Style = { ...randomStyle(), axisBias: 300, prefers: "base" };
+
+test("a bot ahead on its base front leans to its pattern front", () => {
+  const size = 9;
+  const v = view(size, 1);
+  v.board[boardIndex(size, 2, 2)] = stoneCode(1, "base"); // black: ground on the base front only
+  assert.equal(scoreMove(v, 6, 6, "pattern", LEANS_ONLY), LEANS_ONLY.axisBias);
+  assert.equal(scoreMove(v, 6, 6, "base", LEANS_ONLY), 0);
+});
+
+test("while its two fronts are level a bot leans to the front it prefers", () => {
+  const v = view(9, 1);
+  for (const prefers of ["base", "pattern"] as StoneView[]) {
+    const s: Style = { ...LEANS_ONLY, prefers };
+    assert.equal(scoreMove(v, 4, 4, prefers, s), s.axisBias);
+    assert.equal(scoreMove(v, 4, 4, prefers === "base" ? "pattern" : "base", s), 0);
+  }
+});
+
+test("the prisoners a bot took lift the front they were taken on", () => {
+  // Its black at (2,2) and its own grey at (6,6) mirror each other: level ground.
+  const size = 9;
+  const b = new Array(size * size).fill(0);
+  b[boardIndex(size, 2, 2)] = stoneCode(1, "base");
+  b[boardIndex(size, 6, 6)] = stoneCode(1, "pattern");
+  const area = estimateArea(b, size);
+  assert.equal(area.black, area.gray);
+  assert.equal(scoreMove(view(size, 1, { board: b }), 4, 0, "base", LEANS_ONLY), LEANS_ONLY.axisBias);
+  const took = view(size, 1, { board: b, prisoners: { base: 4, pattern: 0 } });
+  assert.equal(scoreMove(took, 4, 0, "pattern", LEANS_ONLY), LEANS_ONLY.axisBias);
+  assert.equal(scoreMove(took, 4, 0, "base", LEANS_ONLY), 0);
+});
+
+test("prisoners past the cap do not lift a front", () => {
+  // Black in the corner reaches 9 points, the bot's grey in the middle 24.
+  // Twenty base prisoners would put the base front ahead, but only 9 count.
+  const size = 9;
+  const b = new Array(size * size).fill(0);
+  b[boardIndex(size, 0, 0)] = stoneCode(1, "base");
+  b[boardIndex(size, 4, 4)] = stoneCode(1, "pattern");
+  const area = estimateArea(b, size);
+  assert.deepEqual([area.black, area.gray], [9, 24]);
+  const s: Style = { ...LEANS_ONLY, prefers: "pattern" };
+  const v = view(size, 1, { board: b, prisoners: { base: 20, pattern: 0 } });
+  assert.equal(scoreMove(v, 8, 8, "base", s), s.axisBias);
+  assert.equal(scoreMove(v, 8, 8, "pattern", s), 0);
+});
+
+test("Moyo still opens on the pattern front", () => {
+  const top = rankMoves(view(13, 4), moth())[0];
+  assert.equal(top.axis, "pattern");
+});
+
+test("the recruits keep their two fronts close", () => {
+  // The lower front is the score, so ground piled onto the higher one is
+  // wasted. With a fixed favourite front these four seats ended 14.25 points
+  // apart on average over these seeds; leaning to the lower front, 8.06.
+  let gap = 0;
+  const seeds = [11, 12, 13, 14];
+  for (const seed of seeds) {
+    for (const r of playMatch(seed, TABLE).results) gap += Math.abs(r.base - r.pattern);
+  }
+  gap /= 4 * seeds.length;
+  assert.ok(gap < 11, `the fronts ended ${gap} points apart on average`);
+});
