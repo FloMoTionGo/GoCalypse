@@ -2378,12 +2378,36 @@
     return { k: Math.max(1, Math.min(Math.floor(W / s.w), Math.floor(H / s.h))) };
   }
 
+  // The home screen is a stage too (logo.js): the logo's river scene, the word
+  // and the bot board's island in it, and under it the text -- tagline, caption,
+  // Play, status line and footer -- all in art pixels, k device pixels each.
+  const HOME = {
+    share: 0.75, // of the window the home screen aims to take
+    gap: 6, // between the scene and the text
+    text: 94, // the text under the scene
+  };
+
+  /**
+   * The home screen's k: the whole number that brings the stage nearest to
+   * HOME.share of the window's physical pixels, but never more than fits; at
+   * least 1. The river then spans HOME.share of the window's width at that k,
+   * never narrower than the stage (the word and its banks).
+   */
+  function pickHomeScale(innerW, innerH, dpr, stage) {
+    const W = innerW * dpr, H = innerH * dpr;
+    const fits = Math.min(W / stage.w, H / stage.h);
+    const k = Math.max(1, Math.min(Math.round(HOME.share * fits), Math.floor(fits)));
+    return { k, sceneW: Math.max(stage.w, Math.floor((HOME.share * W) / k)) };
+  }
+
   return {
     SPACING,
     AMBIENT_FPS,
     STAGE,
     stageSize,
     pickScale,
+    HOME,
+    pickHomeScale,
     seedStep,
     STORM_SECONDS,
     RIVER_CLIMB_SECONDS,

@@ -4,7 +4,7 @@
 // ended; picking one fetches it whole (GET /history/:id) and plays it back on a
 // pixel scene of its own. The sums are in replay.js (window.GoReplay); this
 // file only wires them to the page. Loaded after main.js, whose globals it
-// shares (serverEndpoint, devicePx, isOutside), so every name here starts
+// shares (serverEndpoint, artPx, isOutside), so every name here starts
 // with "replay".
 
 const replays = {
@@ -19,7 +19,7 @@ const replays = {
 };
 const REPLAY_LIST_LIMIT = 200;
 const REPLAY_FPS = 15; // the scene's water and lanterns still move; the stones only on a step
-const REPLAY_CHROME_H = 330; // CSS px of the dialog around the board: margins, title, controls, event line
+const REPLAY_CHROME_H = 149; // art px of the dialog around the board: margins, title, controls, event line
 
 const replaysEl = document.getElementById("replays");
 const replayListPaneEl = document.getElementById("replays-list-pane");
@@ -151,14 +151,13 @@ function showReplay(record) {
 function sizeReplayCanvas() {
   const scene = replays.scene;
   if (!scene || replayViewerEl.hidden) return;
-  const dpr = devicePx();
-  const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  const dpr = window.devicePixelRatio || 1;
   const stage = document.getElementById("replay-stage");
   const side = document.getElementById("replay-side");
   const wide = getComputedStyle(stage).flexDirection === "row";
   // The standings take what the board leaves (flex: 1), so count only their min-width.
   const availW = Math.max(120, stage.clientWidth - (wide ? parseFloat(getComputedStyle(side).minWidth) + 16 : 0));
-  const availH = Math.max(120, window.innerHeight / z - REPLAY_CHROME_H);
+  const availH = Math.max(120, window.innerHeight - REPLAY_CHROME_H * artPx());
   let scale = 1;
   for (let s = 8; s > 1; s--) {
     if ((scene.width * s) / dpr <= availW && (scene.height * s) / dpr <= availH) {

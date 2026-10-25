@@ -397,15 +397,16 @@ function attachRoom(joined) {
 }
 
 /**
- * The table or the home screen. At the table the page is the stage (sizeCanvas):
- * no page zoom, and --px is set to whole device pixels; back home, the home
- * screen's own sizes (style.css :root) come back.
+ * The table or the home screen. Each is a stage in whole device pixels: at the
+ * table sizeCanvas sets --px, back home logo.js does (GoLogo.fit).
  */
 function showGame(on) {
   gameEl.hidden = !on;
   lobbyEl.hidden = on;
   document.documentElement.classList.toggle("in-game", on);
-  if (!on) for (const v of ["--px", "--min-font", "--stage-w", "--stage-h", "--scene-w"]) document.documentElement.style.removeProperty(v);
+  if (on) return;
+  for (const v of ["--stage-w", "--stage-h", "--scene-w"]) document.documentElement.style.removeProperty(v);
+  if (window.GoLogo) window.GoLogo.fit();
 }
 
 async function connect() {
@@ -490,26 +491,6 @@ function ensureScene(size) {
   boardEl.height = scene.height;
   imageData = boardCtx.createImageData(scene.width, scene.height);
   sizeCanvas();
-}
-
-/**
- * The page's CSS zoom (--ui-zoom in style.css). getBoundingClientRect(), the
- * pointer and innerWidth / innerHeight come in window px; lengths set on an
- * element's style are page px, each worth uiZoom() window px.
- */
-function uiZoom() {
-  return parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-}
-
-/** Device pixels per page px: what whole-pixel sizing divides by. */
-function devicePx() {
-  return (window.devicePixelRatio || 1) * uiZoom();
-}
-
-/** A getBoundingClientRect() in page px, for placing elements with style lengths. */
-function pageRect(el) {
-  const r = el.getBoundingClientRect(), z = uiZoom();
-  return { left: r.left / z, top: r.top / z, right: r.right / z, bottom: r.bottom / z, width: r.width / z, height: r.height / z };
 }
 
 /**
@@ -1953,7 +1934,7 @@ function renderSidebar(state) {
 function renderPlayers(state) {
   const players = Array.from(state.players);
   const sig = JSON.stringify([
-    state.turnIndex, state.status, myPlayer && myPlayer.sessionId, devicePx(),
+    state.turnIndex, state.status, myPlayer && myPlayer.sessionId, window.devicePixelRatio || 1,
     players.map((p) => [p.name, p.color, p.connected, p.bot, p.passed, p.jar, p.mist, p.twin, p.extra, p.score, p.fireflies, p.finalScore, p.place, Array.from(p.card).join("")]),
   ]);
   rebuild(playersEl, sig, () => {
@@ -2394,7 +2375,7 @@ function nextHaikuCollected(state) {
 function flyHaiku(line) {
   const card = handEl.querySelector(`.card.haiku-card[data-id="haiku_${line.haiku}"]`);
   if (!card || !scene || reducedMotion() || !card.animate) return;
-  const b = pageRect(boardEl), to = pageRect(card);
+  const b = boardEl.getBoundingClientRect(), to = card.getBoundingClientRect();
   const p = scene.pointToNative(line.x, line.y);
   const img = artImg(`haiku_fly_${line.haiku}`, G.haikuGlyph(line.haiku, 11, G.INDEX.C, 3, null));
   img.classList.add("haiku-flier");
@@ -2431,11 +2412,11 @@ function showCardZoom(card) {
   hideCardZoom();
   if (!card.isConnected || card.classList.contains("incoming")) return;
   const px = artPx();
-  const b = pageRect(boardEl);
+  const b = boardEl.getBoundingClientRect();
   const margin = 8;
   // As large as asked, unless the window is too small for that; whole device pixels per card pixel.
-  const dpr = devicePx();
-  const vw = window.innerWidth / uiZoom(), vh = window.innerHeight / uiZoom(); // the window in page px
+  const dpr = window.devicePixelRatio || 1;
+  const vw = window.innerWidth, vh = window.innerHeight;
   const fit = Math.min(CARD_ZOOM * px, (vw - 2 * margin) / G.CARD_W, (vh - 2 * margin) / G.CARD_H);
   const zpx = Math.max(px, Math.floor(fit * dpr) / dpr);
   const w = G.CARD_W * zpx, h = G.CARD_H * zpx;
@@ -2445,7 +2426,7 @@ function showCardZoom(card) {
   let top = clamp(b.top + (b.height - h) / 2, margin, vh - margin - h);
   if (live) {
     // Over the card, its lower edge a third of the way down the card: no gap for the pointer to fall through.
-    const c = pageRect(card);
+    const c = card.getBoundingClientRect();
     left = clamp(c.left + (c.width - w) / 2, margin, vw - margin - w);
     top = clamp(c.top + c.height / 3 - h, margin, vh - margin - h);
   }
@@ -2544,8 +2525,8 @@ function flyCard(index) {
   const source = stall >= 0 ? marketItemsEl.children[stall] : null;
   if (!target || !source || reducedMotion() || !target.animate) return land();
 
-  const to = pageRect(target);
-  const from = pageRect(source.querySelector("img") || source);
+  const to = target.getBoundingClientRect();
+  const from = (source.querySelector("img") || source).getBoundingClientRect();
   if (!to.width || !from.width) return land();
   const flier = target.cloneNode(true);
   flier.classList.remove("incoming", "active");
@@ -2566,7 +2547,7 @@ function flyCard(index) {
   const x0 = from.left + from.width / 2 - cx;
   const y0 = from.top + from.height / 2 - cy;
   const s0 = Math.min(1, from.width / to.width);
-  const b = pageRect(boardEl);
+  const b = boardEl.getBoundingClientRect();
   const boardBox = { left: b.left - cx, right: b.right - cx, top: b.top - cy, bottom: b.bottom - cy };
   const smooth = (a, z, v) => {
     const k = Math.min(1, Math.max(0, (v - a) / (z - a)));

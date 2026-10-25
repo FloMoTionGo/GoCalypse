@@ -7,8 +7,9 @@
 // board's island (lobbyBoard.js, a canvas of its own laid over the river at
 // twice this scene's pixel size), with surf all along its shore.
 //
-// Sized to about 64% of the window width (LOGO_SHARE) at a whole number of device pixels per
-// native pixel, so it stays as crisp as the board. Animates at the scene's
+// Sized with the text under it as one stage, about 75% of the window
+// (pixelScene.js pickHomeScale), at a whole number of device pixels per native
+// pixel, so it stays as crisp as the board. Animates at the scene's
 // ambient 10 fps while the lobby is on screen; one still frame with reduced motion.
 (function () {
   "use strict";
@@ -520,37 +521,23 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Canvas: LOGO_SHARE of the window, whole device pixels per native pixel
+  // Canvas: the home screen as one stage (pixelScene.js pickHomeScale), whole
+  // device pixels per native pixel, about 75% of the window
   // ---------------------------------------------------------------------------
   const ctx = canvas.getContext("2d");
-  const LOGO_SHARE = 0.75 * 0.85; // of the window's width: 85% of the first 75%
+  const PS = window.GoPixelScene;
   let scene = null, image = null;
-  let rest = 0; // window px the home screen needs besides the logo, last measured while it showed
-  /** Window px above the logo and from its foot to the page's end (the lobby, its margin, #app's padding). */
-  function restHeight(zoom) {
-    const app = document.getElementById("app");
-    if (!lobby || lobby.hidden || !app) return rest;
-    const logo = canvas.getBoundingClientRect(), end = lobby.getBoundingClientRect().bottom;
-    const below = parseFloat(getComputedStyle(lobby).marginBottom) + parseFloat(getComputedStyle(app).paddingBottom);
-    return (rest = end - logo.height + window.scrollY + below * zoom);
-  }
   function fit() {
-    // The page is zoomed (--ui-zoom in style.css): the window and the device pixels are
-    // in window px, the canvas's style width in page px, each worth `zoom` window px.
-    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    if (lobby && lobby.hidden) return; // at the table main.js sizes the page (sizeCanvas)
     const dpr = window.devicePixelRatio || 1;
-    // LOGO_SHARE of the window; on a narrow one the whole width (less the page gutters), as the bot board is in it.
-    let target = Math.floor(window.innerWidth * LOGO_SHARE * dpr); // device px
-    if (target < MIN_W) target = Math.floor((window.innerWidth - 32 * zoom) * dpr);
-    // ...and no taller than the window leaves once the text under it (tagline, Play,
-    // footer) has its room, so the home screen fits on one screen at any display
-    // scaling. A lower scale makes the scene wider in its own pixels, not narrower.
-    const tall = ((window.innerHeight - restHeight(zoom)) * dpr) / H; // device px per scene px the height allows
-    const scale = Math.min(Math.floor(target / MIN_W), Math.max(1, Math.floor(tall)));
-    const W = scale >= 1 ? Math.floor(target / scale) : MIN_W;
-    // Too narrow or too short for whole pixels: let the browser shrink it to the window instead.
-    const shrink = Math.min(1, Math.max(tall, 0.25));
-    canvas.style.width = scale >= 1 ? `${(W * scale * shrink) / (dpr * zoom)}px` : `${Math.min(window.innerWidth / zoom - 32, (W * shrink) / (dpr * zoom))}px`;
+    // The narrowest scene, then the text under it (style.css sizes it in --px to HOME.text).
+    const stage = { w: MIN_W, h: H + PS.HOME.gap + PS.HOME.text };
+    const { k, sceneW: W } = PS.pickHomeScale(window.innerWidth, window.innerHeight, dpr, stage);
+    const root = document.documentElement.style;
+    root.setProperty("--px", `${k / dpr}px`);
+    root.setProperty("--min-font", `${11 / dpr}px`); // never under 11 device px, as at the table
+    // Narrower than the word even at k = 1: let the browser shrink it to the window instead.
+    canvas.style.width = `${Math.min((W * k) / dpr, window.innerWidth)}px`;
     if (scene && scene.W === W) return placeIsland();
     canvas.width = W;
     canvas.height = H;
@@ -570,8 +557,7 @@
   /** Lays the island's canvas over its outline in the river, at twice this scene's pixel size. */
   function placeIsland() {
     if (!ISLE || !scene) return;
-    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-    const u = canvas.getBoundingClientRect().width / zoom / scene.W; // page px per scene px; exact px, as percentages round off
+    const u = canvas.getBoundingClientRect().width / scene.W; // CSS px per scene px; exact px, as percentages round off
     Object.assign(ISLE.wrap.style, {
       left: `${scene.islandX * u}px`,
       top: `${ISLAND_TOP * u}px`,
@@ -604,6 +590,7 @@
   }
   window.addEventListener("resize", fit);
   reduced.addEventListener("change", () => scene && draw(performance.now()));
+  window.GoLogo = { fit }; // main.js, back home from the table
   fit();
   requestAnimationFrame(tick);
 })();

@@ -65,10 +65,11 @@ test("home: one picture in whole pixels near 75% of the window, centred, its tex
     await wait(500);
     return b.ev(HOME_MEASURE);
   };
-  const small = await at(1920, 950), big = await at(3840, 2175);
+  // 1920x950 is k = 1, where text keeps its 11 device px floor; the text is compared from k = 2 up.
+  const hd = await at(1920, 950), small = await at(2560, 1440), big = await at(3840, 2175);
   await b.cdp("Emulation.clearDeviceMetricsOverride", {});
   await wait(300);
-  for (const [m, name] of [[small, "1920x950"], [big, "3840x2175"]]) {
+  for (const [m, name] of [[hd, "1920x950"], [small, "2560x1440"], [big, "3840x2175"]]) {
     assert.ok(Number.isInteger(m.k) && m.k >= 1, `${name}: whole pixels, k=${m.k}`);
     assert.ok(m.logoW <= 0.75 * m.winW + 0.5 && m.logoW > 0.75 * m.winW - m.k - 0.5, `${name}: the river spans 75% of the width (${m.logoW} of ${m.winW})`);
     assert.ok(Math.abs(m.logoMid - m.winW / 2) <= 1, `${name}: the scene is centred (${m.logoMid})`);

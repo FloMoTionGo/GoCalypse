@@ -13,22 +13,14 @@
   --muted: var(--slate);
   --accent: var(--amber);
 
-  /* The home screen drawn at 90%, like the browser's own zoom. Its pixel canvases
-     still land on whole device pixels: logo.js sizes them through the zoom.
-     Viewport units are divided by it so "92vw" still means 92% of the window. */
-  --ui-zoom: 0.9;
-
-  /* One art pixel (ideas.md §11.9): the game screen and its dialogs are measured
-     in these, k device pixels each, k a whole number (sizeCanvas in main.js sets
-     --px to k / devicePixelRatio). Until then, on the home screen, an art pixel
-     is the size that draws today's dialogs under the 0.9 zoom. Text never goes
-     below 11 device px (--min-font), which bends the picture only at k = 1. */
-  --px: calc(2px / 0.9);
+  /* One art pixel (ideas.md §11.9): the game screen, the home screen and their
+     dialogs are measured in these, k device pixels each, k a whole number
+     (--px is k / devicePixelRatio, set by sizeCanvas in main.js at the table and
+     by logo.js at home). Text never goes below 11 device px (--min-font), which
+     bends the picture only at k = 1. */
+  --px: 2px;
   --min-font: 11px;
 }
-html { zoom: var(--ui-zoom); }
-/* At the table the page is the stage, in whole device pixels: no zoom. */
-html.in-game { --ui-zoom: 1; }
 
 * { box-sizing: border-box; }
 
@@ -42,6 +34,9 @@ body {
 /* Wide enough for the board to grow to whatever the screen allows; the
    canvas itself is sized to fit in main.js (sizeCanvas). */
 #app { max-width: calc(810 * var(--px)); margin: 0 auto; padding: calc(7 * var(--px)); }
+/* The home screen (logo.js, pixelScene.js HOME): the scene and the text under it, one stage
+   in the middle of the window. */
+html:not(.in-game) #app { max-width: none; min-height: 100vh; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
 h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
 .tagline { color: var(--slate); margin-top: 0; }
@@ -51,15 +46,18 @@ h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
 #lobby {
   /* small text on the home screen: cream and slate mixed, 7:1 on ink (slate alone is 4:1) */
   --mist: color-mix(in srgb, var(--cream) 40%, var(--slate));
-  max-width: 760px;
-  margin: 40px auto;
+  width: 100%;
+  max-width: calc(342 * var(--px));
+  margin: 0 auto;
   text-align: center;
 }
-#lobby .tagline { margin: 0; color: var(--cream); font-size: 15px; }
-#logo-wrap { position: relative; width: fit-content; margin: 24px auto 0; line-height: 0; }
+/* Under the scene, HOME.text art px in all (pixelScene.js): the tagline, the caption, Play,
+   the status line and the footer. */
+#lobby .tagline { margin: 0; color: var(--cream); font-size: max(var(--min-font), calc(6.75 * var(--px))); line-height: 1.2; }
+#logo-wrap { position: relative; width: fit-content; margin: 0 auto; line-height: 0; }
 #logo { display: block; }
 #logo-wrap:has(+ #lobby[hidden]) { display: none; }
-#logo-wrap + #lobby { margin-top: 14px; }
+#logo-wrap + #lobby { margin-top: calc(6 * var(--px)); }
 /* Sits over the pixel GitHub sign in the river; logo.js places it and lights the sign on hover. */
 #github-link { position: absolute; z-index: 1; border-radius: 2px; }
 #github-link:focus-visible { outline: 2px solid var(--cream); outline-offset: 2px; }
@@ -101,20 +99,20 @@ h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
   top: calc(100% + var(--np) * 8px); /* down past the lamps, onto the kaya: clear of the other initials */
   left: 50%;
   transform: translateX(-50%);
-  width: 360px; /* the tip is 150% of the page's small text, to be read at a glance */
-  padding: 10px 15px;
-  border: 1px solid var(--slate);
+  width: calc(162 * var(--px)); /* the tip is 150% of the page's small text, to be read at a glance */
+  padding: calc(4.5 * var(--px)) calc(6.75 * var(--px));
+  border: max(1px, calc(0.5 * var(--px))) solid var(--slate);
   background: var(--ink);
   color: var(--cream);
-  font-size: 19.5px;
+  font-size: max(var(--min-font), calc(8.8 * var(--px)));
   font-weight: 400;
   line-height: 1.4;
   text-align: left;
   white-space: normal;
   pointer-events: none;
 }
-.bot-tip b { display: block; color: var(--amber); font-size: 22.5px; font-weight: 700; }
-.bot-tip .kind { display: block; margin-bottom: 4px; color: color-mix(in srgb, var(--cream) 40%, var(--slate)); font-size: 18px; }
+.bot-tip b { display: block; color: var(--amber); font-size: max(var(--min-font), calc(10.1 * var(--px))); font-weight: 700; }
+.bot-tip .kind { display: block; margin-bottom: calc(1.8 * var(--px)); color: color-mix(in srgb, var(--cream) 40%, var(--slate)); font-size: max(var(--min-font), calc(8.1 * var(--px))); }
 .board-label.bot:hover { z-index: 3; } /* over the seat labels, which come later */
 .board-label.bot:hover .bot-tip { display: block; }
 .board-label.bot.tip-start .bot-tip { left: 0; transform: none; }
@@ -139,57 +137,50 @@ h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
 #logo-wrap #name-plate input:focus { outline: none; }
 #logo-wrap #name-plate:focus-within { outline: 2px solid var(--cream); outline-offset: 1px; }
 /* Three lines kept for the longest bot description, so nothing below jumps on hover. */
-#lobby-caption { height: calc(3 * 1.4em); max-width: 560px; margin: 8px auto 0; font-size: 13px; line-height: 1.4; color: var(--mist); overflow: hidden; }
-@media (max-width: 560px) { #lobby-caption { height: calc(4 * 1.4em); } }
+#lobby-caption { height: calc(3 * 1.4em); max-width: calc(252 * var(--px)); margin: calc(3.6 * var(--px)) auto 0; font-size: max(var(--min-font), calc(5.85 * var(--px))); line-height: 1.4; color: var(--mist); overflow: hidden; }
 /* Play: a kaya plank under the island, its front edge catching the light like the deck's. */
 #lobby #join-button {
   display: block;
-  width: min(340px, 100%);
-  margin: 12px auto 0;
-  padding: 12px 28px;
+  width: min(calc(153 * var(--px)), 100%);
+  margin: calc(5.4 * var(--px)) auto 0;
+  padding: calc(5.4 * var(--px)) calc(12.6 * var(--px));
   border: 0;
   border-radius: 0;
   background: var(--amber);
-  box-shadow: inset 0 2px 0 var(--cream), 0 4px 0 var(--slate);
-  font-size: 18px;
+  box-shadow: inset 0 var(--px) 0 var(--cream), 0 calc(2 * var(--px)) 0 var(--slate);
+  font-size: max(var(--min-font), calc(8.1 * var(--px)));
+  line-height: 1.2;
   letter-spacing: 0.04em;
 }
 #lobby #join-button:hover:not(:disabled) { background: var(--cream); }
-#lobby #join-button:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 2px 0 var(--cream), 0 2px 0 var(--slate); }
-#lobby #join-button:focus-visible { outline: 2px solid var(--cream); outline-offset: 6px; }
-#lobby #join-button:disabled { background: var(--ink); box-shadow: inset 0 0 0 2px var(--slate); color: var(--mist); }
-#lobby-status { text-align: center; color: var(--mist); margin-top: 10px; }
+#lobby #join-button:active:not(:disabled) { transform: translateY(var(--px)); box-shadow: inset 0 var(--px) 0 var(--cream), 0 var(--px) 0 var(--slate); }
+#lobby #join-button:focus-visible { outline: var(--px) solid var(--cream); outline-offset: calc(3 * var(--px)); }
+#lobby #join-button:disabled { background: var(--ink); box-shadow: inset 0 0 0 var(--px) var(--slate); color: var(--mist); }
+#lobby-status { text-align: center; color: var(--mist); margin-top: calc(4.5 * var(--px)); line-height: 1.2; }
 #lobby-status.error { color: var(--amber); }
 /* One quiet row: How to play · Server · GitHub. */
-#home-footer { display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 20px auto 0; font-size: 13px; color: var(--mist); }
+#home-footer { display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap; gap: calc(1.8 * var(--px)) calc(4.5 * var(--px)); margin: calc(9 * var(--px)) auto 0; font-size: max(var(--min-font), calc(5.85 * var(--px))); line-height: 1.2; color: var(--mist); }
 #home-footer .sep { color: var(--slate); }
-#home-footer .link-button { border: 0; padding: 2px 6px; font-size: 13px; color: var(--mist); }
-#home-footer a { color: var(--mist); padding: 2px 6px; text-decoration: none; }
+#home-footer .link-button { border: 0; padding: var(--px) calc(2.7 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); line-height: 1.2; color: var(--mist); }
+#home-footer a { color: var(--mist); padding: var(--px) calc(2.7 * var(--px)); text-decoration: none; }
 #home-footer .link-button:hover, #home-footer a:hover, #home-footer .link-button:focus-visible, #home-footer a:focus-visible { color: var(--amber); }
-#server-menu { position: relative; font-size: 13px; color: var(--mist); }
-#server-menu summary { cursor: pointer; list-style: none; display: inline-block; padding: 2px 6px; }
+#server-menu { position: relative; font-size: max(var(--min-font), calc(5.85 * var(--px))); line-height: 1.2; color: var(--mist); }
+#server-menu summary { cursor: pointer; list-style: none; display: inline-block; padding: var(--px) calc(2.7 * var(--px)); }
 #server-menu summary::-webkit-details-marker { display: none; }
 #server-menu summary::after { content: " \25BE"; }
 #server-menu[open] summary::after { content: " \25B4"; }
 #server-menu summary:hover, #server-menu summary:focus-visible { color: var(--amber); }
-#lobby #server-menu input { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 300px; max-width: calc(80vw / var(--ui-zoom)); margin-top: 6px; font-size: 13px; padding: 6px 8px; }
-#lobby { padding-bottom: 48px; } /* room for the open server field */
-
-#lobby label {
-  display: block;
-  margin: 14px 0 6px;
-  font-size: 14px;
-  color: var(--slate);
-}
+/* The open server field hangs below the footer, over the page round the stage. */
+#lobby #server-menu input { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: calc(135 * var(--px)); max-width: 80vw; margin-top: calc(2.7 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); padding: calc(2.7 * var(--px)) calc(3.6 * var(--px)); }
 
 #lobby input {
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 4px;
-  border: 2px solid var(--slate);
+  padding: calc(3.6 * var(--px)) calc(4.5 * var(--px));
+  border-radius: calc(1.8 * var(--px));
+  border: var(--px) solid var(--slate);
   background: var(--ink);
   color: var(--cream);
-  font-size: 14px;
+  font-size: max(var(--min-font), calc(6.3 * var(--px)));
 }
 
 .hint { color: var(--slate); font-size: max(var(--min-font), calc(5.4 * var(--px))); margin: calc(3 * var(--px)) 0 0; }
@@ -275,8 +266,8 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 /* Only .welcome-body scrolls; the x is pinned to the dialog's corner. */
 #welcome, #result {
   padding: 0;
-  width: min(calc(252 * var(--px)), calc(92vw / var(--ui-zoom)));
-  max-height: calc(88vh / var(--ui-zoom));
+  width: min(calc(252 * var(--px)), 92vw);
+  max-height: 88vh;
   overflow: hidden;
   background: var(--ink);
   color: var(--cream);
@@ -288,8 +279,8 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 /* Replays (replayView.js): the welcome frame, wider, for a board beside its standings. */
 #replays {
   padding: 0;
-  width: min(calc(405 * var(--px)), calc(92vw / var(--ui-zoom)));
-  max-height: calc(88vh / var(--ui-zoom));
+  width: min(calc(405 * var(--px)), 92vw);
+  max-height: 88vh;
   overflow: hidden;
   background: var(--ink);
   color: var(--cream);
@@ -342,7 +333,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   .replay-item { grid-template-columns: minmax(0, 1fr); }
   .replay-item .when { grid-row: auto; }
 }
-.welcome-body { padding: calc(8 * var(--px)) calc(10 * var(--px)) calc(7 * var(--px)); max-height: calc(88vh / var(--ui-zoom) - calc(2 * var(--px))); overflow-y: auto; font-size: max(var(--min-font), calc(6.3 * var(--px))); line-height: 1.4; }
+.welcome-body { padding: calc(8 * var(--px)) calc(10 * var(--px)) calc(7 * var(--px)); max-height: calc(88vh - 2 * var(--px)); overflow-y: auto; font-size: max(var(--min-font), calc(6.3 * var(--px))); line-height: 1.4; }
 .welcome-body h2 { margin: 0 calc(14 * var(--px)) var(--px) 0; color: var(--amber); font-size: max(var(--min-font), calc(9 * var(--px))); }
 .welcome-body h3 { margin: calc(7 * var(--px)) 0 calc(3 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
 /* The welcome screen's reference sections: folded under a heading that reads like the h3s above. */
