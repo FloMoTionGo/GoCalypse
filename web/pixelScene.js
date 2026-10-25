@@ -2357,8 +2357,6 @@
     sidebar: 120, // the sidebar column
     hand: 61, // the hand row: 3 above the cards, 52 of card, 6 for the Kata's UPGRADABLE under it
     status: 22, // the hint, notice and last-event lines under it all
-    capW: 1920, // the most device pixels the stage may take, whatever the screen
-    capH: 1080,
   };
 
   function stageSize(size) {
@@ -2371,11 +2369,11 @@
 
   /**
    * The largest whole k for which the stage fits the window in device pixels,
-   * and never more than 1920x1080 of them, so the picture is the same on every
-   * screen from 1080p up and Windows' display scaling doesn't matter; at least 1.
+   * so it fills the window on any screen and Windows' display scaling doesn't
+   * matter; at least 1.
    */
   function pickScale(innerW, innerH, dpr, size) {
-    const W = Math.min(innerW * dpr, STAGE.capW), H = Math.min(innerH * dpr, STAGE.capH);
+    const W = innerW * dpr, H = innerH * dpr;
     const s = stageSize(size);
     return { k: Math.max(1, Math.min(Math.floor(W / s.w), Math.floor(H / s.h))) };
   }
