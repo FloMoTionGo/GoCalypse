@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { at, fakeClient, makeRoom, move, notices, onTurn, passAround, playerOf, put, seatHumans, startedRoom } from "./room.testkit";
 import { stoneCode } from "../rules/goRules";
 import { SEAT_BONUS } from "./GoRoom";
+import { turns } from "./river.testkit";
 
 // The room's turn loop as a client drives it: seats, moves, passes and the end of the game.
 
@@ -198,4 +199,10 @@ test("a storm still burning when the game ends is put out on the final board", (
   passAround(room, clients, 4);
   assert.equal(room.state.storm.until, room.state.turnCount);
 });
-
+test("a debug table asked for without storms rolls no storm, however long it plays", () => {
+  const plain = makeRoom({ debug: true });
+  const quiet = makeRoom({ debug: true, storms: false });
+  for (const room of [plain, quiet]) turns(room, seatHumans(room), 40);
+  assert.ok(plain.state.storm.rolledAt > 0, "a debug table rolls for storms");
+  assert.deepEqual([quiet.state.storm.roll, quiet.state.storm.rolledAt], [0, 0], "this one never did");
+});
