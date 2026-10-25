@@ -1,4 +1,32 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {"test": "haiku: three of them, moon, river and tree, each three lines with its kanji and three powers", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: three haiku on every board for now, their cards named haiku_<id>, a late line worth 10 fireflies", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: the pick is the same for the same seed, and another seed gives another", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: 9 points on 13x13, never on the first line, at least 3 apart, each haiku's lines in three quadrants", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: the points come from the least played quarter: with the prior, away from the star points and the centre", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "heatmap: a game's stones count where they landed, folded over the board's 8 symmetries; the prior stands until 20 games", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: a match starts with 3 haiku of 3 lines on the board, none collected yet", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: a stone on a haiku point collects its line, and the haiku's card comes to the hand at level 1", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: a stone that lands by an item collects the line too: a Kata landing, a Skiff, a seed growing", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: a line once collected stays collected, its stone captured or not; nobody else can take it", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: more lines of one haiku level its card up, one card all the same", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: 月 wards one stone at level 1, its whole group at level 2, and the group for 2 rounds at level 3", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: 川 is a Ferry step at level 1, a Skiff glide at level 2, and a glide that keeps the turn at level 3", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: 木 plants a seed at level 1, a seed already sprouting at level 2, and two sprouting seeds at level 3", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: a card is played once; a line of that haiku found afterwards pays 10 fireflies instead", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: haiku cards don't count toward the hand's 5", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: a restored snapshot keeps the points, who collected them, and the levels", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: Driftwood is refused on a haiku point", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: bots see the haiku points still to collect, and their own levels", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "a haiku card is played as the item its level stands for: 川 at level 1 a Ferry, at level 2 a Skiff", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "a haiku point still to collect is worth more to a bot than the same point without one", "feature": "haiku", "tier": "server", "since": "2026-10-24"},
+    {"test": "haiku: the three kanji are drawn 7x7 for the board and 11x11 for the card, in the palette, each its own", "feature": "haiku", "tier": "web", "since": "2026-10-24"},
+    {"test": "haiku: a haiku card fills its kanji a third at a time, with its level in pips, and wears the turn icon when its power takes the turn", "feature": "haiku", "tier": "web", "since": "2026-10-24"},
+    {"test": "a haiku point still to collect shows its kanji and its line's dots on the board; a stone covers it", "feature": "haiku", "tier": "web", "since": "2026-10-24"},
+    {"test": "haiku over the wire: a stone on a haiku point collects the line, for every client to see", "feature": "haiku", "tier": "integration", "since": "2026-10-24"},
+    {"test": "haiku: each point still to collect is on the board as a glyph", "feature": "haiku", "tier": "gui", "since": "2026-10-24"},
+    {"test": "haiku: a stone on it collects the line: the glyph goes, and the card comes with one pip lit", "feature": "haiku", "tier": "gui", "since": "2026-10-24"}
+  ]
 }

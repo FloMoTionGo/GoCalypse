@@ -243,3 +243,24 @@ test("19x19 and 25x25 boards render, with their star points at 3-9-15 and 3-12-2
     assert.notEqual(around(star), around(plain), `${n}x${n}: a star point is drawn at (3, 3)`);
   }
 });
+
+test("a haiku point still to collect shows its kanji and its line's dots on the board; a stone covers it", () => {
+  const scene = P.createScene({ size: 13 });
+  const p = scene.pointToNative(4, 8);
+  const box = (rgba) => {
+    const out = [];
+    for (let y = p.y - 5; y <= p.y + 7; y++) for (let x = p.x - 5; x <= p.x + 5; x++) out.push(rgba.slice((y * scene.width + x) * 4, (y * scene.width + x) * 4 + 3).join());
+    return out.join("|");
+  };
+  const haiku = (line) => ({ kind: "haiku", x: 4, y: 8, owner: 0, until: line, axis: "moon" });
+  const plain = box(scene.render(base(13)).slice());
+  const one = box(scene.render(base(13, { overlays: [haiku(1)] })).slice());
+  const three = box(scene.render(base(13, { overlays: [haiku(3)] })).slice());
+  assert.notEqual(one, plain, "the glyph shows");
+  assert.notEqual(three, one, "the line's dots");
+  const board = new Array(169).fill(0);
+  board[8 * 13 + 4] = 1;
+  const stoneOnly = box(scene.render(base(13, { board })).slice());
+  const stoneOver = box(scene.render(base(13, { board, overlays: [haiku(1)] })).slice());
+  assert.equal(stoneOver, stoneOnly, "under a stone, nothing of it shows");
+});

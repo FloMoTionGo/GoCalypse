@@ -166,3 +166,36 @@ test("no bot plays into fog", () => {
   assert.equal(scoreMove(v, 2, 2, "base", tanuki()), null);
   assert.ok(rankMoves(v, tanuki()).every((m) => !(m.x === 2 && m.y === 2)));
 });
+
+// Haiku cards (ideas.md §11.11): a bot plays one as the item its level stands
+// for, and reads a haiku point still to collect as worth a stone more.
+
+test("a haiku card is played as the item its level stands for: 川 at level 1 a Ferry, at level 2 a Skiff", () => {
+  const ferry = view(5, { powerups: ["haiku_river"], haikuLevels: { river: 1 } } as Partial<BotView>);
+  put(ferry, 2, 2, 1);
+  put(ferry, 1, 2, 2);
+  put(ferry, 3, 2, 2);
+  put(ferry, 2, 1, 2);
+  const step = planItem(ferry, tanuki(), rankMoves(ferry, tanuki()));
+  assert.deepEqual(step && { id: step.id, target: step.target, target2: step.target2 }, { id: "haiku_river", target: { x: 2, y: 2 }, target2: { x: 2, y: 3 } });
+
+  const skiff = view(7, { powerups: ["haiku_river"], haikuLevels: { river: 2 } } as Partial<BotView>);
+  put(skiff, 0, 3, 1);
+  put(skiff, 5, 3, 2);
+  put(skiff, 6, 3, 1);
+  put(skiff, 5, 2, 1);
+  put(skiff, 5, 4, 1);
+  const glide = planItem(skiff, tanuki(), rankMoves(skiff, tanuki()));
+  assert.equal(glide?.id, "haiku_river");
+  assert.deepEqual(glide?.target2, { x: 4, y: 3 });
+});
+
+test("a haiku point still to collect is worth more to a bot than the same point without one", () => {
+  const plain = view(9);
+  put(plain, 4, 4, 2);
+  const marked = view(9, { haiku: [{ idx: boardIndex(9, 2, 6), haiku: "moon", line: 1 }], haikuLevels: { moon: 0 } } as Partial<BotView>);
+  put(marked, 4, 4, 2);
+  const style = tanuki();
+  assert.ok(scoreMove(marked, 2, 6, "base", style)! > scoreMove(plain, 2, 6, "base", style)!);
+  assert.equal(scoreMove(marked, 6, 2, "base", style), scoreMove(plain, 6, 2, "base", style), "another point is worth the same");
+});

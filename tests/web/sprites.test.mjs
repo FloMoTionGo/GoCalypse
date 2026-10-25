@@ -166,3 +166,27 @@ test("the catalog (pixel-preview.html) lists the sprites", () => {
   const entries = Array.isArray(cat) ? cat : Object.values(cat);
   assert.ok(entries.length > 50);
 });
+
+// Haiku points (ideas.md §11.11): each haiku's kanji, small on the board, bigger
+// on its card, where it fills a third at a time as the lines come in.
+test("haiku: the three kanji are drawn 7x7 for the board and 11x11 for the card, in the palette, each its own", () => {
+  for (const size of [7, 11]) {
+    const glyphs = ["moon", "river", "tree"].map((id) => G.haikuGlyph(id, size));
+    for (const g of glyphs) {
+      assert.deepEqual([g.w, g.h], [size, size]);
+      assert.ok(inPalette(g));
+      assert.ok(g.px.some((v) => v !== G.TRANSPARENT));
+    }
+    assert.equal(new Set(glyphs.map((g) => g.px.join())).size, 3);
+  }
+});
+
+test("haiku: a haiku card fills its kanji a third at a time, with its level in pips, and wears the turn icon when its power takes the turn", () => {
+  const faces = [1, 2, 3].map((level) => G.haikuCard("tree", level, { turn: true }));
+  for (const f of faces) {
+    assert.deepEqual([f.w, f.h], [G.CARD_W, G.CARD_H]);
+    assert.ok(inPalette(f));
+  }
+  assert.equal(new Set(faces.map((f) => f.px.join())).size, 3, "three levels, three faces");
+  assert.notEqual(G.haikuCard("river", 3, { turn: false }).px.join(), G.haikuCard("river", 3, { turn: true }).px.join());
+});
