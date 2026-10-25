@@ -32,6 +32,26 @@ test("cards: every market stall whose item takes the turn shows the turn icon, a
   assert.equal(stalls.find((s) => s.id === "bait").icon, false, "the Bait doesn't take the turn");
 });
 
+test("cards: the market has two columns, the cozy stalls on the left and the rest on the right, the turn icon on each card's top-left corner", async () => {
+  const m = await b.ev(`(() => {
+    const cols = Array.from(marketItemsEl.children).map((col) => Array.from(col.querySelectorAll("button.item")).map((el) => {
+      const s = Array.from(lastState.market).find((x) => x.id === el.dataset.id), r = el.getBoundingClientRect();
+      const i = el.querySelector(".turn-icon"), ir = i && i.getBoundingClientRect(), st = el.querySelector(".stock"), sr = st && st.getBoundingClientRect();
+      return { tier: s.tier, left: r.left, corner: ir ? Math.abs(ir.left - r.left) < 4 && Math.abs(ir.top - r.top) < 4 : null,
+        clear: ir && sr ? ir.bottom <= sr.top + 0.5 : true };
+    }));
+    return cols;
+  })()`);
+  assert.equal(m.length, 2, "two columns");
+  assert.ok(m[0].length > 0 && m[0].every((s) => s.tier === 1), "the left column: tier 1");
+  assert.ok(m[1].length > 0 && m[1].every((s) => s.tier >= 2), "the right column: tiers 2 and 3");
+  assert.ok(m[1][0].left > m[0][0].left, "side by side");
+  for (const s of m.flat()) {
+    if (s.corner !== null) assert.equal(s.corner, true, "the turn icon on the top-left corner");
+    assert.equal(s.clear, true, "clear of the stock");
+  }
+});
+
 test("cards: How to play marks the items that take the turn, and says what the icon means", async () => {
   await b.ev("helpButton.click(); true");
   await b.waitFor("welcomeEl.open", 3000, "How to play");

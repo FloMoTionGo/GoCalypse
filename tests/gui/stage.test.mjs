@@ -57,6 +57,34 @@ test("stage: 1536x864 at 125% is the same picture in device px as 1400x1000 at 1
   await wait(300);
 });
 
+test("stage: the hand's cards are 150% and the header 85% of the stage's art; the hand runs under the board and the sidebar", async () => {
+  const m = await b.ev(`(() => {
+    const px = artPx(), card = handEl.querySelector(".card, .card-place").getBoundingClientRect();
+    const foot = document.getElementById("game-foot").getBoundingClientRect(), side = document.getElementById("sidebar").getBoundingClientRect();
+    return { px, cardW: card.width, cardH: card.height, header: document.getElementById("game-header").getBoundingClientRect().height,
+      footRight: foot.right, sideRight: side.right, footTop: foot.top, sideBottom: side.bottom };
+  })()`);
+  assert.ok(Math.abs(m.cardW - 36 * 1.5 * m.px) < 0.5 && Math.abs(m.cardH - 52 * 1.5 * m.px) < 0.5, `card ${m.cardW}x${m.cardH} at px ${m.px}`);
+  assert.ok(Math.abs(m.header - 18 * 0.85 * m.px) < 0.5, `header ${m.header}`);
+  assert.ok(Math.abs(m.footRight - m.sideRight) < 1, "the hand row reaches the sidebar's right edge");
+  assert.ok(m.footTop >= m.sideBottom - 0.5, "and sits under it");
+});
+
+test("storm: the forecast is a dial and a sky that blink in two frames, its numbers only in words", async () => {
+  const w = await b.ev(`(() => {
+    const meter = weatherEl.querySelector(".meter");
+    return { label: meter.getAttribute("aria-label"), text: meter.textContent,
+      dial: meter.querySelectorAll(".flicker.dial img").length, sky: meter.querySelectorAll(".flicker.sky img").length,
+      names: G.STORM_SKIES.map((s) => s.name), chance: lastState.storm.chance };
+  })()`);
+  assert.equal(w.dial, 2, "the dial's two frames");
+  assert.equal(w.sky, 2, "the sky's two frames");
+  assert.ok(!/\d/.test(w.text), `no numbers on show: ${w.text}`);
+  assert.ok(w.names.some((n) => w.text.includes(n)), `the sky named: ${w.text}`);
+  assert.match(w.label, new RegExp(`${w.chance}% chance`));
+  assert.match(w.label, /next roll in \d+ turns?/);
+});
+
 test("header: the turn lantern is lit on my turn, dark on another's", async () => {
   await rig.waitMyTurn();
   assert.equal(await b.ev("document.getElementById('hdr-turn').classList.contains('my-turn')"), true);
