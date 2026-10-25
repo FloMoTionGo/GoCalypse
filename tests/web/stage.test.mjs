@@ -39,6 +39,29 @@ test("stage: the scene, a gap and the sidebar across; the header, the scene, the
   assert.ok(P.stageSize(19).w > s.w && P.stageSize(25).h > P.stageSize(19).h);
 });
 
+test("home stage: k is the whole scale nearest to 75% of the window's physical pixels, never more than fits, never 0", () => {
+  const stage = { w: 539, h: 455 }; // the narrowest scene and the home screen's height, in art px
+  assert.equal(P.HOME.share, 0.75);
+  assert.equal(P.pickHomeScale(1920, 950, 1, stage).k, 2, "1080p: 2 is nearer 75% than 1");
+  assert.equal(P.pickHomeScale(1536, 760, 1.25, stage).k, 2, "the same physical pixels give the same k");
+  assert.equal(P.pickHomeScale(2560, 1310, 1, stage).k, 2);
+  assert.equal(P.pickHomeScale(3840, 2175, 1, stage).k, 4);
+  assert.equal(P.pickHomeScale(3840, 1950, 1, stage).k, 3);
+  assert.equal(P.pickHomeScale(300, 200, 1, stage).k, 1, "never 0");
+  for (const [w, h] of [[1100, 950], [1920, 1000], [2560, 1440], [3840, 2400]]) {
+    const { k } = P.pickHomeScale(w, h, 1, stage);
+    assert.ok(stage.w * k <= w && stage.h * k <= h, `${w}x${h}: k=${k} fits`);
+  }
+});
+
+test("home stage: the river spans 75% of the window's width at that scale, never narrower than the word", () => {
+  const stage = { w: 539, h: 455 };
+  assert.equal(P.pickHomeScale(1920, 950, 1, stage).sceneW, 720);
+  assert.equal(P.pickHomeScale(3840, 2175, 1, stage).sceneW, 720);
+  assert.equal(P.pickHomeScale(1000, 950, 1, stage).sceneW, 750);
+  assert.equal(P.pickHomeScale(600, 950, 1, stage).sceneW, 539);
+});
+
 test("sprites: the big pixel font spells every capital letter, and the header's marks", () => {
   for (const ch of "ABCDEFGHIJKLMNOPQRSTUVWXYZ?/-") {
     const g = G.FONT_BIG.glyphs[ch];

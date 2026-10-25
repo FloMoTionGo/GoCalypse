@@ -44,6 +44,42 @@ test("home: nothing scrolls sideways at this window size", async () => {
   assert.ok(await b.ev("document.documentElement.scrollWidth <= window.innerWidth"));
 });
 
+/** The home screen as the page lays it out, in device px. */
+const HOME_MEASURE = `(() => {
+  const dpr = devicePixelRatio, logo = document.getElementById("logo"), l = logo.getBoundingClientRect();
+  const j = joinButton.getBoundingClientRect(), foot = document.getElementById("home-footer").getBoundingClientRect();
+  return {
+    k: (l.height * dpr) / logo.height,
+    logoW: l.width * dpr, winW: innerWidth * dpr, winH: innerHeight * dpr,
+    logoMid: (l.left + l.width / 2) * dpr, joinMid: (j.left + j.width / 2) * dpr,
+    joinFont: parseFloat(getComputedStyle(joinButton).fontSize) * dpr,
+    tagFont: parseFloat(getComputedStyle(document.querySelector("#lobby .tagline")).fontSize) * dpr,
+    bottom: foot.bottom * dpr,
+    scrolls: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight,
+  };
+})()`;
+
+test("home: one picture in whole pixels near 75% of the window, centred, its text scaled with it", async () => {
+  const at = async (width, height) => {
+    await b.cdp("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+    await wait(500);
+    return b.ev(HOME_MEASURE);
+  };
+  const small = await at(1920, 950), big = await at(3840, 2175);
+  await b.cdp("Emulation.clearDeviceMetricsOverride", {});
+  await wait(300);
+  for (const [m, name] of [[small, "1920x950"], [big, "3840x2175"]]) {
+    assert.ok(Number.isInteger(m.k) && m.k >= 1, `${name}: whole pixels, k=${m.k}`);
+    assert.ok(m.logoW <= 0.75 * m.winW + 0.5 && m.logoW > 0.75 * m.winW - m.k - 0.5, `${name}: the river spans 75% of the width (${m.logoW} of ${m.winW})`);
+    assert.ok(Math.abs(m.logoMid - m.winW / 2) <= 1, `${name}: the scene is centred (${m.logoMid})`);
+    assert.ok(Math.abs(m.joinMid - m.winW / 2) <= 1, `${name}: Play is centred (${m.joinMid})`);
+    assert.ok(m.bottom <= m.winH && !m.scrolls, `${name}: all of it fits the window`);
+  }
+  assert.ok(big.k > small.k, `a bigger window, a bigger picture: ${small.k} -> ${big.k}`);
+  assert.ok(Math.abs(big.joinFont / big.k - small.joinFont / small.k) < 0.01, `Play's text scales with k: ${small.joinFont} -> ${big.joinFont}`);
+  assert.ok(Math.abs(big.tagFont / big.k - small.tagFont / small.k) < 0.01, `the tagline too: ${small.tagFont} -> ${big.tagFont}`);
+});
+
 test("home: every button, link, input and canvas a user can reach has an accessible name", async () => {
   const unnamed = await b.ev(`Array.from(document.querySelectorAll("button, a[href], input, [role=button], canvas[tabindex]"))
     .filter((el) => !el.closest("[hidden]") && el.getAttribute("aria-hidden") !== "true" && el.tabIndex >= 0)
