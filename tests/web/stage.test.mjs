@@ -9,12 +9,14 @@ const { G, P } = loadWeb();
 const RGB = new Set(G.PALETTE_RGB.map(([r, g, b]) => `${r},${g},${b}`));
 const inPalette = (spr) => Array.from(spr.px).every((i) => i === 255 || RGB.has(G.PALETTE_RGB[i].join()));
 
-test("stage: k is the largest whole scale that fits the window's physical pixels with the hand under the board, capped at 1920x1080, never 0", () => {
+test("stage: k is the largest whole scale that fills the window's physical pixels with the hand under the board, uncapped, never 0", () => {
   assert.equal(P.pickScale(1920, 950, 1, 13).k, 2);
   assert.equal(P.pickScale(1536, 760, 1.25, 13).k, 2, "the same physical pixels give the same k");
-  assert.equal(P.pickScale(3840, 2100, 1.5, 13).k, 2, "capped at 1920x1080");
+  assert.equal(P.pickScale(2560, 1310, 1, 13).k, 3, "1440p: a step more than 1080p");
+  assert.equal(P.pickScale(3840, 2175, 1, 13).k, 5, "a 4K window: no cap");
+  assert.equal(P.pickScale(3840, 2100, 1.5, 13).k, 8, "physical pixels, whatever the display scaling");
   assert.equal(P.pickScale(300, 200, 1, 13).k, 1, "never 0");
-  assert.equal(P.pickScale(2560, 1300, 1, 25).k, 1, "25x25 under the cap: the hand row counts, so one step");
+  assert.equal(P.pickScale(2560, 1300, 1, 25).k, 2, "25x25 in 1440p, with the hand row");
 });
 
 test("stage: the hand stays under the board on every board size, whatever the window", () => {
