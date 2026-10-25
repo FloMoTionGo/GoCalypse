@@ -95,6 +95,9 @@
       // open in all four at once; show it in panel 1 only ("How to play" works everywhere).
       if (delay > 0) params.set("nowelcome", "1");
       if (SERVER) params.set("server", SERVER);
+      // debug.html#size=19 (or ?size=19): all four panels at a 19x19 (or 25x25) table.
+      const size = new URLSearchParams(location.hash.slice(1)).get("size") || new URLSearchParams(location.search).get("size");
+      if (size) params.set("size", size);
       return `index.html#${params.toString()}`;
     }
 

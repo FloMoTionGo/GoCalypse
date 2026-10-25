@@ -198,3 +198,4 @@ test("a storm still burning when the game ends is put out on the final board", (
   passAround(room, clients, 4);
   assert.equal(room.state.storm.until, room.state.turnCount);
 });
+

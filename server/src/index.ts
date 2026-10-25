@@ -49,10 +49,11 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer }),
 });
 
-gameServer.define("go_custom", GoRoom);
+// Quick join finds only a waiting table of the board size asked for (13, 19 or 25).
+gameServer.define("go_custom", GoRoom).filterBy(["size"]);
 // Separate matchmaking pool for web/debug.html: same rules, but everyone
 // starts with enough fireflies to try every market item.
-gameServer.define("go_debug", GoDebugRoom);
+gameServer.define("go_debug", GoDebugRoom).filterBy(["size"]);
 
 /** Games that were under way when the server last stopped come back as rooms of their own. */
 async function restoreGames() {

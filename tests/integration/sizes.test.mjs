@@ -25,7 +25,7 @@ test("sizes over the wire: a 19x19 join doesn't sit down at a waiting 13x13 tabl
   const big = await join({ name: "Nineteen", size: 19 });
   assert.notEqual(big.roomId, small.roomId, "a table of its own size");
   assert.equal(big.state.size, 19);
-  assert.equal(big.state.board.length, 361);
+  assert.equal(big.state.seen.length, 361);
   const again = await join({ name: "Another13", size: 13 });
   assert.equal(again.roomId, small.roomId, "the waiting 13x13 table");
   assert.equal(small.state.size, 13);
@@ -34,5 +34,5 @@ test("sizes over the wire: a 19x19 join doesn't sit down at a waiting 13x13 tabl
 test("sizes over the wire: a 25x25 table is made for a 25x25 join", async () => {
   const room = await join({ name: "TwentyFive", size: 25 });
   assert.equal(room.state.size, 25);
-  assert.equal(room.state.board.length, 625);
+  assert.equal(room.state.seen.length, 625);
 });

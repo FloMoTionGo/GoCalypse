@@ -94,10 +94,11 @@ export class StormState extends Schema {
   @type("number") chance: number = 5; // percent chance that the next roll breaks a storm
   @type("string") level: string = "unlikely"; // that chance in words: unlikely | likely | very likely
   @type("number") until: number = 0; // turnCount when the fires go out
-  @type("number") strikes: number = 0; // how many bolts fell (0-3)
-  @type("number") strike0: number = -1; // board indices, in the order they were struck
-  @type("number") strike1: number = -1;
+  @type("number") strikes: number = 0; // how many bolts fell (up to rules/storm.ts stormStrikes: 3, 6 or 11)
+  @type("number") strike0: number = -1; // board indices, in the order they were struck: the first three,
+  @type("number") strike1: number = -1; // for clients from before the bigger boards
   @type("number") strike2: number = -1;
+  @type(["number"]) bolts = new ArraySchema<number>(); // every bolt of the last storm, in order
 }
 
 /**

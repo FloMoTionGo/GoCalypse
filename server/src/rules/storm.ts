@@ -11,7 +11,7 @@
 export const STORM_EVERY_TURNS = 20;
 export const STORM_DIE_FACES = 20;
 export const STORM_TARGET = 20; // a roll plus the calm rolls before it must reach this
-export const STORM_MAX_STRIKES = 3;
+export const STORM_MAX_STRIKES = 3; // on the 13x13 board; stormStrikes() scales it
 export const FIRE_ROUNDS = 3;
 
 export type StormLevel = "unlikely" | "likely" | "very likely";
@@ -42,6 +42,15 @@ export function stormLevel(calmRolls: number): StormLevel {
   if (chance < 0.15) return "unlikely";
   if (chance < 0.3) return "likely";
   return "very likely";
+}
+
+/**
+ * The most bolts one storm brings down on a `size` x `size` board: about one
+ * for every 56 points, so 3 on 13x13, 6 on 19x19 and 11 on 25x25 (ideas.md
+ * §11.10, D-Q8). Only the amount scales; how often a storm comes does not.
+ */
+export function stormStrikes(size: number): number {
+  return Math.max(1, Math.round((size * size) / 56));
 }
 
 /**

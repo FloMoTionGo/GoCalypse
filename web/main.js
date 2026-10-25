@@ -90,6 +90,35 @@ let lastCreatureSeq = { crab: null, spirit: null };
 // The hash (not a query string) survives static hosts that 301-redirect
 // "/index.html?..." to "/index" and drop the query (e.g. `npx serve`).
 const hashParams = new URLSearchParams(location.hash.slice(1));
+
+// The board size for the next table (ideas.md §11.10): 13, 19 or 25, picked on the
+// lobby board and remembered in this browser; debug.html can ask for one (#size=19).
+const BOARD_SIZES = [13, 19, 25];
+const SIZE_STORE = "gocalypse.size";
+let boardSize = (() => {
+  const asked = Number(hashParams.get("size"));
+  if (BOARD_SIZES.includes(asked)) return asked;
+  try {
+    const kept = Number(localStorage.getItem(SIZE_STORE));
+    if (BOARD_SIZES.includes(kept)) return kept;
+  } catch {
+    // No storage (a private window, blocked site data): every visit starts at 13x13.
+  }
+  return 13;
+})();
+function boardSizePick() {
+  return boardSize;
+}
+function setBoardSize(n) {
+  if (!BOARD_SIZES.includes(n)) return;
+  boardSize = n;
+  try {
+    localStorage.setItem(SIZE_STORE, String(n));
+  } catch {
+    // No storage: the pick holds for this visit only.
+  }
+  renderLobbyBots();
+}
 const ROOM_NAME = hashParams.get("room") === "go_debug" ? "go_debug" : "go_custom";
 // ?server= too, like debug.html, for hand-written links (e.g. to a staging server).
 const serverParam = hashParams.get("server") || new URLSearchParams(location.search).get("server");
@@ -350,7 +379,7 @@ async function connect() {
     }
 
     const client = new Colyseus.Client(endpoint);
-    const options = name ? { name, playerKey: playerKey() } : { playerKey: playerKey() };
+    const options = name ? { name, playerKey: playerKey(), size: boardSize } : { playerKey: playerKey(), size: boardSize };
     // Bringing bots means a table of your own; without them you are matched with
     // whoever is already waiting.
     attachRoom(bots.length ? await client.create(ROOM_NAME, options) : await client.joinOrCreate(ROOM_NAME, options));
@@ -1153,7 +1182,7 @@ function openWelcome(state) {
   document.getElementById("welcome-weather").textContent =
     `Every ${stormEvery} turns a D20 is rolled behind the clouds, plus 1 for every calm roll since the last ` +
     `storm. At 20 or more a thunderstorm breaks: the night darkens, rain sweeps the board for ten seconds and up to ` +
-    `three bolts come down on random points. Whatever stands there catches fire and burns away three rounds later, ` +
+    `three bolts come down on random points (six on a 19×19 board, eleven on 25×25). Whatever stands there catches fire and burns away three rounds later, ` +
     `and nobody can play on a burning point until the fire goes out. A fainter storm hangs over the river for all ` +
     `three rounds, and for those rounds every stone turns the same grey: the rules still know whose is whose, so remember. The forecast in the sidebar (unlikely, likely, very likely) ` +
     `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll. ` +
@@ -1396,7 +1425,8 @@ function renderLobbyBots() {
     updateBotRows(list, MAX_BOTS);
   }
   const n = pickedTotal();
-  joinButton.textContent = n === 0 ? "Play online" : `Play with ${n} bot${n === 1 ? "" : "s"}`;
+  const size = boardSize === 13 ? "" : ` · ${boardSize}×${boardSize}`; // 13x13 is the table everyone knows
+  joinButton.textContent = (n === 0 ? "Play online" : `Play with ${n} bot${n === 1 ? "" : "s"}`) + size;
 }
 
 function renderWelcomeBots(state) {
@@ -1450,9 +1480,9 @@ function overlayKey(o) {
  */
 function startStorm(state) {
   const size = state.size;
-  const indices = [state.storm.strike0, state.storm.strike1, state.storm.strike2]
-    .slice(0, Math.max(0, state.storm.strikes))
-    .filter((i) => i >= 0 && i < size * size);
+  // Every bolt (up to 11 on 25x25); a server from before the bigger boards sends only the first three.
+  const bolts = state.storm.bolts && state.storm.bolts.length ? Array.from(state.storm.bolts) : [state.storm.strike0, state.storm.strike1, state.storm.strike2];
+  const indices = bolts.slice(0, Math.max(0, state.storm.strikes)).filter((i) => i >= 0 && i < size * size);
   storm = {
     start: clock(),
     seq: state.storm.seq,

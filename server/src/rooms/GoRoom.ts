@@ -73,6 +73,7 @@ import {
   isRollTurn,
   isStormRoll,
   pickStrikes,
+  stormStrikes,
   rollDie,
   STORM_EVERY_TURNS,
   stormChance,
@@ -129,7 +130,13 @@ interface AddBotsMessage {
   ids?: unknown; // recruit ids from bots/styles.ts, at most 3
 }
 
-const BOARD_SIZE = 13;
+const BOARD_SIZE = 13; // the default table
+const BOARD_SIZES = [13, 19, 25]; // the tables one may ask for (ideas.md §11.10)
+
+/** The board size a create asked for, if it is one of BOARD_SIZES; any other value is 13x13 (never trust client input). */
+function boardSizeOf(asked: unknown): number {
+  return typeof asked === "number" && BOARD_SIZES.includes(asked) ? asked : BOARD_SIZE;
+}
 const MAX_PLAYERS = 4;
 // Later seats move later, so they start with fireflies: SEAT_BONUS per place in the
 // turn order (0, 5, 10, 15). Under the cheapest item's price, so no one shops on it alone.
@@ -221,16 +228,18 @@ export class GoRoom extends Room<GoState> {
   // The game's record for replays (history/), from the start of play; none with HISTORY=off.
   private recorder?: GameRecorder;
 
-  onCreate(options?: { restoreToken?: string }) {
+  onCreate(options?: { restoreToken?: string; size?: unknown; storms?: unknown }) {
     const restored = takeRestore(options?.restoreToken);
     const state = new GoState();
-    state.size = BOARD_SIZE;
+    const size = boardSizeOf(options?.size);
+    state.size = size;
+    this.kos = new KoWatch(size);
     state.shopAfter = this.shopAfterMoves;
     state.handLimit = HAND_LIMIT;
     state.powerfulLimit = POWERFUL_LIMIT;
     state.storm.every = this.stormEvery;
     state.river.every = this.riverEvery;
-    for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
+    for (let i = 0; i < size * size; i++) {
       state.board.push(0);
     }
     this.positions.record(state.board.toArray());
@@ -251,6 +260,8 @@ export class GoRoom extends Room<GoState> {
         const sold = state.players.reduce((n, p) => n + copiesBought(p.bought, item.id), 0);
         item.left = Math.max(0, item.stock - sold);
       }
+      // The snapshot's own size wins (older snapshots are all 13x13, and say so).
+      this.kos = new KoWatch(state.size);
       // Snapshots from before these were saved have none: ko then remembers from here on.
       this.positions.load(restored.positions, state.board.length);
       this.positions.record(state.board.toArray());
@@ -849,7 +860,7 @@ export class GoRoom extends Room<GoState> {
   /**
    * Every `stormEvery` turns a D20 is rolled out of sight, plus one for every
    * calm roll since the last storm. At 20 the sky opens: lightning hits up to
-   * STORM_MAX_STRIKES random points, and each one catches fire for FIRE_ROUNDS
+   * stormStrikes(size) random points, and each one catches fire for FIRE_ROUNDS
    * rounds. A stone standing there burns with it and is gone when the fire
    * dies; until then nobody may play on that point. Warded points and points
    * already alight are never struck.
@@ -875,7 +886,7 @@ export class GoRoom extends Room<GoState> {
     state.storm.calm = 0;
     this.updateForecast();
 
-    const struck = pickStrikes(candidates);
+    const struck = pickStrikes(candidates, Math.random, stormStrikes(size));
     let stonesHit = 0;
     for (const idx of struck) {
       const x = idx % size;
@@ -887,6 +898,8 @@ export class GoRoom extends Room<GoState> {
     state.storm.strike0 = struck[0] ?? -1;
     state.storm.strike1 = struck[1] ?? -1;
     state.storm.strike2 = struck[2] ?? -1;
+    state.storm.bolts.clear();
+    for (const idx of struck) state.storm.bolts.push(idx);
     state.storm.until = state.turnCount + FIRE_ROUNDS * state.players.length;
     state.storm.seq += 1;
     state.lastEvent =

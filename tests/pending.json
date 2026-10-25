@@ -1,14 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {"test": "board size: a room made for 19x19 has 361 points and a 19-wide ko watch; 25x25 has 625", "feature": "board-sizes", "tier": "server", "since": "2026-10-24"},
-    {"test": "board size: a 19x19 game restored from its snapshot is still 19x19", "feature": "board-sizes", "tier": "server", "since": "2026-10-24"},
-    {"test": "storm: up to 3 bolts on 13x13, 6 on 19x19 and 11 on 25x25", "feature": "board-sizes", "tier": "server", "since": "2026-10-24"},
-    {"test": "storm: a storm on 25x25 can bring more than 3 bolts down, and the state holds every one", "feature": "board-sizes", "tier": "server", "since": "2026-10-24"},
-    {"test": "sizes over the wire: a 19x19 join doesn't sit down at a waiting 13x13 table, and a 13x13 one does", "feature": "board-sizes", "tier": "integration", "since": "2026-10-24"},
-    {"test": "sizes over the wire: a 25x25 table is made for a 25x25 join", "feature": "board-sizes", "tier": "integration", "since": "2026-10-24"},
-    {"test": "lobby: the board offers 13, 19 and 25 above Start, and 13 is picked to begin with", "feature": "board-sizes", "tier": "gui", "since": "2026-10-24"},
-    {"test": "lobby: a black stone on 19 picks it, Join says so, and the page remembers it", "feature": "board-sizes", "tier": "gui", "since": "2026-10-24"},
-    {"test": "lobby: picking 19 gives a 19-line board at the table", "feature": "board-sizes", "tier": "gui", "since": "2026-10-24"}
-  ]
+  "pending": []
 }

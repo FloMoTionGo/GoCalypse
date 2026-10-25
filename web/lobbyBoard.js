@@ -4,16 +4,17 @@
 // (hover them for the bot's name and what it does), with its Night Market
 // appetite as lanterns under them. Each row is a seat, P2 to P4, in the left
 // frame (you are P1, on the nameplate): a black stone seats that column's bot there, a
-// white stone captures it again. A black stone on Start joins. The name is
-// written on a nameplate set into the frame above the kaya, over the bots.
+// white stone captures it again. A black stone on Start joins. The line above
+// Start holds the board sizes, 13, 19 and 25: a black stone there picks one. The
+// name is written on a nameplate set into the frame above the kaya, over the bots.
 //
 // The island is drawn on its own transparent canvas at twice the logo's pixel
 // size; logo.js lays it over the river, which it draws round the island's
 // outline (window.GoLobbyIsland). Loaded after main.js and before logo.js.
 //
 // Drives main.js through its globals (BOT_OPTIONS, botPicks, changePick,
-// pickedTotal, MAX_BOTS, joinButton, lobbyStatus), so the picks, the join flow
-// and the welcome dialog's bot menu stay exactly as they were.
+// pickedTotal, MAX_BOTS, joinButton, lobbyStatus, boardSizePick, setBoardSize),
+// so the picks, the join flow and the welcome dialog's bot menu stay exactly as they were.
 (function () {
   "use strict";
   const G = window.GoSprites;
@@ -54,8 +55,12 @@
   const SP = PS.SPACING;
   const SEATS = MAX_BOTS; // one row per seat a bot can take: Player 2 to 4
   const COLS = BOT_OPTIONS.length; // one column per bot kind
-  const ROWS = SEATS + 2; // the seats, an empty line, then Start
+  const ROWS = SEATS + 2; // the seats, the board sizes, then Start
   const START_ROW = ROWS - 1, START_COL = (COLS - 1) >> 1;
+  // The board sizes on the line above Start, one each side of it and one over it.
+  const SIZE_ROW = SEATS;
+  const SIZES = [13, 19, 25].map((size, i) => ({ size, col: Math.max(0, Math.min(COLS - 1, START_COL - 1 + i)), row: SIZE_ROW }));
+  const sizeAt = (col) => SIZES.find((s) => s.col === col);
   const KAYA_MARGIN = 6;
   const FRAME_TOP = 38, FRAME_LEFT = 38, FRAME_RIGHT = 16, FRAME_BOTTOM = 12; // the top holds your nameplate, then the bot initials and lamps
   const FRONT = 5; // the deck's front face
@@ -237,6 +242,12 @@
     for (let c = 0; c < COLS; c++) for (let y = py(0); y <= py(ROWS - 1); y++) base.set(px(c), y, K);
     for (let r = 0; r < ROWS; r++) for (let x = px(0); x <= px(COLS - 1); x++) base.set(x, py(r), K);
     base.blitCentered(G.SPRITES.hoshi, px(START_COL), py(START_ROW));
+    // The sizes written on their points in the board's ink, on a patch of bare kaya.
+    for (const s of SIZES) {
+      const w = G.textWidth(G.FONT_SMALL, String(s.size));
+      base.rect(px(s.col) - (w >> 1) - 1, py(s.row) - 3, w + 2, 7, A);
+      G.drawText(base, G.FONT_SMALL, String(s.size), px(s.col) - (w >> 1), py(s.row) - 2, K);
+    }
     // Lamps in the top frame, three under each bot's initials: how much of the Night Market it uses.
     BOT_OPTIONS.forEach((o, c) => {
       for (let i = 0; i < 3; i++) {
@@ -338,6 +349,16 @@
   function act(point, color) {
     if (!point) return;
     const time = now();
+    if (point.row === SIZE_ROW) {
+      const s = sizeAt(point.col);
+      if (!s) return;
+      if (color === "white") return say("Play a black stone on a size to pick the board for the next table.");
+      if (s.size === boardSizePick()) return say(`${s.size}×${s.size} is picked already.`);
+      setBoardSize(s.size);
+      effects.push(PS.placeEffect(s.col, s.row, 1, time));
+      announce(`${s.size}×${s.size} board picked.`);
+      return updateCaption();
+    }
     if (point.row === START_ROW) {
       if (color === "white") return say("A white stone takes a bot off. Play black on Start to begin.");
       if (joinButton.disabled || startStone) return say(lobbyStatus.textContent || "Hold on a moment...");
@@ -374,17 +395,28 @@
   const touch = window.matchMedia("(pointer: coarse)");
   const seatName = (seat) => `Player ${seat + 2}`;
   function startText() {
-    const n = pickedTotal();
-    if (n === 0) return "Start: play a black stone here to join a table with other players.";
+    const n = pickedTotal(), size = boardSizePick();
+    const board = size === 13 ? "" : ` on a ${size}×${size} board`;
+    if (n === 0) return `Start: play a black stone here to join a table with other players${board}.`;
     const open = 3 - n; // four seats, one of them yours
-    return `Start with ${n} bot${n === 1 ? "" : "s"}: play a black stone here.` +
+    return `Start with ${n} bot${n === 1 ? "" : "s"}${board}: play a black stone here.` +
       (open > 0 ? ` ${open === 1 ? "One seat stays" : `${open} seats stay`} open for other players.` : "");
+  }
+  const SIZE_TEXT = {
+    13: "the table GoCalypse is made for, about 60 moves each",
+    19: "the full Go board: a longer night, about 130 moves each, and up to six bolts a storm",
+    25: "a very long night, about 225 moves each, and up to eleven bolts a storm",
+  };
+  function sizeText(s) {
+    const picked = s.size === boardSizePick() ? " (picked)" : ": play a black stone here to pick it";
+    return `${s.size}×${s.size} board${picked}. ${SIZE_TEXT[s.size][0].toUpperCase()}${SIZE_TEXT[s.size].slice(1)}.`;
   }
   function updateCaption() {
     let text;
     const p = keyboard ? cursor : hover;
     if (message && now() < messageUntil) text = message;
     else if (p && p.row === START_ROW) text = startText();
+    else if (p && p.row === SIZE_ROW) text = sizeText(sizeAt(p.col));
     else if (p) {
       const o = BOT_OPTIONS[p.col];
       text = `${o.name} as ${seatName(p.row)}, ${o.kind.toLowerCase()} (${o.itemsLabel.toLowerCase()}): ${o.desc}`;
@@ -427,17 +459,24 @@
     const stones = [];
     seated.forEach((have, col) => have.forEach((row) => stones.push({ col, row })));
     if (startStone) stones.push({ col: START_COL, row: START_ROW });
+    const picked = SIZES.find((s) => s.size === boardSizePick());
+    if (picked) stones.push({ col: picked.col, row: picked.row });
     const black = G.STONES.black.normal, white = G.STONES.white.normal;
     for (const s of stones) {
       if (!busy.has(`${s.col},${s.row}`)) surf.blitCentered(black, px(s.col) + 1, py(s.row) + 1, { color: K, coverage: 0.5 });
     }
     for (const s of stones) if (!busy.has(`${s.col},${s.row}`)) surf.blitCentered(black, px(s.col), py(s.row));
+    // The picked size still reads on its stone, in cream.
+    if (picked && !busy.has(`${picked.col},${picked.row}`)) {
+      const w = G.textWidth(G.FONT_SMALL, String(picked.size));
+      G.drawText(surf, G.FONT_SMALL, String(picked.size), px(picked.col) - (w >> 1), py(picked.row) - 2, C);
+    }
 
     // the point under the pointer (or the keyboard cursor): the stone a click would play
     const p = keyboard ? cursor : hover;
     if (p) {
       const col = p.row === START_ROW ? START_COL : p.col;
-      const taken = p.row < SEATS ? seated[col].includes(p.row) : startStone;
+      const taken = p.row < SEATS ? seated[col].includes(p.row) : p.row === SIZE_ROW ? picked && picked.col === col : startStone;
       const ghost = taken ? white : black;
       if (!(p.row === START_ROW && startStone)) surf.blitCentered(ghost, px(col), py(p.row), { coverage: taken ? 0.75 : 0.5 });
       if (keyboard) surf.blitCentered(animFrame("reticle", t), px(col), py(p.row));
@@ -505,6 +544,7 @@
   for (let s = 0; s < SEATS; s++) addLabel(`P${s + 2}`, s, py(s) + 0.5);
   addLabel("Bots", null, NAME_Y + 1, "bots-head");
   addLabel("Item buys", null, LAMP_Y + 0.5, "market").title = "How often each bot buys Night Market items: 0 to 3 lit lanterns";
+  addLabel("Size", SIZE_ROW, py(SIZE_ROW) + 0.5, "start");
   addLabel("Start", START_ROW, py(START_ROW) + 0.5, "start");
   addLabel("P1", null, PLATE.y + PLATE.h / 2, "name");
   Object.assign(plateEl.style, {
@@ -521,7 +561,7 @@
     const rect = canvas.getBoundingClientRect();
     const nx = ((evt.clientX - rect.left) * W) / rect.width, ny = ((evt.clientY - rect.top) * H) / rect.height;
     const col = Math.round((nx - gridX) / SP), row = Math.round((ny - gridY) / SP);
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS || row === SEATS) return null;
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS || (row === SIZE_ROW && !sizeAt(col))) return null;
     if (Math.abs(nx - px(col)) > SP / 2 || Math.abs(ny - py(row)) > SP / 2) return null;
     return { col: row === START_ROW ? START_COL : col, row };
   }
@@ -549,10 +589,14 @@
     if (move) {
       evt.preventDefault();
       keyboard = true;
-      let row = cursor.row + move[1];
-      if (row === SEATS) row += move[1]; // hop the empty line
-      row = Math.max(0, Math.min(START_ROW, row));
-      const col = row === START_ROW ? START_COL : Math.max(0, Math.min(COLS - 1, (cursor.row === START_ROW && move[1] ? START_COL : cursor.col) + move[0]));
+      const row = Math.max(0, Math.min(START_ROW, cursor.row + move[1]));
+      let col = row === START_ROW ? START_COL : Math.max(0, Math.min(COLS - 1, (cursor.row === START_ROW && move[1] ? START_COL : cursor.col) + move[0]));
+      if (row === SIZE_ROW) {
+        // Only the sizes are points on this line: step along them, or come to the nearest.
+        const at = SIZES.findIndex((s) => s.col === cursor.col && cursor.row === SIZE_ROW);
+        const near = (c) => SIZES.reduce((best, s) => (Math.abs(s.col - c) < Math.abs(best.col - c) ? s : best), SIZES[0]);
+        col = at >= 0 && move[0] ? SIZES[Math.max(0, Math.min(SIZES.length - 1, at + move[0]))].col : near(col).col;
+      }
       cursor = { col, row };
       updateCaption();
       announce(captionEl.textContent); // the keyboard's point, read out as it moves
@@ -573,7 +617,7 @@
   // and for tests: the island's outline and the board's points in native px.
   const solid = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) solid[i] = region[i] !== R_NONE ? 1 : 0;
-  window.GoLobbyIsland = { W, H, solid, wrap, point: (col, row) => ({ x: px(col), y: py(row) }), cols: COLS, startRow: START_ROW };
+  window.GoLobbyIsland = { W, H, solid, wrap, point: (col, row) => ({ x: px(col), y: py(row) }), cols: COLS, startRow: START_ROW, sizes: SIZES };
   updateCaption();
 
   function tick() {
