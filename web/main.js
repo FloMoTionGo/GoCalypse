@@ -845,6 +845,7 @@ function setSelectedPowerup(id) {
 
 /** The line under the cards: how to aim the armed item, or else what your two clicks play. */
 function setTargetingHint() {
+  boardEl.title = ""; // haikuHint sets it again while the pointer rests on a haiku line
   boardHintEl.textContent = targetingText() || haikuHint() || stoneHint();
   boardHintEl.classList.toggle("targeting", !!selectedPowerup);
 }

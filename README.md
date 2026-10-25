@@ -116,7 +116,10 @@ so the two seats holding it share it; prisoners belong to whoever played the
 capturing move, the same way fireflies do — so take the capture rather than
 leave it to the ally who shares your front. Stones swept off by a removal item
 are not prisoners: their owner is already paid consolation fireflies, and nobody
-surrounded them.
+surrounded them. Nor are stones **smothered** across the fronts: a group killed by
+a stone of the other front (black filling a gray group's last liberty) leaves the
+board and still pays the capture fireflies, but scores no prisoner; Results shows
+how many each player smothered.
 
 **Never more prisoners than territory:** on each front, prisoners count only up
 to the territory your side holds there. With 4 points of ground and 9 stones
@@ -214,9 +217,9 @@ Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400. (Wi
 | Item | Price | Effect |
 |---|---|---|
 | Firefly Jar | 25 | Free. Your captures earn double fireflies for the rest of this turn and your next 3. |
-| Seedling | 30 | Plant a seed on an empty point. After 2 rounds, if the point is still empty and the stone would have a liberty, it grows into your stone: left click plants a solid seed, right click a gray or transparent one (Esc cancels). |
+| Seedling | 30 | Plant a seed on an empty point; it grows into your stone after 3 rounds, as a seed, a sprout and a sapling. In its first round anyone's stone tramples it; after that only you may play there. Left click plants a solid seed, right click a gray or transparent one (Esc cancels). |
 | Mist | 30 | Free. Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on. (The server doesn't send the others that stone at all, only you get it.) |
-| Bait | 30 | Free, and on sale every match. Toss it on one of the points a river crab or river spirit reaches: it takes the bait and goes back into the water at once, taking nothing. Anyone may feed it. Refused (and kept) with no creature reaching that point. |
+| Bait | 30 | Free, and on sale every match. Toss it onto an edge point: the river crab or spirit nearer to it along the edge walks over and takes its stones from there when its timer runs out. Only defensive: refused (and kept) when the new reach holds another player's stone, with no creature out, or on the point it already faces. |
 | Fog | 35 | Rolls a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed (like a ward over the whole area), and nobody can see them, the caster and the stones' owners included, and the move recall strip leaves them out too (the server sends nobody the stones under it). No stone can be placed inside it (moves, Ferry, Skiff, Echo Chime and growing seeds are all refused there). |
 | Driftwood | 30 | Neutral log on an empty point: a wall on both fronts, owned by no one, uncapturable. Floats away after 3 rounds. Can't smother a group. |
 | Lily Pad | 40 | Reserves an empty point for 3 rounds: only you may play there. |
@@ -251,7 +254,7 @@ name the older ones, so they simply skip what isn't on sale.
 Every **20 turns** the room rolls a **D20** out of sight and adds **1 for
 every calm roll** since the last storm. At **20 or more** a storm breaks: the
 night darkens, rain sweeps the board for about ten seconds, and
-**up to three bolts** come down on random points (never on a warded point or
+**up to three bolts** (six on 19×19, eleven on 25×25) come down on random points (never on a warded point or
 one already alight). Whatever stands there catches fire and **burns away
 three rounds later** — its owner gets the usual 3-firefly consolation — and
 **nobody may play on a burning point** until the fire goes out. Fires don't
@@ -301,16 +304,24 @@ at four seats). When it runs out the creature acts and goes back into the water:
 the **crab pinches one** stone in its reach, picked at random; the **spirit
 steals every one**. Warded and fogged stones are safe, it can't see a stone
 under a mist, and driftwood isn't a stone. Owners get the usual 3-firefly
-consolation per stone, and nobody gets a prisoner. A **Bait** tossed on one of
-its points sends it back early with nothing; a game that ends while one is out
-sends it back too.
+consolation per stone, and nobody gets a prisoner. A **Bait** tossed onto an
+edge point lures the nearer creature there, its timer unchanged -- never onto
+another player's stones; a game that ends while one is out sends it back.
+
+**Board sizes and haiku.** The lobby board's line above Start picks a 13×13
+(the default), 19×19 or 25×25 table; Quick join only finds tables of that size.
+Every match lays three haiku (月 moon, 川 river, 木 tree) line by line on the
+least played points; a stone on a line collects it, the haiku's card comes to
+the hand and levels up with each line, and is played once at its level (see
+*How to play*, Haiku).
 
 The scene animates each one climbing out of the water onto the frame, idling
 there (the crab snapping its claws and shuffling, the spirit bobbing with its
 wisps swaying), taking its stones (the crab's claw, the spirit's tendrils of
-mist), catching a Bait, and going back into the water. Bots buy a Bait when a
-creature has one of their stones in reach, feed it when its timer runs out
-before their next turn, and rank points in a reach a capture lower.
+mist), walking along the frame to a Bait and catching it, and going back into
+the water. Bots buy a Bait when a creature has one of their stones in reach,
+lure it away to a clear edge point when its timer runs out before their next
+turn, and rank points in a reach a capture lower.
 
 `go_debug` rooms roll the river's D6 every **2** turns instead
 (`src/rules/river.ts`, `GoDebugRoom`). `GoState.river` carries the last roll,

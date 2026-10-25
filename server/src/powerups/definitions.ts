@@ -275,9 +275,9 @@ const fog: PowerupDefinition = {
 
 /**
  * The answer to the river crab and the river spirit (rules/river.ts), so it is
- * on sale every match: tossed onto one of the points a creature reaches, it
- * takes the bait and goes back into the water before its timer runs out,
- * taking nothing. Anyone may feed it, whoever's stones it threatens.
+ * on sale every match: tossed onto an edge point, it lures the nearer creature
+ * there (GoRoom.lureCreature), its timer unchanged. Anyone may lure it, from
+ * anyone's stones, but never onto another player's (D-Q3).
  */
 const bait: PowerupDefinition = {
   id: "bait",
