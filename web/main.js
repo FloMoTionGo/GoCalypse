@@ -380,6 +380,7 @@ async function connect() {
 
     const client = new Colyseus.Client(endpoint);
     const options = name ? { name, playerKey: playerKey(), size: boardSize } : { playerKey: playerKey(), size: boardSize };
+    if (ROOM_NAME === "go_debug" && hashParams.has("nostorm")) options.storms = false; // GoDebugRoom: no storms (tests)
     // Bringing bots means a table of your own; without them you are matched with
     // whoever is already waiting.
     attachRoom(bots.length ? await client.create(ROOM_NAME, options) : await client.joinOrCreate(ROOM_NAME, options));

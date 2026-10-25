@@ -25,7 +25,8 @@ const SENT = `window.__sent = []; window.__send = window.__send || Colyseus.Room
 before(async () => {
   rig = await guiRig();
   b = rig.browser;
-  await b.load(rig.url({ name: "Aimer", room: "go_debug", nowelcome: "1" }));
+  // No storms: a storm's grey hides which stones are mine, and these tests are about telling them apart.
+  await b.load(rig.url({ name: "Aimer", room: "go_debug", nowelcome: "1", nostorm: "1" }));
   await rig.joinWithBots([0, 0, 0]);
   await b.waitFor("lastState.status === 'playing'", 15000, "the game to start");
   for (let k = 0; k < 2; k++) {

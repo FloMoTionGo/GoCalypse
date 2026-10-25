@@ -1766,4 +1766,14 @@ export class GoDebugRoom extends GoRoom {
   protected shopAfterMoves = 0; // the market is open from the first turn
   protected stormEvery = DEBUG_STORM_EVERY_TURNS;
   protected riverEvery = DEBUG_RIVER_EVERY_TURNS;
+
+  /**
+   * A debug table can be asked for without storms ({ storms: false }): for the
+   * GUI tests that need to tell my stones from the others', which a storm's grey
+   * hides at random.
+   */
+  onCreate(options?: { restoreToken?: string; size?: unknown; storms?: unknown }) {
+    if (options?.storms === false) this.stormEvery = 0;
+    super.onCreate(options);
+  }
 }
