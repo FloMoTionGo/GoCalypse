@@ -1470,6 +1470,24 @@
      * others see only the cloud (main.js takes the stone out of what it hands
      * over), its owner sees their stone through a thinner one.
      */
+    /**
+     * Haiku lines still to collect (ideas.md §11.11; main.js and replays hand them
+     * over as overlays {kind: "haiku", x, y, until: line, axis: haiku id}): the
+     * haiku's kanji carved small into the kaya on its point, the line's number in
+     * dots under it. A stone on the point covers it all.
+     */
+    function drawHaiku(overlays, board) {
+      for (const o of overlays) {
+        if (o.kind !== "haiku" || board[o.y * size + o.x]) continue;
+        const p = pointToNative(o.x, o.y);
+        // A patch of bare kaya behind it, so the grid lines don't run through the character.
+        for (let dy = -4; dy <= 6; dy++) for (let dx = -4; dx <= 4; dx++) surf.set(p.x + dx, p.y + dy, A);
+        surf.blitCentered(G.haikuGlyph(o.axis, 7, K), p.x, p.y);
+        const line = Math.max(1, Math.min(3, o.until | 0));
+        for (let i = 0; i < line; i++) surf.set(p.x + (i - (line - 1) / 2) * 2, p.y + 5, T);
+      }
+    }
+
     function drawSeeds(overlays, board, busy, hideOwners, turnCount, roundLength) {
       for (const o of overlays) {
         if (o.kind !== "seed") continue;
@@ -2127,6 +2145,7 @@
         });
       }
       drawLilyPads(overlays, board, busy, hideOwners);
+      drawHaiku(overlays, board);
       drawSeeds(overlays, board, busy, hideOwners, st.turnCount || 0, st.roundLength || 0);
       drawStones(board, skip, greyW);
       drawWards(overlays, board, busy, time, reduced);

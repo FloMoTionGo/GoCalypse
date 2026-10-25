@@ -57,6 +57,50 @@ let scene = null;
 let imageData = null;
 let board = null; // latest board as a plain array
 let overlays = []; // lily pads, wards and lightning fires: [{kind, x, y, owner, until}]
+
+// ---- haiku points (ideas.md §11.11): mirrors server/src/rules/haiku.ts HAIKU ----------
+const HAIKU = [
+  {
+    id: "moon", kanji: "月", name: "Moon",
+    lines: ["Autumn moon rises", "over the stones on the pier", "none of them shall fall"],
+    powers: ["Ward one of your stones until your next turn.", "Ward one of your groups until your next turn, as a Lantern Ward does.", "Ward one of your groups for 2 rounds."],
+  },
+  {
+    id: "river", kanji: "川", name: "River",
+    lines: ["The river carries", "one stone to a quiet shore", "the ferry comes home"],
+    powers: ["Move one of your stones one step, as a Ferry does.", "Glide one of your stones along its row or column, as a Skiff does.", "Glide one of your stones as a Skiff does, and keep your turn."],
+  },
+  {
+    id: "tree", kanji: "木", name: "Tree",
+    lines: ["Small sprout by the edge", "the stones have left it alone", "one day it stands tall"],
+    powers: ["Plant a seed, as a Seedling does.", "Plant a seed that is already sprouting: only you may play there.", "Plant two seeds, both already sprouting."],
+  },
+];
+const HAIKU_LATE_FIREFLIES = 10; // a line found after its card was played
+const haikuOfCard = (id) => HAIKU.find((h) => `haiku_${h.id}` === id);
+const isHaikuCard = (id) => !!haikuOfCard(id);
+/** A player's level in a haiku: the lines they collected, 1 to 3 (a card in hand is at least level 1). */
+function haikuLevel(player, haikuId) {
+  const at = HAIKU.findIndex((h) => h.id === haikuId);
+  const lines = player && player.haikuLines ? Number(player.haikuLines[at]) || 0 : 0;
+  return Math.max(1, Math.min(3, lines));
+}
+/** A haiku card as the targeting code reads an item: what it does at my level, its points, whether it keeps the turn. */
+function haikuItem(id) {
+  const h = haikuOfCard(id);
+  const level = haikuLevel(myPlayer, h.id);
+  return {
+    id, haiku: h.id, level, tier: 2,
+    name: `${h.kanji} ${h.name}`,
+    description: h.powers[level - 1],
+    points: h.id === "river" || (h.id === "tree" && level >= 3) ? 2 : 1,
+    free: h.id === "river" && level >= 3,
+  };
+}
+/** The haiku line lying on point (x, y), still to be collected, or null. */
+function haikuAt(x, y) {
+  return overlays.find((o) => o.kind === "haiku" && o.x === x && o.y === y) || null;
+}
 let effects = []; // animations in flight
 let lastMove = null;
 let lastActionSeq = null;
@@ -136,7 +180,12 @@ nameInput.addEventListener("keydown", (evt) => {
   evt.preventDefault();
   joinButton.click();
 });
-boardEl.addEventListener("mousemove", (evt) => (hoverPoint = eventPoint(evt)));
+boardEl.addEventListener("mousemove", (evt) => {
+  const p = eventPoint(evt);
+  const moved = !hoverPoint || !p || p.x !== hoverPoint.x || p.y !== hoverPoint.y;
+  hoverPoint = p;
+  if (moved && !selectedPowerup) setTargetingHint(); // a haiku line under the pointer says what it is
+});
 boardEl.addEventListener("mouseleave", () => (hoverPoint = null));
 document.getElementById("recall-back").addEventListener("click", () => stepRecall(1));
 document.getElementById("recall-fwd").addEventListener("click", () => stepRecall(-1));
@@ -626,6 +675,17 @@ function onBoardClick(evt) {
 
   if (selectedPowerup) {
     const item = marketItem(selectedPowerup);
+    if (item && item.points >= 2 && aimedAs(item.id) === "seedling") {
+      // The 木 haiku at level 3: two empty points, the seeds solid (a right click makes them gray or transparent).
+      if (!firstTarget) {
+        firstTarget = p;
+        setTargetingHint();
+        return;
+      }
+      room.send("usePowerup", { id: selectedPowerup, target: firstTarget, target2: p, axis: "base" });
+      setSelectedPowerup(null);
+      return;
+    }
     if (item && item.points >= 2) {
       // Ferry and Skiff: first one of your stones, then where it goes. Another of
       // your stones picks that one instead; the picked stone again un-picks it.
@@ -659,10 +719,17 @@ function onBoardRightClick(evt) {
   evt.preventDefault();
   if (!room || !lastState) return;
   if (viewId !== null) return recallBlocked();
-  if (selectedPowerup === "seedling") {
+  if (aimedAs(selectedPowerup) === "seedling") {
     const seedPoint = eventPoint(evt);
     if (!seedPoint) return;
-    room.send("usePowerup", { id: selectedPowerup, target: seedPoint, axis: "pattern" });
+    // The 木 haiku at level 3 plants two: the first click picks a point, the second plants both.
+    if (marketItem(selectedPowerup).points >= 2 && !firstTarget) {
+      firstTarget = seedPoint;
+      setTargetingHint();
+      return;
+    }
+    const twin = firstTarget ? { target: firstTarget, target2: seedPoint } : { target: seedPoint };
+    room.send("usePowerup", { id: selectedPowerup, ...twin, axis: "pattern" });
     setSelectedPowerup(null);
     return;
   }
@@ -681,7 +748,14 @@ let firstTarget = null; // the first point of a two-point item, once picked
 // their first target, since the second is the empty point you're moving it to.
 // Mirrors the ownerOf() check each of these runs server-side in
 // server/src/powerups/definitions.ts; keep the two in sync.
-const OWN_STONE_TARGET_ITEMS = new Set(["lantern_ward", "turn_lantern", "ferry", "skiff"]);
+const OWN_STONE_TARGET_ITEMS = new Set(["lantern_ward", "turn_lantern", "ferry", "skiff", "haiku_moon", "haiku_river"]);
+
+/** The item whose aiming an armed card follows: the 川 haiku is a Ferry at level 1 and a Skiff after. */
+function aimedAs(id) {
+  if (id === "haiku_river") return haikuLevel(myPlayer, "river") >= 2 ? "skiff" : "ferry";
+  if (id === "haiku_tree") return "seedling";
+  return id;
+}
 
 /** True if board code `code` is a stone this player placed (mirrors ownerOf() in goRules.ts). */
 function isMyStoneCode(code, myColor) {
@@ -743,8 +817,9 @@ function landingPoints(id, from, cells, size, list = overlays) {
 
 /** The landing points of the armed Ferry or Skiff once its stone is picked, else null. */
 function landingHints(boardArr) {
-  if (!firstTarget || !lastState || (selectedPowerup !== "ferry" && selectedPowerup !== "skiff")) return null;
-  return landingPoints(selectedPowerup, firstTarget, boardArr, lastState.size);
+  const as = aimedAs(selectedPowerup);
+  if (!firstTarget || !lastState || (as !== "ferry" && as !== "skiff")) return null;
+  return landingPoints(as, firstTarget, boardArr, lastState.size);
 }
 
 /**
@@ -770,8 +845,22 @@ function setSelectedPowerup(id) {
 
 /** The line under the cards: how to aim the armed item, or else what your two clicks play. */
 function setTargetingHint() {
-  boardHintEl.textContent = targetingText() || stoneHint();
+  boardHintEl.textContent = targetingText() || haikuHint() || stoneHint();
   boardHintEl.classList.toggle("targeting", !!selectedPowerup);
+}
+
+/**
+ * The pointer on a haiku line still to collect: which haiku and line, in the hint
+ * under the board, and the whole power ladder in the board's tooltip.
+ */
+function haikuHint() {
+  const line = hoverPoint && haikuAt(hoverPoint.x, hoverPoint.y);
+  const h = line && HAIKU.find((x) => x.id === line.axis);
+  boardEl.title = h
+    ? `${h.kanji} ${h.name} haiku, line ${line.until} of 3: "${h.lines[line.until - 1]}"\n` +
+      h.powers.map((p, i) => `${i + 1} line${i ? "s" : ""}: ${p}`).join("\n")
+    : "";
+  return h ? `${h.kanji} ${h.name} haiku, line ${line.until} of 3: "${h.lines[line.until - 1]}" -- a stone here collects it` : "";
 }
 
 function stoneHint() {
@@ -793,8 +882,12 @@ function targetingText() {
   const pickOwn = stormGreys()
     ? `${item.name}: pick one of your stones -- the storm hides which are yours -- right click to cancel.`
     : `${item.name}: pick one of your stones, each marked with an ember -- right click to cancel.`;
-  return item.id === "seedling"
-    ? "Seedling: click for a solid seed, right click for a gray or transparent one -- Esc to cancel."
+  return aimedAs(item.id) === "seedling"
+    ? item.points >= 2
+      ? firstTarget
+        ? `${item.name}: now the second point -- click for solid seeds, right click for gray or transparent ones.`
+        : `${item.name}: pick the first of two points for its seeds -- right click to cancel.`
+      : `${item.name}: click for a solid seed, right click for a gray or transparent one -- Esc to cancel.`
     : item.id === "bait"
     ? "Bait: pick an edge point to lure the creature to -- right click to cancel."
     : item.points >= 2
@@ -1014,7 +1107,10 @@ function onState(state) {
   const nextBoard = visibleBoard(state);
   const nextOverlays = Array.from(state.effects)
     .filter((e) => ["lily", "ward", "drift", "fire", "seed", "mist", "fog"].includes(e.kind))
-    .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until, axis: e.axis }));
+    .map((e) => ({ kind: e.kind, x: e.x, y: e.y, owner: e.owner, until: e.until, axis: e.axis }))
+    // Haiku lines still to collect, as the replays carry them: the line in `until`, the haiku in `axis`.
+    .concat(Array.from(state.haiku || []).filter((h) => !h.by).map((h) => ({ kind: "haiku", x: h.x, y: h.y, owner: 0, until: h.line, axis: h.haiku })));
+  const collected = nextHaikuCollected(state);
   const action = state.action;
   const actionChanged = lastActionSeq !== null && action.seq !== lastActionSeq;
   turnCount = state.turnCount;
@@ -1046,6 +1142,7 @@ function onState(state) {
   board = nextBoard;
   overlays = nextOverlays;
   recordHistory(state, action);
+  if (collected.length) requestAnimationFrame(() => collected.forEach(flyHaiku));
 
   const players = Array.from(state.players);
   myPlayer = players.find((p) => p.sessionId === room.sessionId) || null;
@@ -1180,6 +1277,29 @@ function openWelcome(state) {
     `its centre. Everyone can see everyone's ${KATA_NAME}.`;
 
   // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
+  document.getElementById("welcome-haiku").textContent =
+    `The lines of three haiku lie on quiet points of the board, each marked with its kanji and its line's dots. ` +
+    `Put a stone on one, by a move or anything that lands a stone, and the line is yours for good, even if the ` +
+    `stone is taken later. Your first line of a haiku brings its card; each further line raises its power, and the ` +
+    `whole haiku is level 3. Play the card once, at the level it has reached: early, or wait for more lines. ` +
+    `A line found after you played its card is worth ${HAIKU_LATE_FIREFLIES} fireflies. Haiku cards don't count toward your 5.`;
+  rebuild(document.getElementById("welcome-haiku-list"), "haiku", () => {
+    for (const h of HAIKU) {
+      const li = document.createElement("li");
+      li.append(artImg(`haiku_glyph_${h.id}`, G.haikuGlyph(h.id, 11, G.INDEX.A, 3, null)));
+      const body = document.createElement("div");
+      const poem = document.createElement("div");
+      poem.className = "poem";
+      poem.textContent = `${h.kanji} ${h.lines.join(" / ")}`;
+      const ladder = document.createElement("div");
+      ladder.className = "ladder";
+      ladder.textContent = h.powers.map((p, i) => `${i + 1}: ${p}`).join(" ");
+      body.append(poem, ladder);
+      li.append(body);
+      document.getElementById("welcome-haiku-list").appendChild(li);
+    }
+  });
+
   document.getElementById("welcome-weather").textContent =
     `Every ${stormEvery} turns a D20 is rolled behind the clouds, plus 1 for every calm roll since the last ` +
     `storm. At 20 or more a thunderstorm breaks: the night darkens, rain sweeps the board for ten seconds and up to ` +
@@ -1759,6 +1879,7 @@ function territoryBoardCanvas(board, size, owners) {
 }
 
 function marketItem(id) {
+  if (isHaikuCard(id)) return haikuItem(id);
   return lastState ? Array.from(lastState.market).find((m) => m.id === id) : null;
 }
 
@@ -1951,10 +2072,11 @@ function renderHand(state) {
   const places = Math.max(state.handLimit, owned.length);
   const shown = selectedPowerup ? (owned[armedCard] === selectedPowerup ? armedCard : owned.indexOf(selectedPowerup)) : -1;
   handEl.title =
-    `Hand: ${owned.length} of ${state.handLimit} cards, at most ${state.powerfulLimit} of them powerful. ` +
+    `Hand: ${owned.filter((id) => !isHaikuCard(id)).length} of ${state.handLimit} cards (haiku cards don't count), at most ${state.powerfulLimit} of them powerful. ` +
     `Buy items at the Night Market, and on your turn pick a card to use it.`;
   const cardSig = myPlayer && hasStoneCard(myPlayer) ? [Array.from(myPlayer.card).join(""), cardUpgradable(myPlayer), state.status] : null;
-  const sig = JSON.stringify([owned, places, isMyTurn, shown, Array.from(incoming), cardSig]);
+  const haikuSig = myPlayer && myPlayer.haikuLines ? Array.from(myPlayer.haikuLines) : []; // a card's level, on its face
+  const sig = JSON.stringify([owned, places, isMyTurn, shown, Array.from(incoming), cardSig, haikuSig]);
   const rebuilt = rebuild(handEl, sig, () => {
     for (let i = 0; i < places; i++) {
       if (i >= owned.length) {
@@ -2206,6 +2328,7 @@ function stoneCardHelp(player) {
 
 /** A card: the pixel card face (sprites.js itemCard) with the item's name and description in its panels. */
 function itemCard(id) {
+  if (isHaikuCard(id)) return haikuCard(id);
   const item = marketItem(id) || { name: id, description: "", tier: 1 };
   const card = document.createElement("button");
   card.type = "button";
@@ -2228,6 +2351,71 @@ function itemCard(id) {
   text.textContent = item.description;
   card.append(spriteImg(`card_${id}_${item.tier}_${turn ? 1 : 0}`, G.itemCard(id, item.tier, { turn }), 1), name, text);
   return card;
+}
+
+/**
+ * A haiku's card (ideas.md §11.11): its kanji filled a third for each line I
+ * collected, its level in pips, the turn icon unless its power keeps the turn;
+ * the name, and what it does at this level. Enlarged, it shows the haiku itself.
+ */
+function haikuCard(id) {
+  const item = haikuItem(id);
+  const h = haikuOfCard(id);
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "card haiku-card";
+  card.dataset.id = id;
+  card.dataset.level = String(item.level);
+  const turn = !item.free;
+  card.dataset.turn = turn ? "1" : "0";
+  card.setAttribute(
+    "aria-label",
+    `${h.kanji} ${h.name} haiku, level ${item.level} of 3: ${item.description} ` +
+      (turn ? "Takes your turn." : "Doesn't take your turn.") + ` The haiku: ${h.lines.join(" / ")}.`
+  );
+  card.title = "";
+  const name = document.createElement("span");
+  name.className = "card-name";
+  name.textContent = item.name;
+  const text = document.createElement("span");
+  text.className = "card-text";
+  text.textContent = `${h.lines.join(" / ")} -- ${item.description}`;
+  card.append(spriteImg(`haiku_card_${h.id}_${item.level}_${turn ? 1 : 0}`, G.haikuCard(h.id, item.level, { turn }), 1), name, text);
+  return card;
+}
+
+/** The haiku lines that became mine with this state: [{x, y, haiku}], for flyHaiku. */
+let haikuMine = null; // "x,y" of every line I had collected, or null before the first state
+function nextHaikuCollected(state) {
+  const me = myPlayer ? myPlayer.color : 0;
+  const mine = Array.from(state.haiku || []).filter((h) => me && h.by === me);
+  const before = haikuMine;
+  haikuMine = new Set(mine.map((h) => `${h.x},${h.y}`));
+  return before === null ? [] : mine.filter((h) => !before.has(`${h.x},${h.y}`)).map((h) => ({ x: h.x, y: h.y, haiku: h.haiku }));
+}
+
+/** A line just collected: its kanji lifts off the board point and flies into its card in the hand. */
+function flyHaiku(line) {
+  const card = handEl.querySelector(`.card.haiku-card[data-id="haiku_${line.haiku}"]`);
+  if (!card || !scene || reducedMotion() || !card.animate) return;
+  const b = pageRect(boardEl), to = pageRect(card);
+  const p = scene.pointToNative(line.x, line.y);
+  const img = artImg(`haiku_fly_${line.haiku}`, G.haikuGlyph(line.haiku, 11, G.INDEX.C, 3, null));
+  img.classList.add("haiku-flier");
+  const x0 = b.left + ((p.x + 0.5) * b.width) / scene.width, y0 = b.top + ((p.y + 0.5) * b.height) / scene.height;
+  Object.assign(img.style, { position: "fixed", left: `${x0}px`, top: `${y0}px`, zIndex: 60, pointerEvents: "none", transform: "translate(-50%, -50%)" });
+  document.body.appendChild(img);
+  const dx = to.left + to.width / 2 - x0, dy = to.top + to.height / 3 - y0;
+  img
+    .animate(
+      [
+        { transform: "translate(-50%, -50%) scale(1)", opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx * 0.5}px), calc(-50% + ${dy * 0.5 - 30}px)) scale(1.6)`, opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1)`, opacity: 0.2 },
+      ],
+      { duration: CARD_FLIGHT_MS, easing: "ease-in-out" }
+    )
+    .finished.then(() => img.remove(), () => img.remove());
 }
 
 // ---- a card shown enlarged over the board while the pointer rests on it (or it has keyboard focus)

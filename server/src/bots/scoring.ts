@@ -75,6 +75,9 @@ export interface BotView {
    * a stone from, and the turns until its timer runs out. Absent means none.
    */
   creatures?: Creature[];
+  /** The haiku lines still to collect (rules/haiku.ts), and this bot's lines in each haiku so far. */
+  haiku?: { idx: number; haiku: string; line: number }[];
+  haikuLevels?: Record<string, number>;
 }
 
 export interface Creature {
@@ -415,6 +418,11 @@ export function scoreMove(
     const lean = leaningFront(view, style.prefers, areaBefore ?? estimateArea(view.board, size));
     if (axis === lean) score += style.axisBias;
   }
+
+  // A haiku line still lying here (rules/haiku.ts): a third of a capture for each
+  // level it would bring its haiku to, so the whole haiku is worth one.
+  const line = view.haiku?.find((h) => h.idx === idx);
+  if (line) score += Math.trunc((style.capture * Math.min(3, (view.haikuLevels?.[line.haiku] ?? 0) + 1)) / 3);
 
   return score;
 }

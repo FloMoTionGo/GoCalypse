@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { ArraySchema, Schema } from "@colyseus/schema";
-import { BoardEffect, GoState, MarketItem, PlayerState } from "./GoState";
+import { BoardEffect, GoState, HaikuPoint, MarketItem, PlayerState } from "./GoState";
 import type { HeldKo } from "../rules/ko";
 import type { RecorderSave } from "../history/recorder";
 
@@ -100,9 +100,10 @@ function refill<T extends Schema>(list: ArraySchema<T>, items: Record<string, an
 
 /** Rebuilds a freshly made GoState from a snapshot of an earlier one. */
 export function restoreState(state: GoState, json: Record<string, any>) {
-  const { players, market, effects, ...rest } = json;
+  const { players, market, effects, haiku, ...rest } = json;
   fill(state, rest);
   refill(state.players, players, () => new PlayerState());
   refill(state.market, market, () => new MarketItem());
   refill(state.effects, effects, () => new BoardEffect());
+  refill(state.haiku, haiku || [], () => new HaikuPoint()); // none in a game saved before the haiku
 }

@@ -30,6 +30,10 @@ export class PlayerState extends Schema {
   // Stones this player killed with a stone of the other front (black smothering
   // gray): gone from the board, but no prisoners, so no points (ideas.md §11.6).
   @type("number") smothered: number = 0;
+  // Haiku (ideas.md §11.11): the lines this player collected of each haiku, in
+  // rules/haiku.ts HAIKU order, and the haiku whose card they have played.
+  @type(["number"]) haikuLines = new ArraySchema<number>();
+  @type(["string"]) haikuPlayed = new ArraySchema<string>();
   @view() @type("number") fireflies: number = 0; // market currency, earned this match
   @type("number") moves: number = 0; // stones placed; the market opens after GoState.shopAfter
   // Filled in once when the game ends (rules/endgame.ts); all 0 until then.
@@ -157,6 +161,15 @@ export class LastAction extends Schema {
   @type("number") player: number = 0; // color of whoever acted
 }
 
+/** One line of a haiku on the board (rules/haiku.ts): where it lies, and who collected it. */
+export class HaikuPoint extends Schema {
+  @type("string") haiku: string = ""; // "moon" | "river" | "tree"
+  @type("number") line: number = 0; // 1, 2 or 3
+  @type("number") x: number = -1;
+  @type("number") y: number = -1;
+  @type("number") by: number = 0; // the colour whose stone collected it; 0 while it waits
+}
+
 export class GoState extends Schema {
   @type("number") size: number = 13; // board is size x size
   // The true board, flattened; codes documented in rules/goRules.ts. Every rule,
@@ -183,6 +196,7 @@ export class GoState extends Schema {
   @type("number") powerfulLimit: number = 1; // removal items a player may hold at once
   @type([MarketItem]) market = new ArraySchema<MarketItem>();
   @type([BoardEffect]) effects = new ArraySchema<BoardEffect>();
+  @type([HaikuPoint]) haiku = new ArraySchema<HaikuPoint>(); // tonight's haiku points, set when the game starts
   @type(LastAction) action = new LastAction();
   @type(StormState) storm = new StormState();
   @type(RiverState) river = new RiverState();

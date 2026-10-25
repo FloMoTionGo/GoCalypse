@@ -11,6 +11,7 @@ import {
   viewsOf,
 } from "../rules/goRules";
 import { SEED_ROUNDS, seedStep } from "../rules/seed";
+import { haikuOfCard } from "../rules/haiku";
 import { STONE_CARD, STONE_CARD_NAME } from "../rules/stoneCard";
 import { PowerupContext, PowerupDefinition } from "./types";
 
@@ -52,6 +53,8 @@ const driftwood: PowerupDefinition = {
   apply(ctx) {
     const idx = targetIndex(ctx);
     if (idx === -1 || ctx.lilyOwnerAt(idx) || ctx.isBurning(idx)) return false;
+    // Nor on a haiku line still to collect: driftwood would bury it (ideas.md §11.11).
+    if ((ctx.state.haiku || []).some((h) => !h.by && h.x === ctx.target!.x && h.y === ctx.target!.y)) return false;
     if (!canPlaceNeutral(ctx.state.board.toArray(), ctx.size, ctx.target!.x, ctx.target!.y)) return false;
     ctx.state.board[idx] = DRIFTWOOD;
     ctx.addEffect("drift", ctx.target!.x, ctx.target!.y, 0, 3);
@@ -499,6 +502,67 @@ export function stallRefusal(stall: { name: string; left: number; share: number 
       : `You've bought your share of ${stall.name} (${stall.share} to a player).`;
   }
   return null;
+}
+
+// ---- haiku cards (ideas.md §11.11, rules/haiku.ts) -------------------------------------
+// A haiku's card is played at the level its lines reached, and each level's
+// power is an item's own rules, or a stronger take on them.
+
+/** 月 level 1: a ward on one stone; levels 2 and 3: on its whole group, for 1 or 2 rounds. */
+function haikuWard(ctx: Parameters<PowerupDefinition["apply"]>[0], level: number): boolean {
+  const idx = targetIndex(ctx);
+  if (idx === -1) return false;
+  const code = ctx.state.board[idx];
+  if (!isPlayerStone(code) || ownerOf(code) !== ownColor(ctx)) return false;
+  const rounds = level >= 3 ? 2 : 1;
+  if (level <= 1) {
+    ctx.addEffect("ward", ctx.target!.x, ctx.target!.y, ownColor(ctx), rounds);
+    return true;
+  }
+  for (const view of viewsOf(code)) {
+    const { group } = findGroup(ctx.state.board.toArray(), ctx.size, ctx.target!.x, ctx.target!.y, view);
+    for (const p of group) ctx.addEffect("ward", p.x, p.y, ownColor(ctx), rounds);
+  }
+  return true;
+}
+
+/** 木 level 1: a Seedling's seed; level 2: a seed already sprouting; level 3: two of them (the second on target2). */
+function haikuSeeds(ctx: Parameters<PowerupDefinition["apply"]>[0], level: number): boolean {
+  const effects = ctx.state.effects;
+  const before = effects.length;
+  const plant = (target?: { x: number; y: number }) => !!target && seedling.apply({ ...ctx, target });
+  if (!plant(ctx.target)) return false;
+  if (level >= 3 && !plant(ctx.target2)) {
+    effects.splice(before, effects.length - before); // both or neither
+    return false;
+  }
+  if (level >= 2) {
+    // A round already behind it: it sprouts at once, and only its planter may play there.
+    const sprouting = ctx.state.turnCount + (SEED_ROUNDS - 1) * ctx.state.players.length;
+    for (let i = before; i < effects.length; i++) effects[i].until = sprouting;
+  }
+  return true;
+}
+
+/**
+ * The power a haiku card (`haiku_<id>`) has at `level` (1-3), as an item the room
+ * plays like any other: its name, how many points it needs, whether it keeps the turn.
+ */
+export function haikuPower(card: string, level: number): PowerupDefinition | undefined {
+  const haiku = haikuOfCard(card);
+  if (!haiku) return undefined;
+  const lv = Math.max(1, Math.min(3, level));
+  const base = {
+    id: card,
+    name: `the ${haiku.kanji} haiku (level ${lv})`,
+    description: haiku.powers[lv - 1],
+    tier: 2 as const,
+    price: 0,
+    removal: false,
+  };
+  if (haiku.id === "moon") return { ...base, apply: (ctx) => haikuWard(ctx, lv) };
+  if (haiku.id === "river") return { ...base, points: 2, free: lv >= 3, apply: (lv === 1 ? ferry : skiff).apply };
+  return { ...base, points: lv >= 3 ? 2 : 1, apply: (ctx) => haikuSeeds(ctx, lv) };
 }
 
 export function getPowerup(id: string): PowerupDefinition | undefined {

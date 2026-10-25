@@ -137,7 +137,9 @@ export class GameRecorder {
       d,
       o: Array.from(state.effects)
         .filter((e) => e.until > state.turnCount)
-        .map((e): Overlay => [e.kind, e.x, e.y, e.owner, e.until, e.axis]),
+        .map((e): Overlay => [e.kind, e.x, e.y, e.owner, e.until, e.axis])
+        // The haiku points still to collect ride along as overlays: ["haiku", x, y, 0, line, haiku id].
+        .concat(Array.from(state.haiku || []).filter((h) => !h.by).map((h): Overlay => ["haiku", h.x, h.y, 0, h.line, h.haiku])),
       sc: byColor(state).map((p) => p.score),
     };
     if (acted) frame.a = [action.kind, action.id, action.x, action.y, action.player];

@@ -1625,6 +1625,161 @@
     return (lanternCache[key] = makeSprite(`turnLantern_${key}`, W, H, s.px));
   }
 
+  // ---------------------------------------------------------------------------
+  // Haiku points (ideas.md §11.11): each haiku's kanji, 7x7 carved into the kaya
+  // on its points, 11x11 on its card. On the card each pixel belongs to one of
+  // three stroke groups ("1", "2", "3"): one line collected draws the first
+  // third of the character, two lines two thirds, the whole haiku all of it.
+  // ---------------------------------------------------------------------------
+  const HAIKU_GLYPHS = {
+    moon: {
+      7: [
+        "..####.",
+        "..#..#.",
+        "..####.",
+        "..#..#.",
+        "..####.",
+        ".#...#.",
+        "#...##.",
+      ],
+      11: [
+        "..2222222..",
+        "..1.....2..",
+        "..1.....2..",
+        "..1333332..",
+        "..1.....2..",
+        "..1.....2..",
+        "..1333332..",
+        "..1.....2..",
+        ".1......2..",
+        ".1......2..",
+        "1.....222..",
+      ],
+    },
+    river: {
+      7: [
+        ".#..#.#",
+        ".#..#.#",
+        ".#..#.#",
+        ".#..#.#",
+        ".#..#.#",
+        "#...#.#",
+        "#.....#",
+      ],
+      11: [
+        ".1...2...3.",
+        ".1...2...3.",
+        ".1...2...3.",
+        ".1...2...3.",
+        ".1...2...3.",
+        ".1...2...3.",
+        ".1...2...3.",
+        ".1...2...3.",
+        "1....2...3.",
+        "1....2...3.",
+        "1........3.",
+      ],
+    },
+    tree: {
+      7: [
+        "...#...",
+        "#######",
+        "...#...",
+        "..###..",
+        ".#.#.#.",
+        "#..#..#",
+        "...#...",
+      ],
+      11: [
+        ".....2.....",
+        ".....2.....",
+        "11111111111",
+        "....222....",
+        "...3.2.3...",
+        "..3..2..3..",
+        ".3...2...3.",
+        "3....2....3",
+        ".....2.....",
+        ".....2.....",
+        ".....2.....",
+      ],
+    },
+  };
+
+  /**
+   * A haiku's kanji at `size` (7 for the board, 11 for the card) in `color`, the
+   * strokes up to `level` (1-3) drawn solid and the rest (if `ghost`) as a faint
+   * dotted outline; at size 7 it is always whole.
+   */
+  const glyphCache = {};
+  function haikuGlyph(id, size, color = K, level = 3, ghost = S) {
+    const key = `${id}_${size}_${color}_${level}_${ghost}`;
+    if (glyphCache[key]) return glyphCache[key];
+    const rows = (HAIKU_GLYPHS[id] || HAIKU_GLYPHS.moon)[size === 11 ? 11 : 7];
+    const n = rows.length;
+    const px = new Uint8Array(n * n).fill(TRANSPARENT);
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const ch = rows[y][x];
+        if (ch === ".") continue;
+        const group = ch === "#" ? 1 : Number(ch);
+        if (group <= level) px[y * n + x] = color;
+        else if (ghost !== null && (x + y) % 2 === 0) px[y * n + x] = ghost;
+      }
+    }
+    return (glyphCache[key] = makeSprite(`haiku_${key}`, n, n, px));
+  }
+
+  /**
+   * A haiku's card, `level` 1-3: the item card's frame with a teal rim, its kanji
+   * in the art window filled to the level reached, three level pips on the top
+   * edge in place of the tier gems (amber for each line collected), and the turn
+   * icon when the level's power takes the turn.
+   */
+  function haikuCard(id, level, opts) {
+    const lv = Math.max(1, Math.min(3, level | 0));
+    const turn = !!(opts && opts.turn);
+    const key = `haiku:${id}:${lv}${turn ? ":turn" : ""}`;
+    if (key in cardCache) return cardCache[key];
+    const W = CARD_W, H = CARD_H;
+    const s = new Surface(W, H);
+    s.fill(TRANSPARENT);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!inCard(x, y)) continue;
+        const edge = !inCard(x - 1, y) || !inCard(x + 1, y) || !inCard(x, y - 1) || !inCard(x, y + 1);
+        const ring = !inCard(x - 2, y) || !inCard(x + 2, y) || !inCard(x, y - 2) || !inCard(x, y + 2);
+        s.set(x, y, edge ? K : ring ? T : K);
+      }
+    }
+    // The art window: a night sky, the kanji glowing in it, a slate frame.
+    const a = CARD_ART;
+    for (let y = a.y - 1; y <= a.y + a.h; y++) {
+      for (let x = a.x - 1; x <= a.x + a.w; x++) {
+        const border = y === a.y - 1 || y === a.y + a.h || x === a.x - 1 || x === a.x + a.w;
+        const corner = (y === a.y - 1 || y === a.y + a.h) && (x === a.x - 1 || x === a.x + a.w);
+        if (corner) continue;
+        s.set(x, y, border ? S : K);
+      }
+    }
+    const glyph = haikuGlyph(id, 11, C, lv, S);
+    s.blitCentered(glyph, a.x + (a.w >> 1), a.y + (a.h >> 1));
+    for (let x = 6; x < W - 6; x += 2) s.set(x, CARD_RULE_Y, S);
+    // Level pips on the top edge: a lit amber bead for each line collected, a hollow ring for each still to find.
+    for (let i = 0; i < 3; i++) {
+      const gx = (W >> 1) + (i - 1) * 6, gy = 2;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const d = Math.abs(dx) + Math.abs(dy);
+          if (d > 2) continue;
+          s.set(gx + dx, gy + dy, d === 2 ? K : i < lv ? (d === 0 ? C : A) : d === 1 ? S : K);
+        }
+      }
+    }
+    if (turn) s.blit(SPRITES.turnIcon, W - SPRITES.turnIcon.w, 0);
+    return (cardCache[key] = makeSprite(`haiku_card_${id}_${lv}${turn ? "_turn" : ""}`, W, H, s.px));
+  }
+
   function textSprite(font, text, color) {
     const w = Math.max(1, textWidth(font, text)), h = font.height;
     const s = new Surface(w, h);
@@ -1682,6 +1837,8 @@
     plankButton,
     plankLabel,
     turnLantern,
+    haikuGlyph,
+    haikuCard,
     textWidth,
     drawText,
     textSprite,

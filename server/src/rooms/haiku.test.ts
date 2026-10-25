@@ -151,7 +151,8 @@ test("haiku: haiku cards don't count toward the hand's 5", () => {
   const client = onTurn(room, clients);
   const player = playerOf(room, client);
   player.fireflies = 1000;
-  player.powerups.push("stone_card", "fog", "mist", "kite", "haiku_moon", "haiku_tree");
+  // The Kata is dealt to every seat: with three items, four cards that count, and two haiku cards that don't.
+  player.powerups.push("fog", "mist", "kite", "haiku_moon", "haiku_tree");
   room.handleBuy(client, { id: "seedling" });
   assert.ok(Array.from(player.powerups).includes("seedling"), notices(client).at(-1));
 });

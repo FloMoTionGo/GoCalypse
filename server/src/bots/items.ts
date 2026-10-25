@@ -17,6 +17,7 @@ import {
   twinCode,
 } from "../rules/goRules";
 import { copiesBought, stallRefusal } from "../powerups/definitions";
+import { isHaikuCard } from "../rules/haiku";
 import { CreatureKind, creatureReach, nearerCreature, outerRing, ringDistance } from "../rules/river";
 import { AXES, BotView, Candidate, fightsUs, isPointless, pointOf, rankMoves, scoreMove } from "./scoring";
 import { Style } from "./styles";
@@ -427,9 +428,29 @@ const PLANNERS: Record<string, (view: BotView, style: Style, ranked: Candidate[]
   fog: (view, style) => planFog(view, style),
   ferry: (view, style) => planGlide(view, style, "ferry"),
   skiff: (view, style) => planGlide(view, style, "skiff"),
+  // A haiku card plays as the item its level stands for (powerups/definitions.ts haikuPower).
+  haiku_moon: (view, style) => asCard(planWard(view, style), "haiku_moon"),
+  haiku_river: (view, style) => asCard(planGlide(view, style, haikuLevel(view, "river") >= 2 ? "skiff" : "ferry"), "haiku_river"),
+  haiku_tree: (view, _style, ranked) => {
+    const plan = asCard(planSeedling(view, ranked), "haiku_tree");
+    if (!plan || haikuLevel(view, "tree") < 3) return plan;
+    // Level 3 plants two: the next good point that is not the first.
+    const second = ranked.slice(1, 8).find((c) => (c.x !== plan.target.x || c.y !== plan.target.y) && view.board[boardIndex(view.size, c.x, c.y)] === 0);
+    return second ? { ...plan, target2: { x: second.x, y: second.y } } : null;
+  },
   river_current: (view, style) => planSnipe(view, style, "river_current", true),
   echo_chime: (view, style, ranked) => planEcho(view, style, ranked),
 };
+
+/** A haiku's level for this bot: its lines collected, 1 to 3. */
+function haikuLevel(view: BotView, id: string): number {
+  return Math.max(1, Math.min(3, view.haikuLevels?.[id] ?? 1));
+}
+
+/** An item's plan, played from a haiku card instead. */
+function asCard(plan: ItemPlan | null, card: string): ItemPlan | null {
+  return plan && { ...plan, id: card };
+}
 
 /** The best use of anything in the hand that takes the turn, already scored against the board. */
 export function planItem(view: BotView, style: Style, ranked: Candidate[]): ItemPlan | null {
@@ -544,7 +565,7 @@ export function chooseFree(view: BotView, style: Style, ranked: Candidate[]): Fr
  */
 export function chooseBuy(view: BotView, style: Style): string | null {
   if (view.moves < view.shopAfter) return null;
-  if (view.powerups.length >= view.handLimit) return null;
+  if (view.powerups.filter((id) => !isHaikuCard(id)).length >= view.handLimit) return null; // haiku cards don't count
 
   const held = (id: string) => view.market.find((m) => m.id === id);
   const powerfulInHand = view.powerups.filter((id) => held(id)?.removal).length;

@@ -626,6 +626,11 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 /* The turn icon (main.js turnIcon): this item's use takes the turn. Drawn at 2x, set beside the name. */
 .turn-icon { vertical-align: middle; flex-shrink: 0; }
 .item .turn-icon { margin: -3px 0 -3px var(--px); vertical-align: -4px; }
+/* The welcome dialog's haiku: each one's kanji, its three lines, and its power ladder. */
+.welcome-haiku { list-style: none; margin: calc(3 * var(--px)) 0 0; padding: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
+.welcome-haiku li { display: flex; gap: calc(4 * var(--px)); align-items: flex-start; }
+.welcome-haiku .poem { font-style: italic; color: var(--cream); }
+.welcome-haiku .ladder { color: var(--slate); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 #welcome-turn-legend { display: flex; align-items: center; gap: calc(4 * var(--px)); margin: 0 0 calc(4 * var(--px)); color: var(--cream); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 .item .desc {
   color: var(--slate);

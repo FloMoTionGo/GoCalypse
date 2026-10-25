@@ -1,10 +1,12 @@
 import { Client, Delayed, Room } from "colyseus";
 import { ArraySchema, StateView } from "@colyseus/schema";
-import { BoardEffect, CreatureState, GoState, MarketItem, PlayerState } from "../state/GoState";
+import { BoardEffect, CreatureState, GoState, HaikuPoint, MarketItem, PlayerState } from "../state/GoState";
 import { randomGuestName, sanitizeName } from "../util/usernames";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import { GameRecorder, Outcome } from "../history/recorder";
 import { historyStore } from "../history/store";
+import { heatmap } from "../history/heatmap";
+import { HAIKU, HAIKU_LATE_FIREFLIES, haikuCardId, haikuOfCard, isHaikuCard, pickHaikuPoints } from "../rules/haiku";
 import {
   applyCaptures,
   axisOf,
@@ -45,6 +47,7 @@ import {
   copiesBought,
   fairShare,
   getPowerup,
+  haikuPower,
   stallCopies,
   stallRefusal,
   tonightsStalls,
@@ -385,6 +388,7 @@ export class GoRoom extends Room<GoState> {
     this.turnOrder().forEach((playerIndex, seat) => {
       this.state.players[playerIndex].fireflies += SEAT_BONUS * seat;
     });
+    this.layHaiku();
     this.state.status = "playing";
     this.state.turnIndex = this.turnOrder()[0];
     // Stop matchmaking from offering this room to fresh joinOrCreate
@@ -402,11 +406,74 @@ export class GoRoom extends Room<GoState> {
     this.scheduleBotTurn();
   }
 
+  // ---- haiku points (rules/haiku.ts) --------------------------------------------------
+
+  /**
+   * Tonight's haiku, line by line, on the board's least played points (the saved
+   * games' heatmap, or its prior while there are too few of them), drawn with the
+   * room's own seed; nobody has collected anything yet.
+   */
+  private layHaiku() {
+    const size = this.state.size;
+    const store = process.env.HISTORY === "off" ? undefined : historyStore();
+    const seed = new Rng(this.rng.next());
+    this.state.haiku.clear();
+    for (const spot of pickHaikuPoints(heatmap(store).heatFor(size), size, () => seed.next() / 2 ** 32)) {
+      const p = new HaikuPoint();
+      Object.assign(p, spot);
+      this.state.haiku.push(p);
+    }
+    for (const player of this.state.players) {
+      player.haikuLines.clear();
+      for (const _ of HAIKU) player.haikuLines.push(0);
+    }
+  }
+
+  /** A haiku's level for this player: the lines collected, 1 to 3. */
+  private haikuLevel(player: PlayerState, card: string): number {
+    const at = HAIKU.findIndex((h) => h.id === haikuOfCard(card)?.id);
+    return Math.max(1, Math.min(3, Number(player.haikuLines[at] ?? 0)));
+  }
+
+  /** Cards in the hand that count toward HAND_LIMIT: the haiku's don't. */
+  private handCount(player: PlayerState): number {
+    return player.powerups.filter((id) => !isHaikuCard(id)).length;
+  }
+
+  /**
+   * A stone of `player` has just landed on `idx`, by a move or by anything that
+   * places one (Ferry, Skiff, Echo Chime, a Kata landing, a seed growing): a haiku
+   * line still lying there is theirs for good. Their first line of a haiku brings
+   * its card; each line after levels it up; once the card is played, a line pays
+   * HAIKU_LATE_FIREFLIES instead. The news goes with the turn's.
+   */
+  private collectHaiku(idx: number, player: PlayerState) {
+    const size = this.state.size;
+    const point = this.state.haiku.find((h) => !h.by && boardIndex(size, h.x, h.y) === idx);
+    if (!point) return;
+    point.by = player.color;
+    const at = HAIKU.findIndex((h) => h.id === point.haiku);
+    if (at === -1) return;
+    while (player.haikuLines.length < HAIKU.length) player.haikuLines.push(0);
+    player.haikuLines[at] = Number(player.haikuLines[at]) + 1;
+    const haiku = HAIKU[at];
+    const card = haikuCardId(haiku.id);
+    if (player.haikuPlayed.includes(haiku.id)) player.fireflies += HAIKU_LATE_FIREFLIES;
+    else if (!player.powerups.includes(card)) player.powerups.push(card);
+    const lines = Number(player.haikuLines[at]);
+    this.riverNews.push(
+      `${player.name} found a line of the ${haiku.kanji} haiku: "${haiku.lines[point.line - 1]}"` +
+        (player.haikuPlayed.includes(haiku.id) ? "." : ` (level ${Math.min(3, lines)}).`)
+    );
+  }
+
   /** Keeps the finished (or abandoned) game for replays. A failed write costs the replay, never the game. */
   private saveHistory(outcome: Outcome) {
     if (!this.recorder) return;
     try {
-      historyStore().save(this.recorder.finish(this.state, outcome));
+      const record = this.recorder.finish(this.state, outcome);
+      historyStore().save(record);
+      if (outcome === "finished") heatmap(historyStore()).add(record); // where tonight's stones went, for the next haiku
     } catch (err) {
       console.error(`GoRoom ${this.roomId}: could not save the game's history:`, err);
     }
@@ -1112,6 +1179,11 @@ export class GoRoom extends Room<GoState> {
       isBurning: (idx) => this.isBurning(idx),
       isFogged: (idx) => this.isFogged(idx) || rivalMist.has(idx), // "may not play here, can't see why"
       hasSeed: (idx) => this.effectAt("seed", idx) !== undefined,
+      // The haiku lines still to collect, and this bot's level in each haiku.
+      haiku: Array.from(this.state.haiku)
+        .filter((h) => !h.by)
+        .map((h) => ({ idx: boardIndex(this.state.size, h.x, h.y), haiku: h.haiku, line: h.line })),
+      haikuLevels: Object.fromEntries(HAIKU.map((h, i) => [h.id, Number(player.haikuLines[i] ?? 0)])),
       jar: player.jar,
       mist: player.mist,
       twin: player.twin,
@@ -1224,7 +1296,11 @@ export class GoRoom extends Room<GoState> {
     }
     if (action.kind === "powerup") {
       const { id, target, target2, axis } = action;
-      return this.applyUsePowerup(playerIndex, { id, target, target2, axis });
+      const turn = this.state.turnCount;
+      const refused = this.applyUsePowerup(playerIndex, { id, target, target2, axis });
+      // An item that keeps the turn (the 川 haiku at level 3): the bot still has its move to make.
+      if (refused === null && this.state.turnCount === turn) this.scheduleBotTurn();
+      return refused;
     }
     return "pass";
   }
@@ -1292,6 +1368,7 @@ export class GoRoom extends Room<GoState> {
     captured.forEach(({ point }) => {
       board[boardIndex(size, point.x, point.y)] = 0;
     });
+    this.collectHaiku(idx, player);
 
     if (lily) this.removeEffectsAt("lily", idx);
     if (seed) this.removeEffectsAt("seed", idx); // trampled, or its planter played there first
@@ -1377,6 +1454,7 @@ export class GoRoom extends Room<GoState> {
     for (const { point } of captured) board[boardIndex(size, point.x, point.y)] = 0;
     if (lily) this.removeEffectsAt("lily", idx);
     this.removeEffectsAt("seed", idx); // a stone on a seed tramples it
+    this.collectHaiku(idx, player);
     player.score += captured.length;
     this.creditPrisoners(player, captured);
     player.fireflies += this.captureFireflies(player, captured.length);
@@ -1527,7 +1605,7 @@ export class GoRoom extends Room<GoState> {
     // The stall's copies are shared by the table, and nobody may take more than their share.
     const refused = stallRefusal(stall, copiesBought(player.bought, definition.id));
     if (refused) return refused;
-    if (player.powerups.length >= HAND_LIMIT) {
+    if (this.handCount(player) >= HAND_LIMIT) {
       return `Your hand only holds ${HAND_LIMIT} cards. Play one first.`;
     }
     if (definition.removal && this.powerfulHeld(player) >= POWERFUL_LIMIT) {
@@ -1563,7 +1641,8 @@ export class GoRoom extends Room<GoState> {
     if (inventoryIndex === -1) return "";
     if (message.id === STONE_CARD) return this.applyPlayCard(playerIndex, message.target);
 
-    const definition = getPowerup(message.id);
+    // A haiku card plays as its haiku's power at the level reached (powerups/definitions.ts haikuPower).
+    const definition = isHaikuCard(message.id) ? haikuPower(message.id, this.haikuLevel(player, message.id)) : getPowerup(message.id);
     if (!definition) return "";
 
     const t = message.target;
@@ -1603,6 +1682,8 @@ export class GoRoom extends Room<GoState> {
     }
 
     player.powerups.splice(inventoryIndex, 1);
+    const haiku = haikuOfCard(message.id);
+    if (haiku && !player.haikuPlayed.includes(haiku.id)) player.haikuPlayed.push(haiku.id); // played once
     if (definition.free) {
       // Costs nothing but the item: no turn, no reset of the passes, no animation.
       this.state.lastEvent = `${player.name} used ${definition.name}`;
