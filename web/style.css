@@ -509,8 +509,9 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   min-width: 100%;
   margin-top: calc(3 * var(--px)); /* CARD_ROW_GAP in main.js */
 }
-/* The hand at 150 % of the stage's art (main.js sizeCanvas sets --hand-px; pixelScene.js STAGE.hand). */
-#hand { --px: var(--hand-px); position: relative; display: flex; gap: calc(2 * var(--px)); margin-left: auto; padding-bottom: calc(6 * var(--px)); } /* CARD_GAP; CARD_HINT_ROW under the cards */
+/* The hand at 150 % of the stage's art (main.js sizeCanvas sets --hand-px; pixelScene.js STAGE.hand),
+   left aligned under the board; a hand wider than the board runs on under the sidebar. */
+#hand { --px: var(--hand-px); position: relative; display: flex; gap: calc(2 * var(--px)); padding-bottom: calc(6 * var(--px)); } /* CARD_GAP; CARD_HINT_ROW under the cards */
 #board-hint.targeting { color: var(--amber); }
 
 /* A card: the pixel face from sprites.js itemCard (36x52 card pixels), its name in the panel under
