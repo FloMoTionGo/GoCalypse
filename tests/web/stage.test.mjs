@@ -9,24 +9,32 @@ const { G, P } = loadWeb();
 const RGB = new Set(G.PALETTE_RGB.map(([r, g, b]) => `${r},${g},${b}`));
 const inPalette = (spr) => Array.from(spr.px).every((i) => i === 255 || RGB.has(G.PALETTE_RGB[i].join()));
 
-test("stage: k is the largest whole scale that fits the window's physical pixels, capped at 1920x1080, never 0", () => {
+test("stage: k is the largest whole scale that fits the window's physical pixels with the hand under the board, capped at 1920x1080, never 0", () => {
   assert.equal(P.pickScale(1920, 950, 1, 13).k, 2);
   assert.equal(P.pickScale(1536, 760, 1.25, 13).k, 2, "the same physical pixels give the same k");
   assert.equal(P.pickScale(3840, 2100, 1.5, 13).k, 2, "capped at 1920x1080");
   assert.equal(P.pickScale(300, 200, 1, 13).k, 1, "never 0");
-  assert.equal(P.pickScale(1920, 950, 1, 13).handInSidebar, false, "the hand stays under the board when that is as big");
-  const big = P.pickScale(2560, 1300, 1, 25);
-  assert.deepEqual([big.k, big.handInSidebar], [2, true], "25x25: the hand moves into the sidebar for a bigger k");
+  assert.equal(P.pickScale(2560, 1300, 1, 25).k, 1, "25x25 under the cap: the hand row counts, so one step");
 });
 
-test("stage: the scene, a gap and the sidebar across; the header, the scene, the hand and the status lines down", () => {
-  const L = P.computeLayout(13);
-  const under = P.stageSize(13, false), side = P.stageSize(13, true);
-  assert.ok(under.w > L.width + 100 && under.w < L.width + 160, `width ${under.w}`);
-  assert.ok(under.h > L.height + 60 && under.h < L.height + 130, `height ${under.h}`);
-  assert.equal(side.w, under.w);
-  assert.ok(side.h < under.h, "the hand in the sidebar frees the row under the board");
-  assert.ok(P.stageSize(19, false).w > under.w && P.stageSize(25, false).h > P.stageSize(19, false).h);
+test("stage: the hand stays under the board on every board size, whatever the window", () => {
+  for (const size of [13, 19, 25]) {
+    for (const [w, h, dpr] of [[1920, 950, 1], [1536, 864, 1.25], [2560, 1300, 1], [3840, 2175, 1]]) {
+      assert.ok(!P.pickScale(w, h, dpr, size).handInSidebar, `${size}x${size} in ${w}x${h} at ${dpr}`);
+    }
+  }
+});
+
+test("stage: the scene, a gap and the sidebar across; the header, the scene, the hand row and the status lines down, on every board size", () => {
+  const L = P.computeLayout(13), s = P.stageSize(13);
+  assert.ok(s.w > L.width + 100 && s.w < L.width + 160, `width ${s.w}`);
+  assert.ok(s.h > L.height + 60 && s.h < L.height + 130, `height ${s.h}`);
+  for (const size of [13, 19, 25]) {
+    const Ln = P.computeLayout(size), sn = P.stageSize(size), S = P.STAGE;
+    assert.equal(sn.w, Ln.width + S.gap + S.sidebar, `${size}: across`);
+    assert.equal(sn.h, S.header + S.gap + Ln.height + S.hand + S.status, `${size}: down, the hand row included`);
+  }
+  assert.ok(P.stageSize(19).w > s.w && P.stageSize(25).h > P.stageSize(19).h);
 });
 
 test("sprites: the big pixel font spells every capital letter, and the header's marks", () => {

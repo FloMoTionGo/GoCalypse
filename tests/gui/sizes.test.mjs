@@ -48,3 +48,25 @@ test("lobby: picking 19 gives a 19-line board at the table", async () => {
   assert.equal(m.scrolls, false, "the bigger stage still fits the window");
   rig.assertClean("the 19x19 table");
 });
+
+test("table: on a 19x19 table in a 1080p window the hand stays under the board", async () => {
+  await b.cdp("Emulation.setDeviceMetricsOverride", { width: 1920, height: 950, deviceScaleFactor: 1, mobile: false });
+  await wait(400);
+  const m = await b.ev(`(() => {
+    const hand = document.getElementById("hand"), sidebar = document.getElementById("sidebar");
+    const h = hand.getBoundingClientRect(), bd = boardEl.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
+    return {
+      inSidebar: sidebar.contains(hand),
+      under: h.top >= bd.bottom - 0.5,
+      leftOfSidebar: h.right <= sb.left + 0.5,
+      scrolls: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight,
+    };
+  })()`);
+  await b.cdp("Emulation.clearDeviceMetricsOverride", {});
+  await wait(300);
+  assert.equal(m.inSidebar, false, "not in the sidebar");
+  assert.equal(m.under, true, "under the board");
+  assert.equal(m.leftOfSidebar, true, "in the board's column");
+  assert.equal(m.scrolls, false, "and the stage still fits the window");
+  rig.assertClean("the hand on a 19x19 table");
+});
