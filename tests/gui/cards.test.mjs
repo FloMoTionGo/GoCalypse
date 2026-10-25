@@ -52,6 +52,23 @@ test("cards: the market has two columns, the cozy stalls on the left and the res
   }
 });
 
+test("cards: a market stall shows its name, price and stock, and its description beside it on hover", async () => {
+  const p = await b.ev(`(() => {
+    const el = marketItemsEl.querySelector("button.item"), r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, id: el.dataset.id, descShown: !!el.querySelector(".desc") && el.querySelector(".desc").getBoundingClientRect().height > 0 };
+  })()`);
+  assert.equal(p.descShown, false, "the description is not on the card");
+  await b.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: p.x, y: p.y });
+  await b.waitFor("!!document.querySelector('.market-tip')", 2000, "the description tip");
+  const tip = await b.ev(`(() => { const t = document.querySelector(".market-tip"), r = t.getBoundingClientRect();
+    return { text: t.textContent, w: r.width, h: r.height }; })()`);
+  const desc = await b.ev(`Array.from(lastState.market).find((m) => m.id === ${JSON.stringify(p.id)}).description`);
+  assert.ok(tip.text.includes(desc), "it says what the item does");
+  assert.ok(tip.w > 0 && tip.h > 0, "on screen");
+  await b.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+  await b.waitFor("!document.querySelector('.market-tip')", 2000, "the tip gone once the pointer leaves");
+});
+
 test("cards: How to play marks the items that take the turn, and says what the icon means", async () => {
   await b.ev("helpButton.click(); true");
   await b.waitFor("welcomeEl.open", 3000, "How to play");

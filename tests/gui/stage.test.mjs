@@ -79,6 +79,43 @@ test("stage: the hand sits below the board, left aligned with it", async () => {
   assert.ok(m.handTop >= m.boardBottom - 0.5, "below the board");
 });
 
+test("stage: the sidebar runs down beside the hand, and the market shows every stall without scrolling", async () => {
+  for (const [w, h] of [[1400, 1000], [1920, 950]]) {
+    await b.cdp("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: false });
+    await wait(400);
+    const m = await b.ev(`(() => {
+      const sb = document.getElementById("sidebar").getBoundingClientRect(), g = gameEl.getBoundingClientRect();
+      const hand = handEl.getBoundingClientRect(), mk = document.getElementById("market");
+      return { sideBottom: sb.bottom, gameBottom: g.bottom, handBottom: hand.bottom, sideLeft: sb.left, handRight: hand.right,
+        scroll: mk.scrollHeight - mk.clientHeight, stalls: marketItemsEl.querySelectorAll("button.item").length };
+    })()`);
+    assert.ok(m.sideBottom >= m.handBottom - 0.5, `${w}x${h}: the sidebar reaches down beside the hand`);
+    assert.ok(m.sideBottom <= m.gameBottom + 0.5, `${w}x${h}: and stays on the stage`);
+    assert.ok(m.handRight <= m.sideLeft + 0.5, `${w}x${h}: the hand stays left of it`);
+    assert.ok(m.scroll <= 1, `${w}x${h}: the market needs no scrolling (${m.scroll} px over)`);
+    assert.equal(m.stalls, 7);
+  }
+  await b.cdp("Emulation.clearDeviceMetricsOverride", {});
+  await wait(300);
+});
+
+test("stage: a full hand stays under the board, its cards overlapping when they don't fit", async () => {
+  for (const id of Array.from(await b.ev("Array.from(lastState.market).filter((m) => !m.removal).map((m) => m.id)")).slice(0, 5)) {
+    await b.ev(`room.send("buy", { id: ${JSON.stringify(id)} }); true`);
+    await wait(200);
+  }
+  await b.waitFor("handEl.querySelectorAll('.card').length >= 6", 5000, "a full hand");
+  const m = await b.ev(`(() => {
+    const h = handEl.getBoundingClientRect(), bd = boardEl.getBoundingClientRect();
+    const cards = Array.from(handEl.querySelectorAll(".card, .card-place")).map((c) => c.getBoundingClientRect());
+    return { left: h.left, right: Math.max(...cards.map((c) => c.right)), boardLeft: bd.left, boardRight: bd.right,
+      overlap: cards.some((c, i) => i > 0 && c.left < cards[i - 1].right - 0.5) };
+  })()`);
+  assert.ok(Math.abs(m.left - m.boardLeft) < 1, "left aligned with the board");
+  assert.ok(m.right <= m.boardRight + 0.5, `no wider than the board: ${m.right} vs ${m.boardRight}`);
+  assert.equal(m.overlap, true, "six 150% cards overlap under a 13x13 board");
+});
+
 test("storm: the forecast is a dial and a sky that blink in two frames, its numbers only in words", async () => {
   const w = await b.ev(`(() => {
     const meter = weatherEl.querySelector(".meter");

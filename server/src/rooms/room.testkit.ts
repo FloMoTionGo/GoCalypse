@@ -38,6 +38,9 @@ export function notices(client: FakeClient): string[] {
 }
 
 let rooms = 0;
+// Unique per run, not only per process: Windows reuses pids, and an old run's snapshot in the
+// same temp folder would otherwise pass for this room's.
+const RUN = Date.now().toString(36);
 
 /**
  * A room as onCreate leaves it, with no matchmaker behind it: the clock never
@@ -46,7 +49,7 @@ let rooms = 0;
  */
 export function makeRoom(opts: { debug?: boolean; restoreToken?: string; roomName?: string; size?: unknown; storms?: unknown } = {}): any {
   const room: any = new (opts.debug ? GoDebugRoom : GoRoom)();
-  room.roomId = `test-${process.pid}-${++rooms}`;
+  room.roomId = `test-${process.pid}-${RUN}-${++rooms}`;
   room.roomName = opts.roomName ?? (opts.debug ? "go_debug" : "go_custom");
   room.listing = { updateOne: async () => {} };
   room.disconnects = 0;
