@@ -221,9 +221,11 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   justify-content: space-between;
   align-items: center;
   gap: calc(4 * var(--px));
-  height: calc(18 * var(--px));
+  height: calc(18 * var(--hdr-px));
   margin-bottom: calc(6 * var(--px));
 }
+/* The header's art at 85 % of the stage's (main.js sizeCanvas sets --hdr-px; pixelScene.js STAGE.header). */
+#game-header > * { --px: var(--hdr-px); }
 #hdr-history, #hdr-actions { display: flex; align-items: center; gap: calc(2 * var(--px)); flex: 0 0 auto; }
 #hdr-turn { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; gap: calc(3 * var(--px)); }
 #hdr-lantern { flex-shrink: 0; transform-origin: 50% 0; }
@@ -415,10 +417,12 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .territory-board img { border: var(--px) solid var(--teal); border-radius: var(--px); background: var(--amber); }
 #turn-indicator.my-turn { color: var(--amber); }
 
-#game-body { flex: 1 1 auto; min-height: 0; display: flex; gap: calc(6 * var(--px)); align-items: stretch; }
+#game-body { flex: 0 0 auto; height: calc(var(--scene-h) * var(--px)); /* the board's height: the sidebar scrolls inside it */ display: flex; gap: calc(6 * var(--px)); align-items: stretch; }
 #board-wrap { flex: 0 0 auto; width: calc(var(--scene-w) * var(--px)); min-width: 0; display: flex; flex-direction: column; }
+/* Under the board and the sidebar: the hand row, then the three lines. */
+#game-foot { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; } /* the board above never gives way to it */
 /* The three lines under it all: one line each, so a long one never pushes the stage taller. */
-#board-wrap > .hint, #board-wrap > .status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: var(--px); min-height: 0; line-height: 1.2; }
+#game-foot > .hint, #game-foot > .status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: var(--px); min-height: 0; line-height: 1.2; }
 
 #board {
   display: block;
@@ -427,9 +431,9 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 #board.my-turn, #board.targeting { cursor: pointer; }
 
-/* Exactly 120 art px whatever a player is called (pixelScene.js STAGE.sidebar): min-width 0
-   stops a long nowrap name from widening it. As tall as the stage lets it be; the market scrolls. */
-#sidebar { flex: 0 0 calc(120 * var(--px)); min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
+/* Exactly 200 art px whatever a player is called (pixelScene.js STAGE.sidebar): min-width 0
+   stops a long nowrap name from widening it. 200 since the market went to two columns. As tall as the stage lets it be; the market scrolls. */
+#sidebar { flex: 0 0 calc(200 * var(--px)); min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
 #sidebar > .panel { flex: 0 0 auto; }
 #sidebar > #market { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--slate) var(--ink); }
 
@@ -463,22 +467,36 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .player-row.current .look { color: var(--amber); }
 .player-row.disconnected { color: var(--slate); text-decoration: line-through; }
 
-/* Storm forecast: three pips and a word. */
-#weather .meter { display: flex; align-items: center; gap: calc(4 * var(--px)); font-weight: 700; font-size: max(var(--min-font), calc(6.75 * var(--px))); }
+/* Storm forecast (main.js renderWeather): the roll's dial and the sky, then STORM over the sky's name. */
+#weather .meter { display: flex; align-items: center; gap: calc(6 * var(--px)); }
+#weather .head { display: flex; flex-direction: column; gap: var(--px); min-width: 0; font-weight: 700; font-size: max(var(--min-font), calc(6.75 * var(--px))); }
 #weather .label { color: var(--amber); font-size: max(var(--min-font), calc(5.85 * var(--px))); letter-spacing: 0.04em; text-transform: uppercase; }
-#weather .pips { display: inline-flex; gap: calc(2 * var(--px)); }
-#weather .pip { width: calc(7 * var(--px)); height: calc(4 * var(--px)); border: var(--px) solid var(--slate); border-radius: var(--px); }
-#weather .pip.lit { background: var(--amber); border-color: var(--amber); }
-#weather .meter.unlikely .level { color: var(--slate); }
-#weather .meter.likely .level, #weather .meter.very-likely .level { color: var(--amber); }
-#weather .meter.very-likely .pip.lit { background: var(--cream); border-color: var(--cream); }
-#weather .meter.very-likely .level { color: var(--cream); }
+#weather .level { color: var(--slate); }
+#weather .sky-overcast .level, #weather .sky-rain .level { color: var(--amber); }
+#weather .sky-thunder .level { color: var(--cream); }
+#weather .pictures { display: flex; align-items: center; gap: calc(6 * var(--px)); flex-shrink: 0; }
+
+/* Two frames of a sprite swapped in place (main.js flicker): the dial blinks, the sky drifts and rains. */
+.flicker { display: grid; flex-shrink: 0; --beat: 1.2s; }
+.flicker > img { grid-area: 1 / 1; }
+.flicker > img:first-child { animation: flicker-a var(--beat) steps(1, end) infinite; }
+.flicker > img:last-child { animation: flicker-b var(--beat) steps(1, end) infinite; }
+@keyframes flicker-a { 0% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes flicker-b { 0% { opacity: 0; } 50% { opacity: 1; } }
+.flicker.urgent { --beat: 0.5s; }
+.flicker.sky.clear, .flicker.sky.wisps { --beat: 2.4s; }
+.flicker.sky.clouding, .flicker.sky.overcast { --beat: 1.8s; }
+.flicker.sky.rain { --beat: 0.6s; }
+.flicker.sky.thunder { --beat: 0.4s; }
+@media (prefers-reduced-motion: reduce) { .flicker > img { animation: none !important; } .flicker > img:last-child { opacity: 0; } }
 
 .ff { display: inline-flex; align-items: center; gap: var(--px); white-space: nowrap; }
 .ff img { flex-shrink: 0; }
 
 
-#market-items { display: flex; flex-direction: column; gap: calc(2 * var(--px)); }
+/* Two columns (main.js renderMarket): cozy stalls on the left, tactical and powerful on the right. */
+#market-items { display: flex; gap: calc(2 * var(--px)); align-items: flex-start; }
+.market-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: calc(2 * var(--px)); }
 /* Under the board: the hand of cards. Sized in art pixels like everything else, so the cards
    scale in whole device pixels like the board. width 0 + min-width 100%: the row never widens
    the board's column. */
@@ -491,7 +509,8 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   min-width: 100%;
   margin-top: calc(3 * var(--px)); /* CARD_ROW_GAP in main.js */
 }
-#hand { position: relative; display: flex; gap: calc(2 * var(--px)); margin-left: auto; padding-bottom: calc(6 * var(--px)); } /* CARD_GAP; CARD_HINT_ROW under the cards */
+/* The hand at 150 % of the stage's art (main.js sizeCanvas sets --hand-px; pixelScene.js STAGE.hand). */
+#hand { --px: var(--hand-px); position: relative; display: flex; gap: calc(2 * var(--px)); margin-left: auto; padding-bottom: calc(6 * var(--px)); } /* CARD_GAP; CARD_HINT_ROW under the cards */
 #board-hint.targeting { color: var(--amber); }
 
 /* A card: the pixel face from sprites.js itemCard (36x52 card pixels), its name in the panel under
@@ -548,6 +567,9 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   line-height: 1.16;
   opacity: 0.85;
 }
+/* A haiku card's lines (main.js haikuCard): the ones I collected lit in amber, the rest dim. */
+.haiku-card .haiku-line { opacity: 0.45; }
+.haiku-card .haiku-line.got { opacity: 1; color: var(--amber); font-weight: 700; }
 .card.zoom {
   position: fixed;
   z-index: 70;
@@ -611,9 +633,14 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .item img { flex-shrink: 0; }
 .item .text { flex: 1 1 auto; min-width: 0; }
 .item .title { display: flex; justify-content: space-between; gap: calc(3 * var(--px)); font-weight: 700; font-size: max(var(--min-font), calc(5.85 * var(--px))); }
-/* The turn icon (main.js turnIcon): this item's use takes the turn. Drawn at 2x, set beside the name. */
+/* A stall in its column: the icon beside the name and price, the stock and the description under both. */
+#market-items .item { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: calc(3 * var(--px)); padding: calc(3 * var(--px)); }
+#market-items .item > .text { display: contents; }
+#market-items .item .title { grid-column: 2; flex-wrap: wrap; column-gap: calc(2 * var(--px)); row-gap: 0; }
+#market-items .item .stock, #market-items .item .desc { grid-column: 1 / -1; }
+/* The turn icon (main.js turnIcon): this item's use takes the turn. Drawn at 2x; on a stall, on its top-left corner. */
 .turn-icon { vertical-align: middle; flex-shrink: 0; }
-.item .turn-icon { margin: -3px 0 -3px var(--px); vertical-align: -4px; }
+.item .turn-icon { position: absolute; left: calc(-1 * var(--px)); top: calc(-1 * var(--px)); }
 /* The welcome dialog's haiku: each one's kanji, its three lines, and its power ladder. */
 .welcome-haiku { list-style: none; margin: calc(3 * var(--px)) 0 0; padding: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
 .welcome-haiku li { display: flex; gap: calc(4 * var(--px)); align-items: flex-start; }

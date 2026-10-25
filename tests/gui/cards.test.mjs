@@ -19,11 +19,11 @@ before(async () => {
 });
 after(async () => rig?.close());
 
-/** Per stall, in market order: its id, whether it is free, and what its row shows. */
-const STALLS = `Array.from(marketItemsEl.querySelectorAll("button.item")).map((el, i) => ({
-  id: lastState.market[i].id, free: lastState.market[i].free,
-  icon: !!el.querySelector(".turn-icon"),
-}))`;
+/** Per stall (its button marked with its item): its id, whether it is free, and what its row shows. */
+const STALLS = `Array.from(marketItemsEl.querySelectorAll("button.item")).map((el) => {
+  const m = Array.from(lastState.market).find((s) => s.id === el.dataset.id);
+  return { id: m.id, free: m.free, icon: !!el.querySelector(".turn-icon") };
+})`;
 
 test("cards: every market stall whose item takes the turn shows the turn icon, and only those", async () => {
   const stalls = await b.ev(STALLS);
@@ -88,9 +88,9 @@ test("cards: a card in my hand says whether using it takes the turn", async () =
   rig.assertClean("the cards");
 });
 
-/** Per stall, in market order: its stock and left, and the mini cards its row shows. */
-const MINIS = `Array.from(marketItemsEl.querySelectorAll("button.item")).map((el, i) => {
-  const m = lastState.market[i], row = el.querySelector(".stock");
+/** Per stall: its stock and left, and the mini cards its row shows. */
+const MINIS = `Array.from(marketItemsEl.querySelectorAll("button.item")).map((el) => {
+  const m = Array.from(lastState.market).find((s) => s.id === el.dataset.id), row = el.querySelector(".stock");
   return { id: m.id, stock: m.stock, left: m.left,
     filled: row ? row.querySelectorAll("img.mini-left").length : -1,
     outlines: row ? row.querySelectorAll("img.mini-gone").length : -1,

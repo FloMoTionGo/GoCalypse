@@ -1780,6 +1780,159 @@
     return (cardCache[key] = makeSprite(`haiku_card_${id}_${lv}${turn ? "_turn" : ""}`, W, H, s.px));
   }
 
+  // ---------------------------------------------------------------------------
+  // The storm forecast in the sidebar (main.js renderWeather): a dial of one dot
+  // per turn between two rolls, and the sky the next roll's odds make. Each comes
+  // in two frames that main.js swaps, for the blink, the drift and the rain.
+  // ---------------------------------------------------------------------------
+
+  /** The skies, calmest first, and the chance (0..1) each one starts at. */
+  const STORM_SKIES = [
+    { id: "clear", name: "clear", from: 0 },
+    { id: "wisps", name: "wisps", from: 0.1 },
+    { id: "clouding", name: "clouding over", from: 0.15 },
+    { id: "overcast", name: "overcast", from: 0.25 },
+    { id: "rain", name: "rain coming", from: 0.35 },
+    { id: "thunder", name: "thunder brewing", from: 0.5 },
+  ];
+
+  /** The sky for a chance of `chance` (0..1) that the next roll breaks a storm. */
+  function stormSkyOf(chance) {
+    let sky = STORM_SKIES[0];
+    for (const s of STORM_SKIES) if (chance >= s.from - 1e-9) sky = s;
+    return sky;
+  }
+
+  const STORM_DIAL = 25;
+  /**
+   * The roll's timer: `total` dots round a ring, one per turn between two rolls,
+   * clockwise from the top. The turns gone are slate, the ones to come amber; a
+   * cream hand points at the next to go, which goes cream on frame 1. On the
+   * last turn before the roll every dot left lights cream on frame 1.
+   */
+  function stormDial(total, left, frame) {
+    const n = Math.max(1, total | 0), rest = Math.max(0, Math.min(n, left | 0)), gone = n - rest;
+    const f = frame ? 1 : 0;
+    const key = `dial:${n}:${rest}:${f}`;
+    if (key in cardCache) return cardCache[key];
+    const W = STORM_DIAL, c = W >> 1, r = c - 2;
+    const s = new Surface(W, W);
+    s.fill(TRANSPARENT);
+    // A faint track under the dots, and the hub.
+    for (let i = 0; i < 64; i++) {
+      const a = (2 * Math.PI * i) / 64;
+      s.set(c + Math.round(r * Math.cos(a)), c + Math.round(r * Math.sin(a)), T);
+    }
+    const big = n <= 12;
+    const urgent = rest <= 1 && f === 1;
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      const x = c + Math.round(r * Math.cos(a)), y = c + Math.round(r * Math.sin(a));
+      const col = i < gone ? S : (i === gone && f) || urgent ? C : A;
+      if (big) {
+        s.set(x, y, col);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) s.set(x + dx, y + dy, col);
+      } else {
+        s.rect(x - (x < c ? 1 : 0), y - (y < c ? 1 : 0), 2, 2, col);
+      }
+    }
+    const a = -Math.PI / 2 + (2 * Math.PI * Math.min(gone, n - 1)) / n;
+    for (let t = 2; t <= r - 4; t += 0.5) s.set(c + Math.round(t * Math.cos(a)), c + Math.round(t * Math.sin(a)), C);
+    s.rect(c - 1, c - 1, 3, 3, A);
+    s.set(c, c, C);
+    return (cardCache[key] = makeSprite(`storm_dial_${n}_${rest}_${f}`, W, W, s.px));
+  }
+
+  const SKY_W = 48, SKY_H = 25;
+
+  /** A cloud: a few round puffs on a flat bottom at `base`, `fill` inside, a rim of `edge`, `under` on its lowest rows. */
+  function drawCloud(s, cx, base, scale, fill, edge, under) {
+    const puffs = [[-7, 3], [-2, 5], [4, 4], [8, 2.5]].map(([dx, r]) => [cx + dx * scale, base - r * scale, r * scale]);
+    const inside = (x, y) => y <= base && puffs.some(([px, py, r]) => (x - px) ** 2 + (y - py) ** 2 <= r * r + 0.5);
+    const x0 = Math.floor(cx - 12 * scale), x1 = Math.ceil(cx + 12 * scale), y0 = Math.floor(base - 11 * scale);
+    for (let y = y0 - 1; y <= base + 1; y++) {
+      for (let x = x0 - 1; x <= x1 + 1; x++) {
+        if (inside(x, y)) s.set(x, y, y >= base - 1 && under !== undefined ? under : fill);
+        else if (inside(x + 1, y) || inside(x - 1, y) || inside(x, y + 1) || inside(x, y - 1)) s.set(x, y, edge);
+      }
+    }
+  }
+  function drawMoon(s, cx, cy) {
+    for (let y = -5; y <= 5; y++) {
+      for (let x = -5; x <= 5; x++) {
+        if (x * x + y * y > 26) continue;
+        if ((x - 3) ** 2 + (y + 1) ** 2 <= 20) continue;
+        s.set(cx + x, cy + y, C);
+      }
+    }
+  }
+
+  /**
+   * The sky for one of STORM_SKIES, in frame 0 or 1, in a night window framed in
+   * slate like a card's art: a moon and twinkling stars; wisps drifting over the
+   * moon; a cloud closing in; two heavy clouds; rain falling from them; and at
+   * last heavier rain under an amber bolt that flickers.
+   */
+  function stormSky(id, frame) {
+    const f = frame ? 1 : 0;
+    const key = `sky:${id}:${f}`;
+    if (key in cardCache) return cardCache[key];
+    const W = SKY_W, H = SKY_H;
+    const s = new Surface(W, H);
+    s.fill(TRANSPARENT);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const border = y === 0 || y === H - 1 || x === 0 || x === W - 1;
+        const corner = (y === 0 || y === H - 1) && (x === 0 || x === W - 1);
+        if (!corner) s.set(x, y, border ? S : K);
+      }
+    }
+    const inner = new Surface(W - 2, H - 2);
+    inner.fill(TRANSPARENT);
+    const star = (x, y, bright) => {
+      inner.set(x, y, C);
+      if (bright) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) inner.set(x + dx, y + dy, S);
+    };
+    const stars = [[22, 4], [30, 9], [38, 3], [42, 14], [27, 17], [34, 19]];
+    if (id === "clear" || id === "wisps") {
+      drawMoon(inner, 10, 10);
+      stars.forEach(([x, y], i) => (id === "clear" || i % 2 === 0) && star(x, y, (i + f) % 3 === 0));
+      if (id === "wisps") {
+        for (let x = 0; x < 20; x++) if (x % 7 !== 6) inner.set(3 + f + x, 12, S);
+        for (let x = 0; x < 16; x++) if (x % 6 !== 5) inner.set(20 - f + x, 7, S);
+        for (let x = 0; x < 12; x++) if (x % 5 !== 4) inner.set(30 + f + x, 16, S);
+      }
+    } else if (id === "clouding") {
+      drawMoon(inner, 10, 9);
+      star(38, 3, f === 1);
+      star(42, 12, f === 0);
+      drawCloud(inner, 22 + f, 19, 1, C, S, S);
+    } else {
+      const rain = id === "rain" || id === "thunder";
+      const heavy = id === "thunder";
+      if (rain) {
+        for (let x = 2; x < W - 4; x += heavy ? 3 : 4) {
+          for (let k = 0; k < 2; k++) {
+            const y = 13 + ((x * 3 + k * 5 + f * 3) % 9);
+            inner.set(x, y, T);
+            inner.set(x, y + 1, T);
+            if (heavy) inner.set(x - 1, y + 2, T);
+          }
+        }
+      }
+      drawCloud(inner, 15 + f, 11, 1, S, C, T);
+      drawCloud(inner, 31 - f, 13, 1, S, C, T);
+      if (heavy && f === 0) {
+        // The bolt, out of the clouds' seam: an amber zigzag with a cream core.
+        const path = [[26, 13], [25, 14], [24, 15], [23, 16], [24, 16], [25, 16], [26, 16], [25, 17], [24, 18], [23, 19], [22, 20], [21, 21], [21, 22]];
+        for (const [x, y] of path) inner.set(x + 1, y, A);
+        for (const [x, y] of path) inner.set(x, y, C);
+      }
+    }
+    s.blit(makeSprite("sky_inner", W - 2, H - 2, inner.px), 1, 1);
+    return (cardCache[key] = makeSprite(`storm_sky_${id}_${f}`, W, H, s.px));
+  }
+
   function textSprite(font, text, color) {
     const w = Math.max(1, textWidth(font, text)), h = font.height;
     const s = new Surface(w, h);
@@ -1839,6 +1992,10 @@
     turnLantern,
     haikuGlyph,
     haikuCard,
+    STORM_SKIES,
+    stormSkyOf,
+    stormDial,
+    stormSky,
     textWidth,
     drawText,
     textSprite,

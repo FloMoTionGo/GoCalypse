@@ -63,7 +63,7 @@ const HAIKU = [
   {
     id: "moon", kanji: "月", name: "Moon",
     lines: ["Autumn moon rises", "over the stones on the pier", "none of them shall fall"],
-    powers: ["Ward one of your stones until your next turn.", "Ward one of your groups until your next turn, as a Lantern Ward does.", "Ward one of your groups for 2 rounds."],
+    powers: ["Ward one of your stones until your next turn.", "Ward one of your groups until your next turn.", "Ward one of your groups for 2 rounds."],
   },
   {
     id: "river", kanji: "川", name: "River",
@@ -222,8 +222,15 @@ botsButton.addEventListener("click", () => {
 welcomeBotsAddButton.addEventListener("click", seatPickedBots);
 passButton.addEventListener("click", () => room && room.send("pass"));
 document.getElementById("leave-button").addEventListener("click", () => {
-  const playing = lastState && lastState.status === "playing";
-  if (playing && !confirm("Leave the table? A bot takes your seat straight away and plays it out.")) return;
+  // Always asked first, so a stray click never leaves the table.
+  const status = lastState ? lastState.status : "";
+  const why =
+    status === "playing"
+      ? "A bot takes your seat straight away and plays it out."
+      : status === "finished"
+      ? "The game stays in the Replays."
+      : "Your seat opens for someone else.";
+  if (!confirm(`Leave the table? ${why}`)) return;
   leaving = true;
   try {
     sessionStorage.removeItem(PLAYER_KEY_STORE);
@@ -510,10 +517,13 @@ function sizeCanvas() {
   const stage = P.stageSize(size);
   const root = document.documentElement.style;
   root.setProperty("--px", `${k / dpr}px`);
+  root.setProperty("--hdr-px", `${(k * P.STAGE.headerScale) / dpr}px`);
+  root.setProperty("--hand-px", `${(k * P.STAGE.handScale) / dpr}px`);
   root.setProperty("--min-font", `${11 / dpr}px`); // never under 11 device px (D-Q5)
   root.setProperty("--stage-w", String(stage.w));
   root.setProperty("--stage-h", String(stage.h));
   root.setProperty("--scene-w", String(scene.width));
+  root.setProperty("--scene-h", String(scene.height));
   boardEl.style.width = `${(scene.width * k) / dpr}px`;
   boardEl.style.height = `${(scene.height * k) / dpr}px`;
   hideCardZoom(); // drawn at the old card size
@@ -1282,8 +1292,9 @@ function openWelcome(state) {
     `storm. At 20 or more a thunderstorm breaks: the night darkens, rain sweeps the board for ten seconds and up to ` +
     `three bolts come down on random points (six on a 19×19 board, eleven on 25×25). Whatever stands there catches fire and burns away three rounds later, ` +
     `and nobody can play on a burning point until the fire goes out. A fainter storm hangs over the river for all ` +
-    `three rounds, and for those rounds every stone turns the same grey: the rules still know whose is whose, so remember. The forecast in the sidebar (unlikely, likely, very likely) ` +
-    `shows how good the next roll's chance is: it starts at 5% and grows 5% with every calm roll. ` +
+    `three rounds, and for those rounds every stone turns the same grey: the rules still know whose is whose, so remember. The forecast in the sidebar shows how good the next roll's ` +
+    `chance is as a sky, from clear through wisps, clouding over, overcast and rain coming to thunder brewing: it starts at 5% and ` +
+    `grows 5% with every calm roll. Its dial has a dot for every turn between two rolls and burns down to the next one. ` +
     // Mirrors RIVER_RISES_FROM / RIVER_CRAB_SHARE / RIVER_ROUNDS in server/src/rules/river.ts.
     `Once the Night Market is open for everyone, a D6 is rolled for the river every ${riverEvery} turns. On a 5 or 6 ` +
     `a creature climbs out of the water onto the edge of the board, facing one of the edge points: usually the river ` +
@@ -1609,40 +1620,55 @@ function renderStatus(state, players) {
 }
 
 /**
- * The storm forecast: three pips and a word, from the room's synced odds for the
- * next roll (rules/storm.ts), and how many turns away that roll is.
+ * The storm forecast, in pictures (sprites.js stormDial, stormSky): the roll's
+ * timer, one dot per turn between two rolls, burning down to the next; and the
+ * sky the room's synced odds for that roll make (rules/storm.ts), calmer to
+ * wilder as calm rolls pile up. The numbers are in the title and the label.
  */
-const FORECAST_PIPS = { unlikely: 1, likely: 2, "very likely": 3 };
 function renderWeather(state) {
   const s = state.storm;
-  const level = s.level in FORECAST_PIPS ? s.level : "unlikely";
   const turnsToRoll = s.every > 0 ? s.every - (state.turnCount % s.every) : 0;
-  rebuild(weatherEl, JSON.stringify([level, s.chance, turnsToRoll, state.status]), () => {
+  const sky = G.stormSkyOf((Number(s.chance) || 0) / 100);
+  const words =
+    state.status === "playing"
+      ? `Storm: ${sky.name}. ${s.chance}% chance the next roll brings one; next roll in ${turnsToRoll} turn${turnsToRoll === 1 ? "" : "s"}.`
+      : `Storm: ${sky.name}. Rolled every ${s.every} turns, ${s.chance}% chance.`;
+  rebuild(weatherEl, JSON.stringify([sky.id, s.every, turnsToRoll, state.status]), () => {
     const meter = document.createElement("div");
-    meter.className = `meter ${level.replace(" ", "-")}`;
-    meter.title = `${s.chance}% chance that the next roll brings a storm`;
-    const pips = document.createElement("span");
-    pips.className = "pips";
-    for (let i = 0; i < 3; i++) {
-      const pip = document.createElement("i");
-      pip.className = "pip" + (i < FORECAST_PIPS[level] ? " lit" : "");
-      pips.appendChild(pip);
-    }
+    meter.className = `meter sky-${sky.id}`;
+    meter.title = words;
+    meter.setAttribute("role", "img");
+    meter.setAttribute("aria-label", words);
     const label = document.createElement("span");
     label.className = "label";
     label.textContent = "Storm";
     const word = document.createElement("span");
     word.className = "level";
-    word.textContent = level;
-    meter.append(label, pips, word);
-    const hint = document.createElement("p");
-    hint.className = "hint";
-    hint.textContent =
-      state.status === "playing"
-        ? `Next roll in ${turnsToRoll} turn${turnsToRoll === 1 ? "" : "s"} · ${s.chance}%`
-        : `Rolled every ${s.every} turns · ${s.chance}%`;
-    weatherEl.append(meter, hint);
+    word.textContent = sky.name;
+    const head = document.createElement("div");
+    head.className = "head";
+    head.append(label, word);
+    const pictures = document.createElement("div");
+    pictures.className = "pictures";
+    if (s.every > 0) {
+      const left = state.status === "playing" ? turnsToRoll : s.every;
+      pictures.append(flicker("dial", (f) => G.stormDial(s.every, left, f), left <= 1 ? "urgent" : ""));
+    }
+    pictures.append(flicker("sky", (f) => G.stormSky(sky.id, f), sky.id));
+    meter.append(pictures, head);
+    weatherEl.append(meter);
   });
+}
+
+/** Two frames of a sprite, one art pixel a pixel, that style.css swaps (.flicker). */
+function flicker(kind, frame, variant) {
+  const box = document.createElement("span");
+  box.className = `flicker ${kind}` + (variant ? ` ${variant}` : "");
+  for (const f of [0, 1]) {
+    const spr = frame(f);
+    box.append(artImg(spr.name, spr));
+  }
+  return box;
 }
 
 /** The Pass button lives for as long as the game is on; Results appears once it is over. */
@@ -2354,9 +2380,19 @@ function haikuCard(id) {
   const name = document.createElement("span");
   name.className = "card-name";
   name.textContent = item.name;
+  // Lit: the lines of this haiku I collected; the others stay dim until a stone finds them.
+  const me = myPlayer ? myPlayer.color : 0;
+  const got = new Set(Array.from((lastState && lastState.haiku) || []).filter((p) => me && p.by === me && p.haiku === h.id).map((p) => p.line));
   const text = document.createElement("span");
   text.className = "card-text";
-  text.textContent = `${h.lines.join(" / ")} -- ${item.description}`;
+  h.lines.forEach((words, i) => {
+    const line = document.createElement("span");
+    line.className = "haiku-line" + (got.has(i + 1) ? " got" : "");
+    line.dataset.line = String(i + 1);
+    line.textContent = words;
+    text.append(line, i < 2 ? " / " : "");
+  });
+  text.append(` -- ${item.description}`);
   card.append(spriteImg(`haiku_card_${h.id}_${item.level}_${turn ? 1 : 0}`, G.haikuCard(h.id, item.level, { turn }), 1), name, text);
   return card;
 }
@@ -2520,9 +2556,8 @@ function flyCard(index) {
     }
   };
   const target = handEl.querySelector(`.card[data-index="${index}"]`);
-  // renderMarket builds one button per stall, in state.market order.
-  const stall = target && Array.from(lastState.market).findIndex((m) => m.id === target.dataset.id);
-  const source = stall >= 0 ? marketItemsEl.children[stall] : null;
+  // renderMarket builds one button per stall, marked with the stall's item.
+  const source = target ? marketItemsEl.querySelector(`button.item[data-id="${target.dataset.id}"]`) : null;
   if (!target || !source || reducedMotion() || !target.animate) return land();
 
   const to = target.getBoundingClientRect();
@@ -2609,6 +2644,13 @@ function renderMarket(state) {
 
   const sig = JSON.stringify([open, wallet, bought, held, powerfulFull, items.map((m) => [m.id, m.left])]);
   rebuild(marketItemsEl, sig, () => {
+    // Two columns: the cozy stalls (tier 1, the Bait's among them) on the left, tactical and powerful on the right.
+    const columns = [1, 2].map((side) => {
+      const col = document.createElement("div");
+      col.className = `market-col market-col-${side}`;
+      marketItemsEl.appendChild(col);
+      return col;
+    });
     for (const m of items) {
       // Each stall's copies are shared by the table and capped per player (stallCopies / fairShare
       // in server/src/powerups/definitions.ts). A server from before stalls had stock sends none:
@@ -2620,6 +2662,7 @@ function renderMarket(state) {
       const blocked = full || (m.removal && powerfulFull);
       const button = document.createElement("button");
       button.className = "item";
+      button.dataset.id = m.id;
       button.title = soldOut
         ? `${m.name} is sold out tonight.`
         : hadShare
@@ -2648,7 +2691,6 @@ function renderMarket(state) {
       tier.textContent = ["", "I", "II", "III"][m.tier] || "";
       tier.title = `Tier ${m.tier}`;
       name.append(" ", tier);
-      if (!m.free) name.append(" ", turnIcon());
       title.append(
         name,
         soldOut ? tag("sold out") : hadShare ? tag("bought") : blocked ? tag("no room") : fireflies(m.price)
@@ -2661,8 +2703,10 @@ function renderMarket(state) {
       text.append(desc);
 
       button.append(spriteImg(`icon_${m.id}`, G.powerupIcon(m.id) || G.SPRITES.fireflyIcon, 2), text);
+      // On the card's top-left corner, clear of the name and the stock under it.
+      if (!m.free) button.append(turnIcon());
       button.addEventListener("click", () => room && room.send("buy", { id: m.id }));
-      marketItemsEl.appendChild(button);
+      columns[m.tier === 1 ? 0 : 1].appendChild(button);
     }
   });
 }

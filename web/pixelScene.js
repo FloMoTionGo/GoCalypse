@@ -2347,15 +2347,20 @@
   // The stage (ideas.md §11.9): the whole game screen in art pixels -- one art
   // pixel is one scene pixel -- and the whole number k of device pixels each one
   // takes. The scene and the sidebar side by side; above them the header; under
-  // the scene the hand of cards, on every board size, and the hint, notice and
-  // last-event lines. main.js lays the page out to these numbers (sizeCanvas,
-  // --px in style.css).
+  // both the hand of cards, on every board size, and the hint, notice and
+  // last-event lines. The header's art is drawn smaller and the hand's larger
+  // than the rest (HEADER_SCALE, HAND_SCALE). main.js lays the page out to these
+  // numbers (sizeCanvas, --px, --hdr-px and --hand-px in style.css).
   // ---------------------------------------------------------------------------
+  const HEADER_SCALE = 0.85; // the header's art, against the stage's
+  const HAND_SCALE = 1.5; // the hand's cards, against the stage's art
   const STAGE = {
-    header: 18, // the header row
+    headerScale: HEADER_SCALE,
+    handScale: HAND_SCALE,
+    header: 18 * HEADER_SCALE, // the header row: 18 of its own art pixels
     gap: 6, // between the scene and the sidebar, and under the header
-    sidebar: 120, // the sidebar column
-    hand: 61, // the hand row: 3 above the cards, 52 of card, 6 for the Kata's UPGRADABLE under it
+    sidebar: 200, // the sidebar column: the market's two columns
+    hand: 3 + (52 + 6) * HAND_SCALE, // the hand row: 3 above the cards, 52 of card, 6 for the Kata's UPGRADABLE under it
     status: 22, // the hint, notice and last-event lines under it all
   };
 

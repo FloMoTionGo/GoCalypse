@@ -57,16 +57,16 @@ test("table: on a 19x19 table in a 1080p window the hand stays under the board",
     const h = hand.getBoundingClientRect(), bd = boardEl.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
     return {
       inSidebar: sidebar.contains(hand),
-      under: h.top >= bd.bottom - 0.5,
-      leftOfSidebar: h.right <= sb.left + 0.5,
+      under: h.top >= Math.max(bd.bottom, sb.bottom) - 0.5,
+      onStage: h.right <= sb.right + 0.5,
       scrolls: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight,
     };
   })()`);
   await b.cdp("Emulation.clearDeviceMetricsOverride", {});
   await wait(300);
   assert.equal(m.inSidebar, false, "not in the sidebar");
-  assert.equal(m.under, true, "under the board");
-  assert.equal(m.leftOfSidebar, true, "in the board's column");
+  assert.equal(m.under, true, "under the board and the sidebar");
+  assert.equal(m.onStage, true, "no wider than the stage");
   assert.equal(m.scrolls, false, "and the stage still fits the window");
   rig.assertClean("the hand on a 19x19 table");
 });

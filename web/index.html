@@ -92,14 +92,6 @@
       <div id="game-body">
         <div id="board-wrap">
           <canvas id="board" class="px"></canvas>
-          <!-- Under the board, never over it (the river carries the round and firefly boats):
-               the hand of item cards (renderHand() in main.js), on every board size. -->
-          <div id="board-foot">
-            <div id="hand" role="group" aria-label="Hand"></div>
-          </div>
-          <p id="board-hint" class="hint">Left click: your black or white stone &middot; Right click: your gray or transparent stone</p>
-          <p id="notice" class="status notice"></p>
-          <p id="last-event" class="status"></p>
         </div>
 
         <aside id="sidebar">
@@ -113,6 +105,17 @@
             <div id="market-items"></div>
           </div>
         </aside>
+      </div>
+
+      <!-- Under the board and the sidebar, never over the board (the river carries the round and
+           firefly boats): the hand of item cards (renderHand() in main.js), then the three lines. -->
+      <div id="game-foot">
+        <div id="board-foot">
+          <div id="hand" role="group" aria-label="Hand"></div>
+        </div>
+        <p id="board-hint" class="hint">Left click: your black or white stone &middot; Right click: your gray or transparent stone</p>
+        <p id="notice" class="status notice"></p>
+        <p id="last-event" class="status"></p>
       </div>
     </section>
   </div>

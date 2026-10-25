@@ -14,7 +14,7 @@ test("stage: k is the largest whole scale that fills the window's physical pixel
   assert.equal(P.pickScale(1536, 760, 1.25, 13).k, 2, "the same physical pixels give the same k");
   assert.equal(P.pickScale(2560, 1310, 1, 13).k, 3, "1440p: a step more than 1080p");
   assert.equal(P.pickScale(3840, 2175, 1, 13).k, 5, "a 4K window: no cap");
-  assert.equal(P.pickScale(3840, 2100, 1.5, 13).k, 8, "physical pixels, whatever the display scaling");
+  assert.equal(P.pickScale(3840, 2100, 1.5, 13).k, 7, "physical pixels, whatever the display scaling");
   assert.equal(P.pickScale(300, 200, 1, 13).k, 1, "never 0");
   assert.equal(P.pickScale(2560, 1300, 1, 25).k, 2, "25x25 in 1440p, with the hand row");
 });
@@ -28,9 +28,11 @@ test("stage: the hand stays under the board on every board size, whatever the wi
 });
 
 test("stage: the scene, a gap and the sidebar across; the header, the scene, the hand row and the status lines down, on every board size", () => {
+  assert.equal(P.STAGE.header, 18 * 0.85, "the header at 85%");
+  assert.equal(P.STAGE.hand, 3 + (52 + 6) * 1.5, "the hand's cards at 150%");
   const L = P.computeLayout(13), s = P.stageSize(13);
-  assert.ok(s.w > L.width + 100 && s.w < L.width + 160, `width ${s.w}`);
-  assert.ok(s.h > L.height + 60 && s.h < L.height + 130, `height ${s.h}`);
+  assert.ok(s.w > L.width + 190 && s.w < L.width + 220, `width ${s.w}`);
+  assert.ok(s.h > L.height + 60 && s.h < L.height + 140, `height ${s.h}`);
   for (const size of [13, 19, 25]) {
     const Ln = P.computeLayout(size), sn = P.stageSize(size), S = P.STAGE;
     assert.equal(sn.w, Ln.width + S.gap + S.sidebar, `${size}: across`);

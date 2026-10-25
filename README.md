@@ -231,7 +231,7 @@ Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400. (Wi
 | Kite | 45 | Free. Fly it over an enemy stone: only you see what its player is holding and how many fireflies they have. |
 | Ferry | 50 | Move one of your stones one step to an empty point beside it (pick the stone, then the point). Captures are judged as if you had played it there. |
 | Skiff | 65 | Send one of your stones gliding along its row or column to an empty point, as far as the way is clear (pick the stone, then the point). |
-| Lantern Ward | 60 | One of your groups can't be captured or removed until your next turn. If it has no liberties when the ward lapses, it's removed. |
+| Lantern Ward | 60 | One of your groups can't be captured or removed until the end of your next turn. If it has no liberties when the ward lapses, it's removed. |
 | Twin Wick | 70 | Free. Your next stone fights on **both** fronts: it joins and captures on both, but is lost if either of its groups runs out of liberties. Can't be turned over. |
 | Turn the Lantern | 80 | Flips one of your stones to your other front (black/white <-> gray/transparent); captures count on the new front, and a former group-mate left with no liberties is captured too. Refused only if the flipped stone itself would have none. |
 

@@ -1,35 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "a Lantern Ward holds through the end of its user's next turn, and lapses after it",
-      "feature": "ward-next-turn",
-      "tier": "server",
-      "since": "2026-10-25"
-    },
-    {
-      "test": "haiku: the card highlights only the lines I collected of its haiku",
-      "feature": "haiku-card-lines",
-      "tier": "gui",
-      "since": "2026-10-25"
-    },
-    {
-      "test": "cards: the market has two columns, the cozy stalls on the left and the rest on the right, the turn icon on each card's top-left corner",
-      "feature": "market-columns",
-      "tier": "gui",
-      "since": "2026-10-25"
-    },
-    {
-      "test": "stage: the hand's cards are 150% and the header 85% of the stage's art; the hand runs under the board and the sidebar",
-      "feature": "stage-scales",
-      "tier": "gui",
-      "since": "2026-10-25"
-    },
-    {
-      "test": "storm: the forecast is a dial and a sky that blink in two frames, its numbers only in words",
-      "feature": "storm-skies",
-      "tier": "gui",
-      "since": "2026-10-25"
-    }
-  ]
+  "pending": []
 }

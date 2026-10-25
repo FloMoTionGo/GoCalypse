@@ -30,7 +30,7 @@ export const HAIKU: Haiku[] = [
     lines: ["Autumn moon rises", "over the stones on the pier", "none of them shall fall"],
     powers: [
       "Ward one of your stones until your next turn.",
-      "Ward one of your groups until your next turn, as a Lantern Ward does.",
+      "Ward one of your groups until your next turn.",
       "Ward one of your groups for 2 rounds.",
     ],
   },

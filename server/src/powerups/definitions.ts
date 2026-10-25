@@ -81,7 +81,7 @@ const lanternWard: PowerupDefinition = {
   id: "lantern_ward",
   tier: 2,
   name: "Lantern Ward",
-  description: "Light a lantern over one of your groups: it can't be captured or removed until your next turn.",
+  description: "Light a lantern over one of your groups: it can't be captured or removed until the end of your next turn.",
   price: 60,
   removal: false,
   apply(ctx) {
@@ -90,10 +90,13 @@ const lanternWard: PowerupDefinition = {
     const code = ctx.state.board[idx];
     if (!isPlayerStone(code) || ownerOf(code) !== ownColor(ctx)) return false;
     // A twin stone belongs to two groups, one per front: both are warded.
+    const effects = ctx.state.effects, before = effects.length;
     for (const view of viewsOf(code)) {
       const { group } = findGroup(ctx.state.board.toArray(), ctx.size, ctx.target!.x, ctx.target!.y, view);
       for (const p of group) ctx.addEffect("ward", p.x, p.y, ownColor(ctx), 1);
     }
+    // A round brings the user's next turn round; one turn more lets it lapse as that turn ends, not as it begins.
+    for (let i = before; i < effects.length; i++) effects[i].until += 1;
     return true;
   },
 };

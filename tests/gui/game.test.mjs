@@ -164,9 +164,15 @@ test("game: when its timer runs out the river creature goes back into the water 
   const kind = await b.ev(OUT);
   const by = await b.ev(`lastState.river.${kind}.by`);
   await playUntil(`lastState.turnCount >= ${by}`, by - (await b.ev("lastState.turnCount")) + 2);
-  await b.waitFor(`lastState.river.${kind}.out === false && riverCreatures.${kind} && riverCreatures.${kind}.leave !== undefined`, 5000, "the creature leaving on the page");
-  const took = await b.ev(`[lastState.river.${kind}.took0, lastState.river.${kind}.took1, lastState.river.${kind}.took2].filter((i) => i >= 0)`);
-  for (const i of took) assert.equal(await b.ev(`board[${i}]`), 0, "a stone it took is off the board");
+  // The board is read in the same evaluation that sees the creature leave: a bot may play on an
+  // emptied point a moment later, and that stone is not the one it took.
+  const left = await b.waitFor(
+    `lastState.river.${kind}.out === false && riverCreatures.${kind} && riverCreatures.${kind}.leave !== undefined && ` +
+      `[lastState.river.${kind}.took0, lastState.river.${kind}.took1, lastState.river.${kind}.took2].filter((i) => i >= 0).map((i) => board[i])`,
+    5000,
+    "the creature leaving on the page"
+  );
+  for (const at of left) assert.equal(at, 0, "a stone it took is off the board");
 });
 
 test("game: a stone goes on the Stone Card with a click on its grid, any time, free the first time", async () => {
@@ -188,7 +194,7 @@ test("game: the client's Stone Card prices match the server's", async () => {
 test("game: buying from a stall puts the item's card in my hand", async () => {
   const stall = await b.ev(`(() => {
     const i = Array.from(marketItemsEl.querySelectorAll("button.item")).findIndex((el) => !el.disabled);
-    return i < 0 ? null : { i, id: lastState.market[i].id };
+    return i < 0 ? null : { i, id: marketItemsEl.querySelectorAll("button.item")[i].dataset.id };
   })()`);
   assert.ok(stall, "a stall I can buy from");
   await b.ev(`marketItemsEl.querySelectorAll("button.item")[${stall.i}].click(); true`);
