@@ -70,6 +70,15 @@ test("stage: the hand's cards are 150% and the header 85% of the stage's art; th
   assert.ok(m.footTop >= m.sideBottom - 0.5, "and sits under it");
 });
 
+test("stage: the hand sits below the board, left aligned with it", async () => {
+  const m = await b.ev(`(() => {
+    const h = handEl.getBoundingClientRect(), bd = boardEl.getBoundingClientRect();
+    return { handLeft: h.left, boardLeft: bd.left, handTop: h.top, boardBottom: bd.bottom };
+  })()`);
+  assert.ok(Math.abs(m.handLeft - m.boardLeft) < 1, `the hand starts at the board's left edge: ${m.handLeft} vs ${m.boardLeft}`);
+  assert.ok(m.handTop >= m.boardBottom - 0.5, "below the board");
+});
+
 test("storm: the forecast is a dial and a sky that blink in two frames, its numbers only in words", async () => {
   const w = await b.ev(`(() => {
     const meter = weatherEl.querySelector(".meter");
