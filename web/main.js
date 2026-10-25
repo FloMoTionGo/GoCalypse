@@ -523,10 +523,10 @@ function sizeCanvas() {
   root.setProperty("--stage-w", String(stage.w));
   root.setProperty("--stage-h", String(stage.h));
   root.setProperty("--scene-w", String(scene.width));
-  root.setProperty("--scene-h", String(scene.height));
   boardEl.style.width = `${(scene.width * k) / dpr}px`;
   boardEl.style.height = `${(scene.height * k) / dpr}px`;
   hideCardZoom(); // drawn at the old card size
+  fitHand();
 }
 
 /** One art pixel in CSS px, as sizeCanvas set it (style.css --px). */
@@ -2063,6 +2063,18 @@ const incoming = new Set(); // hand positions whose card is still flying in from
  * in from its Night Market stall first. Only the buyer sees that: every client
  * draws its own player's hand.
  */
+/**
+ * The hand stays under the board, left aligned: a row of cards wider than the
+ * board overlaps them, evenly, just enough to fit (style.css --overlap).
+ */
+function fitHand() {
+  handEl.style.removeProperty("--overlap");
+  const cards = handEl.children.length;
+  const room = document.getElementById("board-foot").clientWidth;
+  const over = handEl.scrollWidth - room;
+  if (cards > 1 && over > 0) handEl.style.setProperty("--overlap", `${over / (cards - 1)}px`);
+}
+
 function renderHand(state) {
   const owned = myPlayer ? Array.from(myPlayer.powerups) : [];
   const bought = myPlayer ? myPlayer.bought.length : 0;
@@ -2110,7 +2122,10 @@ function renderHand(state) {
       handEl.appendChild(empty);
     }
   });
-  if (rebuilt) refreshCardZoom();
+  if (rebuilt) {
+    fitHand();
+    refreshCardZoom();
+  }
   for (let i = owned.length - fresh; i < owned.length; i++) flyCard(i);
 }
 
@@ -2644,6 +2659,7 @@ function renderMarket(state) {
 
   const sig = JSON.stringify([open, wallet, bought, held, powerfulFull, items.map((m) => [m.id, m.left])]);
   rebuild(marketItemsEl, sig, () => {
+    hideMarketTip(); // its stall is about to go
     // Two columns: the cozy stalls (tier 1, the Bait's among them) on the left, tactical and powerful on the right.
     const columns = [1, 2].map((side) => {
       const col = document.createElement("div");
@@ -2732,6 +2748,45 @@ function stockRow(m) {
   }
   return row;
 }
+
+/**
+ * What a stall's item does, in a tip beside the sidebar while the pointer rests
+ * on the stall (or it has keyboard focus): the stalls themselves are kept short,
+ * so the whole market fits without scrolling.
+ */
+function showMarketTip(button) {
+  hideMarketTip();
+  const m = lastState && Array.from(lastState.market).find((s) => s.id === button.dataset.id);
+  if (!m || !button.isConnected) return;
+  const tip = document.createElement("div");
+  tip.className = "market-tip";
+  const name = document.createElement("b");
+  name.textContent = m.name;
+  tip.append(name, m.description);
+  document.body.appendChild(tip);
+  const r = button.getBoundingClientRect(), side = document.getElementById("sidebar").getBoundingClientRect();
+  const gap = 6, margin = 8;
+  const top = Math.max(margin, Math.min(r.top, window.innerHeight - margin - tip.offsetHeight));
+  Object.assign(tip.style, { left: `${Math.max(margin, side.left - gap - tip.offsetWidth)}px`, top: `${top}px` });
+}
+
+function hideMarketTip() {
+  for (const el of document.querySelectorAll(".market-tip")) el.remove();
+}
+
+marketItemsEl.addEventListener("pointerover", (e) => {
+  const button = e.target.closest("button.item");
+  if (button && e.pointerType !== "touch") showMarketTip(button);
+});
+marketItemsEl.addEventListener("pointerout", (e) => {
+  const button = e.target.closest("button.item");
+  if (button && !button.contains(e.relatedTarget)) hideMarketTip();
+});
+marketItemsEl.addEventListener("focusin", (e) => {
+  const button = e.target.closest("button.item");
+  if (button && button.matches(":focus-visible")) showMarketTip(button);
+});
+marketItemsEl.addEventListener("focusout", hideMarketTip);
 
 /** The turn icon (sprites.js turnIcon): using this item takes your turn. */
 function turnIcon() {

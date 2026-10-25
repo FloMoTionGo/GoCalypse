@@ -57,17 +57,13 @@ test("stage: 1536x864 at 125% is the same picture in device px as 1400x1000 at 1
   await wait(300);
 });
 
-test("stage: the hand's cards are 150% and the header 85% of the stage's art; the hand runs under the board and the sidebar", async () => {
+test("stage: the hand's cards are 150% and the header 85% of the stage's art", async () => {
   const m = await b.ev(`(() => {
     const px = artPx(), card = handEl.querySelector(".card, .card-place").getBoundingClientRect();
-    const foot = document.getElementById("game-foot").getBoundingClientRect(), side = document.getElementById("sidebar").getBoundingClientRect();
-    return { px, cardW: card.width, cardH: card.height, header: document.getElementById("game-header").getBoundingClientRect().height,
-      footRight: foot.right, sideRight: side.right, footTop: foot.top, sideBottom: side.bottom };
+    return { px, cardW: card.width, cardH: card.height, header: document.getElementById("game-header").getBoundingClientRect().height };
   })()`);
   assert.ok(Math.abs(m.cardW - 36 * 1.5 * m.px) < 0.5 && Math.abs(m.cardH - 52 * 1.5 * m.px) < 0.5, `card ${m.cardW}x${m.cardH} at px ${m.px}`);
   assert.ok(Math.abs(m.header - 18 * 0.85 * m.px) < 0.5, `header ${m.header}`);
-  assert.ok(Math.abs(m.footRight - m.sideRight) < 1, "the hand row reaches the sidebar's right edge");
-  assert.ok(m.footTop >= m.sideBottom - 0.5, "and sits under it");
 });
 
 test("stage: the hand sits below the board, left aligned with it", async () => {
@@ -100,11 +96,12 @@ test("stage: the sidebar runs down beside the hand, and the market shows every s
 });
 
 test("stage: a full hand stays under the board, its cards overlapping when they don't fit", async () => {
-  for (const id of Array.from(await b.ev("Array.from(lastState.market).filter((m) => !m.removal).map((m) => m.id)")).slice(0, 5)) {
-    await b.ev(`room.send("buy", { id: ${JSON.stringify(id)} }); true`);
-    await wait(200);
+  // Buy from whichever stall is open until the hand is full (the Kata counts toward the limit).
+  for (let tries = 0; tries < 20 && (await b.ev("handEl.querySelectorAll('.card').length < lastState.handLimit")); tries++) {
+    await b.ev(`(() => { const open = marketItemsEl.querySelector("button.item:not(:disabled)"); if (open) open.click(); return true; })()`);
+    await wait(400);
   }
-  await b.waitFor("handEl.querySelectorAll('.card').length >= 6", 5000, "a full hand");
+  await b.waitFor("handEl.querySelectorAll('.card').length >= lastState.handLimit", 5000, "a full hand");
   const m = await b.ev(`(() => {
     const h = handEl.getBoundingClientRect(), bd = boardEl.getBoundingClientRect();
     const cards = Array.from(handEl.querySelectorAll(".card, .card-place")).map((c) => c.getBoundingClientRect());
@@ -113,7 +110,7 @@ test("stage: a full hand stays under the board, its cards overlapping when they 
   })()`);
   assert.ok(Math.abs(m.left - m.boardLeft) < 1, "left aligned with the board");
   assert.ok(m.right <= m.boardRight + 0.5, `no wider than the board: ${m.right} vs ${m.boardRight}`);
-  assert.equal(m.overlap, true, "six 150% cards overlap under a 13x13 board");
+  assert.equal(m.overlap, true, "five 150% cards overlap under a 13x13 board");
 });
 
 test("storm: the forecast is a dial and a sky that blink in two frames, its numbers only in words", async () => {

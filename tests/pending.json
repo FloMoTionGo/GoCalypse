@@ -1,23 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "stage: the sidebar runs down beside the hand, and the market shows every stall without scrolling",
-      "feature": "tall-sidebar",
-      "tier": "gui",
-      "since": "2026-10-25"
-    },
-    {
-      "test": "stage: a full hand stays under the board, its cards overlapping when they don't fit",
-      "feature": "hand-overlap",
-      "tier": "gui",
-      "since": "2026-10-25"
-    },
-    {
-      "test": "cards: a market stall shows its name, price and stock, and its description beside it on hover",
-      "feature": "compact-market",
-      "tier": "gui",
-      "since": "2026-10-25"
-    }
-  ]
+  "pending": []
 }
