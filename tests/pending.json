@@ -1,4 +1,17 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "a Lantern Ward holds through the end of its user's next turn, and lapses after it",
+      "feature": "ward-next-turn",
+      "tier": "server",
+      "since": "2026-10-25"
+    },
+    {
+      "test": "haiku: the card highlights only the lines I collected of its haiku",
+      "feature": "haiku-card-lines",
+      "tier": "gui",
+      "since": "2026-10-25"
+    }
+  ]
 }

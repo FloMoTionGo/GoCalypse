@@ -37,3 +37,9 @@ test("haiku: a stone on it collects the line: the glyph goes, and the card comes
   assert.match(await b.ev(`handEl.querySelector('.card.haiku-card').getAttribute("aria-label")`), /level 1/i);
   rig.assertClean("the haiku");
 });
+
+test("haiku: the card highlights only the lines I collected of its haiku", async () => {
+  const card = `handEl.querySelector('.card.haiku-card[data-id="haiku_${point.haiku}"]')`;
+  assert.equal(await b.ev(`${card}.querySelectorAll(".haiku-line").length`), 3, "all three lines on the card");
+  assert.deepEqual(await b.ev(`Array.from(${card}.querySelectorAll(".haiku-line.got")).map((el) => Number(el.dataset.line))`), [point.line]);
+});

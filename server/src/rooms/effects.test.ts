@@ -73,6 +73,21 @@ test("a group kept alive by a ward with no liberties left is taken off when the 
   assert.deepEqual(room.state.players.map((p: any) => p.score), scores, "credited to no one");
 });
 
+test("a Lantern Ward holds through the end of its user's next turn, and lapses after it", () => {
+  const { room, clients } = startedRoom();
+  const client = onTurn(room, clients);
+  const me = playerOf(room, client);
+  me.powerups.push("lantern_ward");
+  put(room, 6, 1, stoneCode(me.color, "base"));
+  room.handleUsePowerup(client, { id: "lantern_ward", target: { x: 6, y: 1 } });
+  const idx = 1 * room.state.size + 6;
+  let x = 0;
+  while (onTurn(room, clients) !== client) move(room, clients, x++, 8);
+  assert.equal(room.isWarded(idx), true, "still warded on the next turn");
+  move(room, clients, x++, 8);
+  assert.equal(room.isWarded(idx), false, "lapsed once that turn is over");
+});
+
 test("a lit Twin Wick makes the next stone a twin, whichever button", () => {
   const { room, clients } = startedRoom();
   const me = playerOf(room, onTurn(room, clients));
