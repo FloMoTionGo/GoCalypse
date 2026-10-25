@@ -518,15 +518,15 @@ function pageRect(el) {
  * the largest whole number that fits the window, capped at 1920x1080 device px
  * (P.pickScale). Whole device pixels keep every sprite crisp on any display, and
  * the same physical window gives the same picture whatever Windows' scaling.
- * Everything in style.css is sized in --px, one art pixel in CSS px; on the big
- * boards the hand may move into the sidebar.
+ * Everything in style.css is sized in --px, one art pixel in CSS px; the hand
+ * stays under the board on every board size.
  */
 function sizeCanvas() {
   if (!scene || gameEl.hidden) return; // #game has size 0 while hidden; wait for attachRoom to show it
   const dpr = window.devicePixelRatio || 1;
   const size = scene.layout.size;
-  const { k, handInSidebar } = P.pickScale(window.innerWidth, window.innerHeight, dpr, size);
-  const stage = P.stageSize(size, handInSidebar);
+  const { k } = P.pickScale(window.innerWidth, window.innerHeight, dpr, size);
+  const stage = P.stageSize(size);
   const root = document.documentElement.style;
   root.setProperty("--px", `${k / dpr}px`);
   root.setProperty("--min-font", `${11 / dpr}px`); // never under 11 device px (D-Q5)
@@ -535,11 +535,6 @@ function sizeCanvas() {
   root.setProperty("--scene-w", String(scene.width));
   boardEl.style.width = `${(scene.width * k) / dpr}px`;
   boardEl.style.height = `${(scene.height * k) / dpr}px`;
-  const foot = document.getElementById("board-foot");
-  const sidebar = document.getElementById("sidebar");
-  gameEl.classList.toggle("hand-side", handInSidebar);
-  if (handInSidebar && foot.parentElement !== sidebar) sidebar.prepend(foot);
-  else if (!handInSidebar && foot.parentElement === sidebar) boardHintEl.before(foot);
   hideCardZoom(); // drawn at the old card size
 }
 

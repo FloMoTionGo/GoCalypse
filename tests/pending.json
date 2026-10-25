@@ -1,8 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    { "test": "stage: k is the largest whole scale that fits the window's physical pixels with the hand under the board, capped at 1920x1080, never 0", "feature": "hand-bottom", "tier": "web", "since": "2026-10-25" },
-    { "test": "stage: the hand stays under the board on every board size, whatever the window", "feature": "hand-bottom", "tier": "web", "since": "2026-10-25" },
-    { "test": "table: on a 19x19 table in a 1080p window the hand stays under the board", "feature": "hand-bottom", "tier": "gui", "since": "2026-10-25" }
-  ]
+  "pending": []
 }
