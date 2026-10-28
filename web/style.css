@@ -431,9 +431,10 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 #board.my-turn, #board.targeting { cursor: pointer; }
 
-/* Exactly 200 art px whatever a player is called (pixelScene.js STAGE.sidebar): min-width 0
-   stops a long nowrap name from widening it. 200 since the market went to two columns. As tall as the stage lets it be; the market scrolls. */
-#sidebar { flex: 0 0 calc(200 * var(--px)); min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
+/* Exactly 264 art px whatever a player is called (pixelScene.js STAGE.sidebar): min-width 0
+   stops a long nowrap name from widening it. 264 since the players panel became a kaya grid of
+   12 columns of 22. As tall as the stage lets it be; the market scrolls. */
+#sidebar { flex: 0 0 calc(264 * var(--px)); min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
 #sidebar > .panel { flex: 0 0 auto; }
 #sidebar > #market { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--slate) var(--ink); }
 
@@ -446,26 +447,65 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .count-tag { color: var(--slate); font-size: max(var(--min-font), calc(4.95 * var(--px))); letter-spacing: 0; }
 .count-tag.full { color: var(--amber); }
 
-/* One box per player: both of their stones at full board size on a strip of kaya
-   (so black, white, gray and see-through all read), and the two stone names
-   spelled out under the name. */
-.player-row {
-  display: flex;
-  align-items: center;
-  gap: calc(4 * var(--px));
-  padding: calc(2 * var(--px)) 0;
-  font-size: max(var(--min-font), calc(6.3 * var(--px)));
+/* The players panel (main.js renderPlayers): a strip of kaya with a Go grid under it all,
+   cells of 22 x 28 art px (PLAYER_GRID), a line down the middle of every column and one
+   across the middle of every row. Each seat's row puts its turn-order digit (its place, once
+   the game is over) on the first line down and its two stones on the next two crossings; the
+   name, the captures and the Kata sit on plates of the row's colour, which hide the lines
+   under them. The seat whose turn it is (the winners, at the end) is lit cream. Positions
+   are in the row's art px; the row starts 5 in from the panel's edge. */
+#players {
+  position: relative;
+  padding: calc(9 * var(--px)) 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--amber);
+  color: var(--ink);
+  box-shadow: 0 calc(2 * var(--px)) 0 var(--slate);
 }
-.player-row + .player-row { border-top: var(--px) solid var(--teal); }
-.player-row .swatch-pair { display: flex; gap: calc(2 * var(--px)); flex-shrink: 0; background: var(--amber); padding: calc(2 * var(--px)); border-radius: var(--px); }
-.player-row .info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--px); }
-.player-row .top { display: flex; align-items: center; gap: calc(3 * var(--px)); min-width: 0; }
-.player-row .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.player-row .look { color: var(--slate); font-size: max(var(--min-font), calc(5.4 * var(--px))); font-weight: 400; }
-.player-row .score { color: var(--slate); font-size: max(var(--min-font), calc(5.4 * var(--px))); }
-.player-row.current { color: var(--amber); font-weight: 700; }
-.player-row.current .look { color: var(--amber); }
-.player-row.disconnected { color: var(--slate); text-decoration: line-through; }
+#players::after { content: ""; position: absolute; z-index: 1; left: 0; right: 0; top: 0; height: var(--px); background: var(--cream); } /* the bevel along the top */
+#players .grid { position: absolute; inset: 0; pointer-events: none; }
+#players .grid i { position: absolute; background: var(--ink); }
+#players .grid .v { top: 0; bottom: 0; width: var(--px); }
+#players .grid .h { left: 0; right: 0; height: var(--px); }
+.player-row {
+  --row: var(--amber); /* a plate's colour: the row's, as the eye sees it */
+  position: relative;
+  height: calc(28 * var(--px));
+  margin: 0 calc(5 * var(--px));
+}
+.player-row.current {
+  --row: color-mix(in srgb, var(--cream) 75%, var(--amber));
+  background: color-mix(in srgb, var(--cream) 75%, transparent); /* the grid shows faintly through */
+  box-shadow: inset 0 0 0 var(--px) var(--ink);
+}
+.player-row > * { position: absolute; display: flex; align-items: center; background: var(--row); line-height: 0; }
+.player-row img { flex: none; image-rendering: pixelated; }
+.player-row .coord-plate { left: var(--px); top: calc(5 * var(--px)); padding: calc(3 * var(--px)); } /* 12 x 16, just inside the lit row's outline */
+.player-row .stones { left: calc(21 * var(--px)); top: calc(6 * var(--px)); gap: calc(7 * var(--px)); background: none; }
+/* From after the stones to just before the captured icon (NAME_PLATE_MAX in main.js); a longer
+   name shrinks to fit (--fit, fitPlayerNames), so it always stays on one line. */
+.player-row .plate {
+  left: calc(62 * var(--px));
+  top: calc(5 * var(--px));
+  height: calc(17 * var(--px));
+  max-width: calc(113 * var(--px));
+  gap: calc(3 * var(--px));
+  padding: 0 calc(5 * var(--px));
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.player-row .name, .player-row .bot { font-size: max(var(--min-font), calc(10.4 * var(--fit, 1) * var(--px))); }
+.player-row .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.player-row .stamp { padding: var(--px) calc(2 * var(--px)); border: var(--px) dashed var(--ink); line-height: 0; }
+.player-row .capt { left: calc(177 * var(--px)); top: calc(8 * var(--px)); padding: calc(2 * var(--px)); }
+.player-row .count { top: calc(6 * var(--px)); gap: calc(2 * var(--px)); padding: calc(2 * var(--px)); } /* left: centred on line 9, by renderPlayers */
+.player-row .kata { left: calc(224 * var(--px)); top: 0; bottom: 0; align-items: flex-start; padding: calc(2 * var(--px)) calc(2 * var(--px)) 0; }
+.player-row.current .kata { top: var(--px); bottom: var(--px); padding-top: var(--px); } /* inside the lit row's outline */
+.player-row .card-mini { box-sizing: content-box; border: var(--px) solid var(--ink); } /* the frame round its 21 px, not in them */
+/* A seat that passed, or whose player is away, fades its ink; the plates stay solid over the lines. */
+.player-row.faded .stones img, .player-row.faded .name, .player-row.faded .bot, .player-row.faded .card-mini { opacity: 0.45; }
+.player-row.faded .capt img, .player-row.faded .count img { opacity: 0.5; }
 
 /* Storm forecast (main.js renderWeather): the roll's dial and the sky, then STORM over the sky's name. */
 #weather .meter { display: flex; align-items: center; gap: calc(6 * var(--px)); }
@@ -682,8 +722,6 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 #recall-count { display: block; box-sizing: content-box; padding: 0 calc(3 * var(--px)); }
 #board.recalling { cursor: not-allowed; filter: sepia(.35) saturate(.8); }
 
-.player-row.passed { opacity: 0.4; }
-.player-row .pass-flag { margin-left: calc(4 * var(--px)); color: var(--amber); font-size: max(var(--min-font), calc(4.95 * var(--px))); text-transform: uppercase; }
 .item .tier { color: var(--slate); font-size: max(var(--min-font), calc(4.5 * var(--px))); font-weight: 400; }
 /* A stall's stock as tiny cards (main.js stockRow): filled copies left, dotted outlines sold; the last one glows. */
 .item .stock { display: flex; flex-wrap: wrap; gap: var(--px); margin: var(--px) 0 var(--px); }
@@ -769,5 +807,3 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 .card-cell:not(.set):hover .card-ghost, .card-cell:not(.set):focus-visible .card-ghost { opacity: 0.7; }
 .card-cell:not(.set):hover:not(:disabled) { box-shadow: none; }
-/* Each seat's card, small, at the end of its row in the players list: rivals may look. */
-.player-row .card-mini { margin-left: auto; flex-shrink: 0; image-rendering: pixelated; } /* sized in whole device px by renderPlayers */

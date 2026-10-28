@@ -204,7 +204,6 @@ window.addEventListener("keydown", (evt) => {
 boardEl.addEventListener("click", onBoardClick);
 boardEl.addEventListener("contextmenu", onBoardRightClick);
 window.addEventListener("resize", sizeCanvas);
-window.addEventListener("resize", () => lastState && renderPlayers(lastState)); // browser zoom / a monitor with another DPI: re-snap the card minis
 helpButton.addEventListener("click", () => lastState && openWelcome(lastState));
 // The home screen's "How to play" (#home-help in the lobby's markup). Delegated, so it works
 // whenever that element exists; before joining there is no room, and openWelcome says the general rules.
@@ -527,6 +526,7 @@ function sizeCanvas() {
   boardEl.style.height = `${(scene.height * k) / dpr}px`;
   hideCardZoom(); // drawn at the old card size
   fitHand();
+  fitPlayerNames();
 }
 
 /** One art pixel in CSS px, as sizeCanvas set it (style.css --px). */
@@ -853,10 +853,15 @@ function haikuHint() {
 function stoneHint() {
   if (!myPlayer) return boardHintEl.textContent;
   const [baseName, otherName] = LOOK_NAMES[myPlayer.color] || LOOK_NAMES[1];
-  return myPlayer.twin
+  // What I have lit and not yet used comes first: the line is cut short at its end.
+  const lit = [];
+  if (myPlayer.jar > 0) lit.push("Firefly Jar lit: your captures earn double fireflies");
+  if (myPlayer.mist) lit.push("Mist: your next stone hides which front it fights on");
+  const stones = myPlayer.twin
     ? "Twin Wick is lit: your next stone fights on both fronts."
     : `Left click: your ${baseName} stone · Right click: your ${otherName} stone` +
       (myPlayer.extra > 0 ? " · Stepping Stones: this move doesn't end your turn" : "");
+  return [...lit, stones].join(" · ");
 }
 
 function targetingText() {
@@ -1957,89 +1962,161 @@ function renderSidebar(state) {
   renderHand(state); // after the market: a card just bought flies out of its stall
 }
 
+// The players panel's Go grid (style.css #players), in art px: cells of 22 x 28, 12 columns
+// (pixelScene.js STAGE.sidebar), the lines through their middles; the rows start 9 down
+// and 5 in from the panel's edge.
+const PLAYER_GRID = { col: 22, row: 28, cols: 12, top: 9, inset: 5 };
+const NAME_PLATE_MAX = 113; // art px: from after the stones to just before the captured icon
+
+/** A line of the players panel's grid: down the middle of column `at`, or across row `at`. */
+function playerGridLine(dir, at) {
+  const line = document.createElement("i");
+  line.className = dir;
+  const pos = dir === "v" ? at * PLAYER_GRID.col + PLAYER_GRID.col / 2 : PLAYER_GRID.top + at * PLAYER_GRID.row + PLAYER_GRID.row / 2 - 1;
+  line.style[dir === "v" ? "left" : "top"] = `calc(${pos} * var(--px))`;
+  return line;
+}
+
+/**
+ * The players panel (the Kaya scorebook): a strip of kaya with a Go grid under
+ * it, one row per seat in turn order. On the row's line: its turn-order digit
+ * (its place, once the game is over), both of its stones at board size, so
+ * black, white, gray and see-through read at a glance, then the name on a plate
+ * of the row's colour, the stones it has captured (its final score at the end)
+ * and its Kata, small: rivals may look. The ember marks my seat and (B) a bot's;
+ * the seat whose turn it is (the winners, at the end) is lit. No fireflies: the
+ * board shows mine, and the others' are their own business until the game ends.
+ */
 function renderPlayers(state) {
   const players = Array.from(state.players);
+  const me = room ? room.sessionId : null;
   const sig = JSON.stringify([
-    state.turnIndex, state.status, myPlayer && myPlayer.sessionId, window.devicePixelRatio || 1,
-    players.map((p) => [p.name, p.color, p.connected, p.bot, p.passed, p.jar, p.mist, p.twin, p.extra, p.score, p.fireflies, p.finalScore, p.place, Array.from(p.card).join("")]),
+    state.turnIndex, state.status, me,
+    players.map((p) => [p.sessionId, p.name, p.color, p.connected, p.bot, p.passed, p.score, p.finalScore, p.place, hasStoneCard(p), Array.from(p.card).join("")]),
   ]);
-  rebuild(playersEl, sig, () => {
+  const rebuilt = rebuild(playersEl, sig, () => {
+    const finished = state.status === "finished";
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    grid.setAttribute("aria-hidden", "true");
+    for (let k = 0; k < PLAYER_GRID.cols; k++) grid.append(playerGridLine("v", k));
+    for (let i = 0; i < players.length; i++) grid.append(playerGridLine("h", i));
+    playersEl.append(grid);
+
     // Listed by color, which is also the turn order (the synced array is join order).
     const seats = players.map((player, index) => ({ player, index })).sort((a, b) => a.player.color - b.player.color);
-    seats.forEach(({ player, index }) => {
+    seats.forEach(({ player, index }, n) => {
+      const away = !finished && !player.connected;
       const row = document.createElement("div");
       row.className = "player-row";
-      if (state.status === "playing" && index === state.turnIndex) row.classList.add("current");
-      if (state.status === "finished" && player.place === 1) row.classList.add("current"); // the winner(s)
-      if (!player.connected) row.classList.add("disconnected");
-      if (state.status === "playing" && player.passed) row.classList.add("passed");
+      row.classList.toggle("current", finished ? player.place === 1 : state.status === "playing" && index === state.turnIndex);
+      row.classList.toggle("faded", away || (state.status === "playing" && player.passed));
 
-      // Both of the player's stones at full board size, so black, white, gray and
-      // transparent can be told apart at a glance, and named underneath the name.
+      const digit = finished ? player.place : n + 1;
+      // Two art px a pixel: 6 wide, so it sits half a pixel right of the line's middle.
+      const coord = spriteImg(`small_K_${digit}`, G.textSprite(G.FONT_SMALL, String(digit), G.INDEX.K), 4);
+      coord.classList.add("coord");
+      coord.alt = coord.title = `${finished ? "Place: " : "Plays "}${ORDINALS[digit - 1] || digit}`;
+      const coordPlate = document.createElement("span");
+      coordPlate.className = "coord-plate";
+      coordPlate.append(coord);
+
       const [baseName, otherName] = LOOK_NAMES[player.color] || LOOK_NAMES[1];
-      const swatches = document.createElement("span");
-      swatches.className = "swatch-pair";
-      swatches.title = `Left click: ${baseName} · Right click: ${otherName}`;
-      swatches.append(stoneImg(player.color), stoneImg(player.color + 4));
+      const stones = document.createElement("span");
+      stones.className = "stones";
+      stones.title = `Left click: ${baseName} · Right click: ${otherName}`;
+      const base = stoneImg(player.color), other = stoneImg(player.color + 4);
+      base.alt = `${baseName} stone`;
+      other.alt = `${otherName} stone`;
+      stones.append(base, other);
 
+      const plate = document.createElement("span");
+      plate.className = "plate";
       const name = document.createElement("span");
       name.className = "name";
-      name.textContent =
-        player.name + (room && player.sessionId === room.sessionId ? " (you)" : player.bot ? " (bot)" : "");
-
-      const score = document.createElement("span");
-      score.className = "score";
-      const finished = state.status === "finished";
-      score.title = finished ? "Final score: the lower of this player's two totals" : "Stones captured";
-      score.textContent = `${finished ? player.finalScore : player.score}`;
-
-      // A player's fireflies and what they have lit are their own business (a
-      // Kite is how you peek) until the game is over.
-      const mine = !!room && player.sessionId === room.sessionId;
-      const open = mine || finished;
-      const top = document.createElement("span");
-      top.className = "top";
-      if (open) top.append(name, fireflies(player.fireflies), score);
-      else top.append(name, score);
-      const flag = document.createElement("span");
-      flag.className = "pass-flag";
-      flag.textContent = "passed";
-      if (state.status === "playing" && player.passed) {
-        top.dataset.passed = "1";
+      name.textContent = player.name;
+      plate.append(name);
+      if (player.bot) {
+        const bot = document.createElement("span");
+        bot.className = "bot";
+        bot.title = "Bot";
+        bot.textContent = "(B)";
+        plate.append(bot);
       }
-      const look = document.createElement("span");
-      look.className = "look";
-      look.textContent = `${baseName} + ${otherName}`;
-      if (top.dataset.passed) look.append(flag);
-      // What the player has lit and not yet used: a jar, a mist, a twin wick, a second stone.
-      const armed = [];
-      if (player.jar > 0) armed.push("jar");
-      if (player.mist) armed.push("mist");
-      if (player.twin) armed.push("twin");
-      if (player.extra > 0) armed.push("+1 stone");
-      if (armed.length && state.status === "playing" && mine) {
-        const tags = document.createElement("span");
-        tags.className = "pass-flag";
-        tags.textContent = armed.join(" · ");
-        look.append(tags);
+      if (me && player.sessionId === me) {
+        const you = artImg("emberBig_1", G.ANIMS.emberBig.frames[1]);
+        you.classList.add("you");
+        you.alt = you.title = "You";
+        plate.append(you);
       }
-      const info = document.createElement("span");
-      info.className = "info";
-      info.append(top, look);
+      if (away) {
+        const stamp = document.createElement("span");
+        stamp.className = "stamp";
+        stamp.title = "Away: not connected";
+        const word = artImg("big_K_AWAY", G.textSprite(G.FONT_BIG, "AWAY", G.INDEX.K));
+        word.alt = "Away";
+        stamp.append(word);
+        plate.append(stamp);
+      }
+      row.append(coordPlate, stones, plate);
 
-      row.append(swatches, info);
+      if (!finished) {
+        const capt = document.createElement("span");
+        capt.className = "capt";
+        capt.title = "Stones captured";
+        capt.append(artImg("capturedIcon", G.SPRITES.capturedIcon));
+        row.append(capt);
+      }
+      // The count in the big pixel font at two art px a pixel, centred on line 9.
+      const value = finished ? player.finalScore : player.score;
+      const count = document.createElement("span");
+      count.className = "count";
+      count.setAttribute("role", "img");
+      count.setAttribute("aria-label", finished ? `Final score ${value}` : `${value} stones captured`);
+      count.title = finished ? "Final score: the lower of this player's two totals" : "Stones captured";
+      let width = 2 * 2; // the plate's padding
+      for (const d of String(value)) {
+        const spr = G.textSprite(G.FONT_BIG, d, G.INDEX.K);
+        count.append(spriteImg(`big_K_${d}`, spr, 4));
+        width += 2 * spr.w + (width > 4 ? 2 : 0);
+      }
+      count.style.left = `calc(${Math.round(9.5 * PLAYER_GRID.col + 0.5 - PLAYER_GRID.inset - width / 2)} * var(--px))`;
+      row.append(count);
+
       if (hasStoneCard(player)) {
         const cells = Array.from(player.card);
-        const mini = spriteImg(`card_grid_${player.color}_${cells.join("")}`, G.cardGrid(cells, player.color), 1);
+        const mini = artImg(`card_grid_small_${player.color}_${cells.join("")}`, G.cardGridSmall(cells, player.color));
         mini.classList.add("card-mini");
-        // One card pixel to one art pixel: whole device pixels, so no grid line is dropped.
-        mini.style.width = mini.style.height = `calc(${mini.width} * var(--px))`;
-        mini.title = `${KATA_NAME}: ${cardStones(cells)} of ${CARD_CELLS} stones`;
-        row.append(mini);
+        mini.alt = mini.title = `${KATA_NAME}: ${cardStones(cells)} of ${CARD_CELLS} stones`;
+        const kata = document.createElement("span");
+        kata.className = "kata";
+        kata.append(mini);
+        row.append(kata);
       }
       playersEl.appendChild(row);
     });
   });
+  if (rebuilt) fitPlayerNames();
+}
+
+/**
+ * A name too long for its plate shrinks (--fit) until the plate ends before the
+ * captured icon, so every name stays on one line: 24 code points at most
+ * (server/src/util/usernames.ts). Again on every resize: below 11 device px the
+ * font stops shrinking (--min-font) and the plate cuts the name short instead.
+ */
+function fitPlayerNames() {
+  const limit = NAME_PLATE_MAX * artPx();
+  for (const row of playersEl.querySelectorAll(".player-row")) {
+    row.style.removeProperty("--fit");
+    const plate = row.querySelector(".plate"), name = plate.querySelector(".name"), bot = plate.querySelector(".bot");
+    if (name.scrollWidth <= name.clientWidth) continue;
+    const botW = bot ? bot.getBoundingClientRect().width : 0;
+    const rest = plate.getBoundingClientRect().width - name.getBoundingClientRect().width - botW;
+    let fit = Math.floor(((limit - rest) / (name.scrollWidth + botW)) * 100) / 100;
+    row.style.setProperty("--fit", String(fit));
+    for (let tries = 0; tries < 10 && name.scrollWidth > name.clientWidth; tries++) row.style.setProperty("--fit", String((fit -= 0.02)));
+  }
 }
 
 /** Removal ("powerful") items the viewing player is carrying right now. */

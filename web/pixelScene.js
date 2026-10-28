@@ -2359,7 +2359,7 @@
     handScale: HAND_SCALE,
     header: 18 * HEADER_SCALE, // the header row: 18 of its own art pixels
     gap: 6, // between the scene and the sidebar, and under the header
-    sidebar: 200, // the sidebar column: the market's two columns
+    sidebar: 12 * 22, // the sidebar column: the players panel's kaya grid, 12 columns of 22 (main.js PLAYER_GRID)
     hand: 3 + (52 + 6) * HAND_SCALE, // the hand row: 3 above the cards, 52 of card, 6 for the Kata's UPGRADABLE under it
     status: 22, // the hint, notice and last-event lines under it all
   };

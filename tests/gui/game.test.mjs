@@ -64,16 +64,6 @@ test("game: the board canvas is drawn in the five palette colours only", async (
   assert.ok(colours >= 4, `${colours} colours`);
 });
 
-test("game: four seats in the sidebar, one of them (you) and three (bot), only mine with fireflies (B5)", async () => {
-  const rows = await b.ev(`Array.from(document.querySelectorAll("#players .player-row")).map((r) => ({
-    text: r.textContent, ff: !!r.querySelector(".ff"), card: !!r.querySelector(".card-mini") }))`);
-  assert.equal(rows.length, 4);
-  assert.equal(rows.filter((r) => /\(you\)/.test(r.text)).length, 1);
-  assert.equal(rows.filter((r) => /\(bot\)/.test(r.text)).length, 3);
-  rows.forEach((r) => assert.equal(r.ff, /\(you\)/.test(r.text), r.text));
-  assert.ok(rows.every((r) => r.card), "everyone's Stone Card mini shows");
-});
-
 test("game: the market is open with six stalls; the hand holds the Stone Card and empty places", async () => {
   assert.match(await b.ev("marketStatusEl.textContent"), /6 stalls tonight/);
   assert.equal(await b.ev("marketItemsEl.querySelectorAll('button.item').length"), 7, "the six drawn and the Bait's");

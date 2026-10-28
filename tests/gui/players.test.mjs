@@ -114,8 +114,10 @@ test("players: every seat's two stones sit on grid intersections, after the turn
   });
   m.rows.forEach((r, i) => {
     near(m.h[i].t, r.row.t + 13 * m.px, `row ${i}'s line through its middle`);
-    near(r.coord.cx, m.v[0].cx, `row ${i}'s digit on the first line`);
-    near(r.coord.cy, m.h[i].cy, `row ${i}'s digit on its line`);
+    // The digit is drawn at two art px a pixel, an even width and height: within half an art px of the crossing.
+    near(r.coord.cx, m.v[0].cx, `row ${i}'s digit on the first line`, m.px / 2 + 0.01);
+    near(r.coord.cy, m.h[i].cy, `row ${i}'s digit on its line`, m.px / 2 + 0.01);
+    near(r.coord.h, 10 * m.px, `row ${i}'s digit twice the board margin's`);
     assert.equal(r.coordAlt, `Plays ${["1st", "2nd", "3rd", "4th"][i]}`);
     assert.equal(r.stones.length, 2);
     r.stones.forEach((s, j) => {

@@ -1038,6 +1038,18 @@
     "...CCC...",
   ]);
 
+  // A captured stone: an ink ring struck through. The players panel puts each
+  // seat's count of captured stones beside it.
+  SPRITES.capturedIcon = sprite("capturedIcon", [
+    "..KKK..",
+    ".K...K.",
+    "K...K.K",
+    "K..K..K",
+    "K.K...K",
+    ".K...K.",
+    "..KKK..",
+  ]);
+
   // ---------------------------------------------------------------------------
   // Pixel fonts: 3x5 for the board margin, 4x6 for the highlighted label.
   // ---------------------------------------------------------------------------
@@ -1413,9 +1425,10 @@
 
   // The Kata, once the Stone Card (server/src/rules/stoneCard.ts): a 3x3 go board on a card,
   // cells row by row, 0 empty, 1 the owner's base stone, 2 their other one.
-  // The grid is also drawn on its own, small, beside each player's name.
+  // The grid is also drawn on its own, smaller, on each seat's row of the players panel.
   const CARD_GRID_STEP = 9; // card pixels between two lines of the 3x3 grid
   const CARD_GRID_SIZE = 2 * CARD_GRID_STEP + 9; // the grid's kaya, a mini stone's reach past the outer lines
+  const CARD_GRID_SMALL_STEP = 6; // the players panel's: the same mini stones, the lines closer
   const CARD_GRID_Y = 5; // top row of the grid's kaya on the Stone Card
   const STONE_CARD_NAME_Y = 34; // first row of the Stone Card's name panel (rows 34..40)
   const STONE_CARD_TEXT_Y = 43; // first row of its small text (rows 43..48)
@@ -1428,23 +1441,32 @@
   const cardGridCache = {};
   /** The card's 3x3 board: amber kaya, ink lines, the owner's mini stones where the card has them. */
   function cardGrid(cells, playerColor) {
-    const key = `${playerColor}:${Array.from(cells).join("")}`;
+    return kataGrid(cells, playerColor, CARD_GRID_STEP, "card_grid");
+  }
+
+  /** The same board 21x21 for the players panel: two neighbouring stones overlap by a pixel. */
+  function cardGridSmall(cells, playerColor) {
+    return kataGrid(cells, playerColor, CARD_GRID_SMALL_STEP, "card_grid_small");
+  }
+
+  function kataGrid(cells, playerColor, step, name) {
+    const key = `${name}_${playerColor}:${Array.from(cells).join("")}`;
     if (key in cardGridCache) return cardGridCache[key];
-    const N = CARD_GRID_SIZE, o = (N - 1 - 2 * CARD_GRID_STEP) >> 1;
+    const N = 2 * step + 9, o = (N - 1 - 2 * step) >> 1;
     const s = new Surface(N, N);
     s.fill(A);
     for (let i = 0; i < 3; i++) {
-      const at = o + i * CARD_GRID_STEP;
-      for (let k = o; k <= o + 2 * CARD_GRID_STEP; k++) {
+      const at = o + i * step;
+      for (let k = o; k <= o + 2 * step; k++) {
         s.set(at, k, K);
         s.set(k, at, K);
       }
     }
     for (let i = 0; i < 9; i++) {
       const spr = stoneSprite(cardCellCode(cells[i], playerColor), "mini");
-      if (spr) s.blitCentered(spr, o + (i % 3) * CARD_GRID_STEP, o + Math.floor(i / 3) * CARD_GRID_STEP);
+      if (spr) s.blitCentered(spr, o + (i % 3) * step, o + Math.floor(i / 3) * step);
     }
-    return (cardGridCache[key] = makeSprite(`card_grid_${key}`, N, N, s.px));
+    return (cardGridCache[key] = makeSprite(key, N, N, s.px));
   }
 
   const stoneCardCache = {};
@@ -1977,6 +1999,7 @@
     miniCard,
     cardSlot,
     cardGrid,
+    cardGridSmall,
     stoneCard,
     CARD_GRID_STEP,
     CARD_GRID_SIZE,

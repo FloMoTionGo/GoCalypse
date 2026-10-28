@@ -31,7 +31,7 @@ test("stage: the scene, a gap and the sidebar across; the header, the scene, the
   assert.equal(P.STAGE.header, 18 * 0.85, "the header at 85%");
   assert.equal(P.STAGE.hand, 3 + (52 + 6) * 1.5, "the hand's cards at 150%");
   const L = P.computeLayout(13), s = P.stageSize(13);
-  assert.ok(s.w > L.width + 190 && s.w < L.width + 220, `width ${s.w}`);
+  assert.ok(s.w > L.width + 260 && s.w < L.width + 280, `width ${s.w}`);
   assert.ok(s.h > L.height + 60 && s.h < L.height + 140, `height ${s.h}`);
   for (const size of [13, 19, 25]) {
     const Ln = P.computeLayout(size), sn = P.stageSize(size), S = P.STAGE;
