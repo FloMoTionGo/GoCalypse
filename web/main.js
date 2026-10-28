@@ -1992,7 +1992,8 @@ function renderPlayers(state) {
   const me = room ? room.sessionId : null;
   const sig = JSON.stringify([
     state.turnIndex, state.status, me,
-    players.map((p) => [p.sessionId, p.name, p.color, p.connected, p.bot, p.passed, p.score, p.finalScore, p.place, hasStoneCard(p), Array.from(p.card).join("")]),
+    players.map((p) => [p.sessionId, p.name, p.color, p.connected, p.bot, p.passed, p.score, p.finalScore, p.place, hasStoneCard(p), Array.from(p.card).join(""),
+      p.captures ? Array.from(p.captures).join() : null]),
   ]);
   const rebuilt = rebuild(playersEl, sig, () => {
     const finished = state.status === "finished";
@@ -2005,6 +2006,7 @@ function renderPlayers(state) {
 
     // Listed by color, which is also the turn order (the synced array is join order).
     const seats = players.map((player, index) => ({ player, index })).sort((a, b) => a.player.color - b.player.color);
+    shownSeats = seats.map((s) => s.player);
     seats.forEach(({ player, index }, n) => {
       const away = !finished && !player.connected;
       const row = document.createElement("div");
@@ -2071,6 +2073,8 @@ function renderPlayers(state) {
       const value = finished ? player.finalScore : player.score;
       const count = document.createElement("span");
       count.className = "count";
+      count.dataset.color = String(player.color);
+      count.tabIndex = 0; // its tip (showCaptureTip) on keyboard focus too
       count.setAttribute("role", "img");
       count.setAttribute("aria-label", finished ? `Final score ${value}` : `${value} stones captured`);
       count.title = finished ? "Final score: the lower of this player's two totals" : "Stones captured";
@@ -2096,8 +2100,114 @@ function renderPlayers(state) {
       playersEl.appendChild(row);
     });
   });
-  if (rebuilt) fitPlayerNames();
+  if (rebuilt) {
+    fitPlayerNames();
+    // An open tip follows its seat's new count, with the new numbers.
+    const count = captureTipSeat && playersEl.querySelector(`.count[data-color="${captureTipSeat}"]`);
+    if (count) showCaptureTip(count);
+    else hideCaptureTip();
+  }
 }
+
+let shownSeats = []; // the players renderPlayers last drew, in turn order: the tip reads them
+let captureTipSeat = 0; // the color whose captures tip is open; 0 when none is
+
+// Mirrors server/src/rules/goRules.ts: PlayerState.captures holds codes 1..8 at code - 1, then these two.
+const CAPTURES_GREY = 8;
+const CAPTURES_UNSEEN = 9;
+
+/**
+ * A seat's captured stones by colour, in a tip beside the sidebar while the
+ * pointer rests on its count (or it has keyboard focus): a line for each seat
+ * it took stones from, that seat's two stones each with its count, then those
+ * taken in the storm's grey and those taken unseen in a mist -- the server
+ * books them by what everyone could see (findings B5). A server from before
+ * the split sends no captures: the tip gives the total alone.
+ */
+function showCaptureTip(count) {
+  hideCaptureTip();
+  const player = shownSeats.find((p) => p.color === +count.dataset.color);
+  if (!player || !count.isConnected) return;
+  captureTipSeat = player.color;
+  const tip = document.createElement("div");
+  tip.className = "capture-tip";
+  tip.id = "capture-tip";
+  tip.setAttribute("role", "tooltip");
+  const head = document.createElement("b");
+  const taken = player.captures ? Array.from(player.captures) : null;
+  const total = player.score; // the split adds up to it
+  head.textContent = total ? `${player.name}: ${total} stone${total === 1 ? "" : "s"} captured` : player.name;
+  tip.append(head);
+  const line = (cls, imgs, counts, label) => {
+    const el = document.createElement("div");
+    el.className = cls;
+    imgs.forEach((img, i) => {
+      const n = document.createElement("span");
+      n.className = "n";
+      n.textContent = String(counts[i]);
+      el.append(img, n);
+    });
+    const name = document.createElement("span");
+    name.className = "label";
+    name.textContent = label;
+    el.append(name);
+    tip.append(el);
+    return el;
+  };
+  if (!total) tip.append("Nothing captured yet");
+  else if (taken) {
+    for (const seat of shownSeats) {
+      const [base, other] = [taken[seat.color - 1] || 0, taken[seat.color + 3] || 0];
+      if (!base && !other) continue;
+      const [baseName, otherName] = LOOK_NAMES[seat.color] || LOOK_NAMES[1];
+      const a = stoneImg(seat.color), b = stoneImg(seat.color + 4);
+      a.alt = `${baseName} stone`;
+      b.alt = `${otherName} stone`;
+      line("who", [a, b], [base, other], seat.name).dataset.color = String(seat.color);
+    }
+    if (taken[CAPTURES_GREY]) {
+      const grey = stoneImg(G.GREY_STONE);
+      grey.alt = "grey stone";
+      line("storm", [grey], [taken[CAPTURES_GREY]], "in the storm's grey");
+    }
+    if (taken[CAPTURES_UNSEEN]) {
+      const mist = artImg("pu_mist", G.powerupIcon("mist"));
+      mist.alt = "mist";
+      line("unseen", [mist], [taken[CAPTURES_UNSEEN]], "unseen, in a mist");
+    }
+  }
+  document.body.appendChild(tip);
+  count.setAttribute("aria-describedby", tip.id);
+  const r = count.getBoundingClientRect(), side = document.getElementById("sidebar").getBoundingClientRect();
+  const gap = 6, margin = 8;
+  const top = Math.max(margin, Math.min(r.top + r.height / 2 - tip.offsetHeight / 2, window.innerHeight - margin - tip.offsetHeight));
+  Object.assign(tip.style, { left: `${Math.max(margin, side.left - gap - tip.offsetWidth)}px`, top: `${top}px` });
+}
+
+function hideCaptureTip() {
+  captureTipSeat = 0;
+  for (const el of document.querySelectorAll(".capture-tip")) el.remove();
+  for (const el of playersEl.querySelectorAll(".count[aria-describedby]")) el.removeAttribute("aria-describedby");
+}
+
+// On the whole page, not just the panel: the panel is drawn again every turn, and a
+// count swapped out under a resting pointer sends no pointerout of its own.
+document.addEventListener("pointerover", (e) => {
+  if (e.pointerType === "touch") return;
+  const count = e.target.closest && e.target.closest("#players .count");
+  if (count) {
+    if (+count.dataset.color !== captureTipSeat) showCaptureTip(count);
+  } else if (captureTipSeat) hideCaptureTip();
+});
+playersEl.addEventListener("pointerout", (e) => {
+  const count = e.target.closest(".count");
+  if (count && !count.contains(e.relatedTarget)) hideCaptureTip();
+});
+playersEl.addEventListener("focusin", (e) => {
+  const count = e.target.closest(".count");
+  if (count && count.matches(":focus-visible")) showCaptureTip(count);
+});
+playersEl.addEventListener("focusout", hideCaptureTip);
 
 /**
  * A name too long for its plate shrinks (--fit) until the plate ends before the

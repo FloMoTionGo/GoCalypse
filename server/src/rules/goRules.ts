@@ -166,6 +166,23 @@ export interface Captured {
   cross: boolean; // killed by a stone of the other front: it scores no prisoner (ideas.md §11.6)
 }
 
+// A player's captured stones split by colour (PlayerState.captures): one count
+// per board code 1..8 at index code - 1, then the two a viewer can't tell apart.
+export const CAPTURES_GREY = 8; // taken while the storm's grey hid whose stones were whose
+export const CAPTURES_UNSEEN = 9; // taken under a Mist (or a fog), unseen by the others
+export const CAPTURE_SLOTS = 10;
+
+/**
+ * Where a captured stone is booked: by what everyone could see when it was
+ * taken, so the split tells nobody what the grey or a mist hid (findings B5).
+ * A twin stone counts as its owner's stone of the front it died on.
+ */
+export function captureSlot(c: Captured, grey: boolean, unseen: boolean): number {
+  if (unseen) return CAPTURES_UNSEEN;
+  if (grey) return CAPTURES_GREY;
+  return (isTwin(c.color) ? stoneCode(ownerOf(c.color), c.view) : c.color) - 1;
+}
+
 /**
  * After a stone lands on (x, y), remove any adjacent group left with zero
  * liberties. A group is always judged on ITS OWN front -- a liberty is a

@@ -11,6 +11,7 @@ import {
   applyCaptures,
   axisOf,
   Captured,
+  captureSlot,
   isTwin,
   twinCode,
   viewsOf,
@@ -1410,13 +1411,19 @@ export class GoRoom extends Room<GoState> {
    * two fronts actually ran out of liberties. Stones swept off by a removal
    * item are not prisoners: their owner is already paid consolation fireflies,
    * and nobody surrounded them. Nor are stones killed across the fronts: they
-   * are counted as smothered, for no points.
+   * are counted as smothered, for no points. Each stone also goes into the
+   * player's colour split, as everyone saw it (captureSlot).
    */
   private creditPrisoners(player: PlayerState, captured: Captured[]) {
+    const { size, status, turnCount, storm } = this.state;
+    const grey = status !== "finished" && turnCount < storm.until; // as refreshSeen greys the board
     for (const c of captured) {
       if (c.cross) player.smothered += 1;
       else if (c.view === "pattern") player.patternPrisoners += 1;
       else player.basePrisoners += 1;
+      const idx = boardIndex(size, c.point.x, c.point.y);
+      const unseen = this.effectAt("mist", idx) !== undefined || this.isFogged(idx);
+      player.captures[captureSlot(c, grey, unseen)] += 1;
     }
   }
 

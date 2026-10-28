@@ -685,7 +685,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 /* Compact stalls: what an item does shows beside the stall on hover (main.js showMarketTip), so the
    whole market fits the sidebar without scrolling. */
 #market-items .item .desc { display: none; }
-.market-tip {
+.market-tip, .capture-tip {
   position: fixed;
   z-index: 70;
   pointer-events: none;
@@ -698,7 +698,13 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   font-size: max(var(--min-font), calc(5.4 * var(--px)));
   line-height: 1.25;
 }
-.market-tip b { display: block; color: var(--amber); margin-bottom: var(--px); }
+.market-tip b, .capture-tip b { display: block; color: var(--amber); margin-bottom: var(--px); }
+/* A seat's captures by colour (main.js showCaptureTip): per seat taken from, its two stones on kaya, each with its count. */
+.capture-tip { max-width: none; white-space: nowrap; }
+.capture-tip > div { display: flex; align-items: center; gap: calc(2 * var(--px)); margin-top: calc(2 * var(--px)); }
+.capture-tip img { flex: none; image-rendering: pixelated; background: var(--amber); padding: var(--px); box-sizing: content-box; }
+.capture-tip .n { min-width: 1.6em; font-weight: 700; }
+.capture-tip .label { color: color-mix(in srgb, var(--cream) 70%, var(--slate)); }
 /* The turn icon (main.js turnIcon): this item's use takes the turn. Drawn at 2x; on a stall, on its top-left corner. */
 .turn-icon { vertical-align: middle; flex-shrink: 0; }
 .item .turn-icon { position: absolute; left: calc(-1 * var(--px)); top: calc(-1 * var(--px)); }

@@ -1,4 +1,5 @@
 import { Schema, type, view, ArraySchema } from "@colyseus/schema";
+import { CAPTURE_SLOTS } from "../rules/goRules";
 
 /**
  * What each player may see (findings B5). A client's StateView holds its own
@@ -30,6 +31,10 @@ export class PlayerState extends Schema {
   // Stones this player killed with a stone of the other front (black smothering
   // gray): gone from the board, but no prisoners, so no points (ideas.md §11.6).
   @type("number") smothered: number = 0;
+  // Every stone this player captured, split by colour as everyone saw it taken
+  // (rules/goRules.ts captureSlot): codes 1..8, then grey in the storm and
+  // unseen under a Mist. Adds up to score; the players panel's tip shows it.
+  @type(["number"]) captures = new ArraySchema<number>(...Array(CAPTURE_SLOTS).fill(0));
   // Haiku (ideas.md §11.11): the lines this player collected of each haiku, in
   // rules/haiku.ts HAIKU order, and the haiku whose card they have played.
   @type(["number"]) haikuLines = new ArraySchema<number>();
