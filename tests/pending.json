@@ -1,4 +1,16 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    { "test": "players panel: the captured-stone icon is a 7x7 ink ring struck through", "feature": "players-kaya", "tier": "web", "since": "2026-10-28" },
+    { "test": "players panel: the small Kata grid is 21x21, the card's own mini stones on a 3x3 grid 6 px apart", "feature": "players-kaya", "tier": "web", "since": "2026-10-28" },
+    { "test": "stage: the sidebar is as wide as the players' kaya grid, 12 columns of 22 art px", "feature": "players-kaya", "tier": "web", "since": "2026-10-28" },
+    { "test": "players: four seats on a kaya grid as wide as the sidebar, mine marked by the ember, the bots by (B), and no fireflies (B5)", "feature": "players-kaya", "tier": "gui", "since": "2026-10-28" },
+    { "test": "players: every seat's two stones sit on grid intersections, after the turn-order digit on the first line", "feature": "players-kaya", "tier": "gui", "since": "2026-10-28" },
+    { "test": "players: a 24-character name stays on one line, its plate clear of the captured icon", "feature": "players-kaya", "tier": "gui", "since": "2026-10-28" },
+    { "test": "players: captured stones are counted in pixel digits on the grid, the count also in words", "feature": "players-kaya", "tier": "gui", "since": "2026-10-28" },
+    { "test": "players: the seat whose turn it is is lit, and the light follows the turn", "feature": "players-kaya", "tier": "gui", "since": "2026-10-28" },
+    { "test": "players: a passed or away seat fades its stones and name, while its plates stay solid over the grid lines", "feature": "players-kaya", "tier": "gui", "since": "2026-10-28" },
+    { "test": "players: when the game is over each seat's digit is its place, the count its final score, the winner lit", "feature": "players-kaya", "tier": "gui", "since": "2026-10-28" },
+    { "test": "hint: a lit Firefly Jar and a Mist show in the line under the board, now the players panel has no line for them", "feature": "players-kaya", "tier": "gui", "since": "2026-10-28" }
+  ]
 }

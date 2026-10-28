@@ -41,6 +41,10 @@ test("stage: the scene, a gap and the sidebar across; the header, the scene, the
   assert.ok(P.stageSize(19).w > s.w && P.stageSize(25).h > P.stageSize(19).h);
 });
 
+test("stage: the sidebar is as wide as the players' kaya grid, 12 columns of 22 art px", () => {
+  assert.equal(P.STAGE.sidebar, 12 * 22);
+});
+
 test("home stage: k is the whole scale nearest to 75% of the window's physical pixels, never more than fits, never 0", () => {
   const stage = { w: 539, h: 455 }; // the narrowest scene and the home screen's height, in art px
   assert.equal(P.HOME.share, 0.75);

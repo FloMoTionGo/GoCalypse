@@ -76,6 +76,46 @@ test("the Stone Card grid draws every cell state for every player", () => {
   assert.notEqual(empty, full, "a stone on the card shows");
 });
 
+// The players panel (main.js renderPlayers) is a strip of kaya: the stones on its
+// grid, the captures beside a struck-through stone, each seat's Kata small.
+test("players panel: the captured-stone icon is a 7x7 ink ring struck through", () => {
+  const icon = G.SPRITES.capturedIcon;
+  assert.ok(icon, "SPRITES.capturedIcon");
+  assert.deepEqual([icon.w, icon.h], [7, 7]);
+  const at = (x, y) => icon.px[y * 7 + x];
+  assert.ok(icon.px.every((c) => c === G.INDEX.K || c === G.TRANSPARENT), "ink on see-through only");
+  for (const [x, y] of [[3, 0], [0, 3], [6, 3], [3, 6]]) assert.equal(at(x, y), G.INDEX.K, `the ring at ${x},${y}`);
+  for (let i = 1; i < 6; i++) assert.equal(at(i, 6 - i), G.INDEX.K, `the stroke at ${i},${6 - i}`);
+  assert.equal(at(2, 2), G.TRANSPARENT, "hollow off the stroke");
+});
+
+test("players panel: the small Kata grid is 21x21, the card's own mini stones on a 3x3 grid 6 px apart", () => {
+  const empty = G.cardGridSmall(Array(9).fill(0), 1);
+  assert.deepEqual([empty.w, empty.h], [21, 21]);
+  for (const at of [4, 10, 16]) {
+    assert.equal(empty.px[at * 21 + 7], G.INDEX.K, `a line across at ${at}`);
+    assert.equal(empty.px[7 * 21 + at], G.INDEX.K, `a line down at ${at}`);
+  }
+  assert.equal(empty.px[7 * 21 + 7], G.INDEX.A, "kaya between the lines");
+  assert.equal(empty.px[0], G.INDEX.A, "and round them");
+  const mini = G.stoneSprite(1, "mini");
+  for (const color of [1, 2, 3, 4]) {
+    for (const cells of [Array(9).fill(1), Array(9).fill(2), [1, 0, 2, 0, 1, 0, 0, 2, 1]]) {
+      const grid = G.cardGridSmall(cells, color);
+      assert.ok(inPalette(grid), `${color} ${cells.join("")}`);
+      assert.notEqual(grid.px.join(), empty.px.join(), "a stone on the card shows");
+    }
+  }
+  // The top-left cell holds player 1's own mini stone, centred on the first crossing.
+  const one = G.cardGridSmall([1, 0, 0, 0, 0, 0, 0, 0, 0], 1);
+  for (let y = 0; y < mini.h; y++) {
+    for (let x = 0; x < mini.w; x++) {
+      const c = mini.px[y * mini.w + x];
+      if (c !== G.TRANSPARENT) assert.equal(one.px[(1 + y) * 21 + 1 + x], c, `mini stone pixel ${x},${y}`);
+    }
+  }
+});
+
 test("text: width grows with the text, and drawText writes only inside the surface", () => {
   for (const font of [G.FONT_SMALL, G.FONT_BIG]) {
     assert.ok(G.textWidth(font, "AB") > G.textWidth(font, "A"));
