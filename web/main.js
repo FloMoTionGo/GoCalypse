@@ -2115,11 +2115,13 @@ let captureTipSeat = 0; // the color whose captures tip is open; 0 when none is
 // Mirrors server/src/rules/goRules.ts: PlayerState.captures holds codes 1..8 at code - 1, then these two.
 const CAPTURES_GREY = 8;
 const CAPTURES_UNSEEN = 9;
+// The board codes of each look (LOOK_NAMES): a colour is the same stone whoever's it is.
+const CAPTURE_LOOKS = [["black", [1, 3]], ["white", [2, 4]], ["gray", [5, 6]], ["transparent", [7, 8]]];
 
 /**
  * A seat's captured stones by colour, in a tip beside the sidebar while the
- * pointer rests on its count (or it has keyboard focus): a line for each seat
- * it took stones from, that seat's two stones each with its count, then those
+ * pointer rests on its count (or it has keyboard focus): a line for each colour
+ * it took, whoever's stones they were, its stone with its count, then those
  * taken in the storm's grey and those taken unseen in a mist -- the server
  * books them by what everyone could see (findings B5). A server from before
  * the split sends no captures: the tip gives the total alone.
@@ -2156,14 +2158,12 @@ function showCaptureTip(count) {
   };
   if (!total) tip.append("Nothing captured yet");
   else if (taken) {
-    for (const seat of shownSeats) {
-      const [base, other] = [taken[seat.color - 1] || 0, taken[seat.color + 3] || 0];
-      if (!base && !other) continue;
-      const [baseName, otherName] = LOOK_NAMES[seat.color] || LOOK_NAMES[1];
-      const a = stoneImg(seat.color), b = stoneImg(seat.color + 4);
-      a.alt = `${baseName} stone`;
-      b.alt = `${otherName} stone`;
-      line("who", [a, b], [base, other], seat.name).dataset.color = String(seat.color);
+    for (const [look, codes] of CAPTURE_LOOKS) {
+      const n = codes.reduce((sum, code) => sum + (taken[code - 1] || 0), 0);
+      if (!n) continue;
+      const stone = stoneImg(codes[0]);
+      stone.alt = `${look} stone`;
+      line("look", [stone], [n], look).dataset.look = look;
     }
     if (taken[CAPTURES_GREY]) {
       const grey = stoneImg(G.GREY_STONE);

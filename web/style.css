@@ -699,7 +699,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   line-height: 1.25;
 }
 .market-tip b, .capture-tip b { display: block; color: var(--amber); margin-bottom: var(--px); }
-/* A seat's captures by colour (main.js showCaptureTip): per seat taken from, its two stones on kaya, each with its count. */
+/* A seat's captures by colour (main.js showCaptureTip): per colour taken, its stone on kaya with its count. */
 .capture-tip { max-width: none; white-space: nowrap; }
 .capture-tip > div { display: flex; align-items: center; gap: calc(2 * var(--px)); margin-top: calc(2 * var(--px)); }
 .capture-tip img { flex: none; image-rendering: pixelated; background: var(--amber); padding: var(--px); box-sizing: content-box; }
