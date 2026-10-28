@@ -1,4 +1,13 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    { "test": "captures: a captured stone is booked by its colour in the taker's split, which adds up to the score", "feature": "capture-split", "tier": "server", "since": "2026-10-28" },
+    { "test": "captures: a rival's pattern stone is booked as that pattern colour", "feature": "capture-split", "tier": "server", "since": "2026-10-28" },
+    { "test": "captures: a twin stone is booked as its owner's stone of the front it died on", "feature": "capture-split", "tier": "server", "since": "2026-10-28" },
+    { "test": "captures: a stone taken in the storm's grey is booked as grey, and one under a Mist as unseen: the split tells nobody whose they were (B5)", "feature": "capture-split", "tier": "server", "since": "2026-10-28" },
+    { "test": "a snapshot from before the captures' colour split loads it as ten zeros", "feature": "capture-split", "tier": "server", "since": "2026-10-28" },
+    { "test": "players: hovering a seat's captured count opens a tip beside the sidebar with the stones it took, colour by colour", "feature": "capture-split", "tier": "gui", "since": "2026-10-28" },
+    { "test": "players: a seat that has taken nothing says so in its tip, and a server without the colour split gives the total alone", "feature": "capture-split", "tier": "gui", "since": "2026-10-28" },
+    { "test": "players: the real pointer on a live seat's captured count opens its tip, and it closes when the pointer leaves", "feature": "capture-split", "tier": "gui", "since": "2026-10-28" }
+  ]
 }

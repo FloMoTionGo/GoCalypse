@@ -204,6 +204,85 @@ test("players: when the game is over each seat's digit is its place, the count i
   assert.ok(m.rows.every((r) => r.stamp === ""), "nobody away after the game");
 });
 
+/**
+ * A page expression: `seats` drawn as a made-up game, the pointer brought over seat
+ * `seat`'s captured count (a bubbling pointerover, as the real one), the tip measured,
+ * the pointer taken off again, then the live state drawn back.
+ */
+function tipFor(seats, seat) {
+  return `(() => {
+    const players = ${JSON.stringify(seats)}.map((s, i) => Object.assign({
+      sessionId: s.me ? room.sessionId : "seat" + i, name: "Seat " + (i + 1), color: i + 1, connected: true, bot: false,
+      passed: false, score: 0, finalScore: 0, place: 0, card: [0, 0, 0, 0, 1, 0, 0, 0, 0], powerups: ["stone_card"],
+    }, s));
+    renderPlayers({ status: "playing", turnIndex: 0, players });
+    const count = playersEl.querySelectorAll(".player-row")[${seat}].querySelector(".count");
+    count.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }));
+    const tip = document.querySelector(".capture-tip");
+    const out = tip && {
+      text: tip.textContent,
+      rows: Array.from(tip.querySelectorAll(".who")).map((w) => ({
+        color: +w.dataset.color, stones: w.querySelectorAll("img").length,
+        counts: Array.from(w.querySelectorAll(".n")).map((n) => +n.textContent) })),
+      storm: Array.from(tip.querySelectorAll(".storm .n")).map((n) => +n.textContent),
+      unseen: Array.from(tip.querySelectorAll(".unseen .n")).map((n) => +n.textContent),
+      right: tip.getBoundingClientRect().right, w: tip.getBoundingClientRect().width,
+      sideLeft: document.getElementById("sidebar").getBoundingClientRect().left,
+    };
+    count.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" }));
+    const gone = !document.querySelector(".capture-tip");
+    renderPlayers(lastState);
+    return { tip: out, gone };
+  })()`;
+}
+
+test("players: hovering a seat's captured count opens a tip beside the sidebar with the stones it took, colour by colour", async () => {
+  const { tip, gone } = await b.ev(tipFor([
+    { name: "Ko 3", bot: true, score: 1, captures: [0, 1, 0, 0, 0, 0, 0, 0, 0, 0] },
+    // Sternschnuppe took 3 of Ko 3's black, 2 of Ko 2's transparent, 1 in the storm's grey and 1 unseen in a mist.
+    { name: "Sternschnuppe", me: true, score: 7, captures: [3, 0, 0, 0, 0, 0, 2, 0, 1, 1] },
+    { name: "Ko 2", bot: true },
+    { name: "Ko", bot: true },
+  ], 1));
+  assert.ok(tip, "a tip opens");
+  assert.match(tip.text, /Sternschnuppe/, "it names the taker");
+  assert.match(tip.text, /7/, "and the total");
+  assert.deepEqual(tip.rows, [
+    { color: 1, stones: 2, counts: [3, 0] },
+    { color: 3, stones: 2, counts: [0, 2] },
+  ], "a line per seat it took from: that seat's two stones, each with its count");
+  assert.match(tip.text, /Ko 3/);
+  assert.match(tip.text, /Ko 2/);
+  assert.deepEqual(tip.storm, [1], "the stones taken in the storm's grey, whoever's they were");
+  assert.deepEqual(tip.unseen, [1], "and those taken unseen in a mist");
+  assert.ok(tip.w > 0, "on screen");
+  assert.ok(tip.right <= tip.sideLeft + 0.5, "beside the sidebar, not over it");
+  assert.equal(gone, true, "gone once the pointer leaves");
+});
+
+test("players: a seat that has taken nothing says so in its tip, and a server without the colour split gives the total alone", async () => {
+  const none = await b.ev(tipFor([{ name: "Ko 3", bot: true, captures: Array(10).fill(0) }, { name: "Ko", me: true }], 0));
+  assert.equal(none.tip.rows.length, 0);
+  assert.match(none.tip.text, /[Nn]othing captured yet/);
+  const old = await b.ev(tipFor([{ name: "Ko 3", bot: true, score: 5 }, { name: "Ko", me: true }], 0));
+  assert.ok(old.tip, "a tip opens");
+  assert.equal(old.tip.rows.length, 0, "no split to show");
+  assert.match(old.tip.text, /5 stones captured/);
+});
+
+test("players: the real pointer on a live seat's captured count opens its tip, and it closes when the pointer leaves", async () => {
+  const p = await b.ev(`(() => {
+    const row = Array.from(playersEl.querySelectorAll(".player-row")).find((r) => r.querySelector("img.you"));
+    const r = row.querySelector(".count").getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`);
+  await b.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: p.x, y: p.y });
+  await b.waitFor("!!document.querySelector('.capture-tip')", 2000, "the captures tip");
+  assert.match(await b.ev("document.querySelector('.capture-tip').textContent"), new RegExp(LONG_NAME));
+  await b.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+  await b.waitFor("!document.querySelector('.capture-tip')", 2000, "the tip gone once the pointer leaves");
+});
+
 test("hint: a lit Firefly Jar and a Mist show in the line under the board, now the players panel has no line for them", async () => {
   const hint = (jar, mist) => b.ev(`(() => {
     const real = myPlayer;

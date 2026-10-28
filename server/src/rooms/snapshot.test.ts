@@ -97,3 +97,13 @@ test("a snapshot from before smothered stones loads them as 0", () => {
   const back = makeRoom({ restoreToken: queueRestore(snap) });
   assert.deepEqual(back.state.players.map((p: any) => p.smothered), [0, 0, 0, 0]);
 });
+
+test("a snapshot from before the captures' colour split loads it as ten zeros", () => {
+  const { room, clients } = startedRoom();
+  move(room, clients, 3, 3);
+  room.saveSnapshot();
+  const snap = read(room);
+  for (const p of snap.state.players) delete p.captures;
+  const back = makeRoom({ restoreToken: queueRestore(snap) });
+  for (const p of back.state.players) assert.deepEqual(Array.from(p.captures), Array(10).fill(0));
+});
