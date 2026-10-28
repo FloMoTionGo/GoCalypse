@@ -1,4 +1,6 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    { "test": "players: hovering a seat's captured count opens a tip with the stones it took by colour alone, not opponent by opponent", "feature": "capture-tip-colours", "tier": "gui", "since": "2026-10-28" }
+  ]
 }

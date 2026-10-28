@@ -221,8 +221,8 @@ function tipFor(seats, seat) {
     const tip = document.querySelector(".capture-tip");
     const out = tip && {
       text: tip.textContent,
-      rows: Array.from(tip.querySelectorAll(".who")).map((w) => ({
-        color: +w.dataset.color, stones: w.querySelectorAll("img").length,
+      rows: Array.from(tip.querySelectorAll(".look")).map((w) => ({
+        look: w.dataset.look, stones: w.querySelectorAll("img").length,
         counts: Array.from(w.querySelectorAll(".n")).map((n) => +n.textContent) })),
       storm: Array.from(tip.querySelectorAll(".storm .n")).map((n) => +n.textContent),
       unseen: Array.from(tip.querySelectorAll(".unseen .n")).map((n) => +n.textContent),
@@ -236,23 +236,23 @@ function tipFor(seats, seat) {
   })()`;
 }
 
-test("players: hovering a seat's captured count opens a tip beside the sidebar with the stones it took, colour by colour", async () => {
+test("players: hovering a seat's captured count opens a tip with the stones it took by colour alone, not opponent by opponent", async () => {
   const { tip, gone } = await b.ev(tipFor([
     { name: "Ko 3", bot: true, score: 1, captures: [0, 1, 0, 0, 0, 0, 0, 0, 0, 0] },
-    // Sternschnuppe took 3 of Ko 3's black, 2 of Ko 2's transparent, 1 in the storm's grey and 1 unseen in a mist.
-    { name: "Sternschnuppe", me: true, score: 7, captures: [3, 0, 0, 0, 0, 0, 2, 0, 1, 1] },
+    // Sternschnuppe took 3 of Ko 3's black and 1 of Ko 2's, 2 of Ko 2's transparent and 1 of Ko's,
+    // 1 in the storm's grey and 1 unseen in a mist.
+    { name: "Sternschnuppe", me: true, score: 9, captures: [3, 0, 1, 0, 0, 0, 2, 1, 1, 1] },
     { name: "Ko 2", bot: true },
     { name: "Ko", bot: true },
   ], 1));
   assert.ok(tip, "a tip opens");
   assert.match(tip.text, /Sternschnuppe/, "it names the taker");
-  assert.match(tip.text, /7/, "and the total");
+  assert.match(tip.text, /9 stones captured/, "and the total");
   assert.deepEqual(tip.rows, [
-    { color: 1, stones: 2, counts: [3, 0] },
-    { color: 3, stones: 2, counts: [0, 2] },
-  ], "a line per seat it took from: that seat's two stones, each with its count");
-  assert.match(tip.text, /Ko 3/);
-  assert.match(tip.text, /Ko 2/);
+    { look: "black", stones: 1, counts: [4] },
+    { look: "transparent", stones: 1, counts: [3] },
+  ], "a line per colour taken, whoever's stones they were: its stone and its count");
+  assert.doesNotMatch(tip.text, /Ko/, "no line per opponent");
   assert.deepEqual(tip.storm, [1], "the stones taken in the storm's grey, whoever's they were");
   assert.deepEqual(tip.unseen, [1], "and those taken unseen in a mist");
   assert.ok(tip.w > 0, "on screen");
