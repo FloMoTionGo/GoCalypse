@@ -48,3 +48,34 @@ test("a huge key is cut down, not stored or echoed", async () => {
   assert.equal(res.status, 404);
   assert.ok((await res.text()).length < 200);
 });
+
+test("no response names the framework in x-powered-by, and every one says nosniff", async () => {
+  for (const [what, res] of [
+    ["/healthz", await fetch(`${server.http}/healthz`)],
+    ["/history", await fetch(`${server.http}/history`)],
+    ["/rejoin", await rejoin({ playerKey: "nobody" })],
+  ]) {
+    assert.equal(res.headers.get("x-powered-by"), null, `${what} names no framework`);
+    assert.equal(res.headers.get("x-content-type-options"), "nosniff", `${what} says nosniff`);
+  }
+});
+
+test("/rejoin answers no-store, so no cache ever hands a seat back", async () => {
+  const res = await rejoin({ playerKey: "nobody-at-all" });
+  assert.equal(res.headers.get("cache-control"), "no-store");
+});
+
+test("the 11th /rejoin within a minute from one address is refused with 429 and a Retry-After", async () => {
+  const own = await startServer(); // its own server: the budget is per address, and this file's other tests spend it too
+  try {
+    const post = () =>
+      fetch(`${own.http}/rejoin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ playerKey: "nobody" }) });
+    for (let i = 1; i <= 10; i++) assert.equal((await post()).status, 404, `call ${i} is answered`);
+    const res = await post();
+    assert.equal(res.status, 429);
+    assert.ok(Number(res.headers.get("retry-after")) > 0, "says when to try again");
+    assert.equal((await fetch(`${own.http}/healthz`)).status, 200, "and the server goes on");
+  } finally {
+    await own.stop();
+  }
+});

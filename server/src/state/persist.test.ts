@@ -57,6 +57,12 @@ test("a restore token works once, and only a string from queueRestore is one", (
   assert.equal(takeRestore("guessed"), undefined);
 });
 
+test("a restore token is a UUID, not a timestamp anyone could guess", () => {
+  const token = queueRestore({ room: "go_custom", keys: {}, state: {} });
+  assert.match(token, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.ok(takeRestore(token), "and it opens the snapshot once");
+});
+
 test("restoreState rebuilds players, market, effects and nested state from toJSON", () => {
   const state = new GoState();
   state.turnCount = 17;

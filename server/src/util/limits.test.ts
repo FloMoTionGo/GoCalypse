@@ -58,6 +58,14 @@ test("an address list from a proxy counts by its first entry", () => {
   assert.equal(clientIp(""), "unknown");
 });
 
+test("Fly's own client-ip header wins over a forwarded list anyone can write", () => {
+  const { clientIp } = net();
+  // Fly appends the real address to whatever X-Forwarded-For the client sent, and sets Fly-Client-IP itself.
+  assert.equal(clientIp("9.9.9.9, 203.0.113.9", { "fly-client-ip": "203.0.113.9" }), "203.0.113.9");
+  assert.equal(clientIp(["9.9.9.9"], { "fly-client-ip": "203.0.113.9", "x-forwarded-for": "9.9.9.9, 203.0.113.9" }), "203.0.113.9");
+  assert.equal(clientIp("203.0.113.9", {}), "203.0.113.9", "no such header: the value as given");
+});
+
 test("a message bucket lets a burst of 40 through and drops the 41st within the same second", () => {
   const { TokenBucket } = limits();
   const now = 0;

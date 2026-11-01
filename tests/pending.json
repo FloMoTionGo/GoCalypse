@@ -1,4 +1,12 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    { "test": "a key maps to its room until the room is disposed", "feature": "rejoin-index", "tier": "server", "since": "2026-11-01" },
+    { "test": "a player who leaves a waiting table takes their key out of the index", "feature": "rejoin-index", "tier": "server", "since": "2026-11-01" },
+    { "test": "a restore token is a UUID, not a timestamp anyone could guess", "feature": "http-hygiene", "tier": "server", "since": "2026-11-01" },
+    { "test": "Fly's own client-ip header wins over a forwarded list anyone can write", "feature": "http-hygiene", "tier": "server", "since": "2026-11-01" },
+    { "test": "no response names the framework in x-powered-by, and every one says nosniff", "feature": "http-hygiene", "tier": "integration", "since": "2026-11-01" },
+    { "test": "/rejoin answers no-store, so no cache ever hands a seat back", "feature": "http-hygiene", "tier": "integration", "since": "2026-11-01" },
+    { "test": "the 11th /rejoin within a minute from one address is refused with 429 and a Retry-After", "feature": "rejoin-index", "tier": "integration", "since": "2026-11-01" }
+  ]
 }
