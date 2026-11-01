@@ -35,6 +35,7 @@ so the reason stays in the history.
 | Pending | Every test in `tests/pending.json` fails; none passes while still listed | `node tests/run.mjs` | every run |
 | The gate itself | Every guard scenario passes | `node tests/run.mjs tools` | every commit, CI |
 | Security: deps | Nothing at high or above in the server's production dependencies | `node tests/lib/audit.mjs` (npm audit) | CI |
+| Security: abuse limits | The address caps, the message budget and the /rejoin limiter hold; the client's scripts come from the site itself under a CSP; the seat secret is kept per server host | `node tests/run.mjs server integration --grep "address|bucket|rejoin|nosniff"`, `web --grep index.html`, `gui --grep "server:"` | commits on master, CI |
 
 Every row names the command that produces the verdict. The quick profile
 (`server`, `web`, `tools`) runs before every commit on a branch; the full
