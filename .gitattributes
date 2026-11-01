@@ -1,2 +1,4 @@
 # Git hooks run under sh: CRLF line endings would break them.
 .githooks/* text eol=lf
+# The vendored client library is checked byte for byte against the pinned package: no line-ending normalisation.
+web/vendor/*.js -text
