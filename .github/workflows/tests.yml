@@ -53,6 +53,8 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
         working-directory: server
+      - run: npm ci # the web tier compares web/vendor/colyseus.js with the pinned package
+        working-directory: tests
       - run: node tests/run.mjs quick --reporter dot
 
   full:
