@@ -1,7 +1,7 @@
 // The server's HTTP side (server/src/index.ts): health check, CORS and /rejoin.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer } from "../lib/harness.mjs";
+import { colyseus, leaveQuietly, startServer, until } from "../lib/harness.mjs";
 
 let server;
 before(async () => (server = await startServer()));
@@ -77,5 +77,40 @@ test("the 11th /rejoin within a minute from one address is refused with 429 and 
     assert.equal((await fetch(`${own.http}/healthz`)).status, 200, "and the server goes on");
   } finally {
     await own.stop();
+  }
+});
+
+// GET /tables (review U5): who is waiting, so the home screen can say so before
+// anyone clicks Play. Only public go_custom tables with a free seat count.
+const { Client } = colyseus();
+const sit = (room, options) => new Client(server.ws).create(room, { playerKey: `tables-${Math.random().toString(36).slice(2)}`, ...options });
+const tablesNow = async () => {
+  const res = await fetch(`${server.http}/tables`);
+  assert.equal(res.status, 200);
+  return (await res.json()).tables;
+};
+
+test("GET /tables lists no table when nobody is waiting", async () => {
+  assert.deepEqual(await tablesNow(), []);
+});
+
+test("GET /tables counts the people waiting at each board size, and a table is gone once its game starts", async () => {
+  const first = await sit("go_custom", { name: "Waiting", size: 19 });
+  const debug = await sit("go_debug", { name: "Debugging", size: 13 });
+  try {
+    await until(async () => (await tablesNow()).length === 1, 5000, "the table to be listed");
+    assert.deepEqual(await tablesNow(), [{ size: 19, waiting: 1, tables: 1 }], "one person at 19x19; the debug table is not offered");
+    const second = await new Client(server.ws).joinById(first.roomId, { playerKey: `tables-${Date.now()}`, name: "Second" });
+    try {
+      await until(async () => (await tablesNow())[0]?.waiting === 2, 5000, "the second person to be counted");
+      first.send("addBots", { ids: ["pure", "pure"] });
+      await until(() => first.state.status === "playing", 5000, "the game to start");
+      await until(async () => (await tablesNow()).length === 0, 5000, "the started game to leave the list");
+    } finally {
+      await leaveQuietly(second);
+    }
+  } finally {
+    await leaveQuietly(first);
+    await leaveQuietly(debug);
   }
 });

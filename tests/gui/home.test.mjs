@@ -3,7 +3,7 @@
 // page and run in order.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { wait } from "../lib/harness.mjs";
+import { colyseus, leaveQuietly, wait } from "../lib/harness.mjs";
 import { guiRig } from "./page.mjs";
 
 let rig, b;
@@ -143,5 +143,26 @@ test("home: How to play opens the general rules; Escape closes them and they cou
   await b.waitFor("!welcomeEl.open", 3000, "the dialog to close");
   // The dialog's close event, which marks it seen, comes a task after `open` turns false.
   await b.waitFor("localStorage.getItem('gocalypse.welcomeSeen') === '1'", 2000, "the welcome marked seen");
+  rig.assertClean("the home screen");
+});
+
+test("home: someone waiting at another board size is shown, and picking them sets that size", async () => {
+  // A person at a 19x19 table on the rig's server, as the home screen sees them through GET /tables.
+  const { Client } = colyseus();
+  const waiting = await new Client(rig.server.ws).create("go_custom", { name: "Early", playerKey: `early-${Date.now()}`, size: 19 });
+  try {
+    await b.waitFor("/1 waiting at 19.19/.test(document.getElementById('lobby-presence').textContent)", 12000, "the presence line to name the table");
+    assert.equal(await b.ev("document.getElementById('lobby-presence').hidden"), false);
+    assert.equal(await b.ev("boardSize"), 13, "the pick is still the default");
+    await rig.clickEl("#lobby-presence button");
+    assert.equal(await b.ev("boardSize"), 19, "picking the table picks its size");
+    assert.match(await b.ev("joinButton.textContent"), /19.19/, "the Play label follows");
+    assert.match(await b.ev("joinButton.textContent"), /1 waiting/, "and says who is there");
+  } finally {
+    await leaveQuietly(waiting);
+  }
+  await b.waitFor("/Nobody is waiting/.test(document.getElementById('lobby-presence').textContent)", 12000, "the line to say nobody waits once they left");
+  assert.equal(await b.ev("joinButton.textContent"), "Play online · 19×19", "no one to count any more");
+  await b.ev("setBoardSize(13); true");
   rig.assertClean("the home screen");
 });
