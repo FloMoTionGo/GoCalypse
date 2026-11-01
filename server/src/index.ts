@@ -93,8 +93,12 @@ const gameServer = new Server({
 // Quick join finds only a waiting table of the board size asked for (13, 19 or 25).
 gameServer.define("go_custom", GoRoom).filterBy(["size"]);
 // Separate matchmaking pool for web/debug.html: same rules, but everyone
-// starts with enough fireflies to try every market item.
-gameServer.define("go_debug", GoDebugRoom).filterBy(["size"]);
+// starts with enough fireflies to try every market item. Local servers and
+// staging have it (DEBUG_ROOMS=on in fly.staging.toml); production does not,
+// so nobody plays a 1200-firefly table into the public replays.
+const debugRooms = process.env.DEBUG_ROOMS === "on" || process.env.NODE_ENV !== "production";
+if (debugRooms) gameServer.define("go_debug", GoDebugRoom).filterBy(["size"]);
+console.log(`Debug tables (go_debug): ${debugRooms ? "on" : "off"}`);
 
 /** Games that were under way when the server last stopped come back as rooms of their own. */
 async function restoreGames() {

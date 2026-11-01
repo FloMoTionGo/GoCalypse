@@ -13,6 +13,9 @@ separate rooms. They join `go_debug` rooms: same rules, separate matchmaking,
 everyone starts with 1200 fireflies so the whole market can be tried, and the
 weather die is rolled every 6 turns instead of 20.
 `?server=...` in `debug.html`'s own URL overrides which server all 4 point at.
+Debug tables exist on local servers and on staging (`DEBUG_ROOMS = "on"` in
+`fly.staging.toml`); production has none, so no 1200-firefly game lands in
+the public replays or teaches the haiku where the board is quiet.
 
 **Art:** a 5-colour pixel scene (a wooden pier standing in a lantern river,
 water on all four sides) rendered in software from sprites defined in code:
@@ -398,6 +401,13 @@ narrow the list to the days the games ended. Pick one to play it back:
 step with the buttons or the arrow keys, jump with Home / End or the slider,
 or press Play (Space). A replay shows the whole board, fog and mist included,
 so a game appears there only once it is over.
+
+Finished games stay on the server with the names at the table, the newest
+500 (`HISTORY_MAX`); the Replays dialog and the welcome screen say so.
+**Removing a game:** on the machine that holds the data,
+`DATA_DIR=/data node build/tools/forgetGame.js <game id>` deletes it (the id
+is the one in the replay's URL and in `GET /history`). A server that is
+running keeps the game in its list until its next restart.
 
 ## Architecture
 

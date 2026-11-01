@@ -1319,7 +1319,8 @@ function openWelcome(state) {
     `Put a stone on one, by a move or anything that lands a stone, and the line is yours for good, even if the ` +
     `stone is taken later. Your first line of a haiku brings its card; each further line raises its power, and the ` +
     `whole haiku is level 3. Play the card once, at the level it has reached: early, or wait for more lines. ` +
-    `A line found after you played its card is worth ${HAIKU_LATE_FIREFLIES} fireflies. Haiku cards don't count toward your 5.`;
+    `A line found after you played its card is worth ${HAIKU_LATE_FIREFLIES} fireflies. Haiku cards don't count toward your 5. ` +
+    `Finished games stay on the server with the names at the table, the newest 500, for the Replays on the home screen.`;
   rebuild(document.getElementById("welcome-haiku-list"), "haiku", () => {
     for (const h of HAIKU) {
       const li = document.createElement("li");

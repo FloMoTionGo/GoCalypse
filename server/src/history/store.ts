@@ -90,6 +90,14 @@ export class HistoryStore {
     return isGameId(id) && this.games().has(id) ? this.read(id) : undefined;
   }
 
+  /** Forgets a game: its file and its place in the list. True when there was one (tools/forgetGame.ts). */
+  delete(id: string): boolean {
+    if (!isGameId(id) || !this.games().has(id)) return false;
+    fs.rmSync(this.file(id), { force: true });
+    this.games().delete(id);
+    return true;
+  }
+
   list(query: ListQuery = {}): { games: GameSummary[]; total: number } {
     const from = query.from ?? -Infinity;
     const to = query.to ?? Infinity;

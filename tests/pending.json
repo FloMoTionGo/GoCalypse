@@ -1,10 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    { "test": "the heat counts go_custom games only", "feature": "debug-gate", "tier": "server", "since": "2026-11-01" },
-    { "test": "go_debug is not offered when NODE_ENV is production and DEBUG_ROOMS is off", "feature": "debug-gate", "tier": "integration", "since": "2026-11-01" },
-    { "test": "history store: deleting a game removes its file and takes it out of the list", "feature": "forget-game", "tier": "server", "since": "2026-11-01" },
-    { "test": "history store: deleting an unknown id changes nothing", "feature": "forget-game", "tier": "server", "since": "2026-11-01" },
-    { "test": "replays: the dialog says that games and the names at the table are kept", "feature": "forget-game", "tier": "gui", "since": "2026-11-01" }
-  ]
+  "pending": []
 }
