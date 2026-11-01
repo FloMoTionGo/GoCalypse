@@ -14,8 +14,8 @@ function game(): GoState {
     const p = new PlayerState();
     p.name = `P${color}`;
     p.color = color;
-    p.sessionId = `session-${color}`;
     p.bot = color === 4;
+    p.sessionId = p.bot ? `bot:${color}` : `session-${color}`; // seat 4 as the server seats a bot
     state.players.push(p);
   });
   state.status = "playing";

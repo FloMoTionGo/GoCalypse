@@ -37,7 +37,8 @@ export type Noise = "bots" | "debug";
 
 /**
  * Test noise, not a match: a game from a debug table, or one nobody human
- * played (every seat a bot by the end). Such a game is never kept for replays
+ * played (every seat filled by the server from the start; a person who left
+ * before the end still played, state/GoState.ts serverSeated). Such a game is never kept for replays
  * and teaches the haiku nothing. `anyBot` widens "bots" to a table where any
  * seat was a bot (purge --any-bot).
  */

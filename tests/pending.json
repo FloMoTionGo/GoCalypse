@@ -1,17 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "history room: a game whose people all left before the end is kept: they played it",
-      "feature": "history-noise-by-seating",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "history room: the record calls a seat a bot only when the server seated it",
-      "feature": "history-noise-by-seating",
-      "tier": "server",
-      "since": "2026-11-01"
-    }
-  ]
+  "pending": []
 }

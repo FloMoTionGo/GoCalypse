@@ -1,6 +1,6 @@
 import { AuthContext, Client, Delayed, ErrorCode, Room, ServerError } from "colyseus";
 import { ArraySchema, StateView } from "@colyseus/schema";
-import { BoardEffect, CreatureState, GoState, HaikuPoint, MarketItem, PlayerState } from "../state/GoState";
+import { BOT_SESSION, BoardEffect, CreatureState, GoState, HaikuPoint, MarketItem, PlayerState } from "../state/GoState";
 import { randomGuestName, sanitizeName } from "../util/usernames";
 import { addressLimits, MessageBudget } from "../util/limits";
 import { clientIp } from "../util/net";
@@ -506,7 +506,7 @@ export class GoRoom extends Room<GoState> {
 
   /**
    * Keeps the finished (or abandoned) game for replays, unless it is test noise
-   * (a debug table, or nobody human at the table: history/store.ts noiseOf).
+   * (a debug table, or no person ever at the table: history/store.ts noiseOf).
    * A failed write costs the replay, never the game.
    */
   private saveHistory(outcome: Outcome) {
@@ -626,7 +626,7 @@ export class GoRoom extends Room<GoState> {
     bot.color = free[this.rng.below(free.length)];
     // Not a session id any socket can hold, so the client's "(you)" test
     // (main.js: player.sessionId === room.sessionId) can never match a bot.
-    bot.sessionId = `bot:${bot.color}`;
+    bot.sessionId = `${BOT_SESSION}${bot.color}`;
     bot.bot = true;
     bot.name = this.freeName(style.name);
     bot.fireflies = this.startingFireflies;

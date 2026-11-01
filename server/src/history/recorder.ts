@@ -1,4 +1,4 @@
-import type { GoState } from "../state/GoState";
+import { serverSeated, type GoState } from "../state/GoState";
 
 /**
  * A game's record, for replays: one frame per thing that happened on the board
@@ -26,7 +26,7 @@ export interface Frame {
 export interface PlayerRecord {
   name: string;
   color: number;
-  bot: boolean;
+  bot: boolean; // seated by the server from the start; a person who left before the end is still a person here
   place: number; // 0 for a game that never finished
   finalScore: number;
   tiebreak: number;
@@ -164,7 +164,7 @@ export class GameRecorder {
       players: byColor(state).map((p) => ({
         name: p.name,
         color: p.color,
-        bot: p.bot,
+        bot: serverSeated(p),
         place: scored ? p.place : 0,
         finalScore: scored ? p.finalScore : 0,
         tiebreak: scored ? p.tiebreak : 0,

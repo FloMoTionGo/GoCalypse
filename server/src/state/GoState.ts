@@ -15,7 +15,7 @@ export class PlayerState extends Schema {
   @type("string") name: string = "";
   @type("number") color: number = 0; // 1-4, assigned on join
   @type("boolean") connected: boolean = true;
-  @type("boolean") bot: boolean = false; // a seat played by the server, not a socket
+  @type("boolean") bot: boolean = false; // a seat played by the server, not a socket (from the start, or since its person left)
   @type("boolean") passed: boolean = false; // passed in the current run of passes (reset by any stone or item)
   // What the player has lit and not yet used: their own business (a Kite peeks).
   @view() @type("number") jar: number = 0; // turns of double capture fireflies left (Firefly Jar)
@@ -206,3 +206,13 @@ export class GoState extends Schema {
   @type(StormState) storm = new StormState();
   @type(RiverState) river = new RiverState();
 }
+
+/** Session ids the server gives the seats it fills with bots (GoRoom.addBot): no socket can hold one. */
+export const BOT_SESSION = "bot:";
+
+/**
+ * Whether the server seated this player as a bot from the start. A person whose
+ * seat a bot plays on (they left, or drifted off) keeps their own session id,
+ * and the game stays theirs: history/recorder.ts records the seat as a person's.
+ */
+export const serverSeated = (p: { sessionId: string }) => p.sessionId.startsWith(BOT_SESSION);
