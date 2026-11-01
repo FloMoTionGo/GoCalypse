@@ -3,3 +3,5 @@
 tests/lib/floor-guard.mjs
 # The guard's own tests: fixtures full of the moves it must catch.
 tests/tools/guards.test.mjs
+# Third-party bundles vendored into the client: colyseus.js's own code, not ours.
+web/vendor/colyseus.js

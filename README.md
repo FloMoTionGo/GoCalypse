@@ -442,7 +442,9 @@ so a game appears there only once it is over.
     (summaries, newest first; times in ms) and `GET /history/:id`. On by
     default; `HISTORY=off` records nothing.
 - `web/` — browser client, plain HTML/CSS/JS (no build step, no framework),
-  using `colyseus.js` from a CDN `<script>` tag. `main.js` renders the pixel
+  with `colyseus.js` vendored in `web/vendor/` (the version `tests/package.json`
+  pins; `tests/web/page.test.mjs` keeps the two equal) under a Content Security
+  Policy that allows only the site's own scripts. `main.js` renders the pixel
   scene, player list, Night Market and the hand of item cards
   under the board straight off the synced room state (`room.onStateChange`).
   `replay.js` (pure, tested in Node) and `replayView.js` (the Replays dialog)

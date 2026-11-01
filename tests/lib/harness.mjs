@@ -176,12 +176,6 @@ function browserPath() {
   return found;
 }
 
-/** The colyseus.js the page loads from a CDN, served from tests/node_modules instead: offline, and pinned. */
-function localColyseusBundle() {
-  const file = path.join(path.dirname(require.resolve("colyseus.js/package.json")), "dist", "colyseus.js");
-  return fs.readFileSync(file).toString("base64");
-}
-
 /**
  * Starts a headless browser with a throwaway profile and attaches to its page.
  * Every console error, uncaught exception and failed request on the page is
@@ -242,20 +236,9 @@ export async function launchBrowser({ width = 1400, height = 1000 } = {}) {
   on("Log.entryAdded", (p) => {
     if (p.entry.level === "error") problems.push(`log: ${p.entry.text} ${p.entry.url || ""}`.trim());
   });
-  const bundle = localColyseusBundle();
-  on("Fetch.requestPaused", (p) =>
-    cdp("Fetch.fulfillRequest", {
-      requestId: p.requestId,
-      responseCode: 200,
-      responseHeaders: [{ name: "Content-Type", value: "text/javascript" }],
-      body: bundle,
-    }).catch(() => {})
-  );
-
   await cdp("Page.enable");
   await cdp("Runtime.enable");
   await cdp("Log.enable");
-  await cdp("Fetch.enable", { patterns: [{ urlPattern: "*cdn.jsdelivr.net/npm/colyseus.js*" }] });
   await cdp("Page.bringToFront");
 
   /** Evaluates an expression in the page; promises are awaited, the value comes back as JSON. */

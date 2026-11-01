@@ -122,8 +122,9 @@ reads it from there.
   `lastState`, `myPlayer`, `board`, `scene` and so on) can be read with
   `b.ev(...)`. Act through real input (`rig.clickBoard`, `rig.clickLobby`,
   `b.key`) and check the DOM and that state. End with `rig.assertClean()`:
-  console errors fail the test. The colyseus.js the page loads from its CDN is
-  served from `tests/node_modules`, so the GUI tier runs offline.
+  console errors fail the test, and so does a Content Security Policy
+  violation. The page's colyseus.js is vendored in `web/vendor/` (the version
+  `tests/package.json` pins), so the GUI tier runs offline.
 - Tests in one file share their server and page and run in order. Keep each
   file's set-up in `before()`.
 

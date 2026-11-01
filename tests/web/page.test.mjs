@@ -28,7 +28,7 @@ test("the vendored colyseus.js is the version tests/package.json pins", () => {
 
 test("index.html declares a Content Security Policy that allows no inline script", () => {
   const page = html();
-  const m = page.match(/<meta\s+http-equiv=["']Content-Security-Policy["']\s+content=["']([^"']+)["']/i);
+  const m = page.match(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"/i); // the policy itself holds single quotes
   assert.ok(m, "a Content-Security-Policy meta tag");
   const directives = Object.fromEntries(
     m[1].split(";").map((d) => d.trim()).filter(Boolean).map((d) => { const [name, ...values] = d.split(/\s+/); return [name, values]; })

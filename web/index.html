@@ -2,10 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <!-- Everything the page runs or loads is its own (web/vendor holds colyseus.js, pinned); only the game
+       server, which the Server field may point anywhere, is open. Sprites become data: URLs (spriteUrl). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src *; base-uri 'none'; form-action 'none'" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GoCalypse</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/colyseus.js@0.16.22/dist/colyseus.js"></script>
+  <!-- colyseus.js 0.16.22, the file tests/package.json pins; tests/web/page.test.mjs keeps the two equal. -->
+  <script src="vendor/colyseus.js"></script>
   <script src="sprites.js"></script>
   <script src="pixelScene.js"></script>
   <script src="replay.js"></script>
