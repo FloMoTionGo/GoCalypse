@@ -58,23 +58,24 @@ export function tempDir(label) {
  * answered by this server's own process (healthz sends its pid), and a server
  * that lost its port is started again on another.
  */
-export async function startServer({ dataDir = tempDir("data"), port } = {}) {
+export async function startServer({ dataDir = tempDir("data"), port, env = {} } = {}) {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await startServerOnce(dataDir, port || (await freePort()));
+      return await startServerOnce(dataDir, port || (await freePort()), env);
     } catch (err) {
       if (port || attempt >= 3 || !err.lostPort) throw err;
     }
   }
 }
 
-async function startServerOnce(dataDir, port) {
+/** `env` holds extra variables for this server alone (the abuse caps, DEBUG_ROOMS). */
+async function startServerOnce(dataDir, port, env) {
   const entry = path.join(SERVER_BUILD, "index.js");
   if (!fs.existsSync(entry)) throw new Error(`${entry} is missing: build the server first (node tests/run.mjs builds it)`);
   let log = "";
   const child = spawn(process.execPath, [entry], {
     cwd: path.dirname(SERVER_BUILD),
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir },
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stdout.on("data", (d) => (log += d));

@@ -1,4 +1,53 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "a counter refuses the N+1th room for an address and frees it when a room closes",
+      "feature": "abuse-limits",
+      "tier": "server",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "a counter refuses more sockets than an address may hold, and more reservations than its window allows",
+      "feature": "abuse-limits",
+      "tier": "server",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "an address list from a proxy counts by its first entry",
+      "feature": "abuse-limits",
+      "tier": "server",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "a message bucket lets a burst of 40 through and drops the 41st within the same second",
+      "feature": "abuse-limits",
+      "tier": "server",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "the bucket refills at 20 a second",
+      "feature": "abuse-limits",
+      "tier": "server",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "a third table from one address is refused while two are open, and says so",
+      "feature": "abuse-limits",
+      "tier": "integration",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "the 4th socket from one address is refused when the cap is 3",
+      "feature": "abuse-limits",
+      "tier": "integration",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "a client that floods 200 moves in a second gets one notice and the room still answers it afterwards",
+      "feature": "abuse-limits",
+      "tier": "integration",
+      "since": "2026-11-01"
+    }
+  ]
 }
