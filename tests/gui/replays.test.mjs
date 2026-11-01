@@ -220,3 +220,9 @@ test("replays: a game played on this server shows up in the list and replays its
     for (const r of rooms) await leaveQuietly(r);
   }
 });
+
+test("replays: the dialog says that games and the names at the table are kept", async () => {
+  const words = await b.ev("document.querySelector('#replays-list-pane .welcome-tagline').textContent");
+  assert.match(words, /names at the table/, `the list's own words: "${words}"`);
+  assert.match(words, /newest 500/);
+});

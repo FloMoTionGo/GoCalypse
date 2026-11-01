@@ -50,6 +50,33 @@ test("the 4th socket from one address is refused when the cap is 3", async () =>
   assert.match(why, /connections/i, `it says why: ${why}`);
 });
 
+// Debug tables (go_debug, every item from the first turn) exist for local and
+// staging servers only, unless DEBUG_ROOMS says otherwise (T9).
+for (const [what, env, offered] of [
+  ["go_debug is not offered when NODE_ENV is production and DEBUG_ROOMS is off", { NODE_ENV: "production" }, false],
+  ["go_debug is offered when DEBUG_ROOMS is on even in production", { NODE_ENV: "production", DEBUG_ROOMS: "on" }, true],
+]) {
+  test(what, async () => {
+    const own = await startServer({ env });
+    const rooms = [];
+    try {
+      const custom = await new Client(own.ws).joinOrCreate("go_custom", { name: "Prod" });
+      rooms.push(custom);
+      let debug = null;
+      try {
+        debug = await new Client(own.ws).joinOrCreate("go_debug", { name: "Dbg" });
+        rooms.push(debug);
+      } catch (err) {
+        assert.equal(offered, false, `go_debug refused: ${err.message}`);
+      }
+      assert.equal(debug !== null, offered);
+    } finally {
+      for (const r of rooms) await leaveQuietly(r);
+      await own.stop();
+    }
+  });
+}
+
 test("a client that floods 200 moves in a second gets one notice and the room still answers it afterwards", async () => {
   for (const r of open.splice(0)) await leaveQuietly(r);
   await wait(500);

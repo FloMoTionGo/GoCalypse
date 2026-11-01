@@ -140,6 +140,28 @@ test("history store: an id that isn't a game id never reaches the disk", () => {
   assert.throws(() => store.save(record("../escape", T0)));
 });
 
+test("history store: deleting a game removes its file and takes it out of the list", () => {
+  const { HistoryStore } = storeModule();
+  const dir = folder();
+  const store = new HistoryStore(dir);
+  store.save(record("game-gone001", T0));
+  store.save(record("game-stay001", T0 + DAY));
+  assert.equal(store.delete("game-gone001"), true);
+  assert.equal(fs.existsSync(path.join(dir, "game-gone001.json")), false, "the file is gone");
+  assert.equal(store.get("game-gone001"), undefined);
+  assert.deepEqual(store.list().games.map((g: any) => g.id), ["game-stay001"]);
+});
+
+test("history store: deleting an unknown id changes nothing", () => {
+  const { HistoryStore } = storeModule();
+  const dir = folder();
+  const store = new HistoryStore(dir);
+  store.save(record("game-stay002", T0));
+  assert.equal(store.delete("game-never001"), false);
+  assert.equal(store.delete("../escape"), false, "and a bad id is never a path");
+  assert.deepEqual(store.list().games.map((g: any) => g.id), ["game-stay002"]);
+});
+
 test("history store: the server's own store lives in DATA_DIR/history", () => {
   const { historyDir } = storeModule();
   const before = process.env.DATA_DIR;
