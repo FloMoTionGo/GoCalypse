@@ -42,6 +42,8 @@
       <!-- Joins like the board's Start point; main.js sets its label ("Play online" / "Play with N bots"). -->
       <button id="join-button" type="button">Play online</button>
       <p id="lobby-status" class="status" role="status"></p>
+      <!-- Who is waiting on the server right now (GET /tables); main.js fills it while the home screen shows. -->
+      <p id="lobby-presence" class="hint" hidden></p>
 
       <!-- main.js keeps its bot list here, empty while hidden; the board drives the picks. -->
       <section id="lobby-bots" hidden>

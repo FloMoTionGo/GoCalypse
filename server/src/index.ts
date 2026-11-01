@@ -4,6 +4,7 @@ import express from "express";
 import { matchMaker, Server } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { findRoomForKey, GoDebugRoom, GoRoom } from "./rooms/GoRoom";
+import { summarizeTables } from "./rooms/tables";
 import { deleteSnapshot, loadSnapshots, queueRestore } from "./state/persist";
 import { historyRoutes } from "./history/routes";
 import { historyStore } from "./history/store";
@@ -57,6 +58,19 @@ function rejoinAllowed(ip: string): boolean {
 
 // The pid lets the test harness tell its own server from another one that took the port first.
 app.get("/healthz", (_req, res) => res.status(200).set("X-Pid", String(process.pid)).send("ok"));
+
+// Who is waiting right now, for the home screen's presence line (rooms/tables.ts):
+// public go_custom tables with a person at them and a seat free, per board size.
+app.get("/tables", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    const rooms = await matchMaker.query({ name: "go_custom", locked: false });
+    res.json({ tables: summarizeTables(rooms) });
+  } catch (err) {
+    console.error("/tables: could not list the rooms:", err);
+    res.status(503).json({ error: "The server can't say who is waiting right now." });
+  }
+});
 
 // Finished games, for the home screen's Replays (history/routes.ts).
 app.use(historyRoutes(historyStore));

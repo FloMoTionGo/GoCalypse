@@ -454,6 +454,8 @@ only some seats were bots. Same restart note as above.
     room in `bots.test.ts`. A client seats them with the `addBots` message.
   - `src/rooms/GoRoom.ts` — room lifecycle: join/leave, turn order, move
     validation, powerup dispatch.
+  - `src/rooms/tables.ts` — the matchmaker's listings summed into who is
+    waiting at which board size, for `GET /tables` and the home screen.
   - `src/history/` — replays. `recorder.ts` keeps a frame per stone, item,
     pass or storm (only the cells that changed); it rides in the room's
     snapshot while the game is on and goes to `store.ts` when it ends: one
@@ -483,7 +485,10 @@ npm install
 npm run dev
 ```
 
-Server listens on `ws://localhost:2567`. Health check at `/healthz`.
+Server listens on `ws://localhost:2567`. Health check at `/healthz`;
+`GET /tables` says who is waiting (people per board size at public tables
+with a free seat), which the home screen polls every 4 s for its
+"Waiting now" line and the Play label.
 
 Tests: `node tests/run.mjs` runs every tier: server units, web units,
 integration against a live server, and the GUI in headless Edge/Chrome.

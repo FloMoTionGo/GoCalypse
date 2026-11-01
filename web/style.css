@@ -160,6 +160,8 @@ h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
 #lobby #join-button:disabled { background: var(--ink); box-shadow: inset 0 0 0 var(--px) var(--slate); color: var(--mist); }
 #lobby-status { text-align: center; color: var(--mist); margin-top: calc(4.5 * var(--px)); line-height: 1.2; }
 #lobby-status.error { color: var(--amber); }
+#lobby-presence { text-align: center; margin-top: calc(3 * var(--px)); line-height: 1.4; }
+#lobby-presence .link-button { font-size: inherit; padding: 0 calc(1.5 * var(--px)); }
 /* One quiet row: How to play · Server · GitHub. */
 #home-footer { display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap; gap: calc(1.8 * var(--px)) calc(4.5 * var(--px)); margin: calc(9 * var(--px)) auto 0; font-size: max(var(--min-font), calc(5.85 * var(--px))); line-height: 1.2; color: var(--mist); }
 #home-footer .sep { color: var(--slate); }

@@ -137,7 +137,7 @@ interface AddBotsMessage {
 }
 
 const BOARD_SIZE = 13; // the default table
-const BOARD_SIZES = [13, 19, 25]; // the tables one may ask for (ideas.md §11.10)
+export const BOARD_SIZES = [13, 19, 25]; // the tables one may ask for (ideas.md §11.10)
 
 /** The board size a create asked for, if it is one of BOARD_SIZES; any other value is 13x13 (never trust client input). */
 function boardSizeOf(asked: unknown): number {

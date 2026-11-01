@@ -1,41 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "tables: the people waiting are counted per board size, smallest board first",
-      "feature": "tables-presence",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "tables: a locked, private, full or empty table is nobody to join",
-      "feature": "tables-presence",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "tables: a table that never said its size is the 13x13 everyone knows, and a strange size is left out",
-      "feature": "tables-presence",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "GET /tables lists no table when nobody is waiting",
-      "feature": "tables-presence",
-      "tier": "integration",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "GET /tables counts the people waiting at each board size, and a table is gone once its game starts",
-      "feature": "tables-presence",
-      "tier": "integration",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "home: someone waiting at another board size is shown, and picking them sets that size",
-      "feature": "tables-presence",
-      "tier": "gui",
-      "since": "2026-11-01"
-    }
-  ]
+  "pending": []
 }

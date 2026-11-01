@@ -188,6 +188,7 @@ serverInput.addEventListener("change", () => {
     // No storage: the typed server holds for this visit only.
   }
   renderServerNote();
+  pollTables();
 });
 renderServerNote();
 if (hashParams.has("name")) nameInput.value = hashParams.get("name");
@@ -328,6 +329,59 @@ function renderServerNote() {
   document.getElementById("server-menu").classList.toggle("off-default", off);
 }
 
+// Who is waiting (review U5): GET /tables every few seconds while the home screen
+// shows, so "Play online" says whether anyone is there before it is clicked. The
+// line under Play names every table with people at it; a table at another board
+// size is a button that picks that size, so one click lines you up with them.
+const presenceEl = document.getElementById("lobby-presence");
+const TABLES_EVERY = 4000;
+let tablesWaiting = null; // the server's list, or null while unknown (not asked yet, or unreachable)
+let tablesTimer = 0;
+
+async function pollTables() {
+  clearTimeout(tablesTimer);
+  if (lobbyEl.hidden || document.hidden) return; // nothing to tell; showGame and visibilitychange ask again
+  try {
+    const res = await fetch(`${serverEndpoint().replace(/^ws/, "http")}/tables`);
+    if (!res.ok) throw new Error(`the server answered ${res.status}`);
+    tablesWaiting = (await res.json()).tables || [];
+  } catch {
+    tablesWaiting = null; // an old server, or none: the line stays away rather than guessing
+  }
+  renderPresence();
+  tablesTimer = setTimeout(pollTables, TABLES_EVERY);
+}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) pollTables();
+});
+
+/** The people waiting at the board size picked now, for the Play label. */
+function waitingAtPick() {
+  return tablesWaiting?.find((t) => t.size === boardSize)?.waiting || 0;
+}
+
+function renderPresence() {
+  presenceEl.replaceChildren();
+  presenceEl.hidden = tablesWaiting === null;
+  if (tablesWaiting === null) return renderLobbyBots();
+  if (!tablesWaiting.length) {
+    presenceEl.textContent = "Nobody is waiting right now. Bring bots, or open a table and wait.";
+  } else {
+    presenceEl.append("Waiting now: ");
+    tablesWaiting.forEach((t, i) => {
+      if (i) presenceEl.append(" · ");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "link-button";
+      b.textContent = `${t.waiting} waiting at ${t.size}×${t.size}`;
+      b.title = t.size === boardSize ? "Play online joins them" : `Pick ${t.size}×${t.size} for the next table`;
+      b.addEventListener("click", () => setBoardSize(t.size));
+      presenceEl.append(b);
+    });
+  }
+  renderLobbyBots();
+}
+
 /**
  * Asks the server for this tab's seat in a game under way and sits back down.
  * False when there is no such game; throws when the server can't be reached.
@@ -458,6 +512,7 @@ function showGame(on) {
   if (on) return;
   for (const v of ["--stage-w", "--stage-h", "--scene-w"]) document.documentElement.style.removeProperty(v);
   if (window.GoLogo) window.GoLogo.fit();
+  pollTables();
 }
 
 async function connect() {
@@ -1587,7 +1642,8 @@ function renderLobbyBots() {
   }
   const n = pickedTotal();
   const size = boardSize === 13 ? "" : ` · ${boardSize}×${boardSize}`; // 13x13 is the table everyone knows
-  joinButton.textContent = (n === 0 ? "Play online" : `Play with ${n} bot${n === 1 ? "" : "s"}`) + size;
+  const waiting = n === 0 && waitingAtPick() ? ` · ${waitingAtPick()} waiting` : ""; // bots mean a table of your own
+  joinButton.textContent = (n === 0 ? "Play online" : `Play with ${n} bot${n === 1 ? "" : "s"}`) + size + waiting;
 }
 
 function renderWelcomeBots(state) {
@@ -1629,6 +1685,7 @@ function seatPickedBots() {
 }
 
 renderLobbyBots();
+pollTables();
 
 function overlayKey(o) {
   return `${o.kind}:${o.x},${o.y}`;
