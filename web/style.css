@@ -170,6 +170,8 @@ h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
 #server-menu summary::after { content: " \25BE"; }
 #server-menu[open] summary::after { content: " \25B4"; }
 #server-menu summary:hover, #server-menu summary:focus-visible { color: var(--amber); }
+/* Not the usual server (main.js renderServerNote): the entry names the host, in amber, so a link to another server is never silent. */
+#server-menu.off-default summary { color: var(--amber); }
 /* The open server field hangs below the footer, over the page round the stage. */
 #lobby #server-menu input { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: calc(135 * var(--px)); max-width: 80vw; margin-top: calc(2.7 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); padding: calc(2.7 * var(--px)) calc(3.6 * var(--px)); }
 

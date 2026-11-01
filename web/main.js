@@ -164,9 +164,32 @@ function setBoardSize(n) {
   renderLobbyBots();
 }
 const ROOM_NAME = hashParams.get("room") === "go_debug" ? "go_debug" : "go_custom";
-// ?server= too, like debug.html, for hand-written links (e.g. to a staging server).
+// The game server: a link's #server= (?server= too, like debug.html, for hand-written links
+// to a staging server) comes first, then an endpoint typed into the Server field on an
+// earlier visit (remembered in this browser; a link's never is), else the field's own
+// default. The footer names it whenever it isn't the usual server (renderServerNote).
+const SERVER_STORE = "gocalypse.server";
+const DEFAULT_SERVER = serverInput.defaultValue.trim();
 const serverParam = hashParams.get("server") || new URLSearchParams(location.search).get("server");
 if (serverParam) serverInput.value = serverParam;
+else {
+  try {
+    const kept = localStorage.getItem(SERVER_STORE);
+    if (kept) serverInput.value = kept;
+  } catch {
+    // No storage: the usual server.
+  }
+}
+serverInput.addEventListener("change", () => {
+  try {
+    if (serverEndpoint() === DEFAULT_SERVER) localStorage.removeItem(SERVER_STORE);
+    else localStorage.setItem(SERVER_STORE, serverEndpoint());
+  } catch {
+    // No storage: the typed server holds for this visit only.
+  }
+  renderServerNote();
+});
+renderServerNote();
 if (hashParams.has("name")) nameInput.value = hashParams.get("name");
 if (hashParams.has("autojoin")) {
   joinButton.disabled = true; // connect() is already on its way
@@ -232,7 +255,7 @@ document.getElementById("leave-button").addEventListener("click", () => {
   if (!confirm(`Leave the table? ${why}`)) return;
   leaving = true;
   try {
-    sessionStorage.removeItem(PLAYER_KEY_STORE);
+    sessionStorage.removeItem(playerKeyStore());
   } catch {}
   if (room) room.leave(true);
 });
@@ -257,9 +280,13 @@ requestAnimationFrame(frame);
 // A secret this tab keeps (it survives a refresh, not closing the tab) and shows
 // the server on every join. The server ties it to the seat, so a dropped
 // connection or a restarted server can hand the same seat back (see /rejoin in
-// server/src/index.ts). Debug panels share one origin, hence the name in the key.
-const PLAYER_KEY_STORE = `gocalypse.playerKey.${hashParams.get("name") || ""}`;
-let memoryKey = "";
+// server/src/index.ts). One secret per server host: a link naming another server
+// (#server=) gets a key of its own and never sees the usual server's. Debug
+// panels share one origin, hence the name in the key.
+function playerKeyStore() {
+  return `gocalypse.playerKey.${serverHost(serverEndpoint())}.${hashParams.get("name") || ""}`;
+}
+const memoryKeys = new Map(); // store name -> key, when storage is blocked
 
 // crypto.randomUUID only exists in secure contexts (https or localhost); a plain
 // http://<LAN-IP> page falls back to crypto.getRandomValues, which every browser has.
@@ -270,17 +297,35 @@ function newKey() {
 }
 
 function playerKey() {
+  const store = playerKeyStore();
   try {
-    let key = sessionStorage.getItem(PLAYER_KEY_STORE);
-    if (!key) sessionStorage.setItem(PLAYER_KEY_STORE, (key = newKey()));
+    let key = sessionStorage.getItem(store);
+    if (!key) sessionStorage.setItem(store, (key = newKey()));
     return key;
   } catch {
-    return memoryKey || (memoryKey = newKey()); // storage blocked: rejoin works until refresh
+    if (!memoryKeys.has(store)) memoryKeys.set(store, newKey()); // storage blocked: rejoin works until refresh
+    return memoryKeys.get(store);
   }
 }
 
 function serverEndpoint() {
   return serverInput.value.trim() || "ws://localhost:2567";
+}
+
+/** The host of an endpoint, as the key's name and the footer use it: "gocalypse.fly.dev", "127.0.0.1:2567". */
+function serverHost(endpoint) {
+  try {
+    return new URL(endpoint).host || endpoint;
+  } catch {
+    return endpoint.replace(/[^\w.:-]/g, "_"); // no scheme, or not a URL at all: the text itself
+  }
+}
+
+/** The footer's Server entry names the host whenever the endpoint isn't the usual server. */
+function renderServerNote() {
+  const off = serverEndpoint() !== DEFAULT_SERVER;
+  document.querySelector("#server-menu summary").textContent = off ? `Server: ${serverHost(serverEndpoint())}` : "Server";
+  document.getElementById("server-menu").classList.toggle("off-default", off);
 }
 
 /**

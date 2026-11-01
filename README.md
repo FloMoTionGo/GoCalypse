@@ -444,7 +444,10 @@ so a game appears there only once it is over.
 - `web/` — browser client, plain HTML/CSS/JS (no build step, no framework),
   with `colyseus.js` vendored in `web/vendor/` (the version `tests/package.json`
   pins; `tests/web/page.test.mjs` keeps the two equal) under a Content Security
-  Policy that allows only the site's own scripts. `main.js` renders the pixel
+  Policy that allows only the site's own scripts. The footer's Server field
+  remembers a typed endpoint and names any server that isn't the usual one; the
+  seat secret a tab holds is kept per server host, so a link's `#server=` can
+  never collect the key for the usual server. `main.js` renders the pixel
   scene, player list, Night Market and the hand of item cards
   under the board straight off the synced room state (`room.onStateChange`).
   `replay.js` (pure, tested in Node) and `replayView.js` (the Replays dialog)
