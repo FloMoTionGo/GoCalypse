@@ -1,4 +1,23 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "server: the seat secret is kept per server host, so another host gets another key",
+      "feature": "key-per-server",
+      "tier": "gui",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "server: a link naming another server shows that server's host on the home screen",
+      "feature": "key-per-server",
+      "tier": "gui",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "server: a typed endpoint survives a refresh, with the same key",
+      "feature": "key-per-server",
+      "tier": "gui",
+      "since": "2026-11-01"
+    }
+  ]
 }
