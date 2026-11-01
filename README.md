@@ -409,6 +409,13 @@ Finished games stay on the server with the names at the table, the newest
 is the one in the replay's URL and in `GET /history`). A server that is
 running keeps the game in its list until its next restart.
 
+**Test noise is not kept:** a game from a debug table, or one nobody human
+played (every seat a bot by the end), is never saved and never teaches the
+haiku where the board is quiet. Games saved before this rule are cleared with
+`DATA_DIR=/data node build/tools/purgeHistory.js --dry-run` (lists what would
+go and why), then without `--dry-run`; `--any-bot` also drops the games where
+only some seats were bots. Same restart note as above.
+
 ## Architecture
 
 - `server/` — authoritative game server ([Colyseus](https://colyseus.io/)),

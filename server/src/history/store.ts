@@ -27,6 +27,27 @@ export function summaryOf(record: GameRecord): GameSummary {
   return summary;
 }
 
+/** A table's seats, as far as the noise rule needs them. */
+export interface SeatedGame {
+  room?: string; // "go_custom" | "go_debug"; a record from before rooms were written down counts as a match
+  players?: { bot: boolean }[];
+}
+
+export type Noise = "bots" | "debug";
+
+/**
+ * Test noise, not a match: a game from a debug table, or one nobody human
+ * played (every seat a bot by the end). Such a game is never kept for replays
+ * and teaches the haiku nothing. `anyBot` widens "bots" to a table where any
+ * seat was a bot (purge --any-bot).
+ */
+export function noiseOf(game: SeatedGame, opts: { anyBot?: boolean } = {}): Noise | undefined {
+  if (game.room !== undefined && game.room !== "go_custom") return "debug";
+  const players = game.players ?? [];
+  if (players.length && (opts.anyBot ? players.some((p) => p.bot) : players.every((p) => p.bot))) return "bots";
+  return undefined;
+}
+
 export interface ListQuery {
   from?: number; // games that ended at or after this (ms)
   to?: number; // ... and before this
@@ -96,6 +117,22 @@ export class HistoryStore {
     fs.rmSync(this.file(id), { force: true });
     this.games().delete(id);
     return true;
+  }
+
+  /**
+   * Forgets every saved game that is test noise (noiseOf), and says which went
+   * and why. A dry run only says. For the games saved before the noise rule
+   * (tools/purgeHistory.ts).
+   */
+  purge(opts: { dryRun?: boolean; anyBot?: boolean } = {}): { id: string; reason: Noise }[] {
+    const gone: { id: string; reason: Noise }[] = [];
+    for (const summary of this.newest()) {
+      const reason = noiseOf(summary, opts);
+      if (!reason) continue;
+      gone.push({ id: summary.id, reason });
+      if (!opts.dryRun) this.delete(summary.id);
+    }
+    return gone;
   }
 
   list(query: ListQuery = {}): { games: GameSummary[]; total: number } {

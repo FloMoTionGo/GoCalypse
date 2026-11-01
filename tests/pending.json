@@ -1,47 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "history store: a game nobody human played, or from a debug table, is noise; a game with one person is a match",
-      "feature": "history-noise",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "history store: purge removes the noise games and lists each with its reason",
-      "feature": "history-noise",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "history store: a purge dry run lists the noise and removes nothing",
-      "feature": "history-noise",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "history store: purge with anyBot also drops the games where only some seats were bots",
-      "feature": "history-noise",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "the heat skips a game nobody human played",
-      "feature": "history-noise",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "history room: a debug room's game is not kept: it is test noise, not a match",
-      "feature": "history-noise",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "history room: a game nobody human played is not kept",
-      "feature": "history-noise",
-      "tier": "server",
-      "since": "2026-11-01"
-    }
-  ]
+  "pending": []
 }

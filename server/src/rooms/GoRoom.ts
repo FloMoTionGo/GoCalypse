@@ -6,7 +6,7 @@ import { addressLimits, MessageBudget } from "../util/limits";
 import { clientIp } from "../util/net";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import { GameRecorder, Outcome } from "../history/recorder";
-import { historyStore } from "../history/store";
+import { historyStore, noiseOf } from "../history/store";
 import { heatmap } from "../history/heatmap";
 import { HAIKU, HAIKU_LATE_FIREFLIES, haikuCardId, haikuOfCard, isHaikuCard, pickHaikuPoints } from "../rules/haiku";
 import {
@@ -504,11 +504,20 @@ export class GoRoom extends Room<GoState> {
     );
   }
 
-  /** Keeps the finished (or abandoned) game for replays. A failed write costs the replay, never the game. */
+  /**
+   * Keeps the finished (or abandoned) game for replays, unless it is test noise
+   * (a debug table, or nobody human at the table: history/store.ts noiseOf).
+   * A failed write costs the replay, never the game.
+   */
   private saveHistory(outcome: Outcome) {
     if (!this.recorder) return;
     try {
       const record = this.recorder.finish(this.state, outcome);
+      const noise = noiseOf(record);
+      if (noise) {
+        console.log(`GoRoom ${this.roomId}: game ${record.id} not kept (${noise === "debug" ? "a debug table" : "nobody human played"})`);
+        return;
+      }
       historyStore().save(record);
       if (outcome === "finished") heatmap(historyStore()).add(record); // where tonight's stones went, for the next haiku
     } catch (err) {

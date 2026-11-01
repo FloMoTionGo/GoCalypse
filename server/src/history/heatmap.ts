@@ -7,7 +7,7 @@
 // (rules/haiku.ts priorHeat) stands in for them.
 
 import { priorHeat } from "../rules/haiku";
-import type { HistoryStore } from "./store";
+import { noiseOf, type HistoryStore, type SeatedGame } from "./store";
 
 export const HEAT_MIN_GAMES = 20;
 
@@ -51,9 +51,9 @@ export function symmetrize(heat: number[], size: number): number[] {
 export class Heatmap {
   private sizes = new Map<number, { games: number; heat: number[] }>();
 
-  /** A match adds its stones; a debug table (every item from the first turn) plays nothing like one and is skipped. */
-  add(record: { size: number; frames: { d: number[] }[]; room?: string }) {
-    if (record.room === "go_debug") return;
+  /** A match adds its stones; test noise (a debug table, a table of bots alone: store.ts noiseOf) is skipped. */
+  add(record: { size: number; frames: { d: number[] }[] } & SeatedGame) {
+    if (noiseOf(record)) return;
     const size = record.size;
     const entry = this.sizes.get(size) ?? { games: 0, heat: new Array(size * size).fill(0) };
     const add = recordHeat(record);
