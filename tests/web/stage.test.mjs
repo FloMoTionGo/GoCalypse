@@ -109,7 +109,8 @@ test("stage: under k = 2 the scale takes half steps, so a 1366x660 laptop plays 
   assert.equal(P.pickScale(1920, 950, 1, 13).k, 2, "from 2 up, whole steps as before");
   assert.equal(P.pickScale(2560, 1310, 1, 13).k, 3);
   assert.equal(P.pickScale(300, 200, 1, 13).k, 1, "never under 1");
-  assert.equal(P.pickScale(1366, 660, 1, 19).k, 1.5, "19x19 too");
+  assert.equal(P.pickScale(1366, 660, 1, 19).k, 1, "a 19x19 stage is 515 art px tall: 1.5 does not fit a 660 px window");
+  assert.equal(P.pickScale(1920, 950, 1, 19).k, 1.5, "19x19 in a 1080p window: 1.5, where it used to get 1");
 });
 
 test("stage: the lines under the hand get their room at the text floor, so a window that fits the art but not the words steps down", () => {

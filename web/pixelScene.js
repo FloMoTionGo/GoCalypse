@@ -2372,15 +2372,32 @@
     };
   }
 
+  // The three lines under the hand (style.css #game-foot) never go under this
+  // many device px of text (--min-font), at this line height, with a margin of
+  // one art px each: at a small k the words need more room than STAGE.status.
+  const TEXT_FLOOR = { lines: 3, px: 11, lineHeight: 1.2 };
+
+  /** The device px the stage needs down at scale k: its art, and the words under the hand at their floor. */
+  function stageHeightAt(s, k) {
+    const words = TEXT_FLOOR.lines * (TEXT_FLOOR.px * TEXT_FLOOR.lineHeight + k);
+    return (s.h - STAGE.status) * k + Math.max(STAGE.status * k, words);
+  }
+
   /**
-   * The largest whole k for which the stage fits the window in device pixels,
-   * so it fills the window on any screen and Windows' display scaling doesn't
-   * matter; at least 1.
+   * The largest k for which the stage fits the window in device pixels, so it
+   * fills the window on any screen and Windows' display scaling doesn't
+   * matter: a whole number from 2 up, so every art pixel is k device pixels;
+   * under 2 a whole k would leave most of a laptop's screen empty, so there the
+   * steps are halves (1.5 draws art pixels 1-2-1-2 device px wide). At least 1.
    */
   function pickScale(innerW, innerH, dpr, size) {
     const W = innerW * dpr, H = innerH * dpr;
     const s = stageSize(size);
-    return { k: Math.max(1, Math.min(Math.floor(W / s.w), Math.floor(H / s.h))) };
+    const fits = (k) => s.w * k <= W && stageHeightAt(s, k) <= H;
+    let k = Math.floor(Math.min(W / s.w, H / s.h));
+    while (k > 1 && !fits(k)) k -= 1;
+    if (k >= 2) return { k };
+    return { k: fits(1.5) ? 1.5 : 1 };
   }
 
   // The home screen is a stage too (logo.js): the logo's river scene, the word

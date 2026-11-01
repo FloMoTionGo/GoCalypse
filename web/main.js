@@ -547,9 +547,10 @@ function ensureScene(size) {
 /**
  * Lays the game screen out as one stage (ideas.md §11.9): the whole of it in art
  * pixels -- one art pixel is one scene pixel -- each drawn as k device pixels, k
- * the largest whole number that fits the window (P.pickScale). Whole device
- * pixels keep every sprite crisp on any display, and the same physical window
- * gives the same picture whatever Windows' scaling.
+ * the largest whole number that fits the window (P.pickScale; a half step, 1.5,
+ * on a laptop screen where 2 doesn't fit). Whole device pixels keep every
+ * sprite crisp on any display, and the same physical window gives the same
+ * picture whatever Windows' scaling.
  * Everything in style.css is sized in --px, one art pixel in CSS px; the hand
  * stays under the board on every board size.
  */

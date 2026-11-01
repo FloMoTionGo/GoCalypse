@@ -14,10 +14,10 @@
   --accent: var(--amber);
 
   /* One art pixel (ideas.md §11.9): the game screen, the home screen and their
-     dialogs are measured in these, k device pixels each, k a whole number
-     (--px is k / devicePixelRatio, set by sizeCanvas in main.js at the table and
-     by logo.js at home). Text never goes below 11 device px (--min-font), which
-     bends the picture only at k = 1. */
+     dialogs are measured in these, k device pixels each, k a whole number from
+     2 up and 1.5 or 1 on a small screen (--px is k / devicePixelRatio, set by
+     sizeCanvas in main.js at the table and by logo.js at home). Text never goes
+     below 11 device px (--min-font), which bends the picture only under k = 2. */
   --px: 2px;
   --min-font: 11px;
 }

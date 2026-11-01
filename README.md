@@ -21,7 +21,9 @@ the public replays or teaches the haiku where the board is quiet.
 water on all four sides) rendered in software from sprites defined in code:
 `web/sprites.js` (palette, sprites, icons) and `web/pixelScene.js` (scene,
 animations, weather). The board is drawn at the largest whole pixel scale
-that still fits the window, so it fills the screen without ever blurring.
+that still fits the window, so it fills the screen without ever blurring; on
+a laptop screen where 2 doesn't fit it takes the half step, 1.5, rather than
+leave most of the window empty.
 `web/pixel-preview.html` shows every sprite and animation without a server,
 and can fire a thunderstorm on demand.
 
