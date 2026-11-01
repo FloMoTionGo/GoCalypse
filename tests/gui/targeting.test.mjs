@@ -34,7 +34,15 @@ before(async () => {
     const p = await rig.freePoint(k * 7);
     const turn = await b.ev("lastState.turnCount");
     await b.ev(`room.send("move", { x: ${p.x}, y: ${p.y}, axis: "base" }); true`);
-    await b.waitFor(`lastState.turnCount > ${turn}`, 10000, "my stone");
+    try {
+      await b.waitFor(`lastState.turnCount > ${turn}`, 10000, "my stone");
+    } catch (e) {
+      // Rare on CI (2026-11-01, twice) and once locally: say what the page saw, so the next time is not a mystery.
+      const seen = await b.ev(`({ turn: lastState.turnCount, idx: lastState.turnIndex, mine: isMyTurn, status: lastState.status, ev: lastState.lastEvent,
+        cell: board[${p.y} * lastState.size + ${p.x}], notice: document.getElementById("notice")?.textContent, open: room.connection.isOpen,
+        seats: Array.from(lastState.players).map((q) => [q.name, q.color, q.bot, q.connected]) })`);
+      throw new Error(`${e.message}: stone ${k} at ${JSON.stringify(p)} sent on turn ${turn}; the page saw ${JSON.stringify(seen)}; console ${JSON.stringify(b.problems.slice(-4))}`);
+    }
     mine.push(p);
   }
   await rig.waitMyTurn();

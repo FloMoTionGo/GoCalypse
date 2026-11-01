@@ -129,12 +129,32 @@ test("history room: a debug room's game is not kept: it is test noise, not a mat
   assert.equal(saved(room), undefined, "nothing on disk for a debug table");
 });
 
-test("history room: a game nobody human played is not kept", () => {
+test("history room: a game whose people all left before the end is kept: they played it", () => {
   const { room, clients } = startedRoom();
-  for (const p of room.state.players) p.bot = true; // every seat a bot by the end, as when the people left early
-  passAround(room, clients, 4);
+  move(room, clients, 6, 6);
+  for (const client of clients) void room.onLeave(client, true); // a drifter plays each seat on
+  assert.ok(room.state.players.every((p: any) => p.bot), "every seat is played by the server now");
+  for (let i = 0; i < 4; i++) room.applyPass(room.state.turnIndex);
   assert.equal(room.state.status, "finished");
-  assert.equal(saved(room), undefined, "nothing on disk for a table of bots");
+  const record = saved(room);
+  assert.ok(record, "the people's game is on disk");
+  assert.deepEqual(record.players.map((p: any) => p.bot), [false, false, false, false], "a seat a person took is not a bot's");
+  assert.deepEqual(record.players.map((p: any) => p.name).sort(), ["a", "b", "c", "d"]);
+});
+
+test("history room: the record calls a seat a bot only when the server seated it", () => {
+  const room = makeRoom();
+  const [a] = seatHumans(room, ["a"]);
+  room.handleAddBots(a, { ids: ["pure", "pure", "pure"] });
+  assert.equal(room.state.status, "playing");
+  void room.onLeave(a, true); // the one person leaves; a drifter takes over
+  for (let i = 0; i < 4; i++) room.applyPass(room.state.turnIndex);
+  assert.equal(room.state.status, "finished");
+  const record = saved(room);
+  assert.ok(record, "one person was at the table: the game is kept");
+  const seat = record.players.find((p: any) => p.name === "a");
+  assert.equal(seat.bot, false);
+  assert.equal(record.players.filter((p: any) => p.bot).length, 3, "the three seats the server filled");
 });
 
 test("history room: with HISTORY=off nothing is recorded or saved", () => {
