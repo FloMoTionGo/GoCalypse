@@ -1,17 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "dropping privileges as root makes the data folder the user's, then becomes that user, in that order",
-      "feature": "node-24-non-root",
-      "tier": "server",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "without RUN_AS, or when not root, nothing is touched",
-      "feature": "node-24-non-root",
-      "tier": "server",
-      "since": "2026-11-01"
-    }
-  ]
+  "pending": []
 }

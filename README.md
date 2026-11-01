@@ -488,6 +488,12 @@ the included `Dockerfile` and `fly.toml` (`fly deploy` from `server/`).
 One machine is kept running (`min_machines_running = 1`, about $2/month):
 letting Fly autostop an idle machine dropped players sitting in a lobby.
 
+The image is `node:24-alpine`, installed with `npm ci` from the lockfile. It
+starts as root only to make the data volume the `node` user's, then the
+server drops to `node` before it opens a port (`RUN_AS=node` in the
+Dockerfile; `src/util/privileges.ts`). Without `RUN_AS`, as locally and in
+the tests, it runs as whoever started it.
+
 **Single instance only.** Room state lives in each machine's memory with no
 shared backend (Redis, etc), so a client's WebSocket must land on the same
 machine that reserved its seat. Fly's default HA behavior spins up a second

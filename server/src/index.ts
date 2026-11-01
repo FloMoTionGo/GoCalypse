@@ -1,4 +1,5 @@
 import http from "http";
+import path from "path";
 import express from "express";
 import { matchMaker, Server } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
@@ -6,6 +7,15 @@ import { findRoomForKey, GoDebugRoom, GoRoom } from "./rooms/GoRoom";
 import { deleteSnapshot, loadSnapshots, queueRestore } from "./state/persist";
 import { historyRoutes } from "./history/routes";
 import { historyStore } from "./history/store";
+import { dropPrivileges, system } from "./util/privileges";
+
+// Before any file or port is opened: in the container (RUN_AS=node, the
+// Dockerfile) the server makes the data volume the node user's and becomes
+// that user (util/privileges.ts). Locally and in the tests nothing happens.
+const dataDir = process.env.DATA_DIR || path.join(process.cwd(), "data");
+if (dropPrivileges({ user: process.env.RUN_AS, dataDir }, system) === "dropped") {
+  console.log(`Running as ${process.env.RUN_AS}; data in ${dataDir}`);
+}
 
 const port = Number(process.env.PORT) || 2567;
 const app = express();
