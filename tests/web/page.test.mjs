@@ -40,3 +40,16 @@ test("index.html declares a Content Security Policy that allows no inline script
   assert.doesNotMatch(m[1], /unsafe-inline|unsafe-eval/);
   assert.ok(page.indexOf("Content-Security-Policy") < page.indexOf("<script"), "the policy comes before the first script, or it would not cover it");
 });
+
+// The page says it is dark (REVIEW.md D1), so dialogs scroll with a dark
+// scrollbar and the browser chrome matches the ink.
+test("index.html names its theme colour, and style.css declares a dark colour scheme", () => {
+  assert.match(html(), /<meta name="theme-color" content="#1f1a24"/);
+  const css = fs.readFileSync(path.join(WEB, "style.css"), "utf8");
+  const root = css.slice(css.indexOf(":root {"), css.indexOf("}", css.indexOf(":root {")));
+  assert.match(root, /color-scheme:\s*dark/, "color-scheme: dark on :root");
+});
+
+test("index.html makes the notice under the hand a live region, so a refusal is read out", () => {
+  assert.match(html(), /<p id="notice"[^>]*role="status"/);
+});

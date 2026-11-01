@@ -239,3 +239,17 @@ test("game: a reload mid-game locks Join while it asks, then sits back down in t
   assert.equal(await b.ev("passFlashAt"), undefined, "no stray PASS sign (B18)");
   rig.assertClean("the game");
 });
+
+// Muted text reads at 4.5:1 or better on ink (REVIEW.md D2: slate alone is 4.1:1).
+const CONTRAST = `(() => {
+  const lum = (c) => { const [r, g, b] = c.match(/[\\d.]+/g).map(Number).slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const bg = lum(getComputedStyle(document.body).backgroundColor);
+  const ratio = (el) => { const l = lum(getComputedStyle(el).color); return (Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05); };
+  return { hint: ratio(boardHintEl), event: ratio(lastEventEl), name: ratio(document.getElementById("hdr-name")), tier: ratio(marketItemsEl.querySelector(".tier")), scheme: getComputedStyle(document.documentElement).colorScheme };
+})()`;
+
+test("game: the hint, the status lines, the header name and the stall tiers read at 4.5:1 on ink, and the page is dark", async () => {
+  const c = await b.ev(CONTRAST);
+  for (const [what, r] of Object.entries(c)) if (what !== "scheme") assert.ok(r >= 4.5, `${what}: ${r.toFixed(2)}:1`);
+  assert.equal(c.scheme, "dark");
+});
