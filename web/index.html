@@ -6,6 +6,7 @@
        server, which the Server field may point anywhere, is open. Sprites become data: URLs (spriteUrl). -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src *; base-uri 'none'; form-action 'none'" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1f1a24" />
   <title>GoCalypse</title>
   <link rel="stylesheet" href="style.css" />
   <!-- colyseus.js 0.16.22, the file tests/package.json pins; tests/web/page.test.mjs keeps the two equal. -->
@@ -104,7 +105,7 @@
               <div id="hand" role="group" aria-label="Hand"></div>
             </div>
             <p id="board-hint" class="hint">Left click: your black or white stone &middot; Right click: your gray or transparent stone</p>
-            <p id="notice" class="status notice"></p>
+            <p id="notice" class="status notice" role="status"></p>
             <p id="last-event" class="status"></p>
           </div>
         </div>

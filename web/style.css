@@ -10,7 +10,9 @@
   --panel: var(--ink);
   --border: var(--slate);
   --text: var(--cream);
-  --muted: var(--slate);
+  /* Small text on ink: cream and slate mixed, 7:1 (slate alone is 4.1:1, under the 4.5:1 floor). */
+  --mist: color-mix(in srgb, var(--cream) 40%, var(--slate));
+  --muted: var(--mist);
   --accent: var(--amber);
 
   /* One art pixel (ideas.md §11.9): the game screen, the home screen and their
@@ -20,6 +22,8 @@
      below 11 device px (--min-font), which bends the picture only under k = 2. */
   --px: 2px;
   --min-font: 11px;
+
+  color-scheme: dark; /* dark scrollbars and form controls on the ink */
 }
 
 * { box-sizing: border-box; }
@@ -39,13 +43,11 @@ body {
 html:not(.in-game) #app { max-width: none; min-height: 100vh; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
 h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
-.tagline { color: var(--slate); margin-top: 0; }
+.tagline { color: var(--muted); margin-top: 0; }
 
 .px { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 #lobby {
-  /* small text on the home screen: cream and slate mixed, 7:1 on ink (slate alone is 4:1) */
-  --mist: color-mix(in srgb, var(--cream) 40%, var(--slate));
   width: 100%;
   max-width: calc(342 * var(--px));
   margin: 0 auto;
@@ -185,7 +187,7 @@ h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
   font-size: max(var(--min-font), calc(6.3 * var(--px)));
 }
 
-.hint { color: var(--slate); font-size: max(var(--min-font), calc(5.4 * var(--px))); margin: calc(3 * var(--px)) 0 0; }
+.hint { color: var(--muted); font-size: max(var(--min-font), calc(5.4 * var(--px))); margin: calc(3 * var(--px)) 0 0; }
 
 button {
   cursor: pointer;
@@ -202,7 +204,7 @@ button:disabled { cursor: default; background: var(--ink); border-color: var(--s
 
 #join-button { margin-top: calc(8 * var(--px)); width: 100%; }
 
-.status { min-height: 1.2em; color: var(--slate); font-size: max(var(--min-font), calc(5.85 * var(--px))); margin: calc(3 * var(--px)) 0 0; }
+.status { min-height: 1.2em; color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); margin: calc(3 * var(--px)) 0 0; }
 .status.error { color: var(--amber); }
 .notice { color: var(--amber); }
 
@@ -238,7 +240,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 @media (prefers-reduced-motion: reduce) { #hdr-turn.my-turn #hdr-lantern { animation: none; } }
 /* A guest's name can hold any character, so it stays in the system font; the fixed words are pixel art. */
-#hdr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--slate); font-weight: 700; font-size: max(var(--min-font), calc(6 * var(--px))); }
+#hdr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: 700; font-size: max(var(--min-font), calc(6 * var(--px))); }
 #hdr-turn.my-turn #hdr-name { color: var(--amber); }
 #hdr-turn img { flex-shrink: 0; }
 
@@ -313,7 +315,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .replay-item:hover:not(:disabled), .replay-item:focus-visible { background: none; border-color: var(--amber); outline: none; }
 .replay-item .when { grid-row: span 2; color: var(--amber); font-weight: 700; font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 .replay-item .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.replay-item .detail { color: var(--slate); font-size: max(var(--min-font), calc(5.4 * var(--px))); }
+.replay-item .detail { color: var(--muted); font-size: max(var(--min-font), calc(5.4 * var(--px))); }
 #replay-stage { display: flex; flex-direction: row; gap: calc(7 * var(--px)); align-items: flex-start; }
 #replay-board { display: block; flex-shrink: 0; border-radius: var(--px); }
 #replay-board:focus-visible { outline: var(--px) solid var(--amber); outline-offset: var(--px); }
@@ -323,11 +325,11 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 #replay-players li { display: flex; flex-wrap: wrap; gap: 0 calc(3 * var(--px)); align-items: baseline; }
 #replay-players li.winner { color: var(--amber); font-weight: 700; }
 #replay-players .place { min-width: 2.2em; }
-#replay-players .caps { flex-basis: 100%; padding-left: calc(2.2em + calc(3 * var(--px))); color: var(--slate); font-size: max(var(--min-font), calc(4.95 * var(--px))); font-weight: 400; }
+#replay-players .caps { flex-basis: 100%; padding-left: calc(2.2em + calc(3 * var(--px))); color: var(--muted); font-size: max(var(--min-font), calc(4.95 * var(--px))); font-weight: 400; }
 #replay-controls { display: flex; flex-wrap: wrap; align-items: center; gap: calc(3 * var(--px)); margin-top: calc(4 * var(--px)); }
 #replay-controls .link-button { min-width: calc(15 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); padding: var(--px) calc(4 * var(--px)); }
 #replay-slider { flex: 1; min-width: calc(63 * var(--px)); accent-color: var(--amber); }
-.replay-speed { font-size: max(var(--min-font), calc(5.4 * var(--px))); color: var(--slate); }
+.replay-speed { font-size: max(var(--min-font), calc(5.4 * var(--px))); color: var(--muted); }
 #replay-speed { margin-left: calc(2 * var(--px)); background: var(--ink); color: var(--cream); border: var(--px) solid var(--slate); border-radius: calc(2 * var(--px)); padding: var(--px) calc(2 * var(--px)); }
 #replay-step { margin-top: calc(4 * var(--px)); }
 #replay-event { color: var(--cream); min-height: 2.4em; }
@@ -346,7 +348,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .welcome-more > summary:hover, .welcome-more > summary:focus-visible { color: var(--cream); }
 .welcome-more[open] > summary { margin-bottom: calc(3 * var(--px)); }
 .welcome-body p { margin: calc(3 * var(--px)) 0; }
-.welcome-tagline { color: var(--slate); margin-top: 0; }
+.welcome-tagline { color: var(--muted); margin-top: 0; }
 .welcome-x {
   position: absolute;
   z-index: 1;
@@ -369,7 +371,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .welcome-item { display: flex; align-items: flex-start; gap: calc(4 * var(--px)); }
 .welcome-item img { flex-shrink: 0; }
 .welcome-item .title { display: flex; gap: calc(4 * var(--px)); align-items: center; font-weight: 700; }
-.welcome-item .desc { color: var(--slate); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
+.welcome-item .desc { color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 #welcome-bots { border: var(--px) solid var(--teal); border-radius: calc(2 * var(--px)); padding: var(--px) calc(5 * var(--px)) calc(4 * var(--px)); margin: calc(5 * var(--px)) 0 calc(2 * var(--px)); }
 #welcome-bots[hidden] { display: none; }
 #welcome-bots h3 { margin-top: calc(4 * var(--px)); }
@@ -384,11 +386,11 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .bot-option .who { display: flex; flex-wrap: wrap; gap: calc(2 * var(--px)) calc(4 * var(--px)); align-items: baseline; font-weight: 700; }
 .bot-option .name { color: var(--amber); } /* as on the lobby board */
 .bot-option.picked .name { color: var(--cream); }
-.bot-option .kind { color: var(--slate); font-size: max(var(--min-font), calc(5.4 * var(--px))); font-weight: 400; }
+.bot-option .kind { color: var(--muted); font-size: max(var(--min-font), calc(5.4 * var(--px))); font-weight: 400; }
 .bot-option.picked .kind, .bot-option.picked .desc { color: var(--cream); }
-.bot-option .desc { color: var(--slate); font-size: max(var(--min-font), calc(5.85 * var(--px))); font-weight: 400; }
+.bot-option .desc { color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); font-weight: 400; }
 /* Three lanterns, lit in proportion to how much of the Night Market the bot uses. */
-.bot-option .lamps { display: inline-flex; gap: var(--px); align-items: center; margin-left: auto; white-space: nowrap; font-size: max(var(--min-font), calc(4.95 * var(--px))); font-weight: 400; color: var(--slate); }
+.bot-option .lamps { display: inline-flex; gap: var(--px); align-items: center; margin-left: auto; white-space: nowrap; font-size: max(var(--min-font), calc(4.95 * var(--px))); font-weight: 400; color: var(--muted); }
 .bot-option .lamp { width: calc(4 * var(--px)); height: calc(4 * var(--px)); border: var(--px) solid var(--slate); border-radius: 50%; }
 .bot-option .lamp.lit { background: var(--amber); border-color: var(--amber); }
 .bot-option.picked .lamps { color: var(--cream); }
@@ -396,26 +398,26 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 /* Final scores (the #result dialog reuses the #welcome frame above). */
 .result-row { display: grid; grid-template-columns: calc(18 * var(--px)) minmax(0, 1fr) calc(38 * var(--px)) calc(43 * var(--px)) calc(20 * var(--px)); gap: calc(4 * var(--px)); align-items: center; padding: calc(2 * var(--px)) calc(2 * var(--px)); }
 .result-row + .result-row { border-top: var(--px) solid var(--teal); }
-.result-row.head { color: var(--slate); font-size: max(var(--min-font), calc(4.95 * var(--px))); letter-spacing: 0.04em; text-transform: uppercase; }
+.result-row.head { color: var(--muted); font-size: max(var(--min-font), calc(4.95 * var(--px))); letter-spacing: 0.04em; text-transform: uppercase; }
 .result-row.winner { color: var(--amber); font-weight: 700; }
 .result-row .who { display: flex; align-items: center; gap: calc(3 * var(--px)); min-width: 0; }
 .result-row .swatch-pair { display: flex; gap: var(--px); flex-shrink: 0; background: var(--amber); padding: var(--px); border-radius: var(--px); }
 .result-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .result-row .name-col { display: flex; flex-direction: column; gap: var(--px); min-width: 0; }
 /* The lower total is the score and reads bright; the higher one is only the tie-break. */
-.result-row .side { display: flex; flex-direction: column; gap: var(--px); color: var(--slate); font-weight: 400; }
+.result-row .side { display: flex; flex-direction: column; gap: var(--px); color: var(--muted); font-weight: 400; }
 .result-row .side.low { color: var(--cream); }
 /* Territory vs. captured stones, spelled out; stays muted even on the bright (low) side. */
-.result-row .side-breakdown { font-size: max(var(--min-font), calc(4.5 * var(--px))); color: var(--slate); }
+.result-row .side-breakdown { font-size: max(var(--min-font), calc(4.5 * var(--px))); color: var(--muted); }
 .result-row .final { text-align: right; font-size: max(var(--min-font), calc(8.1 * var(--px))); font-weight: 700; color: var(--amber); }
-.welcome-footer { margin-top: calc(7 * var(--px)) !important; color: var(--slate); font-size: max(var(--min-font), calc(5.4 * var(--px))); text-align: center; }
+.welcome-footer { margin-top: calc(7 * var(--px)) !important; color: var(--muted); font-size: max(var(--min-font), calc(5.4 * var(--px))); text-align: center; }
 
 /* Two small board diagrams under the score table: which points settled as whose
    territory, one front at a time. A full-size square is a stone; a small dot is
    an owner mark on an empty point. */
 #result-territory { display: flex; gap: calc(7 * var(--px)); flex-wrap: wrap; margin-top: calc(5 * var(--px)); }
 .territory-board { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--px)); }
-.territory-board .territory-label { font-size: max(var(--min-font), calc(4.95 * var(--px))); color: var(--slate); text-transform: uppercase; letter-spacing: 0.04em; text-align: center; }
+.territory-board .territory-label { font-size: max(var(--min-font), calc(4.95 * var(--px))); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; text-align: center; }
 .territory-board img { border: var(--px) solid var(--teal); border-radius: var(--px); background: var(--amber); }
 #turn-indicator.my-turn { color: var(--amber); }
 
@@ -446,7 +448,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   padding: calc(4 * var(--px)) calc(5 * var(--px));
 }
 .panel h3 { margin: 0 0 calc(3 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
-.count-tag { color: var(--slate); font-size: max(var(--min-font), calc(4.95 * var(--px))); letter-spacing: 0; }
+.count-tag { color: var(--muted); font-size: max(var(--min-font), calc(4.95 * var(--px))); letter-spacing: 0; }
 .count-tag.full { color: var(--amber); }
 
 /* The players panel (main.js renderPlayers): a strip of kaya with a Go grid under it all,
@@ -513,7 +515,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 #weather .meter { display: flex; align-items: center; gap: calc(6 * var(--px)); }
 #weather .head { display: flex; flex-direction: column; gap: var(--px); min-width: 0; font-weight: 700; font-size: max(var(--min-font), calc(6.75 * var(--px))); }
 #weather .label { color: var(--amber); font-size: max(var(--min-font), calc(5.85 * var(--px))); letter-spacing: 0.04em; text-transform: uppercase; }
-#weather .level { color: var(--slate); }
+#weather .level { color: var(--muted); }
 #weather .sky-overcast .level, #weather .sky-rain .level { color: var(--amber); }
 #weather .sky-thunder .level { color: var(--cream); }
 #weather .pictures { display: flex; align-items: center; gap: calc(6 * var(--px)); flex-shrink: 0; }
@@ -635,7 +637,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   transform: translate(-50%, -50%);
   padding: var(--px) calc(4 * var(--px));
   background: var(--ink);
-  color: var(--slate);
+  color: var(--muted);
   font-size: max(var(--min-font), calc(5.4 * var(--px)));
   line-height: 1.2;
   white-space: nowrap;
@@ -714,14 +716,14 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .welcome-haiku { list-style: none; margin: calc(3 * var(--px)) 0 0; padding: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
 .welcome-haiku li { display: flex; gap: calc(4 * var(--px)); align-items: flex-start; }
 .welcome-haiku .poem { font-style: italic; color: var(--cream); }
-.welcome-haiku .ladder { color: var(--slate); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
+.welcome-haiku .ladder { color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 #welcome-turn-legend { display: flex; align-items: center; gap: calc(4 * var(--px)); margin: 0 0 calc(4 * var(--px)); color: var(--cream); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 .item .desc {
-  color: var(--slate);
+  color: var(--muted);
   line-height: 1.25;
 }
 .item .tag { color: var(--amber); font-weight: 700; }
-.empty { color: var(--slate); font-size: max(var(--min-font), calc(5.4 * var(--px))); margin: 0; }
+.empty { color: var(--muted); font-size: max(var(--min-font), calc(5.4 * var(--px))); margin: 0; }
 
 /* Recall, in the header: arrow planks round the steps back, in the big pixel font, and LIVE,
    lit while the live board is on show. The words are for screen readers (#recall-steps). */
@@ -730,7 +732,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 #recall-count { display: block; box-sizing: content-box; padding: 0 calc(3 * var(--px)); }
 #board.recalling { cursor: not-allowed; filter: sepia(.35) saturate(.8); }
 
-.item .tier { color: var(--slate); font-size: max(var(--min-font), calc(4.5 * var(--px))); font-weight: 400; }
+.item .tier { color: var(--muted); font-size: max(var(--min-font), calc(4.5 * var(--px))); font-weight: 400; }
 /* A stall's stock as tiny cards (main.js stockRow): filled copies left, dotted outlines sold; the last one glows. */
 .item .stock { display: flex; flex-wrap: wrap; gap: var(--px); margin: var(--px) 0 var(--px); }
 .item .stock img { flex-shrink: 0; }

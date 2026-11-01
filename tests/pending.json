@@ -1,23 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "index.html names its theme colour, and style.css declares a dark colour scheme",
-      "feature": "muted-contrast",
-      "tier": "web",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "index.html makes the notice under the hand a live region, so a refusal is read out",
-      "feature": "muted-contrast",
-      "tier": "web",
-      "since": "2026-11-01"
-    },
-    {
-      "test": "game: the hint, the status lines, the header name and the stall tiers read at 4.5:1 on ink, and the page is dark",
-      "feature": "muted-contrast",
-      "tier": "gui",
-      "since": "2026-11-01"
-    }
-  ]
+  "pending": []
 }
