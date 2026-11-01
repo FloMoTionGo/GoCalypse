@@ -499,7 +499,10 @@ says why. One client may send 20 messages a second (a burst of 40); past that,
 messages are dropped and the first drop is answered with a notice. The caps
 are read once at start from `GOCALYPSE_MAX_ROOMS_PER_IP`,
 `GOCALYPSE_MAX_SOCKETS_PER_IP` and `GOCALYPSE_MAX_RESERVATIONS_PER_IP`
-(`fly.toml [env]` to change them without a code change).
+(`fly.toml [env]` to change them without a code change). `/rejoin` takes ten
+calls a minute per address (429 with `Retry-After` beyond that) and finds a
+seat by an index the rooms keep, not by a scan. Behind Fly the address is
+`Fly-Client-IP`, the one header a client cannot write (`src/util/net.ts`).
 
 The image is `node:24-alpine`, installed with `npm ci` from the lockfile. It
 starts as root only to make the data volume the `node` user's, then the

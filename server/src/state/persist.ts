@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
 import { ArraySchema, Schema } from "@colyseus/schema";
@@ -61,7 +62,7 @@ export function loadSnapshots(): { roomId: string; snapshot: Snapshot }[] {
 const pending = new Map<string, Snapshot>();
 
 export function queueRestore(snapshot: Snapshot): string {
-  const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const token = randomUUID();
   pending.set(token, snapshot);
   return token;
 }

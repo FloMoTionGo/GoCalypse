@@ -8,7 +8,7 @@ import { deleteSnapshot, loadSnapshots, queueRestore } from "./state/persist";
 import { historyRoutes } from "./history/routes";
 import { historyStore } from "./history/store";
 import { dropPrivileges, system } from "./util/privileges";
-import { addressLimits } from "./util/limits";
+import { addressLimits, TokenBucket } from "./util/limits";
 import { clientIp } from "./util/net";
 
 // Before any file or port is opened: in the container (RUN_AS=node, the
@@ -21,18 +21,39 @@ if (dropPrivileges({ user: process.env.RUN_AS, dataDir }, system) === "dropped")
 
 const port = Number(process.env.PORT) || 2567;
 const app = express();
+app.disable("x-powered-by"); // no need to name the framework on every response
 app.use(express.json());
 
-// The web client is served from elsewhere, so /rejoin and /history need CORS headers.
+// The web client is served from elsewhere, so /rejoin and /history need CORS
+// headers; nosniff keeps a browser from reading any answer as something else.
 app.use((req, res, next) => {
   res.set({
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "X-Content-Type-Options": "nosniff",
   });
   if (req.method === "OPTIONS") return res.status(204).end();
   next();
 });
+
+/** The address a request comes from, Fly's own header first (util/net.ts). */
+function addressOf(req: express.Request): string {
+  return clientIp(req.headers["x-real-ip"] ?? req.headers["x-forwarded-for"] ?? req.socket.remoteAddress, req.headers);
+}
+
+// /rejoin: ten calls a minute per address. The client knocks every 1.5 s for
+// 15 s after a drop and never more; anything faster is nobody's seat.
+const REJOIN_PER_MINUTE = 10;
+const rejoinBuckets = new Map<string, TokenBucket>();
+function rejoinAllowed(ip: string): boolean {
+  let bucket = rejoinBuckets.get(ip);
+  if (!bucket) {
+    if (rejoinBuckets.size >= 10_000) rejoinBuckets.clear(); // never more than this many addresses in memory
+    rejoinBuckets.set(ip, (bucket = new TokenBucket(REJOIN_PER_MINUTE / 60, REJOIN_PER_MINUTE)));
+  }
+  return bucket.take();
+}
 
 // The pid lets the test harness tell its own server from another one that took the port first.
 app.get("/healthz", (_req, res) => res.status(200).set("X-Pid", String(process.pid)).send("ok"));
@@ -45,19 +66,22 @@ app.use(historyRoutes(historyStore));
 // client redeems with consumeSeatReservation -- the same as after matchmaking,
 // but it works on a locked room, so nobody else can walk in.
 app.post("/rejoin", async (req, res) => {
+  res.set("Cache-Control", "no-store"); // a seat reservation is for this one call
+  const ip = addressOf(req);
+  if (!rejoinAllowed(ip)) return res.status(429).set("Retry-After", "6").json({ error: "Too many tries: wait a few seconds." });
   const key = typeof req.body?.playerKey === "string" ? req.body.playerKey.slice(0, 64) : "";
   const room = key ? findRoomForKey(key) : undefined;
   if (!room) return res.status(404).json({ error: "no game to rejoin" });
   // The same address caps as a matchmake call (GoRoom.onAuth); the address rides
   // along as the seat's auth data, so the room counts the socket.
-  const ip = clientIp(req.headers["x-real-ip"] ?? req.headers["x-forwarded-for"] ?? req.socket.remoteAddress);
   const refused = addressLimits().reserve(ip, false);
-  if (refused) return res.status(429).json({ error: refused });
+  if (refused) return res.status(429).set("Retry-After", "15").json({ error: refused });
   try {
     const listing = await matchMaker.getRoomById(room.roomId);
     res.json(await matchMaker.reserveSeatFor(listing, { playerKey: key }, { ip }));
   } catch (err) {
-    res.status(409).json({ error: String((err as Error)?.message || err) });
+    console.error(`/rejoin: could not reserve a seat in ${room.roomId}:`, err); // the detail stays in the log
+    res.status(409).json({ error: "That seat can't be handed back right now. Try again in a moment." });
   }
 });
 

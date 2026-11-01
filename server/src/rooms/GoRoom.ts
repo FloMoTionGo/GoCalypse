@@ -177,12 +177,18 @@ const SAVE_EVERY_MS = 1000;
 // are handed to lantern keepers, as for a player who drops mid-game.
 const RESTORE_GRACE_MS = 120_000;
 
-/** Rooms alive in this process, so /rejoin can find the one a returning player belongs to. */
-const liveRooms = new Set<GoRoom>();
+// Every human seat's secret -> its room, kept by the rooms (keepKey, dropKey,
+// onDispose), so /rejoin finds a returning player's table in one step.
+const roomsByKey = new Map<string, GoRoom>();
 
 export function findRoomForKey(key: string): GoRoom | undefined {
-  for (const room of liveRooms) if (room.seatFor(key)) return room;
-  return undefined;
+  const room = roomsByKey.get(key);
+  return room && room.seatFor(key) ? room : undefined;
+}
+
+/** How many seats' secrets the index holds (the tests). */
+export function keysIndexed(): number {
+  return roomsByKey.size;
 }
 
 function cleanKey(value: unknown): string {
@@ -244,7 +250,7 @@ export class GoRoom extends Room<GoState> {
    * joinById, reconnect) is held to the sockets cap only.
    */
   static async onAuth(_token: string, _options: unknown, context: AuthContext) {
-    const ip = clientIp(context.ip);
+    const ip = clientIp(context.ip, context.headers as Record<string, unknown>);
     const url = (context as { req?: { url?: string } }).req?.url ?? "";
     const method = /\/matchmake\/(\w+)\//.exec(url)?.[1] ?? "";
     const opens = !["join", "joinById", "reconnect"].includes(method);
@@ -294,7 +300,7 @@ export class GoRoom extends Room<GoState> {
       this.positions.load(restored.positions, state.board.length);
       this.positions.record(state.board.toArray());
       this.kos.load(restored.kos);
-      for (const [color, key] of Object.entries(restored.keys)) this.seatKeys.set(Number(color), key);
+      for (const [color, key] of Object.entries(restored.keys)) this.keepKey(Number(color), key);
       for (const player of state.players) {
         const id = restored.bots?.[player.color];
         const style = player.bot && typeof id === "string" ? styleFor(id) : null;
@@ -305,7 +311,6 @@ export class GoRoom extends Room<GoState> {
     this.setState(state);
     this.refreshSeen();
     this.updateForecast();
-    liveRooms.add(this);
     this.clock.setInterval(() => this.saveSnapshot(), SAVE_EVERY_MS);
 
     // Every handler runs within the client's budget (util/limits.ts): past it, the
@@ -410,7 +415,7 @@ export class GoRoom extends Room<GoState> {
     player.color = free.length ? free[Math.floor(Math.random() * free.length)] : this.state.players.length + 1;
     this.state.players.push(player);
     this.giveView(client, player);
-    if (key) this.seatKeys.set(player.color, key);
+    if (key) this.keepKey(player.color, key);
     this.state.lastEvent = `${player.name} joined as player ${player.color}`;
 
     if (this.state.players.length === MAX_PLAYERS) this.startGame();
@@ -669,7 +674,7 @@ export class GoRoom extends Room<GoState> {
       // the full grace window, blocking new joins (maxClients) and then
       // permanently inflating this.state.players.length once it expires,
       // which also hands out invalid colors (> 4) to later joiners.
-      this.seatKeys.delete(this.state.players[playerIndex].color);
+      this.dropKey(this.state.players[playerIndex].color);
       this.state.players.splice(playerIndex, 1);
       return;
     }
@@ -728,7 +733,7 @@ export class GoRoom extends Room<GoState> {
 
   onDispose() {
     this.botTimer?.clear();
-    liveRooms.delete(this);
+    for (const key of this.seatKeys.values()) if (roomsByKey.get(key) === this) roomsByKey.delete(key);
     addressLimits().closed(this.roomId); // whatever sockets were still counted here
     const dropped = this.budget.totalDropped();
     if (dropped) console.log(`GoRoom ${this.roomId}: ${dropped} message(s) dropped over budget`);
@@ -736,6 +741,18 @@ export class GoRoom extends Room<GoState> {
     deleteSnapshot(this.roomId);
     // Everyone left mid-game: still a game played, if anything was played at all.
     if (this.state.status === "playing" && this.state.turnCount > 0) this.saveHistory("abandoned");
+  }
+
+  /** Remembers a seat's secret, here and in the index /rejoin reads. */
+  private keepKey(color: number, key: string) {
+    this.seatKeys.set(color, key);
+    roomsByKey.set(key, this);
+  }
+
+  private dropKey(color: number) {
+    const key = this.seatKeys.get(color);
+    this.seatKeys.delete(color);
+    if (key && roomsByKey.get(key) === this) roomsByKey.delete(key);
   }
 
   /** Counts the socket against its address (from static onAuth, or /rejoin's reservation); onLeave releases it. */
