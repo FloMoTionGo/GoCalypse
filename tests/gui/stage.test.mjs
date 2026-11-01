@@ -31,6 +31,9 @@ const MEASURE = `(() => {
     scrolls: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight,
     text: parseFloat(getComputedStyle(lastEventEl).fontSize) / bd.height,
     board: Math.round(bd.width * dpr),
+    px: artPx() * dpr,
+    footOver: document.getElementById("game-foot").scrollHeight - document.getElementById("game-foot").clientHeight,
+    lastLineInside: lastEventEl.getBoundingClientRect().bottom <= document.getElementById("game-foot").getBoundingClientRect().bottom + 0.5,
   };
 })()`;
 
@@ -44,6 +47,16 @@ test("stage: at 1400x1000 the whole game fits the window, with no scrollbars", a
   const m = await at(1400, 1000, 1);
   assert.equal(m.scrolls, false, "no scrollbars");
   assert.equal(m.inside, true, "the stage is all on screen");
+});
+
+test("stage: a 1366x660 laptop plays at k = 1.5: a bigger board than at 1, no scrollbars, nothing under the hand clipped", async () => {
+  const m = await at(1366, 660, 1);
+  assert.equal(m.px, 1.5, "k = 1.5");
+  assert.ok(m.board >= 384, `the board is ${m.board} device px wide`);
+  assert.equal(m.scrolls, false, "no scrollbars");
+  assert.equal(m.inside, true, "the stage is all on screen");
+  assert.ok(m.footOver <= 0, `the lines under the hand overflow their room by ${m.footOver} px`);
+  assert.equal(m.lastLineInside, true, "the last line is on the stage");
 });
 
 test("stage: 1536x864 at 125% is the same picture in device px as 1400x1000 at 100%", async () => {

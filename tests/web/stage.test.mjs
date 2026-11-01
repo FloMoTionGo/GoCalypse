@@ -98,3 +98,24 @@ test("sprites: the turn lantern holds a player's two stones, lit on their turn a
   assert.notEqual(lit.px.join(), dark.px.join());
   assert.notEqual(lit.px.join(), other.px.join(), "another player's stones");
 });
+
+// Under k = 2 a whole k wastes most of a laptop screen (REVIEW.md U1: a 1366x768
+// laptop played a 256 px board in a corner), so the stage takes half steps
+// there: 1.5 draws each art pixel as 1-2-1-2 device pixels, still crisp enough.
+test("stage: under k = 2 the scale takes half steps, so a 1366x660 laptop plays at 1.5", () => {
+  assert.equal(P.pickScale(1366, 660, 1, 13).k, 1.5, "a 1366x768 laptop at 100%");
+  assert.equal(P.pickScale(1280, 720, 1, 13).k, 1.5, "a 720p window");
+  assert.equal(P.pickScale(1024, 700, 1, 13).k, 1.5);
+  assert.equal(P.pickScale(1920, 950, 1, 13).k, 2, "from 2 up, whole steps as before");
+  assert.equal(P.pickScale(2560, 1310, 1, 13).k, 3);
+  assert.equal(P.pickScale(300, 200, 1, 13).k, 1, "never under 1");
+  assert.equal(P.pickScale(1366, 660, 1, 19).k, 1.5, "19x19 too");
+});
+
+test("stage: the lines under the hand get their room at the text floor, so a window that fits the art but not the words steps down", () => {
+  // Three lines of text never under 11 device px (style.css --min-font), 1.2 line height, a margin of one art px each.
+  const words = 3 * 11 * 1.2 + 3 * 1.5;
+  const s = P.stageSize(13), art = (s.h - P.STAGE.status) * 1.5;
+  assert.equal(P.pickScale(800, Math.ceil(art + words) + 1, 1, 13).k, 1.5, "just enough for the words: 1.5");
+  assert.equal(P.pickScale(800, Math.floor(art + P.STAGE.status * 1.5), 1, 13).k, 1, "enough for the art at 1.5 but not for the words: 1");
+});

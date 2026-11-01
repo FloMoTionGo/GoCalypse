@@ -1,4 +1,23 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "stage: under k = 2 the scale takes half steps, so a 1366x660 laptop plays at 1.5",
+      "feature": "stage-half-steps",
+      "tier": "web",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "stage: the lines under the hand get their room at the text floor, so a window that fits the art but not the words steps down",
+      "feature": "stage-half-steps",
+      "tier": "web",
+      "since": "2026-11-01"
+    },
+    {
+      "test": "stage: a 1366x660 laptop plays at k = 1.5: a bigger board than at 1, no scrollbars, nothing under the hand clipped",
+      "feature": "stage-half-steps",
+      "tier": "gui",
+      "since": "2026-11-01"
+    }
+  ]
 }
