@@ -173,3 +173,54 @@ test("history store: the server's own store lives in DATA_DIR/history", () => {
     else process.env.DATA_DIR = before;
   }
 });
+
+// Test noise (tasks/2026-11-01_security_fixes T11): a game nobody human played,
+// or one from a debug table, is not a match. It is never saved, and purge()
+// clears the ones saved before this rule.
+
+const bots = (every: boolean) => [1, 2, 3, 4].map((color) => ({ name: `B${color}`, color, bot: every || color > 1, place: 1, finalScore: 0, tiebreak: 0, captures: 0 }));
+
+test("history store: a game nobody human played, or from a debug table, is noise; a game with one person is a match", () => {
+  const { noiseOf } = storeModule();
+  assert.equal(noiseOf(record("game-match0001", T0)), undefined, "three bots and a person: a match");
+  assert.equal(noiseOf(record("game-bots00001", T0, { players: bots(true) })), "bots");
+  assert.equal(noiseOf(record("game-debug0001", T0, { room: "go_debug" })), "debug");
+  assert.equal(noiseOf(record("game-debug0002", T0, { room: "go_debug", players: bots(true) })), "debug", "a debug table is noise whoever sat there");
+  assert.equal(noiseOf(record("game-mixed0001", T0), { anyBot: true }), "bots", "asked for it, a table with any bot counts as noise");
+  assert.equal(noiseOf(record("game-human0001", T0, { players: bots(false).map((p) => ({ ...p, bot: false })) }), { anyBot: true }), undefined);
+});
+
+test("history store: purge removes the noise games and lists each with its reason", () => {
+  const { HistoryStore } = storeModule();
+  const dir = folder();
+  const store = new HistoryStore(dir);
+  store.save(record("game-keep00001", T0));
+  store.save(record("game-bots00002", T0 + DAY, { players: bots(true) }));
+  store.save(record("game-debug0003", T0 + 2 * DAY, { room: "go_debug" }));
+  const gone = store.purge();
+  assert.deepEqual(gone.map((g: any) => [g.id, g.reason]).sort(), [["game-bots00002", "bots"], ["game-debug0003", "debug"]]);
+  assert.deepEqual(store.list().games.map((g: any) => g.id), ["game-keep00001"]);
+  assert.deepEqual(fs.readdirSync(dir), ["game-keep00001.json"], "the noise files are gone, the match stays");
+});
+
+test("history store: a purge dry run lists the noise and removes nothing", () => {
+  const { HistoryStore } = storeModule();
+  const dir = folder();
+  const store = new HistoryStore(dir);
+  store.save(record("game-keep00002", T0));
+  store.save(record("game-bots00003", T0 + DAY, { players: bots(true) }));
+  const would = store.purge({ dryRun: true });
+  assert.deepEqual(would.map((g: any) => g.id), ["game-bots00003"]);
+  assert.equal(store.list().total, 2, "both still listed");
+  assert.equal(fs.readdirSync(dir).length, 2, "both still on disk");
+});
+
+test("history store: purge with anyBot also drops the games where only some seats were bots", () => {
+  const { HistoryStore } = storeModule();
+  const dir = folder();
+  const store = new HistoryStore(dir);
+  store.save(record("game-mixed0002", T0));
+  store.save(record("game-human0002", T0 + DAY, { players: bots(false).map((p) => ({ ...p, bot: false })) }));
+  assert.deepEqual(store.purge({ anyBot: true }).map((g: any) => g.id), ["game-mixed0002"]);
+  assert.deepEqual(store.list().games.map((g: any) => g.id), ["game-human0002"]);
+});

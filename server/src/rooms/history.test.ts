@@ -121,10 +121,20 @@ test("history room: the record holds no player's secret key or session id", () =
   assert.doesNotMatch(text, /sessionId/);
 });
 
-test("history room: a debug room's game is saved and tagged go_debug", () => {
+test("history room: a debug room's game is not kept: it is test noise, not a match", () => {
   const { room, clients } = startedRoom({ debug: true });
   passAround(room, clients, 4);
-  assert.equal(saved(room).room, "go_debug");
+  assert.equal(room.state.status, "finished");
+  assert.equal(room.recorder.room, "go_debug");
+  assert.equal(saved(room), undefined, "nothing on disk for a debug table");
+});
+
+test("history room: a game nobody human played is not kept", () => {
+  const { room, clients } = startedRoom();
+  for (const p of room.state.players) p.bot = true; // every seat a bot by the end, as when the people left early
+  passAround(room, clients, 4);
+  assert.equal(room.state.status, "finished");
+  assert.equal(saved(room), undefined, "nothing on disk for a table of bots");
 });
 
 test("history room: with HISTORY=off nothing is recorded or saved", () => {
