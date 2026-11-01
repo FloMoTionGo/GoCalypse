@@ -8,6 +8,8 @@ import { deleteSnapshot, loadSnapshots, queueRestore } from "./state/persist";
 import { historyRoutes } from "./history/routes";
 import { historyStore } from "./history/store";
 import { dropPrivileges, system } from "./util/privileges";
+import { addressLimits } from "./util/limits";
+import { clientIp } from "./util/net";
 
 // Before any file or port is opened: in the container (RUN_AS=node, the
 // Dockerfile) the server makes the data volume the node user's and becomes
@@ -46,9 +48,14 @@ app.post("/rejoin", async (req, res) => {
   const key = typeof req.body?.playerKey === "string" ? req.body.playerKey.slice(0, 64) : "";
   const room = key ? findRoomForKey(key) : undefined;
   if (!room) return res.status(404).json({ error: "no game to rejoin" });
+  // The same address caps as a matchmake call (GoRoom.onAuth); the address rides
+  // along as the seat's auth data, so the room counts the socket.
+  const ip = clientIp(req.headers["x-real-ip"] ?? req.headers["x-forwarded-for"] ?? req.socket.remoteAddress);
+  const refused = addressLimits().reserve(ip, false);
+  if (refused) return res.status(429).json({ error: refused });
   try {
     const listing = await matchMaker.getRoomById(room.roomId);
-    res.json(await matchMaker.reserveSeatFor(listing, { playerKey: key }));
+    res.json(await matchMaker.reserveSeatFor(listing, { playerKey: key }, { ip }));
   } catch (err) {
     res.status(409).json({ error: String((err as Error)?.message || err) });
   }

@@ -493,6 +493,14 @@ the included `Dockerfile` and `fly.toml` (`fly deploy` from `server/`).
 One machine is kept running (`min_machines_running = 1`, about $2/month):
 letting Fly autostop an idle machine dropped players sitting in a lobby.
 
+**Abuse limits** (`src/util/limits.ts`): one address may hold 16 live tables
+and 32 sockets, and make 32 matchmake calls inside 15 seconds; a refused join
+says why. One client may send 20 messages a second (a burst of 40); past that,
+messages are dropped and the first drop is answered with a notice. The caps
+are read once at start from `GOCALYPSE_MAX_ROOMS_PER_IP`,
+`GOCALYPSE_MAX_SOCKETS_PER_IP` and `GOCALYPSE_MAX_RESERVATIONS_PER_IP`
+(`fly.toml [env]` to change them without a code change).
+
 The image is `node:24-alpine`, installed with `npm ci` from the lockfile. It
 starts as root only to make the data volume the `node` user's, then the
 server drops to `node` before it opens a port (`RUN_AS=node` in the

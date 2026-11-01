@@ -1,7 +1,9 @@
-import { Client, Delayed, Room } from "colyseus";
+import { AuthContext, Client, Delayed, ErrorCode, Room, ServerError } from "colyseus";
 import { ArraySchema, StateView } from "@colyseus/schema";
 import { BoardEffect, CreatureState, GoState, HaikuPoint, MarketItem, PlayerState } from "../state/GoState";
 import { randomGuestName, sanitizeName } from "../util/usernames";
+import { addressLimits, MessageBudget } from "../util/limits";
+import { clientIp } from "../util/net";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import { GameRecorder, Outcome } from "../history/recorder";
 import { historyStore } from "../history/store";
@@ -231,6 +233,28 @@ export class GoRoom extends Room<GoState> {
   private rng = new Rng((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
   // The game's record for replays (history/), from the start of play; none with HISTORY=off.
   private recorder?: GameRecorder;
+  // What each client may send per second (util/limits.ts): past it, messages are dropped.
+  private budget = new MessageBudget();
+
+  /**
+   * At the matchmaking step, before a seat is reserved or a room opened: what
+   * one address may hold at once (util/limits.ts). A refusal carries the reason
+   * the client shows. The address comes back as the client's auth data, which
+   * onJoin counts and onLeave releases. A join into an existing table (join,
+   * joinById, reconnect) is held to the sockets cap only.
+   */
+  static async onAuth(_token: string, _options: unknown, context: AuthContext) {
+    const ip = clientIp(context.ip);
+    const url = (context as { req?: { url?: string } }).req?.url ?? "";
+    const method = /\/matchmake\/(\w+)\//.exec(url)?.[1] ?? "";
+    const opens = !["join", "joinById", "reconnect"].includes(method);
+    const refused = addressLimits().reserve(ip, opens);
+    if (refused) {
+      console.log(`GoRoom: ${method || "a join"} from ${ip} refused: ${refused}`);
+      throw new ServerError(ErrorCode.AUTH_FAILED, refused);
+    }
+    return { ip };
+  }
 
   onCreate(options?: { restoreToken?: string; size?: unknown; storms?: unknown }) {
     const restored = takeRestore(options?.restoreToken);
@@ -284,16 +308,21 @@ export class GoRoom extends Room<GoState> {
     liveRooms.add(this);
     this.clock.setInterval(() => this.saveSnapshot(), SAVE_EVERY_MS);
 
-    this.onMessage("move", (client, message: MoveMessage) => this.handleMove(client, message));
-    this.onMessage("usePowerup", (client, message: UsePowerupMessage) =>
-      this.handleUsePowerup(client, message)
-    );
-    this.onMessage("buy", (client, message: BuyMessage) => this.handleBuy(client, message));
-    this.onMessage("pass", (client) => this.handlePass(client));
-    this.onMessage("addBots", (client, message: AddBotsMessage) => this.handleAddBots(client, message));
-    this.onMessage("upgradeCard", (client, message: UpgradeCardMessage) => this.handleUpgradeCard(client, message));
-    this.onMessage("flipCardStone", (client, message: CardCellMessage) => this.handleCardCell(client, message, "flip"));
-    this.onMessage("removeCardStone", (client, message: CardCellMessage) => this.handleCardCell(client, message, "remove"));
+    // Every handler runs within the client's budget (util/limits.ts): past it, the
+    // message is dropped, and the first drop says so once.
+    const within = (client: Client) => {
+      if (this.budget.allow(client.sessionId)) return true;
+      if (this.budget.dropped(client.sessionId) === 1) this.notice(client, "Slow down: too many messages at once; the rest were dropped.");
+      return false;
+    };
+    this.onMessage("move", (client, message: MoveMessage) => within(client) && this.handleMove(client, message));
+    this.onMessage("usePowerup", (client, message: UsePowerupMessage) => within(client) && this.handleUsePowerup(client, message));
+    this.onMessage("buy", (client, message: BuyMessage) => within(client) && this.handleBuy(client, message));
+    this.onMessage("pass", (client) => within(client) && this.handlePass(client));
+    this.onMessage("addBots", (client, message: AddBotsMessage) => within(client) && this.handleAddBots(client, message));
+    this.onMessage("upgradeCard", (client, message: UpgradeCardMessage) => within(client) && this.handleUpgradeCard(client, message));
+    this.onMessage("flipCardStone", (client, message: CardCellMessage) => within(client) && this.handleCardCell(client, message, "flip"));
+    this.onMessage("removeCardStone", (client, message: CardCellMessage) => within(client) && this.handleCardCell(client, message, "remove"));
 
     if (restored) this.resumeRestored();
   }
@@ -347,7 +376,7 @@ export class GoRoom extends Room<GoState> {
     }
   }
 
-  onJoin(client: Client, options: JoinOptions) {
+  onJoin(client: Client, options: JoinOptions, auth?: { ip?: string }) {
     const key = cleanKey(options?.playerKey);
     const seat = this.seatFor(key);
     if (seat) {
@@ -356,6 +385,7 @@ export class GoRoom extends Room<GoState> {
       seat.connected = true;
       this.giveView(client, seat);
       this.state.lastEvent = `${seat.name} is back`;
+      this.countSocket(client, auth);
       return;
     }
     // Two joins reserved before either reached onJoin can both land at a table
@@ -363,6 +393,7 @@ export class GoRoom extends Room<GoState> {
     if (this.state.status !== "waiting" || this.state.players.length >= MAX_PLAYERS) {
       throw new Error("This table is full.");
     }
+    this.countSocket(client, auth);
 
     const player = new PlayerState();
     player.sessionId = client.sessionId;
@@ -627,6 +658,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   async onLeave(client: Client, consented: boolean) {
+    this.releaseSocket(client);
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
 
@@ -697,10 +729,27 @@ export class GoRoom extends Room<GoState> {
   onDispose() {
     this.botTimer?.clear();
     liveRooms.delete(this);
+    addressLimits().closed(this.roomId); // whatever sockets were still counted here
+    const dropped = this.budget.totalDropped();
+    if (dropped) console.log(`GoRoom ${this.roomId}: ${dropped} message(s) dropped over budget`);
     if (this.shuttingDown) return; // the game goes on after the restart, record and all
     deleteSnapshot(this.roomId);
     // Everyone left mid-game: still a game played, if anything was played at all.
     if (this.state.status === "playing" && this.state.turnCount > 0) this.saveHistory("abandoned");
+  }
+
+  /** Counts the socket against its address (from static onAuth, or /rejoin's reservation); onLeave releases it. */
+  private countSocket(client: Client, auth?: { ip?: string }) {
+    const ip = auth?.ip;
+    if (!ip) return; // no address known (the room tests drive onJoin directly): nothing to count
+    client.userData = { ip };
+    addressLimits().joined(ip, this.roomId);
+  }
+
+  private releaseSocket(client: Client) {
+    const ip = (client.userData as { ip?: string } | undefined)?.ip;
+    if (ip) addressLimits().left(ip, this.roomId);
+    this.budget.forget(client.sessionId);
   }
 
   // Defining this makes Colyseus wrap every handler in try/catch. Without it,
