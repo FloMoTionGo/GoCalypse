@@ -59,7 +59,7 @@
         <span class="sep" aria-hidden="true">·</span>
         <details id="server-menu">
           <summary>Server</summary>
-          <input id="server-input" type="text" value="wss://gocalypse.fly.dev" aria-label="Server" spellcheck="false" />
+          <input id="server-input" type="text" value="wss://gocalypse.fly.dev" aria-label="Server" spellcheck="false" autocomplete="off" autocapitalize="off" inputmode="url" />
         </details>
         <span class="sep" aria-hidden="true">·</span>
         <a href="https://github.com/FloMoTionGo/GoCalypse" target="_blank" rel="noopener">GitHub</a>
@@ -67,6 +67,7 @@
     </section>
 
     <section id="game" hidden>
+      <h2 class="visually-hidden">At the table</h2>
       <!-- One row of pixel art (ideas.md §11.8): the history on the left, the turn lantern in the
            middle, the actions on the right. The planks are real buttons with their faces as images
            (renderHeader / plank() in main.js); their words are in aria-label. -->
@@ -178,6 +179,13 @@
       <details class="welcome-more">
         <summary>Reading the board</summary>
         <p>Anything that doesn't last shows a small number: the <b>rounds it has left</b> (a lily pad, a ward, driftwood or a fire; the number turns amber on its last round). A lily pad or ward also carries its owner's two stones, so you can see whose it is. A seed grows in three pictures, one round each: a seed, a sprout, then a sapling. Anyone may trample the seed, but once it sprouts only its planter may play there. The boat drifting on the river is only for orientation: its sign shows the round being played (R3 = round 3).</p>
+        <p>Keys at the table:</p>
+        <ul class="welcome-keys">
+          <li><kbd>←</kbd> <kbd>→</kbd> step back and forward through the last moves</li>
+          <li><kbd>Esc</kbd> or <kbd>End</kbd> back to the live board; <kbd>Esc</kbd> first lets go of a picked item</li>
+          <li><kbd>L</kbd> the last ten events</li>
+        </ul>
+        <p>On the home screen's board the arrows move, <kbd>Enter</kbd> or <kbd>Space</kbd> places a black stone and <kbd>Delete</kbd> takes it off. In Replays, <kbd>←</kbd> <kbd>→</kbd> step, <kbd>Home</kbd> and <kbd>End</kbd> jump to the first and last step, and <kbd>Space</kbd> plays or pauses.</p>
       </details>
       <details class="welcome-more">
         <summary>Weather</summary>
@@ -215,6 +223,18 @@
       <h2 id="event-log-title">Last events</h2>
       <p class="welcome-tagline">The last ten things that happened, newest first. R is the round.</p>
       <ol id="event-log-list" reversed></ol>
+    </div>
+  </dialog>
+
+  <!-- Leave asks first, so a stray click never leaves the table; main.js fills in why (review U7). -->
+  <dialog id="leave-dialog" aria-labelledby="leave-title" aria-describedby="leave-why">
+    <div class="welcome-body">
+      <h2 id="leave-title">Leave the table?</h2>
+      <p id="leave-why"></p>
+      <div class="leave-actions">
+        <button id="leave-stay" type="button" autofocus>Stay</button>
+        <button id="leave-confirm" type="button">Leave</button>
+      </div>
     </div>
   </dialog>
 

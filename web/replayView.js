@@ -18,6 +18,8 @@ const replays = {
   lastTime: 0, // performance.now() of the last frame drawn
 };
 const REPLAY_LIST_LIMIT = 200;
+// Buttons shown at once; "Show N more" at the end adds the next ones (review U7: 200 at a time was heavy).
+const REPLAY_PAGE = 50;
 const REPLAY_FPS = 15; // the scene's water and lanterns still move; the stones only on a step
 const REPLAY_CHROME_H = 149; // art px of the dialog around the board: margins, title, controls, event line
 
@@ -81,9 +83,9 @@ async function loadReplayList() {
   }
 }
 
-function renderReplayList(games) {
-  replayListEl.replaceChildren(
-    ...games.map((game) => {
+/** The list, `shown` games of it; a last item offers the next REPLAY_PAGE and moves the focus to the first of them. */
+function renderReplayList(games, shown = Math.min(games.length, REPLAY_PAGE)) {
+  const items = games.slice(0, shown).map((game) => {
       const words = GoReplay.describeGame(game);
       const item = document.createElement("li");
       const button = document.createElement("button");
@@ -99,8 +101,25 @@ function renderReplayList(games) {
       button.addEventListener("click", () => openReplay(game.id));
       item.append(button);
       return item;
-    })
-  );
+    });
+  if (shown < games.length) {
+    const next = Math.min(REPLAY_PAGE, games.length - shown);
+    const item = document.createElement("li");
+    item.className = "replay-more";
+    const more = document.createElement("button");
+    more.type = "button";
+    more.id = "replays-more";
+    more.className = "link-button";
+    more.textContent = `Show ${next} more`;
+    more.addEventListener("click", () => {
+      renderReplayList(games, shown + next);
+      const first = replayListEl.querySelectorAll("button[data-id]")[shown];
+      if (first) first.focus();
+    });
+    item.append(more);
+    items.push(item);
+  }
+  replayListEl.replaceChildren(...items);
 }
 
 function pickPreset(name) {

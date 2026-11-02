@@ -272,7 +272,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 
 /* Welcome screen */
 /* Only .welcome-body scrolls; the x is pinned to the dialog's corner. */
-#welcome, #result, #event-log {
+#welcome, #result, #event-log, #leave-dialog {
   padding: 0;
   width: min(calc(252 * var(--px)), 92vw);
   max-height: 88vh;
@@ -282,7 +282,12 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   border: var(--px) solid var(--amber);
   border-radius: calc(3 * var(--px));
 }
-#welcome::backdrop, #result::backdrop, #event-log::backdrop { background: rgba(31, 26, 36, 0.75); }
+#welcome::backdrop, #result::backdrop, #event-log::backdrop, #leave-dialog::backdrop { background: rgba(31, 26, 36, 0.75); }
+#leave-dialog { width: min(calc(170 * var(--px)), 92vw); }
+.leave-actions { display: flex; justify-content: flex-end; gap: calc(5 * var(--px)); margin-top: calc(6 * var(--px)); }
+/* Keys in How to play: a small framed cap per key. */
+.welcome-keys { margin: calc(2 * var(--px)) 0; padding-left: calc(8 * var(--px)); }
+.welcome-body kbd { font: inherit; font-weight: 700; color: var(--cream); padding: 0 calc(1.5 * var(--px)); border: var(--px) solid var(--slate); border-radius: var(--px); }
 
 /* The event log (main.js renderEventLog): the last ten event lines, the newest lit, each with its round. */
 #event-log-list { list-style: none; margin: calc(4 * var(--px)) 0 0; padding: 0; display: flex; flex-direction: column; gap: calc(2 * var(--px)); }
@@ -310,6 +315,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 #replays-filter input[type="date"] { margin-left: calc(2 * var(--px)); background: var(--ink); color: var(--cream); border: var(--px) solid var(--slate); border-radius: calc(2 * var(--px)); padding: var(--px) calc(3 * var(--px)); color-scheme: dark; font: inherit; }
 #replays-filter input[type="date"]:focus-visible { border-color: var(--amber); outline: none; }
 #replays-presets { display: flex; gap: calc(3 * var(--px)); }
+#replays-list .replay-more { display: flex; justify-content: center; }
 #replays-list { list-style: none; margin: calc(4 * var(--px)) 0 0; padding: 0; display: flex; flex-direction: column; gap: calc(3 * var(--px)); }
 .replay-item {
   display: grid;

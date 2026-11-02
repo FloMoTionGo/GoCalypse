@@ -257,8 +257,10 @@ botsButton.addEventListener("click", () => {
 });
 welcomeBotsAddButton.addEventListener("click", seatPickedBots);
 passButton.addEventListener("click", () => room && room.send("pass"));
+const leaveDialogEl = document.getElementById("leave-dialog");
 document.getElementById("leave-button").addEventListener("click", () => {
-  // Always asked first, so a stray click never leaves the table.
+  // Always asked first, so a stray click never leaves the table: the page's own
+  // dialog like the other three (review U7), Stay first. Escape closes it too.
   const status = lastState ? lastState.status : "";
   const why =
     status === "playing"
@@ -266,7 +268,15 @@ document.getElementById("leave-button").addEventListener("click", () => {
       : status === "finished"
       ? "The game stays in the Replays."
       : "Your seat opens for someone else.";
-  if (!confirm(`Leave the table? ${why}`)) return;
+  document.getElementById("leave-why").textContent = why;
+  if (!leaveDialogEl.open) leaveDialogEl.showModal();
+});
+document.getElementById("leave-stay").addEventListener("click", () => leaveDialogEl.close());
+leaveDialogEl.addEventListener("click", (evt) => {
+  if (evt.target === leaveDialogEl && isOutside(leaveDialogEl, evt)) leaveDialogEl.close();
+});
+document.getElementById("leave-confirm").addEventListener("click", () => {
+  leaveDialogEl.close();
   leaving = true;
   try {
     sessionStorage.removeItem(playerKeyStore());
