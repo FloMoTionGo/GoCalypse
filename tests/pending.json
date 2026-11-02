@@ -1,4 +1,47 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "islets: one failed poll keeps the islets, and only a server silent for 12 seconds takes them away",
+      "feature": "lobby-islands-review",
+      "tier": "web",
+      "since": "2026-11-02"
+    },
+    {
+      "test": "islets: back on the home screen after a game, the lobbies there just appear, none rising or sinking",
+      "feature": "lobby-islands-review",
+      "tier": "web",
+      "since": "2026-11-02"
+    },
+    {
+      "test": "islets: under the pointer every free seat is marked, and none of the taken ones",
+      "feature": "lobby-islands-review",
+      "tier": "web",
+      "since": "2026-11-02"
+    },
+    {
+      "test": "islets: a lobby at a board size this page has never heard of still shows",
+      "feature": "lobby-islands-review",
+      "tier": "web",
+      "since": "2026-11-02"
+    },
+    {
+      "test": "error copy: a lobby island that filled or closed before the join says so and points to the other islands",
+      "feature": "lobby-islands-review",
+      "tier": "web",
+      "since": "2026-11-02"
+    },
+    {
+      "test": "islands: picked bots stay home when you join a lobby island",
+      "feature": "lobby-islands-review",
+      "tier": "gui",
+      "since": "2026-11-02"
+    },
+    {
+      "test": "islands: the caption follows the islet under the pointer as its lobby fills and sinks",
+      "feature": "lobby-islands-review",
+      "tier": "gui",
+      "since": "2026-11-02"
+    }
+  ]
 }

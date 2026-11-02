@@ -110,3 +110,21 @@ test("error copy: no message shows a status or close code, the word error, or a 
     assert.doesNotMatch(text, /press Join/i, `the button says Play: ${text}`);
   }
 });
+
+// Lobby islands (tasks/2026-11-02_lobby_islands/REVIEW.md): an islet is a few seconds old when
+// clicked, so the lobby may have filled (its game started) or closed by then.
+test("error copy: a lobby island that filled or closed before the join says so and points to the other islands", () => {
+  const c = C();
+  for (const err of [
+    { name: "ServerError", code: 4212, message: "room is locked" },
+    { name: "ServerError", code: 4211, message: "no rooms found" },
+    { name: "ServerError", code: 4216, message: "This table is full." },
+  ]) {
+    const text = c.joinFailed(err, null, { lobby: true });
+    assert.match(text, /lobby/, text);
+    assert.match(text, /island/, text);
+    assert.match(text, /press Play/, text);
+    assert.doesNotMatch(text, RAW, text);
+  }
+  assert.match(c.joinFailed(unreachable[1], null, { lobby: true }), /Can't reach the server/, "an unreachable server is told as always");
+});

@@ -88,3 +88,57 @@ test("islets: a server that sends no lobby list shows none", () => {
   L.advance(10);
   assert.deepEqual(L.all(), [], "unknown again: the islets go");
 });
+
+// From the review of the first build (tasks/2026-11-02_lobby_islands/REVIEW.md).
+test("islets: one failed poll keeps the islets, and only a server silent for 12 seconds takes them away", () => {
+  const L = islets().createLobbies();
+  L.sync([{ roomId: "a", size: 13, seats: ["p", null, null, null] }], [], 0);
+  L.sync(null, null, 4);
+  L.advance(5);
+  assert.equal(L.get("a").phase, "idle", "a poll that failed says nothing about the lobby");
+  L.sync([{ roomId: "a", size: 13, seats: ["p", "p", null, null] }], [], 8);
+  L.sync(null, null, 21);
+  L.advance(22);
+  assert.equal(L.get("a").phase, "sink", "13 s without an answer: it goes");
+  assert.equal(L.get("a").lanterns, false, "quietly");
+});
+
+test("islets: back on the home screen after a game, the lobbies there just appear, none rising or sinking", () => {
+  const L = islets().createLobbies();
+  L.sync([{ roomId: "a", size: 13, seats: ["p", null, null, null] }], [], 0);
+  L.reset();
+  L.sync([{ roomId: "b", size: 19, seats: ["p", null, null, null] }], [], 1200);
+  L.advance(1201);
+  assert.deepEqual(L.all().map((t) => [t.roomId, t.phase, t.sinkAt]), [["b", "idle", null]]);
+});
+
+test("islets: under the pointer every free seat is marked, and none of the taken ones", () => {
+  const I = islets();
+  const L = I.createLobbies();
+  L.sync([{ roomId: "a", size: 13, seats: ["p", null, "bot:shark", null] }], [], 0);
+  L.advance(1);
+  const tb = L.get("a");
+  const draw = (hover) => {
+    const s = new G.Surface(240, 240);
+    s.fill(G.TRANSPARENT);
+    I.drawIslet(s, tb, 120, 120, 1, { initialOf: () => null, hover, reduced: true });
+    return s.px;
+  };
+  const plain = draw(null), hovered = draw("a");
+  const nodes = tb.isle.nodes.map((n) => ({ x: tb.x0 + n.x, y: tb.y0 + n.y }));
+  const near = [0, 0, 0, 0]; // changed pixels, by the seat they are nearest
+  for (let i = 0; i < plain.length; i++) {
+    if (plain[i] === hovered[i]) continue;
+    const x = i % 240, y = (i / 240) | 0;
+    const d = nodes.map((n) => Math.hypot(n.x - x, n.y - y));
+    near[d.indexOf(Math.min(...d))]++;
+  }
+  assert.ok(near[1] > 0 && near[3] > 0, `both free seats are marked: ${near}`);
+  assert.equal(near[0] + near[2], 0, `no taken seat is: ${near}`);
+});
+
+test("islets: a lobby at a board size this page has never heard of still shows", () => {
+  const L = islets().createLobbies();
+  L.sync([{ roomId: "x", size: 9, seats: ["p", null, null, null] }], [], 0);
+  assert.equal(L.get("x")?.size, 9);
+});
