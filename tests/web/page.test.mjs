@@ -123,3 +123,15 @@ test("index.html asks before leaving with the page's own dialog, Stay and Leave,
   const main = fs.readFileSync(path.join(WEB, "main.js"), "utf8");
   assert.doesNotMatch(main, /\bconfirm\(\s*[`'"]/, "no confirm(...) call");
 });
+
+// Review D3: the uppercase tracked label on every heading was the generic eyebrow
+// pattern. Headings and labels show as they are written, sentence case, in amber.
+test("style.css uppercases nothing: headings and labels show as written, the headings in amber (D3)", () => {
+  const css = fs.readFileSync(path.join(WEB, "style.css"), "utf8");
+  assert.doesNotMatch(css, /text-transform:\s*uppercase/, "no uppercase");
+  for (const sel of [".panel h3", ".welcome-body h3", ".welcome-more > summary", "#weather .label"]) {
+    const rule = css.match(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*\\{([^}]*)\\}"));
+    assert.ok(rule, `a rule for ${sel}`);
+    assert.match(rule[1], /color:\s*var\(--amber\)/, `${sel} in amber`);
+  }
+});
