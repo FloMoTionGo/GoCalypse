@@ -114,3 +114,41 @@ test("GET /tables counts the people waiting at each board size, and a table is g
     await leaveQuietly(debug);
   }
 });
+
+// Lobby islands (tasks/2026-11-02_lobby_islands): GET /tables also lists each open
+// lobby with its seats (by colour, people as "p", bots by kind, no names), and the
+// tables whose game just started, so the home screen can sink their islets.
+const tablesBody = async () => {
+  const res = await fetch(`${server.http}/tables`);
+  assert.equal(res.status, 200);
+  return res.json();
+};
+
+test("GET /tables lists each lobby with its seats, and a game that starts moves to the just started list", async () => {
+  const host = await sit("go_custom", { name: "Hostname", size: 19 });
+  try {
+    host.send("addBots", { ids: ["shark"] });
+    await until(async () => (await tablesBody()).rooms?.find((t) => t.roomId === host.roomId)?.seats.filter(Boolean).length === 2, 5000, "the lobby with its bot");
+    const body = await tablesBody();
+    const lobby = body.rooms.find((t) => t.roomId === host.roomId);
+    assert.equal(lobby.size, 19);
+    assert.equal(lobby.seats.length, 4);
+    await until(() => host.state.players.length === 2, 5000, "the bot in the host's state");
+    const me = host.state.players.find((p) => !p.bot), bot = host.state.players.find((p) => p.bot);
+    assert.equal(lobby.seats[me.color - 1], "p", "the host at their colour");
+    assert.equal(lobby.seats[bot.color - 1], "bot:shark", "the bot by its kind");
+    assert.ok(!JSON.stringify(body).includes("Hostname"), "nobody's name is listed");
+    assert.deepEqual(body.tables, [{ size: 19, waiting: 1, tables: 1 }], "the counts are still there for older pages");
+
+    host.send("addBots", { ids: ["pure", "pure"] });
+    await until(() => host.state.status === "playing", 5000, "the game to start");
+    await until(async () => !(await tablesBody()).rooms.some((t) => t.roomId === host.roomId), 5000, "the started game to leave the lobbies");
+    const started = (await tablesBody()).started.find((t) => t.roomId === host.roomId);
+    assert.ok(started, "it is among the just started");
+    assert.equal(started.size, 19);
+    assert.equal(started.seats.filter(Boolean).length, 4, "all four seats taken");
+    assert.equal(typeof started.at, "number");
+  } finally {
+    await leaveQuietly(host);
+  }
+});
