@@ -108,3 +108,36 @@ test("a refused move is answered with a notice to that client only", async () =>
   assert.match(heard.get(next)[0], /Night Market opens after 5 moves/);
   assert.ok(rooms.filter((r) => r !== next).every((r) => heard.get(r).length === 0));
 });
+
+// Bots move in the room's clock, and colyseus 0.16 ticks the clock after
+// onBeforePatch, where `seen` is rebuilt: a bot's stone went out one patch after
+// the turn it ended, so for that patch a client saw its turn without the stone
+// (a click there was refused in silence; the GUI tests' first move raced it).
+test("a bot's stone reaches the clients in the same patch as the turn it ends", async () => {
+  const room = await new Client(server.ws).create("go_custom", { name: "Watcher", playerKey: `watcher-${stamp()}` });
+  open.push(room);
+  room.onMessage("*", () => {});
+  const moves = []; // the first patch that shows each bot move: the stone's cell as sent then
+  let lastTurn = 0;
+  room.onStateChange((s) => {
+    if (s.turnCount === lastTurn) return;
+    lastTurn = s.turnCount;
+    const m = /^(.+?) played \((\d+), (\d+)\)/.exec(s.lastEvent || "");
+    if (!m || m[1] === "Watcher") return;
+    moves.push({ event: s.lastEvent, cell: s.seen[Number(m[3]) * s.size + Number(m[2])] });
+  });
+  room.send("addBots", { ids: ["pure", "pure", "pure"] });
+  await until(() => room.state.status === "playing", 5000, "the game to start");
+  // Passing keeps the bots playing: a human pass is taken in a message, not in the clock.
+  const deadline = Date.now() + 20000;
+  while (moves.length < 4 && Date.now() < deadline) {
+    if (me(room) && room.state.players[room.state.turnIndex]?.sessionId === room.sessionId) {
+      const turn = room.state.turnCount;
+      room.send("pass");
+      await until(() => room.state.turnCount > turn, 5000, "my pass");
+    }
+    await wait(50);
+  }
+  assert.ok(moves.length >= 4, `four bot moves seen: ${JSON.stringify(moves)}`);
+  for (const m of moves) assert.notEqual(m.cell, 0, `"${m.event}": the stone came with the turn`);
+});
