@@ -545,7 +545,13 @@ export class GoRoom extends Room<GoState> {
     }
   }
 
-  /** Runs before every patch goes out, so `seen` always follows the true board. */
+  /**
+   * Runs before every patch goes out, so `seen` follows what messages changed.
+   * colyseus 0.16 ticks the clock only after this hook (Room.broadcastPatch),
+   * so whatever the clock's callbacks change, a bot's turn above all, rebuilds
+   * `seen` itself (scheduleBotTurn); otherwise the patch carries the new turn
+   * without the stone that ended the old one.
+   */
   onBeforePatch() {
     this.refreshSeen();
   }
@@ -1300,7 +1306,10 @@ export class GoRoom extends Room<GoState> {
     }
 
     const delay = BOT_THINK_MIN_MS + this.rng.below(BOT_THINK_SPREAD_MS);
-    this.botTimer = this.clock.setTimeout(() => this.runBotTurn(), delay);
+    this.botTimer = this.clock.setTimeout(() => {
+      this.runBotTurn();
+      this.refreshSeen(); // the clock ticks after onBeforePatch: the stone goes out with its turn
+    }, delay);
   }
 
   private runBotTurn() {
