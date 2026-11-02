@@ -263,12 +263,26 @@ test("game: the first pass is told under the hand, and How to play then opens wi
   rig.assertClean("the game after a pass");
 });
 
-test("game: Leave asks first, then puts me back in the lobby and stops drawing the board", async () => {
-  b.on("Page.javascriptDialogOpening", () => b.cdp("Page.handleJavaScriptDialog", { accept: true }));
+test("game: Leave in the page's own dialog puts me back in the lobby and stops drawing the board (U7)", async () => {
+  // Should the browser's own confirm open, say yes, so the tests after this one still start from the lobby.
+  let native = null;
+  b.on("Page.javascriptDialogOpening", (p) => {
+    native = p.message;
+    b.cdp("Page.handleJavaScriptDialog", { accept: true });
+  });
+  // Counts the board's frames from here on; the next test expects them to start again.
+  await b.ev("(() => { window.__renders = 0; const r0 = scene.render; scene.render = function (...a) { window.__renders++; return r0.apply(this, a); }; return true; })()");
   await b.ev("document.getElementById('leave-button').click(); true");
+  try {
+    await b.waitFor("!!document.getElementById('leave-dialog') && document.getElementById('leave-dialog').open", 3000, "the Leave dialog");
+    assert.equal(native, null, "no browser confirm");
+    await rig.clickEl("#leave-confirm");
+  } finally {
+    await b.ev("(() => { const d = document.getElementById('leave-dialog'); if (d && d.open) d.close(); return true; })()");
+  }
   await b.waitFor("!lobbyEl.hidden && gameEl.hidden", 5000, "the lobby");
   assert.equal(await b.ev("lobbyStatus.textContent"), "You left the game.");
-  await b.ev("window.__renders = 0; const r0 = scene.render; scene.render = function (...a) { window.__renders++; return r0.apply(this, a); }; true");
+  await b.ev("window.__renders = 0; true");
   await wait(700);
   assert.equal(await b.ev("window.__renders"), 0, "no frames for the hidden board (P1)");
 });

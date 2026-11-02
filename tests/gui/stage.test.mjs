@@ -171,16 +171,32 @@ test("header: PASS, How to play and Leave are pixel planks, named for screen rea
   assert.deepEqual(r.map((x) => x.label), ["Pass", "How to play", "Leave game"]);
 });
 
-test("header: Leave asks first, saying a bot takes the seat; cancelling keeps me at the table", async () => {
-  let message = null;
+test("header: Leave opens the page's own dialog, saying a bot takes the seat; Stay and Escape keep me at the table (U7)", async () => {
+  // The browser's own confirm would block the page: say no to it, should one open.
+  let native = null;
   b.on("Page.javascriptDialogOpening", (p) => {
-    message = p.message;
+    native = p.message;
     b.cdp("Page.handleJavaScriptDialog", { accept: false });
   });
-  await b.ev("document.getElementById('leave-button').click(); true");
-  await wait(300);
-  assert.match(message ?? "", /Leave the table\?/);
-  assert.match(message ?? "", /bot/i);
-  assert.equal(await b.ev("gameEl.hidden"), false, "still at the table");
+  const dialog = "document.getElementById('leave-dialog')";
+  try {
+    await b.ev("document.getElementById('leave-button').click(); true");
+    await b.waitFor(`!!${dialog} && ${dialog}.open`, 3000, "the Leave dialog");
+    assert.equal(native, null, "no browser confirm");
+    const text = await b.ev(`${dialog}.textContent`);
+    assert.match(text, /Leave the table\?/);
+    assert.match(text, /bot/i);
+    assert.equal(await b.ev("document.activeElement && document.activeElement.id"), "leave-stay", "Stay has the focus");
+    await rig.clickEl("#leave-stay");
+    await b.waitFor(`!${dialog}.open`, 3000, "Stay to close it");
+    assert.equal(await b.ev("gameEl.hidden"), false, "still at the table");
+    await b.ev("document.getElementById('leave-button').click(); true");
+    await b.waitFor(`${dialog}.open`, 3000, "the Leave dialog again");
+    await b.key("Escape");
+    await b.waitFor(`!${dialog}.open`, 3000, "Escape to close it");
+    assert.equal(await b.ev("gameEl.hidden"), false, "still at the table after Escape");
+  } finally {
+    await b.ev(`(() => { const d = ${dialog}; if (d && d.open) d.close(); return true; })()`);
+  }
   rig.assertClean("the stage");
 });

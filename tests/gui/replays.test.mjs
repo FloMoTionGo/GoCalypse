@@ -84,6 +84,31 @@ test("replays: the presets fill the dates; Today finds none of these games, All 
   assert.equal(await b.ev("document.getElementById('replays-to').value"), "");
 });
 
+test("replays: a long list shows fifty games at a time, with a button for the next fifty (U7)", async () => {
+  const shown = () => b.ev(`document.querySelectorAll("#replays-list button[data-id]").length`);
+  const more = () => b.ev(`(document.getElementById("replays-more") || {}).textContent || null`);
+  const first = await b.ev("replays.games[0].id");
+  await b.ev(`(() => {
+    const g = replays.games[0];
+    renderReplayList(Array.from({ length: 120 }, (_, i) => ({ ...g, id: g.id + "-many-" + i })));
+    return true;
+  })()`);
+  try {
+    assert.equal(await shown(), 50, "fifty at first");
+    assert.match((await more()) || "", /50 more/);
+    await rig.clickEl("#replays-more");
+    assert.equal(await shown(), 100, "fifty more");
+    assert.equal(await b.ev("document.activeElement && document.activeElement.dataset.id"), `${first}-many-50`, "the first new game has the focus");
+    assert.match((await more()) || "", /20 more/);
+    await rig.clickEl("#replays-more");
+    assert.equal(await shown(), 120, "the rest");
+    assert.equal(await more(), null, "no button once every game shows");
+  } finally {
+    await b.ev("loadReplayList(); true");
+    await b.waitFor(`document.querySelectorAll("#replays-list button[data-id]").length === 3`, 5000, "the real list again");
+  }
+});
+
 test("replays: picking a game opens it at its first step, the empty board, drawn on the canvas", async () => {
   await rig.clickEl('#replays-list button[data-id="fx-game-sep01"]');
   await b.waitFor("replays.record && replays.record.id === 'fx-game-sep01'", 5000, "the game to load");

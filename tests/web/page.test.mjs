@@ -80,3 +80,46 @@ test("index.html loads errorCopy.js from the site before main.js and replayView.
   assert.ok(at("errorCopy.js") < at("main.js"), "before main.js");
   assert.ok(at("errorCopy.js") < at("replayView.js"), "before replayView.js");
 });
+
+// Review U7, the small things: the Server field's keyboard, the heading levels,
+// the keys listed in How to play, and Leave asking in the page's own dialog.
+test("index.html's Server field asks for a URL keyboard and turns off autocomplete and autocapitalize (U7)", () => {
+  const input = html().match(/<input id="server-input"[^>]*>/);
+  assert.ok(input, "the Server field");
+  assert.match(input[0], /autocomplete="off"/);
+  assert.match(input[0], /autocapitalize="off"/);
+  assert.match(input[0], /inputmode="url"/);
+});
+
+test("index.html's headings never skip a level outside the dialogs, so the game's panels sit under a heading for the table (U7)", () => {
+  const page = html().replace(/<!--[\s\S]*?-->/g, "").replace(/<dialog[\s\S]*?<\/dialog>/g, "");
+  const levels = [...page.matchAll(/<h([1-6])\b/g)].map((m) => Number(m[1]));
+  assert.ok(levels.length >= 2, `headings: ${levels.join(" ")}`);
+  levels.reduce((prev, level) => {
+    assert.ok(level <= prev + 1, `h${prev} is followed by h${level}: ${levels.join(" ")}`);
+    return level;
+  }, 0);
+  const game = page.slice(page.indexOf('<section id="game"'));
+  assert.match(game, /<h2\b[^>]*>[^<]+<\/h2>/, "the game section has its own h2");
+});
+
+test("How to play lists every key a button's title names, under Reading the board (U7)", () => {
+  const h = html();
+  const named = { "left arrow": "←", "right arrow": "→" };
+  const keys = [...h.matchAll(/title="[^"]*\(([^)]+)\)"/g)].map((m) => named[m[1]] || m[1]);
+  assert.ok(keys.length >= 5, `keys in titles: ${keys.join(", ")}`);
+  const fold = h.match(/<summary>Reading the board<\/summary>([\s\S]*?)<\/details>/);
+  assert.ok(fold, "the Reading the board fold");
+  const listed = new Set([...fold[1].matchAll(/<kbd>([^<]+)<\/kbd>/g)].map((m) => m[1]));
+  for (const key of keys) assert.ok(listed.has(key), `${key} is listed: ${[...listed].join(", ")}`);
+});
+
+test("index.html asks before leaving with the page's own dialog, Stay and Leave, and main.js never calls the browser's confirm (U7)", () => {
+  const dialog = html().match(/<dialog id="leave-dialog"[\s\S]*?<\/dialog>/);
+  assert.ok(dialog, "a dialog#leave-dialog");
+  assert.match(dialog[0], /aria-labelledby="leave-title"/);
+  assert.match(dialog[0], /<button id="leave-stay"[^>]*>Stay<\/button>/);
+  assert.match(dialog[0], /<button id="leave-confirm"[^>]*>Leave<\/button>/);
+  const main = fs.readFileSync(path.join(WEB, "main.js"), "utf8");
+  assert.doesNotMatch(main, /\bconfirm\(\s*[`'"]/, "no confirm(...) call");
+});
