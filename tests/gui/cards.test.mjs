@@ -3,6 +3,7 @@
 // (rich, market open at once). Tests in this file share one page and run in order.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { wait } from "../lib/harness.mjs";
 import { guiRig } from "./page.mjs";
 
 let rig, b;
@@ -220,4 +221,41 @@ test("cards: nothing on the page calls it the Stone Card any more", async () => 
   assert.ok(texts.some((t) => /\bKata\b/.test(t)), "the Kata is named");
   assert.match(texts.at(-1), /Kata/, "the aiming hint");
   rig.assertClean("the Kata");
+});
+
+// Review U6: on a tablet nothing hovers, so the cards' 5 px text could never be read.
+// The first tap on a card shows it enlarged (the Kata's live copy, whose points take
+// stones); a tap on the card already shown acts as a click; a tap elsewhere lets it go.
+test("cards: on a touch screen the first tap shows a card enlarged, the next one plays it (U6)", async () => {
+  const touch = (type, at) => b.cdp("Input.dispatchTouchEvent", { type, touchPoints: at ? [{ x: at.x, y: at.y }] : [] });
+  const tap = async (at) => { await touch("touchStart", at); await touch("touchEnd"); await wait(150); };
+  const centre = (sel) => b.ev(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return null; el.scrollIntoView({ block: "nearest" }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  await b.ev("hideCardZoom(); setSelectedPowerup(null); noticeEl.textContent = ''; true");
+  await b.cdp("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+  try {
+    const kata = await centre(`#hand .card[data-id="stone_card"] .card-name`);
+    await tap(kata);
+    await b.waitFor("!!document.querySelector('.card.zoom.live')", 2000, "the Kata enlarged");
+    assert.equal(await b.ev("selectedPowerup"), null, "the first tap only shows it");
+    assert.equal(await b.ev("noticeEl.textContent"), "", "and says nothing");
+    // A point of the enlarged Kata takes a stone, as a click on it does.
+    await b.ev(`(() => { window.__upgrades = 0; const send = room.send; room.send = function (t, m) { if (t === "upgradeCard") window.__upgrades++; return send.call(this, t, m); }; return true; })()`);
+    const cell = await centre(".card.zoom.live .card-cell:not(.set)");
+    assert.ok(cell, "an empty point on the enlarged Kata");
+    await tap(cell);
+    await b.waitFor("window.__upgrades === 1", 3000, "a stone put on the Kata");
+    // Still shown after the hand is drawn again, until a tap elsewhere.
+    await wait(400);
+    assert.equal(await b.ev("!!document.querySelector('.card.zoom.live')"), true, "still enlarged");
+    await tap(await centre("#weather"));
+    await b.waitFor("!document.querySelector('.card.zoom')", 2000, "the enlarged card let go");
+    // Shown, then a second tap on the hand's card is the click: armed, or told why not.
+    await tap(kata);
+    await b.waitFor("!!document.querySelector('.card.zoom.live')", 2000, "the Kata enlarged again");
+    await tap(kata);
+    await b.waitFor(`selectedPowerup === "stone_card" || /Kata/.test(noticeEl.textContent)`, 2000, "the second tap to play it");
+  } finally {
+    await b.cdp("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await b.ev("hideCardZoom(); setSelectedPowerup(null); true");
+  }
 });

@@ -117,6 +117,50 @@ test("game: a right click plays my pattern stone", async () => {
   await rig.playAt(p.x, p.y, "right", mine(p.x, p.y, 4), "my pattern stone on the board");
 });
 
+// Review U6: on a tablet there is no right click. A long press plays the pattern stone
+// (and only that: the click the press ends with is not a second move); a tap the solid one.
+test("game: on a touch screen a long press plays my pattern stone, a tap my solid one (U6)", async () => {
+  const touch = (type, at) => b.cdp("Input.dispatchTouchEvent", { type, touchPoints: at ? [{ x: at.x, y: at.y }] : [] });
+  await b.cdp("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+  try {
+    await rig.waitMyTurn();
+    await b.ev(`(() => {
+      if (!window.__moves) {
+        window.__moves = [];
+        const send = Colyseus.Room.prototype.send;
+        Colyseus.Room.prototype.send = function (type, msg) { if (type === "move") window.__moves.push(msg.axis); return send.call(this, type, msg); };
+      }
+      window.__moves.length = 0;
+      return true;
+    })()`);
+    const p = await rig.freePoint(1);
+    const at = await rig.boardPoint(p.x, p.y);
+    await touch("touchStart", at);
+    await wait(800);
+    await touch("touchEnd");
+    await b.waitFor(mine(p.x, p.y, 4), 5000, "my pattern stone from the long press");
+    await wait(300);
+    assert.deepEqual(await b.ev("window.__moves.slice()"), ["pattern"], "one move, the pattern stone");
+    await rig.waitMyTurn();
+    const q = await rig.freePoint(1);
+    const atQ = await rig.boardPoint(q.x, q.y);
+    await b.ev("window.__moves.length = 0; true");
+    await touch("touchStart", atQ);
+    await touch("touchEnd");
+    await b.waitFor(mine(q.x, q.y), 5000, "my solid stone from the tap");
+    assert.deepEqual(await b.ev("window.__moves.slice()"), ["base"], "one move, the solid stone");
+  } finally {
+    await b.cdp("Emulation.setTouchEmulationEnabled", { enabled: false });
+    // Should this end on my turn, hand it on with a stone: the next test waits for a bot's turn.
+    if (await b.ev("isMyTurn")) {
+      const f = await rig.freePoint(3);
+      const turn = await b.ev("lastState.turnCount");
+      await b.ev(`room.send("move", { x: ${f.x}, y: ${f.y}, axis: "base" }); true`);
+      await b.waitFor(`lastState.turnCount > ${turn}`, 5000, "my turn handed on");
+    }
+  }
+});
+
 test("game: clicks out of turn send nothing", async () => {
   await b.waitFor("!isMyTurn", 10000, "a bot's turn");
   const turn = await b.ev("lastState.turnCount");
