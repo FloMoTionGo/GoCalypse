@@ -202,6 +202,53 @@ test("game: the Stone Card is played on my turn with a click on the card and one
   await b.waitFor("!Array.from(myPlayer.powerups).includes('stone_card')", 3000, "the card used up");
 });
 
+// The two U2 tests close the dialog however they end: left open, its backdrop would swallow the later tests' real clicks.
+const closeWelcome = async () => {
+  await b.ev("if (welcomeEl.open) welcomeCloseButton.click(); true");
+  await b.waitFor("!welcomeEl.open", 3000, "the dialog to close");
+};
+
+test("game: How to play shows the essentials in under 150 words, with scoring folded (U2)", async () => {
+  await b.ev("helpButton.click(); true");
+  await b.waitFor("welcomeEl.open", 3000, "the welcome dialog");
+  try {
+    const inView = await b.ev(`(() => {
+      const body = welcomeEl.querySelector(".welcome-body").cloneNode(true);
+      for (const el of body.querySelectorAll("details, [hidden]")) el.remove();
+      return body.textContent;
+    })()`);
+    const words = inView.split(/\s+/).filter(Boolean);
+    assert.ok(words.length < 150, `${words.length} words in view: ${inView.trim()}`);
+    assert.match(inView, /left click/i);
+    assert.match(inView, /right click/i);
+    assert.match(inView, /captured/i);
+    assert.match(inView, /all four players pass/i);
+    assert.equal(await b.ev("document.getElementById('welcome-scoring-fold').open"), false, "scoring folded before any pass");
+  } finally {
+    await closeWelcome();
+  }
+});
+
+test("game: the first pass is told under the hand, and How to play then opens with scoring unfolded (U2)", async () => {
+  await rig.waitMyTurn();
+  const turn = await b.ev("lastState.turnCount");
+  await b.ev("passButton.click(); true");
+  await b.waitFor(`lastState.turnCount > ${turn} && lastState.passes > 0`, 10000, "my pass to land");
+  await b.waitFor("/pass/i.test(noticeEl.textContent)", 3000, "a notice about the pass");
+  const notice = await b.ev("noticeEl.textContent");
+  assert.match(notice, /pass/i, `the notice tells of the pass: "${notice}"`);
+  assert.match(notice, /four/i, `and that four in a row end the game: "${notice}"`);
+  assert.match(notice, /How to play/, `and where scoring is explained: "${notice}"`);
+  await b.ev("helpButton.click(); true");
+  await b.waitFor("welcomeEl.open", 3000, "the welcome dialog");
+  try {
+    assert.equal(await b.ev("document.getElementById('welcome-scoring-fold').open"), true, "scoring unfolded after a pass");
+  } finally {
+    await closeWelcome();
+  }
+  rig.assertClean("the game after a pass");
+});
+
 test("game: Leave asks first, then puts me back in the lobby and stops drawing the board", async () => {
   b.on("Page.javascriptDialogOpening", () => b.cdp("Page.handleJavaScriptDialog", { accept: true }));
   await b.ev("document.getElementById('leave-button').click(); true");

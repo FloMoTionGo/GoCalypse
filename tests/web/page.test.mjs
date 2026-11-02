@@ -53,3 +53,20 @@ test("index.html names its theme colour, and style.css declares a dark colour sc
 test("index.html makes the notice under the hand a live region, so a refusal is read out", () => {
   assert.match(html(), /<p id="notice"[^>]*role="status"/);
 });
+
+// Review U2: the welcome used to be a 550-word rules essay. The essentials
+// (capture, left vs right click, four passes end it) stay in view; scoring and
+// the two-fronts detail sit folded under their own summaries.
+test("index.html keeps the welcome's essentials under 110 static words and folds scoring under its own summary", () => {
+  const h = html();
+  const start = h.indexOf('<dialog id="welcome"');
+  const dialog = h.slice(start, h.indexOf("</dialog>", start));
+  const inView = dialog.replace(/<details[\s\S]*?<\/details>/g, "").replace(/<section[\s\S]*?<\/section>/g, "");
+  const words = inView.replace(/<!--[\s\S]*?-->/g, "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").split(/\s+/).filter(Boolean);
+  assert.ok(words.length < 110, `${words.length} static words before the folds: ${words.join(" ")}`);
+  assert.match(inView, /all four players pass/i, "the essentials still say how the game ends");
+  const fold = dialog.match(/<details[^>]*id="welcome-scoring-fold"[^>]*>([\s\S]*?)<\/details>/);
+  assert.ok(fold, "a details#welcome-scoring-fold");
+  assert.match(fold[1], /<summary>[^<]*scoring/i, "its summary names scoring");
+  assert.match(fold[1], /id="welcome-scoring"/, "the scoring paragraph is inside it");
+});
