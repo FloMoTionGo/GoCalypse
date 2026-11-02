@@ -115,7 +115,8 @@ test("table (B8): arming an own-stone item in the storm marks none of my stones,
 
 test("table (B9): no stone preview over a rival's mist; one's own mist still offers it", async () => {
   const r = await b.ev(`(() => {
-    const n = lastState.size, i = Array.from(board).findIndex((c) => !c);
+    // A free point nothing lies on: the storm before this test leaves fires, and nothing is offered over a fire.
+    const n = lastState.size, i = Array.from(board).findIndex((c, k) => !c && !overlays.some((o) => o.x === k % n && o.y === ((k / n) | 0)));
     const x = i % n, y = (i / n) | 0, rival = myPlayer.color % 4 + 1, keep = hoverPoint;
     hoverPoint = { x, y };
     overlays.push({ kind: "mist", x, y, owner: rival });
