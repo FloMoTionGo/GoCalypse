@@ -70,3 +70,13 @@ test("index.html keeps the welcome's essentials under 110 static words and folds
   assert.match(fold[1], /<summary>[^<]*scoring/i, "its summary names scoring");
   assert.match(fold[1], /id="welcome-scoring"/, "the scoring paragraph is inside it");
 });
+
+// Review U4: the error sentences live in web/errorCopy.js, which main.js and
+// replayView.js both use, so it loads before them.
+test("index.html loads errorCopy.js from the site before main.js and replayView.js", () => {
+  const h = html();
+  const at = (src) => h.indexOf(`<script src="${src}"></script>`);
+  assert.ok(at("errorCopy.js") >= 0, "a script tag for errorCopy.js");
+  assert.ok(at("errorCopy.js") < at("main.js"), "before main.js");
+  assert.ok(at("errorCopy.js") < at("replayView.js"), "before replayView.js");
+});

@@ -5,6 +5,7 @@
 // exist, and the failed request it logs must not reach the other files' pages.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { freePort } from "../lib/harness.mjs";
 import { guiRig } from "./page.mjs";
 
 let rig, b;
@@ -53,4 +54,39 @@ test("server: a typed endpoint survives a refresh, with the same key", async () 
   assert.equal(await b.ev("serverInput.value"), typed, "the field comes back as typed");
   assert.equal(await b.ev("playerKey()"), key, "and with that host's key");
   assert.match(await footerServer(), /localhost/, "the footer says which server");
+});
+
+// Review U4: a server that isn't there is said in words, with its host and the
+// next step, never as "Failed to join: Failed to fetch". Both tests point the
+// page at a closed port on this machine and put the rig's server back after.
+test("server: Play against a server that isn't there says it can't be reached, names its host, and unlocks Play", async () => {
+  const port = await freePort();
+  await typeServer(`ws://127.0.0.1:${port}`);
+  try {
+    await b.ev("joinButton.click(); true");
+    await b.waitFor("joinButton.disabled === false && !/Connecting|Looking/.test(lobbyStatus.textContent)", 20000, "the join to fail");
+    const text = await b.ev("lobbyStatus.textContent");
+    assert.match(text, new RegExp(`^Can't reach the server at 127\\.0\\.0\\.1:${port}\\.`), text);
+    assert.match(text, /Server field/, text);
+    assert.match(text, /press Play/i, text);
+    assert.doesNotMatch(text, /Failed|fetch|error|code/i, text);
+    assert.equal(await b.ev("lobbyEl.hidden"), false, "still on the home screen");
+  } finally {
+    await typeServer(rig.server.ws);
+  }
+});
+
+test("server: Replays against a server that isn't there say it can't be reached, without the browser's words", async () => {
+  const port = await freePort();
+  await typeServer(`ws://127.0.0.1:${port}`);
+  try {
+    await b.ev("document.getElementById('home-replays').click(); true");
+    await b.waitFor("replaysEl.open && document.getElementById('replays-status').textContent !== 'Loading games...'", 15000, "the list to fail");
+    const text = await b.ev("document.getElementById('replays-status').textContent");
+    assert.match(text, new RegExp(`^Can't reach the server at 127\\.0\\.0\\.1:${port} to list the games\\.`), text);
+    assert.doesNotMatch(text, /Failed|fetch|error|\?/i, text);
+  } finally {
+    await b.ev("if (replaysEl.open) replaysEl.close(); true");
+    await typeServer(rig.server.ws);
+  }
 });
