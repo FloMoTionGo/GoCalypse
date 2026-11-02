@@ -206,7 +206,7 @@ if (hashParams.has("autojoin")) {
   setTimeout(connect, Number(hashParams.get("delay")) || 0);
 }
 
-joinButton.addEventListener("click", connect);
+joinButton.addEventListener("click", () => connect());
 // Enter in the name field plays, through the very button the lobby board's Start stone clicks.
 nameInput.addEventListener("keydown", (evt) => {
   if (evt.key !== "Enter" || joinButton.disabled) return;
@@ -423,14 +423,18 @@ let tablesTimer = 0;
 async function pollTables() {
   clearTimeout(tablesTimer);
   if (lobbyEl.hidden || document.hidden) return; // nothing to tell; showGame and visibilitychange ask again
+  let lobbies = null, started = null; // each open lobby and the just started, for the lobby islands (lobbyIslets.js)
   try {
     const res = await fetch(`${serverEndpoint().replace(/^ws/, "http")}/tables`);
     if (!res.ok) throw new Error(`the server answered ${res.status}`);
-    tablesWaiting = (await res.json()).tables || [];
+    const body = await res.json();
+    tablesWaiting = body.tables || [];
+    ({ rooms: lobbies, started } = body); // an older server sends neither: no islets
   } catch {
     tablesWaiting = null; // an old server, or none: the line stays away rather than guessing
   }
   renderPresence();
+  if (window.GoLobbyIslets) window.GoLobbyIslets.sync(lobbies, started);
   tablesTimer = setTimeout(pollTables, TABLES_EVERY);
 }
 document.addEventListener("visibilitychange", () => {
@@ -607,10 +611,17 @@ function showGame(on) {
   pollTables();
 }
 
-async function connect() {
+/** A click on a lobby island (lobbyIslets.js): sit down at that very lobby, unless a join is already on its way. */
+function joinLobby(roomId) {
+  if (joinButton.disabled) return;
+  connect(roomId);
+}
+
+/** Play, or with `lobbyId` one lobby island's table: joined by id, and without the picked bots (they are for a table of your own). */
+async function connect(lobbyId) {
   const endpoint = serverEndpoint();
   const name = nameInput.value.trim();
-  const bots = pickedIds();
+  const bots = lobbyId ? [] : pickedIds();
 
   joinButton.disabled = true;
   setLobbyStatus("Connecting...", false);
@@ -630,8 +641,9 @@ async function connect() {
     const options = name ? { name, playerKey: playerKey(), size: boardSize } : { playerKey: playerKey(), size: boardSize };
     if (ROOM_NAME === "go_debug" && hashParams.has("nostorm")) options.storms = false; // GoDebugRoom: no storms (tests)
     // Bringing bots means a table of your own; without them you are matched with
-    // whoever is already waiting.
-    attachRoom(bots.length ? await client.create(ROOM_NAME, options) : await client.joinOrCreate(ROOM_NAME, options));
+    // whoever is already waiting, or sit down at the lobby island you picked.
+    attachRoom(lobbyId ? await client.joinById(lobbyId, options)
+      : bots.length ? await client.create(ROOM_NAME, options) : await client.joinOrCreate(ROOM_NAME, options));
 
     if (bots.length) {
       room.send("addBots", { ids: bots });

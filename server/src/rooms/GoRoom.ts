@@ -4,6 +4,7 @@ import { BOT_SESSION, BoardEffect, CreatureState, GoState, HaikuPoint, MarketIte
 import { randomGuestName, sanitizeName } from "../util/usernames";
 import { addressLimits, MessageBudget } from "../util/limits";
 import { clientIp } from "../util/net";
+import { Seat, startedTables } from "./tables";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import { GameRecorder, Outcome } from "../history/recorder";
 import { historyStore, noiseOf } from "../history/store";
@@ -309,6 +310,7 @@ export class GoRoom extends Room<GoState> {
       if (restored.history) this.recorder = GameRecorder.load(restored.history);
     }
     this.setState(state);
+    this.publishSeats();
     this.refreshSeen();
     this.updateForecast();
     this.clock.setInterval(() => this.saveSnapshot(), SAVE_EVERY_MS);
@@ -417,11 +419,30 @@ export class GoRoom extends Room<GoState> {
     this.giveView(client, player);
     if (key) this.keepKey(player.color, key);
     this.state.lastEvent = `${player.name} joined as player ${player.color}`;
+    this.publishSeats();
 
     if (this.state.players.length === MAX_PLAYERS) this.startGame();
   }
 
+  /** Who sits where, by colour, as GET /tables lists it (rooms/tables.ts): a person, a bot by kind, or free. */
+  private seats(): Seat[] {
+    return [1, 2, 3, 4].map((color): Seat => {
+      const p = this.state.players.find((q) => q.color === color);
+      if (!p) return null;
+      return p.bot ? `bot:${this.botIds.get(color) ?? "bot"}` : "p";
+    });
+  }
+
+  /** Puts the seats on this room's listing, for the home screen's islet of it (lobby islands). */
+  private publishSeats() {
+    this.setMetadata({ seats: this.seats() }).catch((err) => console.error(`GoRoom ${this.roomId}: could not publish its seats:`, err));
+  }
+
   private startGame() {
+    // A public lobby's islet sinks with lanterns on the home screen: say it started rather than closed.
+    if (this.roomName === "go_custom" && !this.listing?.private) {
+      startedTables.record({ roomId: this.roomId, size: this.state.size, seats: this.seats() });
+    }
     this.turnOrder().forEach((playerIndex, seat) => {
       this.state.players[playerIndex].fireflies += SEAT_BONUS * seat;
     });
@@ -673,6 +694,7 @@ export class GoRoom extends Room<GoState> {
       const style = typeof id === "string" ? recruitStyle(id) : null;
       if (style && this.addBot(id as string, style)) added += 1;
     }
+    if (added > 0) this.publishSeats();
     if (added > 0 && this.state.players.length === MAX_PLAYERS) this.startGame();
     else if (added > 0) this.countBotSeats();
   }
@@ -691,6 +713,7 @@ export class GoRoom extends Room<GoState> {
       // which also hands out invalid colors (> 4) to later joiners.
       this.dropKey(this.state.players[playerIndex].color);
       this.state.players.splice(playerIndex, 1);
+      this.publishSeats();
       return;
     }
 

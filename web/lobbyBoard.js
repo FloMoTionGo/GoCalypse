@@ -618,9 +618,10 @@
 
   // For logo.js, which lays the island in its river and sizes it (wrap's --np),
   // and for tests: the island's outline and the board's points in native px.
+  // lobbyIslets.js hands the caption back with refreshCaption once the pointer leaves an islet.
   const solid = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) solid[i] = region[i] !== R_NONE ? 1 : 0;
-  window.GoLobbyIsland = { W, H, solid, wrap, point: (col, row) => ({ x: px(col), y: py(row) }), cols: COLS, startRow: START_ROW, sizes: SIZES };
+  window.GoLobbyIsland = { W, H, solid, wrap, point: (col, row) => ({ x: px(col), y: py(row) }), cols: COLS, startRow: START_ROW, sizes: SIZES, refreshCaption: updateCaption };
   updateCaption();
 
   function tick() {

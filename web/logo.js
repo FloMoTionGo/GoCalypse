@@ -95,6 +95,9 @@
   // twice this scene's pixel size; the river widens to take it.
   const ISLE = window.GoLobbyIsland;
   const ISLE_PX = 2; // scene px per island px
+  // The island sits left of centre by this share of the river's width, never past
+  // its left end, leaving the water on the right to the lobby islands (lobbyIslets.js).
+  const ISLAND_SHIFT = 0.25;
   const ISLAND_TOP = 103; // just under the descenders
   const SIGN_Y = 87; // top of the GitHub signboard, at the end of the word
   const H = ISLE ? ISLAND_TOP + ISLE.H * ISLE_PX + 24 : 124;
@@ -192,7 +195,7 @@
     }
 
     // The island, where lobbyBoard.js's canvas covers the river.
-    const islandX = ISLE ? Math.floor((W - ISLE.W * ISLE_PX) / 2) : 0;
+    const islandX = ISLE ? Math.max(FADE + 6, Math.floor((W - ISLE.W * ISLE_PX) / 2 - ISLAND_SHIFT * W)) : 0;
     if (ISLE) {
       for (let y = 0; y < ISLE.H * ISLE_PX; y++) {
         for (let x = 0; x < ISLE.W * ISLE_PX; x++) {
@@ -590,7 +593,15 @@
   }
   window.addEventListener("resize", fit);
   reduced.addEventListener("change", () => scene && draw(performance.now()));
-  window.GoLogo = { fit }; // main.js, back home from the table
+  /** The river as the lobby islands need it (lobbyIslets.js), in scene px; null until the first fit. */
+  function geometry() {
+    if (!scene) return null;
+    return {
+      W: scene.W, H, fade: FADE, laneY: LANE_Y, islandTop: ISLAND_TOP, islandX: scene.islandX,
+      islandW: ISLE ? ISLE.W * ISLE_PX : 0, islandH: ISLE ? ISLE.H * ISLE_PX : 0,
+    };
+  }
+  window.GoLogo = { fit, geometry }; // main.js, back home from the table; lobbyIslets.js
   fit();
   requestAnimationFrame(tick);
 })();
