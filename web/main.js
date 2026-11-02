@@ -422,6 +422,7 @@ async function rejoinAfterDrop(inGame) {
 
 let leaving = false;
 let lastPasses = null; // null until this room's first state, so a rejoin doesn't flash an old pass
+let passSeen = false; // a pass has happened in this game: How to play then opens with scoring unfolded (U2)
 let passFlashAt;
 
 /**
@@ -453,6 +454,7 @@ function resetRoomState() {
   resultOpened = false;
   closeWelcomeOnStart = false;
   lastPasses = null;
+  passSeen = false;
   passFlashAt = undefined;
   handBought = null; // a new room: its first state is the hand as it stands, nothing flies in
   if (resultEl.open) resultEl.close();
@@ -574,10 +576,21 @@ function setLobbyStatus(text, isError) {
   lobbyStatus.classList.toggle("error", !!isError);
 }
 
-/** A pass is easy to miss in the log line: show the pixel PASS sign when the pass count goes up. */
+/**
+ * A pass is easy to miss in the log line: show the pixel PASS sign when the pass
+ * count goes up. The first pass of a game also gets a line under the hand that
+ * says what passes do and where scoring is explained, since the welcome keeps
+ * scoring folded until then (review U2).
+ */
 function showPass(state) {
   if (lastPasses !== null && state.status === "playing" && state.passes > lastPasses && /passed/.test(state.lastEvent || "")) {
     passFlashAt = clock();
+    if (!passSeen) {
+      passSeen = true;
+      const who = (state.lastEvent.match(/^(.*?) passed/) || [])[1];
+      const name = who === (myPlayer && myPlayer.name) ? "You" : who || "Someone";
+      showNotice(`${name} passed. Four passes in a row end the game; scoring is under How to play.`, 9000);
+    }
   }
   lastPasses = state.passes;
 }
@@ -1430,6 +1443,9 @@ function openWelcome(state) {
     `Nothing is taken off as dead at the end: capture what should go before you pass.`;
 
   renderWelcomeBots(state);
+
+  // Scoring stays folded until the game's first pass makes it matter.
+  document.getElementById("welcome-scoring-fold").open = !!state && passSeen;
 
   const list = document.getElementById("welcome-powerups");
   list.replaceChildren();

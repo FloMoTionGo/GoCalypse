@@ -1,23 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "index.html keeps the welcome's essentials under 110 static words and folds scoring under its own summary",
-      "feature": "welcome-essentials",
-      "tier": "web",
-      "since": "2026-11-02"
-    },
-    {
-      "test": "game: How to play shows the essentials in under 150 words, with scoring folded (U2)",
-      "feature": "welcome-essentials",
-      "tier": "gui",
-      "since": "2026-11-02"
-    },
-    {
-      "test": "game: the first pass is told under the hand, and How to play then opens with scoring unfolded (U2)",
-      "feature": "welcome-essentials",
-      "tier": "gui",
-      "since": "2026-11-02"
-    }
-  ]
+  "pending": []
 }
