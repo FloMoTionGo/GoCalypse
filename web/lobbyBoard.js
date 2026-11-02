@@ -532,8 +532,11 @@
     name.textContent = o.name;
     const kind = document.createElement("span");
     kind.className = "kind";
-    kind.textContent = `${o.kind} · ${o.itemsLabel}`;
-    tip.append(name, kind, o.desc);
+    kind.textContent = o.kind;
+    const items = document.createElement("span"); // its own line (review D4: a line break, not a middle dot)
+    items.className = "items";
+    items.textContent = o.itemsLabel;
+    tip.append(name, kind, items, o.desc);
     el.append(o.name.slice(0, 1), tip); // the names are Go terms with distinct first letters
     el.style.left = `${((px(col) + 0.5) / W) * 100}%`;
     el.style.top = `${((NAME_Y + 1) / H) * 100}%`;

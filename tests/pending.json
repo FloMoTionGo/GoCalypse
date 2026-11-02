@@ -1,29 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "cards: an upgradable Kata says so by its glow alone, with no word under it (D6)",
-      "feature": "tips-and-kata",
-      "tier": "gui",
-      "since": "2026-11-02"
-    },
-    {
-      "test": "cards: the Kata's help gives each heading's when a line of its own, with no middle dots (D4)",
-      "feature": "tips-and-kata",
-      "tier": "gui",
-      "since": "2026-11-02"
-    },
-    {
-      "test": "cards: the hover titles on the Kata's points and the players' stones give each click a line, no middle dots (D4)",
-      "feature": "tips-and-kata",
-      "tier": "gui",
-      "since": "2026-11-02"
-    },
-    {
-      "test": "home: a bot's tip gives its kind and its powerups a line each, no middle dot (D4)",
-      "feature": "tips-and-kata",
-      "tier": "gui",
-      "since": "2026-11-02"
-    }
-  ]
+  "pending": []
 }

@@ -2239,7 +2239,7 @@ function renderPlayers(state) {
       const [baseName, otherName] = LOOK_NAMES[player.color] || LOOK_NAMES[1];
       const stones = document.createElement("span");
       stones.className = "stones";
-      stones.title = `Left click: ${baseName} · Right click: ${otherName}`;
+      stones.title = `Left click: ${baseName}\nRight click: ${otherName}`;
       const base = stoneImg(player.color), other = stoneImg(player.color + 4);
       base.alt = `${baseName} stone`;
       other.alt = `${otherName} stone`;
@@ -2582,8 +2582,8 @@ function cardGhost() {
  * with both shown see-through on hover. On a stone, the button of its own front
  * takes it off (no refund) and the other one switches it (free). All of it any
  * time, turn or not.
- * A click anywhere else on the card arms it for play, on your turn. It glows,
- * with UPGRADABLE under it, while the purse holds the next stone's price. The
+ * A click anywhere else on the card arms it for play, on your turn. It glows
+ * while the purse holds the next stone's price (review D6: the glow alone). The
  * hand's card and its enlarged copy (showCardZoom) are both built here, so the
  * copy can be clicked just the same.
  */
@@ -2635,10 +2635,10 @@ function stoneCardEl(player, armed) {
     const onIt = c === 2 ? "pattern" : "base"; // the front of the stone on this point, if any
     cell.title =
       c === 0
-        ? `Click: your ${baseName} stone · Right click: your ${otherName} stone (${cost === 0 ? "free" : `${cost} fireflies`})`
+        ? `Click: your ${baseName} stone\nRight click: your ${otherName} stone (${cost === 0 ? "free" : `${cost} fireflies`})`
         : c === 1
-          ? `Click: take it off (no refund) · Right click: switch to your ${otherName} stone (free)`
-          : `Right click: take it off (no refund) · Click: switch to your ${baseName} stone (free)`;
+          ? `Click: take it off (no refund)\nRight click: switch to your ${otherName} stone (free)`
+          : `Right click: take it off (no refund)\nClick: switch to your ${baseName} stone (free)`;
     if (c === 0) {
       // Both stones it could take, see-through and split down the middle as on the board, shown on hover.
       const ghost = spriteImg(`card_ghost_${player.color}`, G.splitPreviewSprite(player.color, "mini"), 1);
@@ -2665,13 +2665,6 @@ function stoneCardEl(player, armed) {
     });
     card.append(cell);
   });
-
-  if (upgradable) {
-    const hint = document.createElement("span");
-    hint.className = "card-hint";
-    hint.textContent = "UPGRADABLE";
-    card.append(hint);
-  }
 
   const pick = () => {
     if (!playing) return;
@@ -2705,11 +2698,16 @@ function stoneCardHelp(player) {
   const help = document.createElement("div");
   help.className = "card-help";
   help.setAttribute("aria-hidden", "true"); // the card's own aria-label says the same, shorter
-  const block = (tag, title, text) => {
+  // A heading, then on a line of its own when it applies (review D4: a line break, not a middle dot).
+  const block = (tag, title, when, text) => {
     const div = document.createElement("div");
     div.className = "help-block";
     const head = document.createElement(tag);
     head.textContent = title;
+    const whenEl = document.createElement("span");
+    whenEl.className = "help-when";
+    whenEl.textContent = when;
+    head.append(whenEl);
     const p = document.createElement("p");
     p.textContent = text;
     div.append(head, p);
@@ -2718,7 +2716,8 @@ function stoneCardHelp(player) {
 
   block(
     "h4",
-    `${KATA_KANJI} ${KATA_NAME} · ${stones} of ${CARD_CELLS} stones`,
+    `${KATA_KANJI} ${KATA_NAME}`,
+    `${stones} of ${CARD_CELLS} stones`,
     `All its stones land in one move, once per game` +
       (stones > 1 ? `: ${stones - 1} more than a normal move. ` : ". ") +
       `Playing it takes your turn.`
@@ -2731,13 +2730,15 @@ function stoneCardHelp(player) {
         : `Next: ${cost} fireflies${player.fireflies < cost ? ` (you have ${player.fireflies})` : ""}.`;
   block(
     "h5",
-    "Build · any time",
-    `Click a point: your ${baseName} stone · right click: your ${otherName}. ${price} ` +
+    "Build",
+    "any time",
+    `Click a point: your ${baseName} stone. Right click: your ${otherName}. ${price} ` +
       `On a stone, its own button takes it off (no refund), the other switches it.`
   );
   block(
     "h5",
-    "Play · your turn",
+    "Play",
+    "your turn",
     `Click the ${KATA_NAME}, then the centre point. Never rotated. Points taken, burning, fogged or under a rival's ` +
       `lily pad are skipped. If nothing lands, or it repeats a board (ko), you keep it.`
   );

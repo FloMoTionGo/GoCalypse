@@ -114,7 +114,8 @@ h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
   pointer-events: none;
 }
 .bot-tip b { display: block; color: var(--amber); font-size: max(var(--min-font), calc(10.1 * var(--px))); font-weight: 700; }
-.bot-tip .kind { display: block; margin-bottom: calc(1.8 * var(--px)); color: color-mix(in srgb, var(--cream) 40%, var(--slate)); font-size: max(var(--min-font), calc(8.1 * var(--px))); }
+.bot-tip .kind, .bot-tip .items { display: block; color: color-mix(in srgb, var(--cream) 40%, var(--slate)); font-size: max(var(--min-font), calc(8.1 * var(--px))); }
+.bot-tip .items { margin-bottom: calc(1.8 * var(--px)); }
 .board-label.bot:hover { z-index: 3; } /* over the seat labels, which come later */
 .board-label.bot:hover .bot-tip { display: block; }
 .board-label.bot.tip-start .bot-tip { left: 0; transform: none; }
@@ -777,21 +778,9 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 /* Enough fireflies for the next stone: a soft glow around the card and a word under it. */
 .stone-card.upgradable { filter: drop-shadow(0 0 calc(1.5 * var(--px)) var(--cream)); }
 .stone-card.upgradable.active { filter: drop-shadow(0 0 calc(2 * var(--px)) var(--amber)); }
-.card-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 1 * var(--px));
-  text-align: center;
-  color: var(--cream);
-  font-size: calc(3.2 * var(--px));
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.06em;
-}
 /* The zoom only shows a card, except the Stone Card's, which is a live copy standing on the hand's card
    (showCardZoom in main.js): its points can be clicked there at 400%. */
-.card.zoom .card-hint, .card.zoom:not(.live) .card-cell { display: none; }
+.card.zoom:not(.live) .card-cell { display: none; }
 .card.zoom.live, .card.zoom.live:hover:not(:disabled) { pointer-events: auto; cursor: pointer; transform: none; }
 .card.zoom.again { animation: none; } /* rebuilt under the pointer after a click: no second pop */
 /* Beside the Stone Card's live copy (stoneCardHelp in main.js): what the card is for and how it plays.
@@ -814,6 +803,8 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .card-help h4 { margin: 0 0 var(--px); color: var(--amber); font-size: max(var(--min-font), calc(7.2 * var(--px))); }
 .card-help h5 { margin: calc(4 * var(--px)) 0 var(--px); color: var(--amber); font-size: max(var(--min-font), calc(5.4 * var(--px))); letter-spacing: 0.03em; }
 .card-help p { margin: 0; color: rgba(244, 232, 200, 0.88); }
+/* The heading's "when" (any time, your turn, 3 of 9 stones) on a line of its own. */
+.card-help .help-when { display: block; color: var(--muted); font-weight: 400; font-size: max(var(--min-font), calc(5.4 * var(--px))); letter-spacing: 0; }
 /* Three short blocks (main.js stoneCardHelp): what the Kata is, building it, playing it. */
 .card-help .help-block + .help-block { margin-top: calc(4 * var(--px)); }
 .card-help .help-block:first-child p { color: var(--cream); }
