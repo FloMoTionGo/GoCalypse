@@ -81,7 +81,6 @@ h1 { margin: 0 0 calc(2 * var(--px)); color: var(--amber); }
   font-size: max(11px, calc(var(--np) * 5.5px));
 }
 .board-label.hot { color: var(--cream); }
-.board-label.start { text-transform: uppercase; letter-spacing: 0.08em; }
 .board-label.name { color: color-mix(in srgb, var(--cream) 40%, var(--slate)); font-weight: 600; }
 /* Bot initials over the columns, in the frame above the kaya, like the seats' P2 to P4.
    Hovering them shows the bot's name and what it does. */
@@ -359,10 +358,10 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 .welcome-body { padding: calc(8 * var(--px)) calc(10 * var(--px)) calc(7 * var(--px)); max-height: calc(88vh - 2 * var(--px)); overflow-y: auto; font-size: max(var(--min-font), calc(6.3 * var(--px))); line-height: 1.4; }
 .welcome-body h2 { margin: 0 calc(14 * var(--px)) var(--px) 0; color: var(--amber); font-size: max(var(--min-font), calc(9 * var(--px))); }
-.welcome-body h3 { margin: calc(7 * var(--px)) 0 calc(3 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
+.welcome-body h3 { margin: calc(7 * var(--px)) 0 calc(3 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); color: var(--amber); }
 /* The welcome screen's reference sections: folded under a heading that reads like the h3s above. */
 .welcome-more { margin: calc(4 * var(--px)) 0 0; border-top: var(--px) solid var(--teal); padding-top: calc(4 * var(--px)); }
-.welcome-more > summary { cursor: pointer; font-size: max(var(--min-font), calc(5.85 * var(--px))); font-weight: 700; color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
+.welcome-more > summary { cursor: pointer; font-size: max(var(--min-font), calc(5.85 * var(--px))); font-weight: 700; color: var(--amber); }
 .welcome-more > summary:hover, .welcome-more > summary:focus-visible { color: var(--cream); }
 .welcome-more[open] > summary { margin-bottom: calc(3 * var(--px)); }
 .welcome-body p { margin: calc(3 * var(--px)) 0; }
@@ -416,7 +415,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 /* Final scores (the #result dialog reuses the #welcome frame above). */
 .result-row { display: grid; grid-template-columns: calc(18 * var(--px)) minmax(0, 1fr) calc(38 * var(--px)) calc(43 * var(--px)) calc(20 * var(--px)); gap: calc(4 * var(--px)); align-items: center; padding: calc(2 * var(--px)) calc(2 * var(--px)); }
 .result-row + .result-row { border-top: var(--px) solid var(--teal); }
-.result-row.head { color: var(--muted); font-size: max(var(--min-font), calc(4.95 * var(--px))); letter-spacing: 0.04em; text-transform: uppercase; }
+.result-row.head { color: var(--muted); font-size: max(var(--min-font), calc(4.95 * var(--px))); }
 .result-row.winner { color: var(--amber); font-weight: 700; }
 .result-row .who { display: flex; align-items: center; gap: calc(3 * var(--px)); min-width: 0; }
 .result-row .swatch-pair { display: flex; gap: var(--px); flex-shrink: 0; background: var(--amber); padding: var(--px); border-radius: var(--px); }
@@ -435,7 +434,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
    an owner mark on an empty point. */
 #result-territory { display: flex; gap: calc(7 * var(--px)); flex-wrap: wrap; margin-top: calc(5 * var(--px)); }
 .territory-board { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--px)); }
-.territory-board .territory-label { font-size: max(var(--min-font), calc(4.95 * var(--px))); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; text-align: center; }
+.territory-board .territory-label { font-size: max(var(--min-font), calc(4.95 * var(--px))); color: var(--muted); text-align: center; }
 .territory-board img { border: var(--px) solid var(--teal); border-radius: var(--px); background: var(--amber); }
 #turn-indicator.my-turn { color: var(--amber); }
 
@@ -471,7 +470,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   border-radius: calc(2 * var(--px));
   padding: calc(4 * var(--px)) calc(5 * var(--px));
 }
-.panel h3 { margin: 0 0 calc(3 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); color: var(--amber); letter-spacing: 0.04em; text-transform: uppercase; }
+.panel h3 { margin: 0 0 calc(3 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); color: var(--amber); }
 .count-tag { color: var(--muted); font-size: max(var(--min-font), calc(4.95 * var(--px))); letter-spacing: 0; }
 .count-tag.full { color: var(--amber); }
 
@@ -538,7 +537,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 /* Storm forecast (main.js renderWeather): the roll's dial and the sky, then STORM over the sky's name. */
 #weather .meter { display: flex; align-items: center; gap: calc(6 * var(--px)); }
 #weather .head { display: flex; flex-direction: column; gap: var(--px); min-width: 0; font-weight: 700; font-size: max(var(--min-font), calc(6.75 * var(--px))); }
-#weather .label { color: var(--amber); font-size: max(var(--min-font), calc(5.85 * var(--px))); letter-spacing: 0.04em; text-transform: uppercase; }
+#weather .label { color: var(--amber); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 #weather .level { color: var(--muted); }
 #weather .sky-overcast .level, #weather .sky-rain .level { color: var(--amber); }
 #weather .sky-thunder .level { color: var(--cream); }
