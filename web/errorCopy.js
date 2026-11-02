@@ -34,8 +34,11 @@
     return !!err && typeof err.code !== "number" && typeof err.status !== "number";
   }
 
-  /** Why a join didn't seat you, from what connect() caught. `host` names a typed server, or is null. */
-  function joinFailed(err, host) {
+  /**
+   * Why a join didn't seat you, from what connect() caught. `host` names a typed server, or is null.
+   * `lobby`: the join was a click on a lobby island (lobbyIslets.js), a few seconds old by then.
+   */
+  function joinFailed(err, host, { lobby = false } = {}) {
     if (unreachable(err)) {
       return host
         ? `Can't reach ${server(host)}. Check the Server field at the bottom of the page, then press Play again.`
@@ -49,6 +52,9 @@
     }
     const message = String(err.message || "").trim();
     if (err.code === REFUSED_AT_THE_DOOR && message) return message;
+    if (lobby && (ROOM_GONE.includes(err.code) || (err.code === REFUSED_AT_THE_TABLE && message === TABLE_FULL))) {
+      return "That lobby filled up or closed just before you joined. Pick another island, or press Play to find a table.";
+    }
     if (err.code === REFUSED_AT_THE_TABLE && message === TABLE_FULL) {
       return "That table filled up just as you joined. Press Play to find another one.";
     }

@@ -1,4 +1,4 @@
-import { BOARD_SIZES } from "./GoRoom";
+import { BOARD_SIZES } from "./sizes";
 
 /**
  * Who is waiting (GET /tables, index.ts): the home screen says "2 waiting at

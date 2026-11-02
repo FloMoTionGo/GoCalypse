@@ -280,13 +280,16 @@
   // rising, waiting, sinking (times in seconds)
   // ---------------------------------------------------------------------------
   const RISE = 1.8, SINK = 4.0, FULL_BEAT = 0.8, LEAVE = 0.45, LAND = 0.26;
+  const STALE = 12; // seconds without a list before the islets are taken as gone (three of main.js's polls)
   const SEAT_CODE = /^(p|bot:[a-z]{1,16})$/;
-  const validLobby = (r) => !!r && typeof r.roomId === "string" && [13, 19, 25].includes(r.size) && Array.isArray(r.seats);
+  // Any size the server lists: it decides which tables exist (BOARD_SIZES there); the islet only writes the number.
+  const validLobby = (r) => !!r && typeof r.roomId === "string" && Number.isInteger(r.size) && r.size > 0 && r.size < 100 && Array.isArray(r.seats);
   const codeAt = (seats, i) => (typeof seats[i] === "string" && SEAT_CODE.test(seats[i]) ? seats[i] : null);
 
   function createLobbies() {
     const tables = new Map(); // roomId -> table
     let seen = false; // a list came in before: a lobby new since then rises
+    let lastList = -Infinity; // when the last list came in
 
     /** Brings a table's stones in line with the server's seats: new ones land at `landAt`, gone ones fade from `now`. */
     function setSeats(tb, seats, now, landAt) {
@@ -302,6 +305,8 @@
       /** One answer of GET /tables: `rooms` and `started` as the server sent them (null/undefined: not known). */
       sync(rooms, started, now) {
         const list = Array.isArray(rooms) ? rooms.filter(validLobby) : null;
+        // A poll that failed says nothing about the lobbies; only a server silent for STALE takes them away.
+        if (!list && now - lastList <= STALE) return;
         const just = new Map((Array.isArray(started) ? started : []).filter(validLobby).map((s) => [s.roomId, s]));
         const listed = new Set();
         for (const r of list || []) {
@@ -329,7 +334,16 @@
             tb.sinkAt = now;
           }
         }
-        if (list) seen = true;
+        if (list) {
+          seen = true;
+          lastList = now;
+        }
+      },
+      /** Forgets every lobby: back on the home screen after a game, the next list is taken as it stands. */
+      reset() {
+        tables.clear();
+        seen = false;
+        lastList = -Infinity;
       },
       /** Moves every table on to `now`. True while anything is still moving (rising, landing, sinking). */
       advance(now) {
@@ -474,12 +488,12 @@
       } else if (se < LAND) surf.blitCentered(st.squash, px, py);
       else drawStone(surf, st.normal, px, py, seat, look, 1, o);
     });
-    // the seat a click would take, on the islet under the pointer
+    // On the islet under the pointer, every free seat: the server deals a joiner one of them at random.
     if (o.hover === tb.roomId && joinable(tb) && decked) {
-      const i = tb.seats.findIndex((x) => !x || x.leftAt !== null);
-      const n = s.nodes[i];
-      surf.blitCentered(G.STONES[SEAT_LOOK[i]].normal, x0 + n.x, y0 + n.y, { coverage: 0.5 });
-      surf.blitCentered(animFrame("reticle", t), x0 + n.x, y0 + n.y);
+      const reticle = animFrame("reticle", t);
+      tb.seats.forEach((x, i) => {
+        if (!x || x.leftAt !== null) surf.blitCentered(reticle, x0 + s.nodes[i].x, y0 + s.nodes[i].y);
+      });
     }
   }
   function drawStone(surf, spr, x, y, seat, look, cov, o) {
@@ -553,7 +567,7 @@
     const size = `${tb.size}×${tb.size}`;
     if (tb.phase === "rise") return `A lobby just opened at ${size}.`;
     if (tb.sinkAt !== null) return tb.lanterns ? `The ${size} lobby is full: its game is starting.` : `The ${size} lobby closed.`;
-    const bots = typeof pickedTotal === "function" && pickedTotal() > 0 ? " Your picked bots stay here, for a table of your own." : "";
+    const bots = typeof pickedTotal === "function" && pickedTotal() > 0 ? " Your picked bots don't come along." : "";
     return `${describe(tb).slice("the ".length)}. Click to join them.${bots}`;
   }
 
@@ -567,6 +581,8 @@
       slots = core.layoutSlots(g);
       for (const tb of lobbies.all()) tb.slot = -1; // a new river: every islet takes a slot anew
       surf = new G.Surface(g.W, g.H);
+      surf.fill(NONE);
+      drawn = []; // the resize cleared the canvas
       canvas.width = g.W;
       canvas.height = g.H;
       image = ctx.createImageData(g.W, g.H);
@@ -631,28 +647,50 @@
   }
   const clamp = (v) => Math.max(0, Math.min(1, v));
 
-  // ---- drawing ----
-  let drawnEmpty = false;
+  // ---- drawing: only the boxes round the islets (and wherever they were last frame) ----
+  let drawn = []; // last frame's boxes
+  /** The box an islet may paint this frame: itself, and while it moves its rings, and its lanterns rising. */
+  function boxOf(tb) {
+    const s = tb.isle, slot = slots[tb.slot];
+    const still = tb.phase === "idle" && tb.sinkAt === null;
+    const m = still ? 0 : 24, up = tb.lanterns ? 48 : 0;
+    const x = Math.round(slot.x - s.cx) - m, y = Math.round(slot.y - s.cy) - m - up;
+    const x0 = Math.max(0, x), y0 = Math.max(0, y);
+    return { x: x0, y: y0, w: Math.min(surf.w, x + s.W + 2 * m) - x0, h: Math.min(surf.h, y + s.H + 2 * m + up) - y0 };
+  }
+  function forBox(r, fn) {
+    for (let y = r.y; y < r.y + r.h; y++) for (let i = y * surf.w + r.x, end = i + r.w; i < end; i++) fn(i);
+  }
   function render(t) {
     if (!layout()) return false;
     const busy = lobbies.advance(t);
+    followHover();
     const shown = lobbies.all().filter((tb) => tb.slot >= 0);
-    if (!shown.length && drawnEmpty) { placeLabels(t); return busy; } // nothing on the water, and the canvas says so already
-    surf.fill(NONE);
-    mask.fill(0);
-    const lights = [];
-    for (const tb of shown) {
-      const slot = slots[tb.slot];
-      core.drawIslet(surf, tb, slot.x, slot.y, t, { initialOf, mask, lights, hover, reduced: reduced.matches });
+    const boxes = shown.map(boxOf).filter((r) => r.w > 0 && r.h > 0);
+    const dirty = drawn.concat(boxes);
+    if (dirty.length) {
+      for (const r of dirty) forBox(r, (i) => { surf.px[i] = NONE; mask[i] = 0; });
+      const lights = [];
+      for (const tb of shown) {
+        const slot = slots[tb.slot];
+        core.drawIslet(surf, tb, slot.x, slot.y, t, { initialOf, mask, lights, hover, reduced: reduced.matches });
+      }
+      if (lights.length) { // lantern light on the islets only: never the kaya, and the river is logo.js's canvas
+        for (const r of boxes) forBox(r, (i) => { if (surf.px[i] === NONE) mask[i] = 1; });
+        for (const l of lights) surf.ramp(G.LIGHT, l.x, l.y, l.r, l.s, 1, mask);
+      }
+      const d = image.data;
+      for (const r of dirty) {
+        forBox(r, (i) => {
+          const v = surf.px[i], j = i * 4;
+          if (v === NONE) { d[j + 3] = 0; return; }
+          const c = G.PALETTE_RGB[v] || G.PALETTE_RGB[0];
+          d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2]; d[j + 3] = 255;
+        });
+        ctx.putImageData(image, 0, 0, r.x, r.y, r.w, r.h);
+      }
+      drawn = boxes;
     }
-    if (lights.length) { // lantern light on the islets only: never the kaya, and the river is logo.js's canvas
-      for (let i = 0; i < mask.length; i++) if (surf.px[i] === NONE) mask[i] = 1;
-      for (const l of lights) surf.ramp(G.LIGHT, l.x, l.y, l.r, l.s, 1, mask);
-    }
-    surf.toRGBA(image.data);
-    for (let i = 0; i < surf.px.length; i++) if (surf.px[i] === NONE) image.data[i * 4 + 3] = 0;
-    ctx.putImageData(image, 0, 0);
-    drawnEmpty = !shown.length;
     placeLabels(t);
     return busy;
   }
@@ -679,7 +717,7 @@
       return x >= 0 && y >= 0 && x < s.W && y < s.H && s.region[y * s.W + x] !== core.R_NONE;
     }) || null;
   }
-  function setHover(roomId) {
+  function setHover(roomId, redraw = true) {
     if (roomId === hover) return;
     const had = hover !== null;
     hover = roomId;
@@ -687,7 +725,16 @@
     wrap.style.cursor = tb && core.joinable(tb) ? "pointer" : "";
     if (tb) captionEl.textContent = captionFor(tb);
     else if (had && window.GoLobbyIsland && window.GoLobbyIsland.refreshCaption) window.GoLobbyIsland.refreshCaption(); // the main island's caption back
-    if (!moving) render(now()); // the ghost stone and "Join" at once, not at the next ambient frame
+    if (redraw && !moving) render(now()); // the free seats and "Join" at once, not at the next ambient frame
+  }
+  /** Keeps the hovered islet's caption as its lobby changes (fills, sinks); one that is gone lets go of the pointer. */
+  function followHover() {
+    if (hover === null) return;
+    const tb = lobbies.get(hover);
+    if (!tb) return setHover(null, false);
+    wrap.style.cursor = core.joinable(tb) ? "pointer" : "";
+    const text = captionFor(tb);
+    if (captionEl.textContent !== text) captionEl.textContent = text;
   }
   const elsewhere = (evt) => evt.target.closest && evt.target.closest("#lobby-board-wrap, #github-link, .islet-label");
   wrap.addEventListener("pointermove", (evt) => {
@@ -712,6 +759,11 @@
     sync(rooms, started) {
       lobbies.sync(rooms, started, now());
       if (!moving && !lobby.hidden) moving = render(now());
+    },
+    /** Back on the home screen after a game (main.js showGame): the next list is taken as it stands. */
+    reset() {
+      lobbies.reset();
+      setHover(null, false);
     },
     /** What the river shows, for the GUI tests: each lobby, its phase, seats, stones and label. */
     list() {

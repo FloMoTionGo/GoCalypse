@@ -5,6 +5,7 @@ import { randomGuestName, sanitizeName } from "../util/usernames";
 import { addressLimits, MessageBudget } from "../util/limits";
 import { clientIp } from "../util/net";
 import { Seat, startedTables } from "./tables";
+import { BOARD_SIZES } from "./sizes";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import { GameRecorder, Outcome } from "../history/recorder";
 import { historyStore, noiseOf } from "../history/store";
@@ -138,7 +139,7 @@ interface AddBotsMessage {
 }
 
 const BOARD_SIZE = 13; // the default table
-export const BOARD_SIZES = [13, 19, 25]; // the tables one may ask for (ideas.md §11.10)
+export { BOARD_SIZES }; // the tables one may ask for (rooms/sizes.ts)
 
 /** The board size a create asked for, if it is one of BOARD_SIZES; any other value is 13x13 (never trust client input). */
 function boardSizeOf(asked: unknown): number {

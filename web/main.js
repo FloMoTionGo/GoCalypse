@@ -608,6 +608,7 @@ function showGame(on) {
   hidePointNotice();
   for (const v of ["--stage-w", "--stage-h", "--scene-w"]) document.documentElement.style.removeProperty(v);
   if (window.GoLogo) window.GoLogo.fit();
+  if (window.GoLobbyIslets) window.GoLobbyIslets.reset(); // the lobbies as they are now, not as they were before the game
   pollTables();
 }
 
@@ -645,15 +646,17 @@ async function connect(lobbyId) {
     attachRoom(lobbyId ? await client.joinById(lobbyId, options)
       : bots.length ? await client.create(ROOM_NAME, options) : await client.joinOrCreate(ROOM_NAME, options));
 
-    if (bots.length) {
-      room.send("addBots", { ids: bots });
+    if (bots.length) room.send("addBots", { ids: bots });
+    // The picks were for a table of your own: none of them is left to seat at someone else's lobby.
+    if (bots.length || lobbyId) {
       botPicks.clear();
       renderLobbyBots();
     }
   } catch (err) {
     console.error(err);
-    setLobbyStatus(GoErrorCopy.joinFailed(err, typedServerHost()), true);
+    setLobbyStatus(GoErrorCopy.joinFailed(err, typedServerHost(), { lobby: !!lobbyId }), true);
     joinButton.disabled = false;
+    if (lobbyId) pollTables(); // that islet is out of date: show the river as it is now
   }
 }
 

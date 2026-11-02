@@ -84,8 +84,8 @@ test("islets: a server that sends no lobby list shows none", () => {
   L.sync(undefined, undefined, 0);
   assert.deepEqual(L.all(), []);
   L.sync([{ roomId: "a", size: 13, seats: ["p", null, null, null] }], [], 1);
-  L.sync(null, null, 2); // the server stopped answering
-  L.advance(10);
+  L.sync(null, null, 14); // the server stopped answering, for longer than a failed poll or two
+  L.advance(20);
   assert.deepEqual(L.all(), [], "unknown again: the islets go");
 });
 
