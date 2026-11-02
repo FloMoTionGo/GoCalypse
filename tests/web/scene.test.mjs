@@ -264,3 +264,48 @@ test("a haiku point still to collect shows its kanji and its line's dots on the 
   const stoneOver = box(scene.render(base(13, { board, overlays: [haiku(1)] })).slice());
   assert.equal(stoneOver, stoneOnly, "under a stone, nothing of it shows");
 });
+
+// A Ferry, a Skiff or the 川 haiku carries a stone across the board. Lifting it
+// as a capture and dropping it as a placement read as a kill (room 8PvdrurpM,
+// R19): the crossing is one effect, from the old point to the new.
+test("diffTurn: a Ferry, a Skiff and the 川 haiku carry the stone as one ferry crossing, from its old point to the new", () => {
+  const n = 4, t = 1;
+  const turn = (prev, next, id, x, y) => P.diffTurn(prev, next, n, { kind: "powerup", id, x, y }, [], t);
+  const board = (cells) => { const b = new Array(n * n).fill(0); for (const [i, c] of cells) b[i] = c; return b; };
+  // Ferry: one step, (1, 0) -> (0, 0)
+  let e = turn(board([[1, 1]]), board([[0, 1]]), "ferry", 0, 0);
+  assert.deepEqual(e.map((k) => k.kind), ["ferry"]);
+  assert.deepEqual([e[0].x, e[0].y, e[0].fx, e[0].fy, e[0].code], [0, 0, 1, 0, 1]);
+  // Skiff: a glide down the column, (2, 3) -> (2, 0)
+  e = turn(board([[3 * n + 2, 6]]), board([[2, 6]]), "skiff", 2, 0);
+  assert.deepEqual(e.map((k) => k.kind), ["ferry"]);
+  assert.deepEqual([e[0].fx, e[0].fy], [2, 3]);
+  // The 川 haiku is a Ferry too; a stone taken on landing is still a capture
+  e = turn(board([[1, 5], [n, 8]]), board([[0, 5]]), "haiku_river", 0, 0);
+  assert.deepEqual(e.map((k) => k.kind).sort(), ["capture", "ferry"]);
+  assert.deepEqual(e.find((k) => k.kind === "ferry").fx, 1);
+});
+
+test("the ferry crossing draws the stone on its way with a lit lantern, in the palette, and lands it", () => {
+  const e = P.makeEffect("ferry", 2, 1, { code: 2, fx: 0, fy: 1 }, 0); // two points to the right
+  const d = P.effectDuration(e, false);
+  assert.ok(d > 0.3 && d < 1.5, `${d}s`);
+  const W = 80, cx = 56, cy = 20; // the old point's centre is 32 native px to the left, at x = 24
+  const s = new G.Surface(W, 40);
+  let glowed = false, setOff = false;
+  for (let el = 0; el < d; el += d / 16) {
+    s.fill(G.TRANSPARENT);
+    if (P.drawEffect(s, e, el, cx, cy, false, 0)) glowed = true;
+    assert.ok(Array.from(s.px).every((v) => v === G.TRANSPARENT || v < G.PALETTE_RGB.length), "palette only");
+    if (el < d * 0.25 && s.px.some((v, i) => v !== G.TRANSPARENT && i % W < 36)) setOff = true;
+  }
+  assert.ok(glowed, "the lantern on the ferry lights the way");
+  assert.ok(setOff, "it sets off from the old point");
+  s.fill(G.TRANSPARENT);
+  P.drawEffect(s, e, d - 0.01, cx, cy, false, 0);
+  assert.ok(s.px.some((v, i) => v !== G.TRANSPARENT && Math.abs((i % W) - cx) <= 4 && Math.abs(((i / W) | 0) - cy) <= 4), "the stone lands on the new point");
+  assert.ok(P.effectDuration(e, true) < d, "reduced motion: a shorter crossing");
+  s.fill(G.TRANSPARENT);
+  P.drawEffect(s, e, 0.01, cx, cy, true, 0);
+  assert.ok(s.px.some((v) => v !== G.TRANSPARENT), "reduced motion still shows the stone");
+});

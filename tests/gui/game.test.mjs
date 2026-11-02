@@ -202,6 +202,20 @@ test("game: the Stone Card is played on my turn with a click on the card and one
   await b.waitFor("!Array.from(myPlayer.powerups).includes('stone_card')", 3000, "the card used up");
 });
 
+test("game: the event log opens from the header and keeps the last ten events, newest first", async () => {
+  await playUntil("eventLog.length >= 10", 14);
+  assert.ok((await b.ev("eventLog.length")) >= 10, "ten events have gone by");
+  await rig.clickEl("#log-button");
+  await b.waitFor("eventLogEl.open", 3000, "the event log");
+  const items = await b.ev("Array.from(eventLogListEl.querySelectorAll('li')).map((li) => li.textContent)");
+  assert.equal(items.length, 10, "the last ten, no more");
+  assert.ok(items[0].includes(await b.ev("lastEventEl.textContent")), `the newest first, the line under the board: ${items[0]}`);
+  assert.match(items[0], /R\d+/, "each one says its round");
+  await b.ev("document.getElementById('log-close').click(); true");
+  await b.waitFor("!eventLogEl.open", 3000, "the log to close");
+  rig.assertClean("the event log");
+});
+
 // The two U2 tests close the dialog however they end: left open, its backdrop would swallow the later tests' real clicks.
 const closeWelcome = async () => {
   await b.ev("if (welcomeEl.open) welcomeCloseButton.click(); true");
