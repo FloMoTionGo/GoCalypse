@@ -166,3 +166,14 @@ test("home: someone waiting at another board size is shown, and picking them set
   await b.ev("setBoardSize(13); true");
   rig.assertClean("the home screen");
 });
+
+// Review D4: a bot's tip on the lobby board, its kind and its powerups a line each.
+test("home: a bot's tip gives its kind and its powerups a line each, no middle dot (D4)", async () => {
+  const tips = await b.ev(`Array.from(document.querySelectorAll(".bot-tip")).map((t) => ({ text: t.textContent, kind: t.querySelector(".kind")?.textContent, items: t.querySelector(".items")?.textContent }))`);
+  assert.ok(tips.length >= 6, `${tips.length} tips`);
+  for (const t of tips) assert.doesNotMatch(t.text, /·/, t.text);
+  const honte = tips.find((t) => t.text.startsWith("Honte"));
+  assert.ok(honte, "Honte's tip");
+  assert.equal(honte.kind, "Pure Go");
+  assert.equal(honte.items, "No powerups");
+});

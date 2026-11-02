@@ -160,6 +160,35 @@ test("cards: the Kata's face shows its name and kanji, and exact numbers instead
   assert.match(face.label, /Takes your turn/);
 });
 
+// Review D6: the Kata already glows when a stone can be added; the 9.6 px tracked
+// "UPGRADABLE" under it was the smallest text on screen and said nothing more.
+test("cards: an upgradable Kata says so by its glow alone, with no word under it (D6)", async () => {
+  const r = await b.ev(`(() => { const c = document.querySelector(".stone-card"); return { up: cardUpgradable(myPlayer), glow: c.classList.contains("upgradable"), text: c.textContent }; })()`);
+  assert.equal(r.up, true, "rich enough to add a stone");
+  assert.equal(r.glow, true, "the card glows");
+  assert.doesNotMatch(r.text, /upgradable/i, "no word under it");
+});
+
+// Review D4: in the tips a line break reads better than a middle dot.
+test("cards: the Kata's help gives each heading's when a line of its own, with no middle dots (D4)", async () => {
+  const help = await b.ev(`(() => {
+    const h = stoneCardHelp(myPlayer);
+    return { all: h.textContent, heads: Array.from(h.querySelectorAll("h4, h5")).map((el) => ({ text: el.textContent, lines: el.querySelectorAll(".help-when").length })) };
+  })()`);
+  assert.doesNotMatch(help.all, /·/, help.all);
+  assert.equal(help.heads.length, 3, JSON.stringify(help.heads));
+  for (const head of help.heads) assert.equal(head.lines, 1, `a second line in "${head.text}"`);
+});
+
+test("cards: the hover titles on the Kata's points and the players' stones give each click a line, no middle dots (D4)", async () => {
+  const titles = await b.ev(`Array.from(document.querySelectorAll(".stone-card .card-cell[title], #players .stones[title]")).map((el) => el.title)`);
+  assert.ok(titles.length >= 13, `${titles.length} titles: nine points and four players`);
+  for (const t of titles) {
+    assert.doesNotMatch(t, /·/, t);
+    assert.match(t, /\n/, `a line per click: ${t}`);
+  }
+});
+
 test("cards: the Kata's help is three short blocks, and says it takes the turn", async () => {
   const help = await b.ev(`(() => {
     const h = stoneCardHelp(myPlayer);
