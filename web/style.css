@@ -803,6 +803,23 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .card-help h4 { margin: 0 0 var(--px); color: var(--amber); font-size: max(var(--min-font), calc(7.2 * var(--px))); }
 .card-help h5 { margin: calc(4 * var(--px)) 0 var(--px); color: var(--amber); font-size: max(var(--min-font), calc(5.4 * var(--px))); letter-spacing: 0.03em; }
 .card-help p { margin: 0; color: rgba(244, 232, 200, 0.88); }
+/* A refusal over the board point it is about (main.js showPointNotice, review U3). Only for the eye:
+   the notice under the hand is the live region that reads it out. */
+.point-notice {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, calc(-100% - 2 * var(--px)));
+  max-width: calc(110 * var(--px));
+  padding: calc(2 * var(--px)) calc(3 * var(--px));
+  background: var(--ink);
+  color: var(--cream);
+  border: var(--px) solid var(--amber);
+  border-radius: calc(2 * var(--px));
+  font-size: max(var(--min-font), calc(5.4 * var(--px)));
+  line-height: 1.3;
+  text-align: center;
+  pointer-events: none;
+}
 /* The heading's "when" (any time, your turn, 3 of 9 stones) on a line of its own. */
 .card-help .help-when { display: block; color: var(--muted); font-weight: 400; font-size: max(var(--min-font), calc(5.4 * var(--px))); letter-spacing: 0; }
 /* Three short blocks (main.js stoneCardHelp): what the Kata is, building it, playing it. */

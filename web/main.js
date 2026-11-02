@@ -501,7 +501,7 @@ function attachRoom(joined) {
   // Every handler checks it still belongs to the room on screen.
   const current = () => room === joined;
   room.onStateChange((state) => current() && onState(state));
-  room.onMessage("notice", (text) => current() && showNotice(text));
+  room.onMessage("notice", (text) => current() && onServerNotice(text));
   room.onMessage("reveal", (text) => current() && showNotice(text, 15000));
   room.onLeave((code) => {
     if (!current()) return;
@@ -547,6 +547,7 @@ function showGame(on) {
   lobbyEl.hidden = on;
   document.documentElement.classList.toggle("in-game", on);
   if (on) return;
+  hidePointNotice();
   for (const v of ["--stage-w", "--stage-h", "--scene-w"]) document.documentElement.style.removeProperty(v);
   if (window.GoLogo) window.GoLogo.fit();
   pollTables();
@@ -630,10 +631,51 @@ function showPass(state) {
   lastPasses = state.passes;
 }
 
-function showNotice(text, ms = 4000) {
+/**
+ * A line under the hand for a while; the notice is a live region, so it is read
+ * out. With a board point the same words also show over that point (review U3),
+ * where the eye already is after a click.
+ */
+function showNotice(text, ms = 4000, point = null) {
   noticeEl.textContent = text;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => (noticeEl.textContent = ""), ms);
+  if (point) showPointNotice(text, point, ms);
+  else hidePointNotice();
+}
+
+let lastAim = null; // the board point of the last click that sent something, and when
+const AIM_ANSWER_S = 2; // a refusal the server sends back comes well within this
+
+/** The server's notice: a refusal, shown over the point just clicked when it answers that click. */
+function onServerNotice(text) {
+  const aim = lastAim && clock() - lastAim.at < AIM_ANSWER_S ? lastAim : null;
+  lastAim = null;
+  showNotice(text, 4000, aim);
+}
+
+let pointNoticeTimer = 0;
+
+/** A small bubble just above a board point, for the eye only: the notice under the hand reads it out. */
+function showPointNotice(text, point, ms) {
+  hidePointNotice();
+  if (!scene || gameEl.hidden) return;
+  const r = boardEl.getBoundingClientRect(), p = scene.pointToNative(point.x, point.y);
+  const el = document.createElement("div");
+  el.id = "point-notice";
+  el.className = "point-notice";
+  el.setAttribute("aria-hidden", "true");
+  el.textContent = text;
+  el.style.left = `${r.left + ((p.x + 0.5) * r.width) / scene.width}px`;
+  el.style.top = `${r.top + ((p.y + 0.5) * r.height) / scene.height}px`;
+  document.body.append(el);
+  pointNoticeTimer = setTimeout(hidePointNotice, ms);
+}
+
+function hidePointNotice() {
+  clearTimeout(pointNoticeTimer);
+  const el = document.getElementById("point-notice");
+  if (el) el.remove();
 }
 
 // ---- scene & canvas -----------------------------------------------------------
@@ -807,6 +849,7 @@ function onBoardClick(evt) {
   if (viewId !== null) return recallBlocked();
   const p = eventPoint(evt);
   if (!p) return;
+  lastAim = { x: p.x, y: p.y, at: clock() }; // a refusal that answers this click shows here
 
   if (selectedPowerup) {
     const item = marketItem(selectedPowerup);
@@ -832,7 +875,7 @@ function onBoardClick(evt) {
         return;
       }
       if (!firstTarget || (mineAt && !stormGreys())) {
-        if (!mineAt) return showNotice(`${item.name}: pick one of your own stones first.`);
+        if (!mineAt) return showNotice(`${item.name}: pick one of your own stones first.`, 4000, p);
         firstTarget = p;
         setTargetingHint();
         return;
@@ -857,6 +900,7 @@ function onBoardRightClick(evt) {
   if (aimedAs(selectedPowerup) === "seedling") {
     const seedPoint = eventPoint(evt);
     if (!seedPoint) return;
+    lastAim = { x: seedPoint.x, y: seedPoint.y, at: clock() };
     // The 木 haiku at level 3 plants two: the first click picks a point, the second plants both.
     if (marketItem(selectedPowerup).points >= 2 && !firstTarget) {
       firstTarget = seedPoint;
@@ -874,6 +918,7 @@ function onBoardRightClick(evt) {
   }
   const p = eventPoint(evt);
   if (!p) return;
+  lastAim = { x: p.x, y: p.y, at: clock() };
   room.send("move", { x: p.x, y: p.y, axis: "pattern" });
 }
 
