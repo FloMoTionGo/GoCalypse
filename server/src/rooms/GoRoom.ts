@@ -1759,16 +1759,38 @@ export class GoRoom extends Room<GoState> {
       lureCreature: (idx) => this.lureCreature(idx, player.color),
     };
 
+    // A Ferry, a Skiff or the 川 haiku carries a stone: what stood on the picked
+    // point, and what the player had taken, so the event can name the crossing.
+    const size = this.state.size;
+    const carried = points >= 2 && target && target2 ? this.state.board[boardIndex(size, target.x, target.y)] : 0;
+    const scoreBefore = player.score, smotheredBefore = player.smothered;
+
     if (!definition.apply(ctx)) {
       return `${definition.name} can't be used there.`;
     }
+
+    // The crossing in words: a stone that vanished here and appeared there read
+    // as a kill to a player watching (room 8PvdrurpM, round 19).
+    const moved =
+      isPlayerStone(carried) &&
+      this.state.board[boardIndex(size, target!.x, target!.y)] === 0 &&
+      this.state.board[boardIndex(size, target2!.x, target2!.y)] === carried;
+    const took = player.score - scoreBefore, smothered = player.smothered - smotheredBefore;
+    const crossing = moved
+      ? `, moving a stone from (${target!.x}, ${target!.y}) to (${target2!.x}, ${target2!.y})${took ? `, captured ${took}` : ""}${
+          smothered ? `, smothered ${smothered} (no points)` : ""
+        }`
+      : "";
 
     player.powerups.splice(inventoryIndex, 1);
     const haiku = haikuOfCard(message.id);
     if (haiku && !player.haikuPlayed.includes(haiku.id)) player.haikuPlayed.push(haiku.id); // played once
     if (definition.free) {
-      // Costs nothing but the item: no turn, no reset of the passes, no animation.
-      this.state.lastEvent = `${player.name} used ${definition.name}`;
+      // Costs nothing but the item: no turn, no reset of the passes, and no animation
+      // -- unless a stone crossed the board (the 川 haiku at level 3), which the clients
+      // animate from the action.
+      if (moved) this.recordAction("powerup", definition.id, target2!.x, target2!.y, player.color);
+      this.state.lastEvent = `${player.name} used ${definition.name}${crossing}`;
       this.flushRiverNews(); // a Bait's creature going back
       return null;
     }
@@ -1776,7 +1798,7 @@ export class GoRoom extends Room<GoState> {
     // The action's point is where something lands: the destination for a Ferry.
     const at = (definition.points ?? 1) >= 2 ? target2! : target!;
     this.recordAction("powerup", definition.id, at.x, at.y, player.color);
-    this.state.lastEvent = `${player.name} used ${definition.name}`;
+    this.state.lastEvent = `${player.name} used ${definition.name}${crossing}`;
     this.advanceTurn();
     return null;
   }

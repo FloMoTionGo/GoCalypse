@@ -1,11 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    { "test": "a Ferry's event names the stone's crossing, from its old point to the new, and what it captured", "feature": "event-log", "tier": "server", "since": "2026-11-02" },
-    { "test": "a Skiff's event names the glide, and says nothing of captures when there were none", "feature": "event-log", "tier": "server", "since": "2026-11-02" },
-    { "test": "the 川 haiku's crossing is in the event at every level, and the free level 3 glide still records the action", "feature": "event-log", "tier": "server", "since": "2026-11-02" },
-    { "test": "diffTurn: a Ferry, a Skiff and the 川 haiku carry the stone as one ferry crossing, from its old point to the new", "feature": "event-log", "tier": "web", "since": "2026-11-02" },
-    { "test": "the ferry crossing draws the stone on its way with a lit lantern, in the palette, and lands it", "feature": "event-log", "tier": "web", "since": "2026-11-02" },
-    { "test": "game: the event log opens from the header and keeps the last ten events, newest first", "feature": "event-log", "tier": "gui", "since": "2026-11-02" }
-  ]
+  "pending": []
 }

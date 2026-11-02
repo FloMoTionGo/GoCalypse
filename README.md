@@ -236,6 +236,14 @@ Prices grow with the tier: tier 1 costs 25-40, tier 2 45-80, tier 3 130-400. (Wi
 | Kite | 45 | Free. Fly it over an enemy stone: only you see what its player is holding and how many fireflies they have. |
 | Ferry | 50 | Move one of your stones one step to an empty point beside it (pick the stone, then the point). Captures are judged as if you had played it there. |
 | Skiff | 65 | Send one of your stones gliding along its row or column to an empty point, as far as the way is clear (pick the stone, then the point). |
+
+A stone the Ferry, the Skiff or the 川 haiku moves **crosses the board on a
+raft**: it never vanishes and reappears, which used to read as a stone killed by
+its own colour. A raft slides out under it, the ferryman's lantern lights, the
+raft sails from the old point to the new with a wake of foam behind it, and the
+stone settles with a ripple as the raft sinks away. The event line names the
+crossing and what it took, `Ko used Ferry, moving a stone from (9, 7) to (9, 6),
+captured 1`, and so does the event log (see *Reading the board*).
 | Lantern Ward | 60 | One of your groups can't be captured or removed until the end of your next turn. If it has no liberties when the ward lapses, it's removed. |
 | Twin Wick | 70 | Free. Your next stone fights on **both** fronts: it joins and captures on both, but is lost if either of its groups runs out of liberties. Can't be turned over. |
 | Turn the Lantern | 80 | Flips one of your stones to your other front (black/white <-> gray/transparent); captures count on the new front, and a former group-mate left with no liberties is captured too. Refused only if the flipped stone itself would have none. |
@@ -281,7 +289,7 @@ colours, and players have to remember what they cannot see. The grey comes in wi
 cloudburst and eases out through the last round. It is driven by `GoState.storm.until` versus `GoState.turnCount`, so
 a client joining mid-storm sees it too (`stormLinger` in `web/pixelScene.js`).
 Nothing else gives the colours away while it lasts: stones still moving (placed,
-flipped, captured, blown or burnt away) are grey too, the boards you step back
+flipped, captured, carried on a raft, blown or burnt away) are grey too, the boards you step back
 to with the recall arrows are grey, the owner marks on wards, lily pads and seeds
 are hidden, and an item that targets your own stone no longer marks your stones
 with embers -- you pick yours from memory. The server keeps this too: while the
@@ -349,6 +357,13 @@ or ward also carries its **owner's mark**, their two stones side by side, so you
 can see whose it is. In the scene a little **boat** drifts along the river with
 a sign showing the round being played ("R3", one round = every seat has moved once): scenery on its own clock, there
 only for orientation.
+
+The line under the board says what just happened (`Seme played (9, 5), captured
+1`). The **event log** keeps the last ten of those lines: open it with the LOG
+plank in the header, by clicking the line itself, or with the L key; Esc or its
+x closes it. Each entry carries the round it happened in ("R19"), the newest
+first. Like the move recall strip it lives in the browser, so it starts afresh
+when the page is reloaded.
 
 ### Playing with bots
 

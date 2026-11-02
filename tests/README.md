@@ -37,7 +37,7 @@ tier, then judges the results against `tests/pending.json` (below).
 | `web` | `tests/web/*.test.mjs` | `sprites.js` and `pixelScene.js` in Node: the palette, every sprite and animation, item icons for every server item, layout and hit-testing, rendering in the palette only, board diffs to animations, storm timing | <1 s |
 | `web-slow` | `tests/web/*.slow.test.mjs` | Exhaustive render checks: nothing in the storm's grey tells one player's stones from another's (B7, B8, B10) | ~45 s |
 | `integration` | `tests/integration/` | A real server: `/healthz`, CORS, `/rejoin`; whole matches over WebSockets (B1, B3, B22, scoring); what each client is sent (B5, storms); a kill and restart mid-game (B5, B11); junk input and protocol abuse | ~7 s |
-| `gui` | `tests/gui/` | `index.html` in headless Edge/Chrome against a real server: the home screen and lobby board (mouse and keyboard), joining with bots, playing stones with both buttons, the sidebar, market, hand and Kata, recall, Leave and rejoin (B2, B4, B18), the storm's grey in the client (B6, B8, B9), Results; no console errors, accessible names, board pixels in the palette | ~20 s |
+| `gui` | `tests/gui/` | `index.html` in headless Edge/Chrome against a real server: the home screen and lobby board (mouse and keyboard), joining with bots, playing stones with both buttons, the sidebar, market, hand and Kata, recall, the event log, Leave and rejoin (B2, B4, B18), the storm's grey in the client (B6, B8, B9), Results; no console errors, accessible names, board pixels in the palette | ~20 s |
 | `tools` | `tests/tools/` | The commit checks themselves: the floor guard and red first, on scratch repositories | ~8 s |
 
 Profiles: `quick` = `server`, `web`, `tools`. `full` = all of them (the default).

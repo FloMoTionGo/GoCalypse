@@ -125,7 +125,7 @@ test("diffTurn picks each item's own animation", () => {
   assert.deepEqual(kinds([1, 0, 0, 0, 0, 0, 0, 0, 0], [5, 0, 0, 0, 0, 0, 0, 0, 0], null), ["flip"]);
   assert.deepEqual(kinds([2, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], { kind: "powerup", id: "gust", x: 0, y: 0 }), ["gust"]);
   assert.deepEqual(kinds([2, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], { kind: "powerup", id: "remove_stone", x: 0, y: 0 }), ["snipe"]);
-  assert.deepEqual(kinds([0, 1, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0, 0], { kind: "powerup", id: "ferry", x: 0, y: 0 }), ["place"], "the ferried stone's old point goes quietly");
+  assert.deepEqual(kinds([0, 1, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0, 0], { kind: "powerup", id: "ferry", x: 0, y: 0 }), ["ferry"], "the ferried stone crosses: no capture at its old point, no placement at the new");
   assert.deepEqual(kinds([0, 0, 0, 0, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], { kind: "powerup", id: "bomb", x: 1, y: 1 }), ["capture", "firework"]);
   assert.deepEqual(kinds([0, 0, 0, 0, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], null, [{ kind: "fire", x: 1, y: 1 }]), ["burnAway"]);
 });

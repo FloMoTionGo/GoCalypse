@@ -272,7 +272,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 
 /* Welcome screen */
 /* Only .welcome-body scrolls; the x is pinned to the dialog's corner. */
-#welcome, #result {
+#welcome, #result, #event-log {
   padding: 0;
   width: min(calc(252 * var(--px)), 92vw);
   max-height: 88vh;
@@ -282,7 +282,16 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   border: var(--px) solid var(--amber);
   border-radius: calc(3 * var(--px));
 }
-#welcome::backdrop, #result::backdrop { background: rgba(31, 26, 36, 0.75); }
+#welcome::backdrop, #result::backdrop, #event-log::backdrop { background: rgba(31, 26, 36, 0.75); }
+
+/* The event log (main.js renderEventLog): the last ten event lines, the newest lit, each with its round. */
+#event-log-list { list-style: none; margin: calc(4 * var(--px)) 0 0; padding: 0; display: flex; flex-direction: column; gap: calc(2 * var(--px)); }
+#event-log-list li { display: flex; gap: calc(4 * var(--px)); align-items: baseline; color: var(--muted); padding: calc(2 * var(--px)) 0; border-top: var(--px) solid var(--teal); }
+#event-log-list li:first-child { color: var(--cream); border-top: 0; }
+#event-log-list .log-round { flex: 0 0 calc(22 * var(--px)); color: var(--amber); font-weight: 700; font-size: max(var(--min-font), calc(5.85 * var(--px))); }
+#event-log-list .log-empty { color: var(--muted); }
+#last-event { cursor: pointer; }
+#last-event:hover { color: var(--cream); }
 
 /* Replays (replayView.js): the welcome frame, wider, for a board beside its standings. */
 #replays {

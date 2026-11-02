@@ -21,6 +21,9 @@ const roomStatusEl = document.getElementById("room-status");
 const turnIndicatorEl = document.getElementById("turn-indicator");
 const boardEl = document.getElementById("board");
 const noticeEl = document.getElementById("notice");
+const logButton = document.getElementById("log-button");
+const eventLogEl = document.getElementById("event-log");
+const eventLogListEl = document.getElementById("event-log-list");
 const lastEventEl = document.getElementById("last-event");
 const playersEl = document.getElementById("players");
 const handEl = document.getElementById("hand");
@@ -110,6 +113,12 @@ let lastFrameAt = 0;
 const RECALL_STEPS = 5;
 let history = []; // [{id, seq, board, overlays, lastMove, event, turnCount}], oldest first, live is last (the storm's grey is always judged live)
 let nextSnapId = 1;
+// The event log: the last EVENT_LOG_STEPS event lines (GoState.lastEvent), oldest first, kept in the
+// browser like the recall strip. A line under the board that is gone the next moment is hard to catch;
+// here it can be read back with the round it happened in (logEvent / renderEventLog).
+const EVENT_LOG_STEPS = 10;
+let eventLog = []; // [{text, turnCount, round}]
+let eventLogTurn = -1; // the turn count the last logged event was seen at
 let viewId = null; // id of the snapshot on screen, or null while live
 const recallEl = document.getElementById("recall");
 const recallStepsEl = document.getElementById("recall-steps");
@@ -214,12 +223,16 @@ boardEl.addEventListener("mouseleave", () => (hoverPoint = null));
 document.getElementById("recall-back").addEventListener("click", () => stepRecall(1));
 document.getElementById("recall-fwd").addEventListener("click", () => stepRecall(-1));
 document.getElementById("recall-live").addEventListener("click", () => setView(0));
+logButton.addEventListener("click", openEventLog);
+lastEventEl.addEventListener("click", openEventLog);
+document.getElementById("log-close").addEventListener("click", () => eventLogEl.close());
 window.addEventListener("keydown", (evt) => {
   if (evt.altKey || evt.ctrlKey || evt.metaKey || document.querySelector("dialog[open]")) return;
   const t = evt.target && evt.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
   if (evt.key === "ArrowLeft") stepRecall(1);
   else if (evt.key === "ArrowRight") stepRecall(-1);
+  else if (evt.key === "l" || evt.key === "L") openEventLog();
   else if (evt.key === "Escape" && selectedPowerup) setSelectedPowerup(null);
   else if (evt.key === "Escape" || evt.key === "End") setView(0);
   else return;
@@ -443,6 +456,8 @@ function resetRoomState() {
   lastMove = null;
   lastActionSeq = null;
   history = [];
+  eventLog = [];
+  eventLogTurn = -1;
   viewId = null;
   storm = null;
   lastStormSeq = null;
@@ -1032,6 +1047,63 @@ function recordHistory(state, action) {
   renderRecall();
 }
 
+// ---- the event log ----------------------------------------------------------------------
+
+/**
+ * Keeps the event line as it changes. The same text again is the same event; a
+ * line that grows (the river's news added to a move) replaces its shorter self.
+ * The round is the one the event happened in: a move's turn count is already the
+ * next player's when it arrives, so an event that moved the count on belongs to
+ * the turn before.
+ */
+function logEvent(state) {
+  const text = state.lastEvent || "";
+  const turn = state.turnCount;
+  if (!text) return;
+  const last = eventLog[eventLog.length - 1];
+  if (last && last.text === text) {
+    eventLogTurn = turn;
+    return;
+  }
+  const happenedOn = turn > eventLogTurn && eventLogTurn >= 0 ? turn - 1 : turn;
+  const entry = { text, turnCount: happenedOn, round: roundLength > 0 ? Math.floor(happenedOn / roundLength) + 1 : 1 };
+  if (last && text.startsWith(last.text)) eventLog[eventLog.length - 1] = entry;
+  else {
+    eventLog.push(entry);
+    if (eventLog.length > EVENT_LOG_STEPS) eventLog.shift();
+  }
+  eventLogTurn = turn;
+  if (eventLogEl.open) renderEventLog();
+}
+
+/** The log's list, newest first: the round as a tag, then the line as it stood under the board. */
+function renderEventLog() {
+  const items = eventLog
+    .slice()
+    .reverse()
+    .map((e) => {
+      const li = document.createElement("li");
+      const round = document.createElement("span");
+      round.className = "log-round";
+      round.textContent = "R" + e.round;
+      li.append(round, e.text);
+      return li;
+    });
+  if (!items.length) {
+    const li = document.createElement("li");
+    li.className = "log-empty";
+    li.textContent = "Nothing has happened yet.";
+    items.push(li);
+  }
+  eventLogListEl.replaceChildren(...items);
+}
+
+function openEventLog() {
+  if (!room || gameEl.hidden) return;
+  renderEventLog();
+  if (!eventLogEl.open) eventLogEl.showModal();
+}
+
 function viewedSnap() {
   return viewId === null ? null : history.find((h) => h.id === viewId) || null;
 }
@@ -1267,6 +1339,7 @@ function onState(state) {
   renderWeather(state);
   setTargetingHint();
   lastEventEl.textContent = state.lastEvent || "";
+  logEvent(state);
   showPass(state);
 
   if (state.status === "finished" && !resultOpened) {
@@ -3114,6 +3187,7 @@ function tag(text) {
 plank(document.getElementById("recall-back"), "<");
 plank(document.getElementById("recall-fwd"), ">");
 plank(document.getElementById("recall-live"), "LIVE");
+plank(logButton, "LOG");
 plank(passButton, "PASS");
 plank(helpButton, "?");
 plank(document.getElementById("leave-button"), G.SPRITES.leaveBoat);

@@ -428,6 +428,30 @@
     ms: (RIVER_TAKE_SECONDS * 1000) / RIVER_TAKE_FRAMES, kind: "riverTake", u: k / (RIVER_TAKE_FRAMES - 1),
   }));
 
+  // Ferry, Skiff and the 川 haiku: the stone is carried, not lifted and dropped
+  // (a stone vanishing here and appearing there read as a kill to a player
+  // watching, room 8PvdrurpM). A raft slides out under the stone, the ferryman's
+  // lantern lights, and the raft crosses the water from the old point to the new,
+  // the stone bobbing on it and a wake of foam astern; on arrival the stone
+  // settles with a ripple and the raft sinks away. p: the way along (0 = the old
+  // point, 1 = the new); dy: the stone's bob; raft: how much of it shows.
+  const FERRY_TIMELINE = [
+    { ms: 60, kind: "ferry", p: 0, dy: 0, raft: 0.5, shape: "normal" },
+    { ms: 60, kind: "ferry", p: 0, dy: -1, raft: 1, shape: "normal", ripple: 0, rippleCov: 0.6, lantern: true },
+    { ms: 60, kind: "ferry", p: 0.12, dy: -2, raft: 1, shape: "normal", lantern: true, wake: 0 },
+    { ms: 60, kind: "ferry", p: 0.3, dy: -3, raft: 1, shape: "normal", lantern: true, wake: 1 },
+    { ms: 60, kind: "ferry", p: 0.5, dy: -2, raft: 1, shape: "normal", lantern: true, wake: 2 },
+    { ms: 60, kind: "ferry", p: 0.7, dy: -3, raft: 1, shape: "normal", lantern: true, wake: 1 },
+    { ms: 60, kind: "ferry", p: 0.88, dy: -2, raft: 1, shape: "normal", lantern: true, wake: 2 },
+    { ms: 60, kind: "ferry", p: 1, dy: 1, raft: 1, shape: "squash", ripple: 0, rippleCov: 1, lantern: true },
+    { ms: 70, kind: "ferry", p: 1, dy: 0, raft: 0.5, shape: "normal", ripple: 1, rippleCov: 0.7 },
+    { ms: 80, kind: "ferry", p: 1, dy: 0, raft: 0, shape: "normal", ripple: 2, rippleCov: 0.4 },
+  ];
+  const REDUCED_FERRY_TIMELINE = [
+    { ms: 120, kind: "ferry", p: 1, dy: 0, raft: 0, shape: "normal", cov: 0.5 },
+    { ms: 120, kind: "ferry", p: 1, dy: 0, raft: 0, shape: "normal", ripple: 2, rippleCov: 0.4 },
+  ];
+
   const TIMELINES = {
     place: [PLACE_TIMELINE, []],
     burnAway: [BURN_AWAY_TIMELINE, [
@@ -443,6 +467,7 @@
     lily: [LILY_TIMELINE, []],
     ward: [WARD_TIMELINE, [{ ms: 150, kind: "ward", ring: true, lanternDy: 0 }]],
     flip: [FLIP_TIMELINE, []],
+    ferry: [FERRY_TIMELINE, REDUCED_FERRY_TIMELINE],
     gust: [GUST_TIMELINE, REDUCED_CAPTURE_TIMELINE],
     snipe: [SNIPE_TIMELINE, REDUCED_CAPTURE_TIMELINE],
     firework: [FIREWORK_TIMELINE, [{ ms: 150, kind: "burst", r: 0, flash: true }]],
@@ -452,7 +477,7 @@
     ]],
   };
   /** Effect kinds that draw their own piece at the cell while playing (the board already shows the end state). */
-  const OWNS_CELL = new Set(["place", "drop", "flip"]);
+  const OWNS_CELL = new Set(["place", "drop", "flip", "ferry"]);
 
   function timelineFor(kind, reducedMotion) {
     const pair = TIMELINES[kind];
@@ -485,6 +510,7 @@
    *   makeEffect("flip", x, y, { from: 1, code: 5 }, t)
    *   makeEffect("lily", x, y, { owner: 2 }, t)
    *   makeEffect("gust", x, y, { code: 3 }, t)
+   *   makeEffect("ferry", x, y, { code: 3, fx, fy }, t)   -- carried to (x, y) from (fx, fy)
    */
   function makeEffect(kind, x, y, props, start) {
     return Object.assign({ kind, x, y, start }, props);
@@ -548,10 +574,10 @@
     for (const t of takes || []) for (const i of t.took || []) takenBy.set(i, t);
     const used = action && action.kind === "powerup" ? action.id : null;
     const isTarget = (x, y) => action && action.x === x && action.y === y;
-    // A Ferry's or Skiff's stone lands on the action's point and leaves a point in line with it:
-    // that one goes quietly, it is not a capture.
+    // A Ferry's, a Skiff's or the 川 haiku's stone lands on the action's point and leaves a
+    // point in line with it: the two are one crossing (a "ferry" effect), not a capture and a placement.
     const ferried = new Set();
-    if (used === "ferry" || used === "skiff") {
+    if (used === "ferry" || used === "skiff" || used === "haiku_river") {
       const landed = next[action.y * size + action.x];
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         // Nearest first: a Ferry steps once, a Skiff glides as far as the way is clear.
@@ -568,12 +594,15 @@
     const burntOut = new Set(
       (goneOverlays || []).filter((o) => o.kind === "fire").map((o) => o.y * size + o.x)
     );
+    const from = ferried.size ? ferried.values().next().value : -1;
     for (let i = 0; i < next.length; i++) {
       const a = prev[i], b = next[i];
       if (a === b || greyOnly(a, b)) continue;
       const x = i % size, y = (i / size) | 0;
       if (a === 0) {
-        effects.push(b === G.DRIFTWOOD ? makeEffect("drop", x, y, { code: b }, time) : placeEffect(x, y, b, time));
+        if (b === G.DRIFTWOOD) effects.push(makeEffect("drop", x, y, { code: b }, time));
+        else if (from >= 0 && isTarget(x, y)) effects.push(makeEffect("ferry", x, y, { code: b, fx: from % size, fy: (from / size) | 0 }, time));
+        else effects.push(placeEffect(x, y, b, time));
       } else if (b === 0) {
         if (ferried.has(i)) continue;
         if (takenBy.has(i)) {
@@ -724,6 +753,38 @@
         if (f.spark !== undefined) drawSparkRing(surf, cx, cy, f.sparkR, f.spark);
         return null;
       }
+      case "ferry": {
+        // The old point's centre, and the raft's place on the way across.
+        const fx = effect.fx === undefined ? effect.x : effect.fx, fy = effect.fy === undefined ? effect.y : effect.fy;
+        const ox = cx + (fx - effect.x) * SPACING, oy = cy + (fy - effect.y) * SPACING;
+        const px = Math.round(ox + (cx - ox) * f.p), py = Math.round(oy + (cy - oy) * f.p);
+        const dx = Math.sign(cx - ox), dy = Math.sign(cy - oy); // the way it sails
+        if (f.ripple !== undefined) {
+          const at = f.p < 0.5 ? [ox, oy] : [cx, cy]; // casting off, then landing
+          surf.blitCentered(ANIMS.ripple.frames[f.ripple], at[0], at[1], { coverage: f.rippleCov });
+        }
+        if (f.wake !== undefined) {
+          // Foam astern: two trails spreading out behind the raft, slate as they fade.
+          for (let k = 1; k <= 3; k++) {
+            const d = 8 + k * 3 + f.wake, spread = k + (f.wake & 1);
+            const bx = px - dx * d, by = py + 6 - dy * d;
+            surf.set(bx + dy * spread, by + dx * spread, k < 3 ? C : S);
+            surf.set(bx - dy * spread, by - dx * spread, k < 3 ? C : S);
+          }
+        }
+        if (f.raft > 0) drawRaft(surf, px, py + 6, f.raft);
+        else blitShadow(surf, effect.code, "normal", px + 1, py + 1, grey);
+        blitPiece(surf, effect.code, f.shape, px, py + f.dy, grey, f.cov !== undefined ? { coverage: f.cov } : undefined);
+        if (!f.lantern) return null;
+        // The ferryman's lantern on a pole at the bow (the right end when the way is up or down).
+        const lx = px + (dx < 0 ? -8 : 8), ly = py + 3;
+        surf.set(lx, ly - 2, K);
+        surf.set(lx, ly - 1, K);
+        surf.set(lx, ly, A);
+        surf.set(lx, ly + 1, A);
+        surf.set(lx + 1, ly, C);
+        return { x: lx, y: ly, r: 7 };
+      }
       case "gust": {
         drawWind(surf, cx, cy, f.wind);
         blitPiece(surf, effect.code, f.shape, cx + f.dx, cy + f.dy, grey, { coverage: f.cov });
@@ -792,6 +853,23 @@
       }
       default:
         return undefined;
+    }
+  }
+
+  /**
+   * The ferry's raft, centred on (x, y): a slab of planks 17 wide and 5 tall,
+   * slate with ink seams and edges, its corners knocked off. `cov` dithers it
+   * in and out of the water.
+   */
+  function drawRaft(surf, x, y, cov) {
+    for (let a = -8; a <= 8; a++) {
+      for (let b = -2; b <= 2; b++) {
+        const end = Math.abs(a) === 8, side = Math.abs(b) === 2;
+        if (end && side) continue;
+        if (cov < 1 && !G.ditherOn(x + a, y + b, cov)) continue;
+        const seam = !end && !side && (a + 8) % 6 === 0;
+        surf.set(x + a, y + b, end || side || seam ? K : S);
+      }
     }
   }
 
