@@ -77,6 +77,31 @@ test("game: the turn indicator and Pass follow the turn", async () => {
   assert.equal(await b.ev("passButton.hidden || passButton.disabled"), false);
 });
 
+// Review U3: a refusal the server sends back shows over the point just clicked; one that
+// comes long after a click shows under the hand only. The move is held back here, so the
+// game stays as it is, and the page's own notice handler stands in for the server.
+test("game: a refusal from the server shows over the point just clicked; a late one only under the hand (U3)", async () => {
+  await rig.waitMyTurn();
+  await b.ev("window.__send = room.send; room.send = function () {}; true");
+  try {
+    const p = await rig.freePoint(2);
+    const at = await rig.boardPoint(p.x, p.y);
+    await rig.clickBoard(p.x, p.y);
+    await b.ev(`onServerNotice("Ko: that would bring back a board position that has stood before."); true`);
+    const n = await b.ev(`(() => { const el = document.getElementById("point-notice"); if (!el) return null; const r = el.getBoundingClientRect(); return { text: el.textContent, cx: r.left + r.width / 2, bottom: r.bottom }; })()`);
+    assert.ok(n, "a bubble at the point");
+    assert.match(n.text, /^Ko:/);
+    assert.ok(Math.abs(n.cx - at.x) < 4 && n.bottom <= at.y, `over the point: ${JSON.stringify(n)} vs ${JSON.stringify(at)}`);
+    assert.match(await b.ev("noticeEl.textContent"), /^Ko:/, "and under the hand");
+    await wait(2200);
+    await b.ev(`onServerNotice("Too many tries: wait a few seconds."); true`);
+    assert.equal(await b.ev("!!document.getElementById('point-notice')"), false, "a late notice has no point");
+    assert.match(await b.ev("noticeEl.textContent"), /^Too many tries/);
+  } finally {
+    await b.ev("room.send = window.__send; true");
+  }
+});
+
 test("game: a left click on my turn plays my solid stone there", async () => {
   await rig.waitMyTurn();
   const p = await rig.freePoint();

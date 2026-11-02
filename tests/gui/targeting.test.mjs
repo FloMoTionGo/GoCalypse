@@ -99,6 +99,21 @@ test("targeting: a first pick that isn't one of my stones is refused with a noti
   assert.deepEqual(await b.ev("window.__sent"), []);
 });
 
+// Review U3: a refusal also shows where it happened, in a bubble over the clicked point.
+// The Skiff stays armed for the next test, as the one before left it.
+test("targeting: the refusal also shows over the point that was clicked (U3)", async () => {
+  const p = await rig.freePoint(4);
+  const at = await rig.boardPoint(p.x, p.y);
+  await rig.clickBoard(p.x, p.y);
+  await b.waitFor("!!document.getElementById('point-notice')", 3000, "the notice at the point");
+  const n = await b.ev(`(() => { const el = document.getElementById("point-notice"), r = el.getBoundingClientRect(); return { text: el.textContent, hidden: el.getAttribute("aria-hidden"), cx: r.left + r.width / 2, bottom: r.bottom }; })()`);
+  assert.match(n.text, /one of your own stones/);
+  assert.equal(n.text, await b.ev("noticeEl.textContent"), "the same words as the notice under the hand");
+  assert.equal(n.hidden, "true", "the notice under the hand is the live region; the bubble is for the eye");
+  assert.ok(Math.abs(n.cx - at.x) < 4, `centred over the point: ${n.cx} vs ${at.x}`);
+  assert.ok(n.bottom <= at.y && at.y - n.bottom < 30, `just above the point: bottom ${n.bottom}, point ${at.y}`);
+});
+
 test("targeting: another of my stones re-picks; the picked stone again un-picks", async () => {
   await rig.clickBoard(mine[0].x, mine[0].y);
   assert.deepEqual(await b.ev("firstTarget"), mine[0]);

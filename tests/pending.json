@@ -1,4 +1,17 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "targeting: the refusal also shows over the point that was clicked (U3)",
+      "feature": "point-notice",
+      "tier": "gui",
+      "since": "2026-11-02"
+    },
+    {
+      "test": "game: a refusal from the server shows over the point just clicked; a late one only under the hand (U3)",
+      "feature": "point-notice",
+      "tier": "gui",
+      "since": "2026-11-02"
+    }
+  ]
 }
