@@ -314,6 +314,9 @@ test("game: How to play shows the essentials in under 150 words, with scoring fo
 
 test("game: the first pass is told under the hand, and How to play then opens with scoring unfolded (U2)", async () => {
   await rig.waitMyTurn();
+  // This page may have seen a pass already: playUntil passes when no free point is left (CI, 2026-11-02).
+  // What is checked here is the first pass a page sees.
+  await b.ev("passSeen = false; true");
   const turn = await b.ev("lastState.turnCount");
   await b.ev("passButton.click(); true");
   await b.waitFor(`lastState.turnCount > ${turn} && lastState.passes > 0`, 10000, "my pass to land");
