@@ -450,6 +450,12 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   display: block;
   border-radius: var(--px);
   cursor: default;
+  /* A long press is the second stone (main.js, review U6): no callout, no selection,
+     no double-tap zoom on the board. Panning still works. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
 }
 #board.my-turn, #board.targeting { cursor: pointer; }
 

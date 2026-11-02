@@ -82,7 +82,7 @@ test("game: the turn indicator and Pass follow the turn", async () => {
 // game stays as it is, and the page's own notice handler stands in for the server.
 test("game: a refusal from the server shows over the point just clicked; a late one only under the hand (U3)", async () => {
   await rig.waitMyTurn();
-  await b.ev("window.__send = room.send; room.send = function () {}; true");
+  await b.ev("room.send = function () {}; true");
   try {
     const p = await rig.freePoint(2);
     const at = await rig.boardPoint(p.x, p.y);
@@ -98,7 +98,8 @@ test("game: a refusal from the server shows over the point just clicked; a late 
     assert.equal(await b.ev("!!document.getElementById('point-notice')"), false, "a late notice has no point");
     assert.match(await b.ev("noticeEl.textContent"), /^Too many tries/);
   } finally {
-    await b.ev("room.send = window.__send; true");
+    // Back to colyseus.js's own send, so later spies on Room.prototype.send see every send again.
+    await b.ev("delete room.send; true");
   }
 });
 
@@ -220,7 +221,11 @@ test("game: a river creature climbs onto the pier on the page, its reach ringed 
 });
 
 test("game: when its timer runs out the river creature goes back into the water on the page", async () => {
+  // The creature the test before saw may have been out for a while already and left during
+  // its wait (seen 2026-11-02 once more turns came earlier in this file): then wait for the next.
+  if (!(await b.ev(OUT))) await playUntil(`!!${OUT}`, 60);
   const kind = await b.ev(OUT);
+  assert.ok(kind, "a creature is out");
   const by = await b.ev(`lastState.river.${kind}.by`);
   await playUntil(`lastState.turnCount >= ${by}`, by - (await b.ev("lastState.turnCount")) + 2);
   // The board is read in the same evaluation that sees the creature leave: a bot may play on an

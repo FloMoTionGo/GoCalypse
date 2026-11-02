@@ -240,6 +240,60 @@ window.addEventListener("keydown", (evt) => {
 });
 boardEl.addEventListener("click", onBoardClick);
 boardEl.addEventListener("contextmenu", onBoardRightClick);
+
+// Touch (review U6): a tablet has no right click. Holding a point for LONG_PRESS_MS
+// does what a right click does (the second stone, a seed's other front, letting an
+// armed item go); a tap stays the left click. One press is one action: the click a
+// long press ends with is swallowed, and a browser's own long-press contextmenu
+// stands in for the timer rather than adding to it.
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP = 12; // CSS px a finger may wander and still be holding
+let pressTimer = 0;
+let pressAt = null; // where a touch press began, while it lasts
+let pressFired = false; // this press already acted as the right click
+boardEl.addEventListener("pointerdown", (e) => {
+  if (e.pointerType !== "touch") return;
+  pressAt = { clientX: e.clientX, clientY: e.clientY };
+  pressFired = false;
+  clearTimeout(pressTimer);
+  pressTimer = setTimeout(() => {
+    pressFired = true;
+    onBoardRightClick({ clientX: pressAt.clientX, clientY: pressAt.clientY, preventDefault() {} });
+  }, LONG_PRESS_MS);
+});
+boardEl.addEventListener("pointermove", (e) => {
+  if (!pressAt || e.pointerType !== "touch") return;
+  if (Math.hypot(e.clientX - pressAt.clientX, e.clientY - pressAt.clientY) > LONG_PRESS_SLOP) clearTimeout(pressTimer);
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  boardEl.addEventListener(type, (e) => {
+    if (e.pointerType !== "touch") return;
+    clearTimeout(pressTimer);
+    pressAt = null;
+  });
+}
+boardEl.addEventListener(
+  "click",
+  (e) => {
+    if (!pressFired) return;
+    pressFired = false;
+    e.stopImmediatePropagation();
+  },
+  true
+);
+boardEl.addEventListener(
+  "contextmenu",
+  (e) => {
+    if (pressFired) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    } else if (pressAt) {
+      clearTimeout(pressTimer); // the browser's own long press: it is the right click
+      pressFired = true;
+    }
+  },
+  true
+);
 window.addEventListener("resize", sizeCanvas);
 helpButton.addEventListener("click", () => lastState && openWelcome(lastState));
 // The home screen's "How to play" (#home-help in the lobby's markup). Delegated, so it works
@@ -2935,6 +2989,7 @@ function showCardZoom(card) {
     zoom.classList.add("live");
     zoom.dataset.index = card.dataset.index;
     zoom.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "touch") return; // a finger lifts off it after every tap: a tap elsewhere lets it go
       if (!(zoomedCard && zoomedCard.contains(e.relatedTarget))) hideCardZoom();
     });
   } else {
@@ -2969,7 +3024,8 @@ function refreshCardZoom() {
   const under =
     handEl.querySelector(".card:hover") ||
     handEl.querySelector(".card:focus-visible") ||
-    (onLive ? handEl.querySelector(`.card[data-id="${STONE_CARD}"]`) : null);
+    (onLive ? handEl.querySelector(`.card[data-id="${STONE_CARD}"]`) : null) ||
+    (touchZoomIndex !== null ? handEl.querySelector(`.card[data-index="${touchZoomIndex}"]`) : null);
   hideCardZoom();
   if (under) showCardZoom(under);
   if (onLive) for (const el of document.querySelectorAll(".card.zoom.live, .card-help")) el.classList.add("again");
@@ -2979,7 +3035,48 @@ handEl.addEventListener("pointerover", (e) => {
   const card = e.target.closest(".card");
   if (card && e.pointerType !== "touch") showCardZoom(card);
 });
+
+// Touch (review U6): nothing hovers on a tablet, so a first tap on a card shows it
+// enlarged (the Kata's live copy takes stones there) and goes no further; a tap on the
+// card already shown is the click. It stays shown when the hand is drawn again, until
+// a tap anywhere else lets it go.
+let touchZoomIndex = null; // the hand position a tap enlarged
+let swallowTap = null; // the card whose click that first tap would send
+let lastPointerType = "mouse";
+handEl.addEventListener("pointerdown", (e) => {
+  if (e.pointerType !== "touch") return;
+  const card = e.target.closest(".card");
+  if (!card || card === zoomedCard) return;
+  showCardZoom(card);
+  touchZoomIndex = card.dataset.index;
+  swallowTap = card;
+});
+handEl.addEventListener(
+  "click",
+  (e) => {
+    const card = e.target.closest(".card");
+    if (swallowTap && card === swallowTap) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    swallowTap = null;
+  },
+  true
+);
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    lastPointerType = e.pointerType;
+    if (e.pointerType !== "touch" || !zoomedCard) return;
+    const t = e.target;
+    if (t.closest && (t.closest("#hand .card") || t.closest(".card.zoom") || t.closest(".card-help"))) return;
+    touchZoomIndex = null;
+    hideCardZoom();
+  },
+  true
+);
 handEl.addEventListener("pointerout", (e) => {
+  if (e.pointerType === "touch") return; // a finger lifts off after every tap
   const card = e.target.closest(".card");
   const toZoom = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".card.zoom.live");
   if (card && card === zoomedCard && !card.contains(e.relatedTarget) && !toZoom) hideCardZoom();
@@ -2989,6 +3086,7 @@ handEl.addEventListener("focusin", (e) => {
   if (card && card.matches(":focus-visible")) showCardZoom(card);
 });
 handEl.addEventListener("focusout", () => {
+  if (lastPointerType === "touch") return; // a tap moves the focus; a tap elsewhere lets the card go
   if (zoomedCard && !zoomedCard.matches(":hover")) hideCardZoom();
 });
 
