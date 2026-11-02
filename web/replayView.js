@@ -63,7 +63,7 @@ async function loadReplayList() {
   replayStatus("Loading games...");
   try {
     const res = await fetch(`${replayServer()}/history${GoReplay.listQuery(range, REPLAY_LIST_LIMIT)}`);
-    if (!res.ok) throw new Error(`the server answered ${res.status}`);
+    if (!res.ok) throw Object.assign(new Error(`GET /history answered ${res.status}`), { status: res.status });
     const { games, total } = await res.json();
     if (request !== replays.request) return; // the filter changed while this was on its way
     replays.games = games;
@@ -76,7 +76,8 @@ async function loadReplayList() {
     if (request !== replays.request) return;
     replays.games = [];
     renderReplayList([]);
-    replayStatus(`Could not load the games (${err.message || err}). Is the server in the Server field up?`, true);
+    console.warn("Replays: the list could not be loaded", err);
+    replayStatus(GoErrorCopy.listFailed(err, typedServerHost()), true);
   }
 }
 
@@ -115,10 +116,11 @@ async function openReplay(id) {
   replayStatus("Loading the game...");
   try {
     const res = await fetch(`${replayServer()}/history/${encodeURIComponent(id)}`);
-    if (!res.ok) throw new Error(res.status === 404 ? "it is no longer on the server" : `the server answered ${res.status}`);
+    if (!res.ok) throw Object.assign(new Error(`GET /history/${id} answered ${res.status}`), { status: res.status });
     showReplay(await res.json());
   } catch (err) {
-    replayStatus(`Could not load that game: ${err.message || err}.`, true);
+    console.warn("Replays: the game could not be loaded", err);
+    replayStatus(GoErrorCopy.gameFailed(err, typedServerHost()), true);
   }
 }
 

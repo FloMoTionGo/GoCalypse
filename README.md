@@ -488,7 +488,9 @@ only some seats were bots. Same restart note as above.
   scene, player list, Night Market and the hand of item cards
   under the board straight off the synced room state (`room.onStateChange`).
   `replay.js` (pure, tested in Node) and `replayView.js` (the Replays dialog)
-  list and play back saved games.
+  list and play back saved games. `errorCopy.js` (pure, tested in Node) words
+  every failure the page shows: what happened and what to do, never a status
+  or close code; the server's own refusals at the door are shown as they are.
 
 ## Running locally
 

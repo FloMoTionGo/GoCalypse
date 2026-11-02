@@ -335,6 +335,11 @@ function serverHost(endpoint) {
   }
 }
 
+/** The host a message names: null for the usual server, the footer's host for one typed into the Server field. */
+function typedServerHost() {
+  return serverEndpoint() === DEFAULT_SERVER ? null : serverHost(serverEndpoint());
+}
+
 /** The footer's Server entry names the host whenever the endpoint isn't the usual server. */
 function renderServerNote() {
   const off = serverEndpoint() !== DEFAULT_SERVER;
@@ -421,7 +426,7 @@ async function rejoinAfterDrop(inGame) {
       if (await rejoin()) return;
       if (!inGame) {
         // The server is back but a lobby doesn't survive a restart: start a new one.
-        setLobbyStatus("The server restarted. Press Join to start a new lobby.", true);
+        setLobbyStatus(GoErrorCopy.serverRestarted(), true);
         joinButton.disabled = false;
         return;
       }
@@ -429,7 +434,7 @@ async function rejoinAfterDrop(inGame) {
       console.error(err);
     }
   }
-  setLobbyStatus("Disconnected. Refresh to reconnect.", true);
+  setLobbyStatus(GoErrorCopy.reconnectGaveUp(), true);
   joinButton.disabled = false;
 }
 
@@ -505,13 +510,18 @@ function attachRoom(joined) {
     if (inGame || code === 1012) {
       rejoinAfterDrop(inGame);
     } else {
-      setLobbyStatus(`Disconnected (code ${code}). Refresh to reconnect.`, true);
+      console.warn(`GoCalypse: the room closed (close code ${code})`);
+      setLobbyStatus(GoErrorCopy.lostInLobby(), true);
       joinButton.disabled = false;
     }
   });
-  room.onError((code, message) => {
+  // colyseus.js logs the code and message itself; the page says what to do. At the
+  // table the lobby line is out of sight, so the notice under the hand carries it.
+  room.onError(() => {
     if (!current()) return;
-    setLobbyStatus(`Room error ${code}: ${message || ""}`, true);
+    const text = GoErrorCopy.tableTrouble();
+    if (gameEl.hidden) setLobbyStatus(text, true);
+    else showNotice(text, 15000);
   });
 
   showGame(true);
@@ -565,7 +575,7 @@ async function connect() {
     }
   } catch (err) {
     console.error(err);
-    setLobbyStatus(`Failed to join: ${err.message || err}`, true);
+    setLobbyStatus(GoErrorCopy.joinFailed(err, typedServerHost()), true);
     joinButton.disabled = false;
   }
 }
