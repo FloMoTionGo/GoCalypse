@@ -1207,6 +1207,11 @@
     const surf = new G.Surface(W, H);
     const rgba = new Uint8ClampedArray(W * H * 4);
     const region = base.region;
+    // G.ditherOn's threshold per pixel, for the passes over the whole scene (the
+    // storm's shade and the bolts' flash): `bayer[i] < coverage` is ditherOn(x, y, coverage)
+    // without the division and modulo per pixel (findings P2).
+    const bayer = new Float32Array(W * H);
+    for (let i = 0; i < bayer.length; i++) bayer[i] = (G.BAYER4[((i / W) | 0) & 3][(i % W) & 3] + 0.5) / 16;
     const noLight = base.noLight;
 
     // --- ambient actors -----------------------------------------------------
@@ -2258,7 +2263,7 @@
         const darkIn = STORM_DARKNESS * boardW;
         for (let i = 0; i < surf.px.length; i++) {
           const d = region[i] === R_KAYA ? darkIn : darkOut;
-          if (d > 0 && G.ditherOn(i % W, (i / W) | 0, d)) surf.px[i] = G.SHADE[surf.px[i]];
+          if (d > 0 && bayer[i] < d) surf.px[i] = G.SHADE[surf.px[i]];
         }
         if (!reduced) {
           const offBoard = (x, y) => !inKaya(x, y);
@@ -2281,8 +2286,9 @@
             // the sky blows out white rather than merely turning warm.
             const passes = u < 0.06 ? 2 : 1;
             for (let n = 0; n < passes; n++) {
+              const coverage = n === 0 ? 1 : 0.75;
               for (let k = 0; k < surf.px.length; k++) {
-                if (G.ditherOn(k % W, (k / W) | 0, n === 0 ? 1 : 0.75)) surf.px[k] = G.LIGHT[surf.px[k]];
+                if (bayer[k] < coverage) surf.px[k] = G.LIGHT[surf.px[k]];
               }
             }
           }
