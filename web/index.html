@@ -68,9 +68,11 @@
 
     <section id="game" hidden>
       <h2 class="visually-hidden">At the table</h2>
-      <!-- One row of pixel art (ideas.md §11.8): the history on the left, the turn lantern in the
-           middle, the actions on the right. The planks are real buttons with their faces as images
-           (renderHeader / plank() in main.js); their words are in aria-label. -->
+      <!-- One row of pixel art (ideas.md §11.8): the history on the left, YOUR TURN in the middle,
+           the actions on the right. Whose turn it is and the round live on the landing since
+           2026-11-07 (the lit lantern, the moored boat), so the lantern and the name stay hidden.
+           The planks are real buttons with their faces as images (renderHeader / plank() in
+           main.js); their words are in aria-label. -->
       <header id="game-header">
         <div id="hdr-history">
           <div id="recall">
@@ -83,8 +85,8 @@
           <button id="log-button" class="plank" type="button" aria-label="Event log" title="The last ten events (L)"></button>
         </div>
         <div id="hdr-turn">
-          <img id="hdr-lantern" class="px" alt="" />
-          <span id="hdr-name"></span>
+          <img id="hdr-lantern" class="px" alt="" hidden />
+          <span id="hdr-name" hidden></span>
           <img id="hdr-label" class="px" alt="" />
           <button id="bots-button" class="plank" type="button" aria-label="Add bots" hidden></button>
           <button id="result-button" class="plank" type="button" aria-label="Results" hidden></button>
@@ -101,10 +103,15 @@
 
       <div id="game-body">
         <div id="board-wrap">
-          <canvas id="board" class="px"></canvas>
-          <!-- Under the board, never over it (the river carries the round and firefly boats): the hand
-               of item cards (renderHand() in main.js), left aligned, then the three lines. The sidebar
-               runs down beside it all. -->
+          <div id="board-stage">
+            <canvas id="board" class="px"></canvas>
+            <!-- The players on the landing (renderPlayers() in main.js): one row a seat, in turn
+                 order, laid over its island's top left of the deck. -->
+            <div id="players"></div>
+          </div>
+          <!-- Under the board, never over it (the river carries the firefly boat): the hand of item
+               cards (renderHand() in main.js), left aligned under the deck past the islands, then
+               the three lines. The sidebar runs down beside it all. -->
           <div id="game-foot">
             <div id="board-foot">
               <div id="hand" role="group" aria-label="Hand"></div>
@@ -116,8 +123,6 @@
         </div>
 
         <aside id="sidebar">
-          <div id="players" class="panel"></div>
-
           <div id="weather" class="panel"></div>
 
           <div id="market" class="panel">

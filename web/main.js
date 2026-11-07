@@ -785,6 +785,7 @@ function sizeCanvas() {
   root.setProperty("--stage-w", String(stage.w));
   root.setProperty("--stage-h", String(stage.h));
   root.setProperty("--scene-w", String(scene.width));
+  root.setProperty("--landing-w", String(scene.layout.landingW)); // the hand and the lines start past the islands
   boardEl.style.width = `${(scene.width * k) / dpr}px`;
   boardEl.style.height = `${(scene.height * k) / dpr}px`;
   hideCardZoom(); // drawn at the old card size
@@ -852,7 +853,9 @@ function frame() {
     storm: snap ? null : storm,
     // live scenery, like the weather: drawn as it is now even while looking back
     river: [riverCreatures.crab, riverCreatures.spirit].filter(Boolean),
-    round: roundLength > 0 ? Math.floor((snap ? snap.turnCount : turnCount) / roundLength) + 1 : 1, // the boat's sign: the round being played (one round = one turn each)
+    // the landing: each seat's lantern, and the turn boat moored at the current seat with the
+    // round on its sign (the round looked back at, while recalling an older board)
+    ...landingView(lastState, snap ? snap.turnCount : turnCount),
     passFlash: passFlashAt,
     fireflies: myPlayer ? myPlayer.fireflies : undefined,
     turnCount: snap ? snap.turnCount : turnCount,
@@ -875,13 +878,42 @@ function frame() {
   boardCtx.putImageData(imageData, 0, 0); // imageData is a view over scene.rgba
 }
 
+let boatGlide = { seat: null }; // the turn boat's last mooring, and when it left it (landingView)
+
+/**
+ * The landing as the scene draws it (pixelScene.js render `seats` and `boat`):
+ * each seat's lantern in turn order, lit on its turn (the winner's at the end),
+ * null for an open seat; and the turn boat, moored at the current seat's island
+ * (the winner's at the end, the first seat while waiting) with the round of
+ * `turns` on its sign. When the turn moves on, the boat glides there from the
+ * last seat for BOAT_GLIDE_SECONDS.
+ */
+function landingView(state, turns = turnCount) {
+  if (!state) return { seats: [], boat: null };
+  const players = Array.from(state.players);
+  const inOrder = players.slice().sort((a, b) => a.color - b.color);
+  const playing = state.status === "playing", finished = state.status === "finished";
+  const current = playing ? players[state.turnIndex] : null;
+  const seats = [0, 1, 2, 3].map((i) => {
+    const p = inOrder[i];
+    return p ? { color: p.color, lit: finished ? p.place === 1 : p === current } : null;
+  });
+  const seat = current ? inOrder.indexOf(current) : finished ? Math.max(0, inOrder.findIndex((p) => p.place === 1)) : 0;
+  if (boatGlide.seat !== seat) boatGlide = { seat, from: boatGlide.seat === null ? undefined : boatGlide.seat, at: boatGlide.seat === null ? undefined : clock() };
+  const round = roundLength > 0 ? Math.floor(turns / roundLength) + 1 : 1;
+  const boat = { seat, round };
+  if (boatGlide.at !== undefined) Object.assign(boat, { from: boatGlide.from, at: boatGlide.at });
+  return { seats, boat };
+}
+
 /**
  * What the next frame would show, as a string -- or null while something on the
  * scene moves on its own clock, so every frame is a new picture: effects in
  * flight, the weather and its lingering clouds, a river creature, fires and
- * wards, the PASS sign, the hover preview or reticle, and the marks of an armed
- * item. With none of those on, the picture changes only when the ambient clock
- * (water, lanterns, fireflies at AMBIENT_FPS), the last-move ember or something
+ * wards, the PASS sign, the turn boat gliding to the next island, the hover
+ * preview or reticle, and the marks of an armed item. With none of those on, the
+ * picture changes only when the ambient clock (water, lanterns, fireflies, the
+ * landing's drifting lanterns at AMBIENT_FPS), the last-move ember or something
  * in the view itself does.
  */
 function frameKey(view, now) {
@@ -892,6 +924,7 @@ function frameKey(view, now) {
     view.stormTurnCount < view.stormUntil ||
     view.landings ||
     view.highlightMine ||
+    (view.boat && view.boat.at !== undefined && now - view.boat.at < P.BOAT_GLIDE_SECONDS) ||
     (view.hover && (view.hoverKind === "stone" || view.hoverKind === "target")) ||
     (view.passFlash !== undefined && now - view.passFlash < P.PASS_SIGN_SECONDS) ||
     view.overlays.some((o) => o.kind === "fire" || o.kind === "ward");
@@ -1351,27 +1384,19 @@ function pixelText(img, text, color) {
  * their name and the round (R12, as on the boat's sign). Waiting for players it
  * says how many are seated (2/4) beside ADD BOTS; once the game is over, RESULTS.
  */
+/**
+ * The header's middle: YOUR TURN on my turn, the seats taken while waiting, and
+ * nothing else. Whose turn it is and the round live on the landing since
+ * 2026-11-07 (the lit lantern, the moored boat), so the header's lantern and
+ * name (#hdr-lantern, #hdr-name) stay hidden.
+ */
 function renderHeader(state, players) {
   const turnEl = document.getElementById("hdr-turn");
-  const lantern = document.getElementById("hdr-lantern");
-  const nameEl = document.getElementById("hdr-name");
   const label = document.getElementById("hdr-label");
   const playing = state.status === "playing";
-  const current = playing ? players[state.turnIndex] : null;
-  const who = current || myPlayer || players[0];
   const lit = playing && isMyTurn;
   turnEl.classList.toggle("my-turn", lit);
-  if (who) {
-    const spr = G.turnLantern(who.color, lit);
-    lantern.src = spriteUrl(`lantern_${who.color}_${lit ? 1 : 0}`, spr);
-    lantern.style.width = `calc(${spr.w} * var(--px))`;
-    lantern.style.height = `calc(${spr.h} * var(--px))`;
-  }
-  lantern.hidden = !who;
-  nameEl.textContent = playing && current ? current.name : "";
-  nameEl.hidden = !nameEl.textContent;
-  const round = roundLength > 0 ? Math.floor(turnCount / roundLength) + 1 : 1;
-  const text = playing ? (lit ? `YOUR TURN  R${round}` : `R${round}`) : state.status === "waiting" ? `${players.length}/4` : "";
+  const text = lit ? "YOUR TURN" : state.status === "waiting" ? `${players.length}/4` : "";
   if (text) pixelText(label, text, lit ? G.INDEX.A : G.INDEX.S);
   label.hidden = !text;
 }
@@ -2324,47 +2349,43 @@ function renderSidebar(state) {
   renderHand(state); // after the market: a card just bought flies out of its stall
 }
 
-// The players panel's Go grid (style.css #players), in art px: cells of 22 x 28, 12 columns
-// (pixelScene.js STAGE.sidebar), the lines through their middles; the rows start 9 down
-// and 5 in from the panel's edge.
-const PLAYER_GRID = { col: 22, row: 28, cols: 12, top: 9, inset: 5 };
-const NAME_PLATE_MAX = 113; // art px: from after the stones to just before the captured icon
+// An island's row (style.css .player-row), in art px from the top left of the island's
+// kaya, inside its frame (pixelScene.js ISLAND_W x ISLAND_H less the frame: 122 x 38):
+// the Kaya scorebook's grid edge to edge, a line down every 18 px through the digit and
+// each stone, and a line across the name's row and across the stones' row.
+const ISLAND_GRID = { cols: [8, 26, 44, 62, 80, 98, 116], rows: [7, 26] };
+const NAME_PLATE_MAX = 117; // art px: the name's plate, across the island's first line
 
-/** A line of the players panel's grid: down the middle of column `at`, or across row `at`. */
-function playerGridLine(dir, at) {
+/** A line of an island's grid: down at `pos` art px from its left, or across at `pos` from its top. */
+function playerGridLine(dir, pos) {
   const line = document.createElement("i");
   line.className = dir;
-  const pos = dir === "v" ? at * PLAYER_GRID.col + PLAYER_GRID.col / 2 : PLAYER_GRID.top + at * PLAYER_GRID.row + PLAYER_GRID.row / 2 - 1;
   line.style[dir === "v" ? "left" : "top"] = `calc(${pos} * var(--px))`;
   return line;
 }
 
 /**
- * The players panel (the Kaya scorebook): a strip of kaya with a Go grid under
- * it, one row per seat in turn order. On the row's line: its turn-order digit
- * (its place, once the game is over), both of its stones at board size, so
- * black, white, gray and see-through read at a glance, then the name on a plate
- * of the row's colour, the stones it has captured (its final score at the end)
- * and its Kata, small: rivals may look. The ember marks my seat and (B) a bot's;
- * the seat whose turn it is (the winners, at the end) is lit. No fireflies: the
- * board shows mine, and the others' are their own business until the game ends.
+ * The players on the landing (the Kaya scorebook, one island a seat in turn order,
+ * left of the deck): each seat's row laid over its island's kaya, the grid under
+ * everything. On the first line the name, on a plate of the row's colour; on the
+ * second the turn-order digit (its place, once the game is over), both of its
+ * stones at board size, so black, white, gray and see-through read at a glance,
+ * the stones it has captured (its final score at the end) and its Kata, small:
+ * rivals may look. The ember marks my seat and (B) a bot's; the seat whose turn it
+ * is (the winners, at the end) is lit, as its lantern is. No fireflies: the board
+ * shows mine, and the others' are their own business until the game ends.
  */
 function renderPlayers(state) {
   const players = Array.from(state.players);
   const me = room ? room.sessionId : null;
+  const layout = scene ? scene.layout : P.computeLayout(state.size || 13);
   const sig = JSON.stringify([
-    state.turnIndex, state.status, me,
+    state.turnIndex, state.status, me, layout.size,
     players.map((p) => [p.sessionId, p.name, p.color, p.connected, p.bot, p.passed, p.score, p.finalScore, p.place, hasStoneCard(p), Array.from(p.card).join(""),
       p.captures ? Array.from(p.captures).join() : null]),
   ]);
   const rebuilt = rebuild(playersEl, sig, () => {
     const finished = state.status === "finished";
-    const grid = document.createElement("div");
-    grid.className = "grid";
-    grid.setAttribute("aria-hidden", "true");
-    for (let k = 0; k < PLAYER_GRID.cols; k++) grid.append(playerGridLine("v", k));
-    for (let i = 0; i < players.length; i++) grid.append(playerGridLine("h", i));
-    playersEl.append(grid);
 
     // Listed by color, which is also the turn order (the synced array is join order).
     const seats = players.map((player, index) => ({ player, index })).sort((a, b) => a.player.color - b.player.color);
@@ -2373,6 +2394,14 @@ function renderPlayers(state) {
       const away = !finished && !player.connected;
       const row = document.createElement("div");
       row.className = "player-row";
+      const isl = layout.islands[n];
+      if (isl) Object.assign(row.style, { left: `calc(${isl.x + isl.frame} * var(--px))`, top: `calc(${isl.y + isl.frame} * var(--px))` });
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      grid.setAttribute("aria-hidden", "true");
+      for (const x of ISLAND_GRID.cols) grid.append(playerGridLine("v", x));
+      for (const y of ISLAND_GRID.rows) grid.append(playerGridLine("h", y));
+      row.append(grid);
       row.classList.toggle("current", finished ? player.place === 1 : state.status === "playing" && index === state.turnIndex);
       row.classList.toggle("faded", away || (state.status === "playing" && player.passed));
 
@@ -2431,7 +2460,7 @@ function renderPlayers(state) {
         capt.append(artImg("capturedIcon", G.SPRITES.capturedIcon));
         row.append(capt);
       }
-      // The count in the big pixel font at two art px a pixel, centred on line 9.
+      // The count in the big pixel font at two art px a pixel, centred on the grid's fifth line down.
       const value = finished ? player.finalScore : player.score;
       const count = document.createElement("span");
       count.className = "count";
@@ -2446,7 +2475,7 @@ function renderPlayers(state) {
         count.append(spriteImg(`big_K_${d}`, spr, 4));
         width += 2 * spr.w + (width > 4 ? 2 : 0);
       }
-      count.style.left = `calc(${Math.round(9.5 * PLAYER_GRID.col + 0.5 - PLAYER_GRID.inset - width / 2)} * var(--px))`;
+      count.style.left = `calc(${Math.round(ISLAND_GRID.cols[4] + 0.5 - width / 2)} * var(--px))`;
       row.append(count);
 
       if (hasStoneCard(player)) {
@@ -2540,10 +2569,12 @@ function showCaptureTip(count) {
   }
   document.body.appendChild(tip);
   count.setAttribute("aria-describedby", tip.id);
+  // Beside the seat's island, over the channel and the deck's edge; never over the sidebar.
   const r = count.getBoundingClientRect(), side = document.getElementById("sidebar").getBoundingClientRect();
+  const isle = count.closest(".player-row").getBoundingClientRect();
   const gap = 6, margin = 8;
   const top = Math.max(margin, Math.min(r.top + r.height / 2 - tip.offsetHeight / 2, window.innerHeight - margin - tip.offsetHeight));
-  Object.assign(tip.style, { left: `${Math.max(margin, side.left - gap - tip.offsetWidth)}px`, top: `${top}px` });
+  Object.assign(tip.style, { left: `${Math.max(margin, Math.min(isle.right + gap, side.left - gap - tip.offsetWidth))}px`, top: `${top}px` });
 }
 
 function hideCaptureTip() {
@@ -2572,8 +2603,8 @@ playersEl.addEventListener("focusin", (e) => {
 playersEl.addEventListener("focusout", hideCaptureTip);
 
 /**
- * A name too long for its plate shrinks (--fit) until the plate ends before the
- * captured icon, so every name stays on one line: 24 code points at most
+ * A name too long for its plate shrinks (--fit) until the plate fits the island's
+ * first line, so every name stays on one line: 24 code points at most
  * (server/src/util/usernames.ts). Again on every resize: below 11 device px the
  * font stops shrinking (--min-font) and the plate cuts the name short instead.
  */

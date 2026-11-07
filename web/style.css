@@ -466,7 +466,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 #game-body { flex: 1 1 auto; min-height: 0; display: flex; gap: calc(6 * var(--px)); align-items: stretch; }
 #board-wrap { flex: 0 0 auto; width: calc(var(--scene-w) * var(--px)); min-width: 0; display: flex; flex-direction: column; }
 /* Under the board, in its column: the hand row, then the three lines. The sidebar runs down beside them. */
-#game-foot { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; } /* the board above never gives way to it */
+#game-foot { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; margin-left: calc(var(--landing-w, 0) * var(--px)); } /* the board above never gives way to it; under the deck, past the islands */
 /* The three lines under it all: one line each, so a long one never pushes the stage taller. */
 #game-foot > .hint, #game-foot > .status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: var(--px); min-height: 0; line-height: 1.2; }
 
@@ -483,9 +483,10 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 #board.my-turn, #board.targeting { cursor: pointer; }
 
-/* Exactly 264 art px whatever a player is called (pixelScene.js STAGE.sidebar): min-width 0
-   stops a long nowrap name from widening it. 264 since the players panel became a kaya grid of
-   12 columns of 22. As tall as the stage lets it be; the market scrolls. */
+/* Exactly 264 art px (pixelScene.js STAGE.sidebar): min-width 0 stops long content from
+   widening it. 264 since the players panel became a kaya grid of 12 columns of 22; the players
+   moved onto the landing's islands on 2026-11-07, and the weather and the market kept the width.
+   As tall as the stage lets it be; the market scrolls. */
 #sidebar { flex: 0 0 calc(264 * var(--px)); min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
 #sidebar > .panel { flex: 0 0 auto; }
 #sidebar > #market { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--slate) var(--ink); }
@@ -499,61 +500,52 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .count-tag { color: var(--muted); font-size: max(var(--min-font), calc(4.95 * var(--px))); letter-spacing: 0; }
 .count-tag.full { color: var(--amber); }
 
-/* The players panel (main.js renderPlayers): a strip of kaya with a Go grid under it all,
-   cells of 22 x 28 art px (PLAYER_GRID), a line down the middle of every column and one
-   across the middle of every row. Each seat's row puts its turn-order digit (its place, once
-   the game is over) on the first line down and its two stones on the next two crossings; the
-   name, the captures and the Kata sit on plates of the row's colour, which hide the lines
-   under them. The seat whose turn it is (the winners, at the end) is lit cream. Positions
-   are in the row's art px; the row starts 5 in from the panel's edge. */
-#players {
-  position: relative;
-  padding: calc(9 * var(--px)) 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--amber);
-  color: var(--ink);
-  box-shadow: 0 calc(2 * var(--px)) 0 var(--slate);
-}
-#players::after { content: ""; position: absolute; z-index: 1; left: 0; right: 0; top: 0; height: var(--px); background: var(--cream); } /* the bevel along the top */
-#players .grid { position: absolute; inset: 0; pointer-events: none; }
-#players .grid i { position: absolute; background: var(--ink); }
-#players .grid .v { top: 0; bottom: 0; width: var(--px); }
-#players .grid .h { left: 0; right: 0; height: var(--px); }
+/* The players on the landing (main.js renderPlayers; tasks/2026-11-07_turn_landing/PLAN.md):
+   one row a seat, laid over its island's kaya left of the deck (122 x 38 art px inside the
+   island's frame, placed by renderPlayers from the scene's layout). The Kaya scorebook's grid
+   runs edge to edge under each (ISLAND_GRID): a line down every 18 art px, one across the
+   name's row and one across the stones' row. The name sits on the first line; the turn-order
+   digit (the place, once the game is over), the two stones, the captures and the Kata on the
+   second, the plates of the row's colour hiding the lines under them. The seat whose turn it
+   is (the winners, at the end) is lit cream, grid and all, as its lantern is. Positions are
+   in the row's art px. */
+#board-stage { position: relative; }
+#players { position: absolute; inset: 0; pointer-events: none; color: var(--ink); } /* the water and the board stay the canvas's */
 .player-row {
   --row: var(--amber); /* a plate's colour: the row's, as the eye sees it */
-  position: relative;
-  height: calc(28 * var(--px));
-  margin: 0 calc(5 * var(--px));
+  position: absolute;
+  width: calc(122 * var(--px));
+  height: calc(38 * var(--px));
+  pointer-events: auto;
 }
-.player-row.current {
-  --row: color-mix(in srgb, var(--cream) 75%, var(--amber));
-  background: color-mix(in srgb, var(--cream) 75%, transparent); /* the grid shows faintly through */
-  box-shadow: inset 0 0 0 var(--px) var(--ink);
-}
+.player-row.current { --row: var(--cream); background: var(--cream); }
 .player-row > * { position: absolute; display: flex; align-items: center; background: var(--row); line-height: 0; }
+.player-row > .grid { inset: 0; display: block; background: none; pointer-events: none; }
+.player-row .grid i { position: absolute; background: var(--ink); }
+.player-row .grid .v { top: 0; bottom: 0; width: var(--px); }
+.player-row .grid .h { left: 0; right: 0; height: var(--px); }
 .player-row img { flex: none; image-rendering: pixelated; }
-.player-row .coord-plate { left: var(--px); top: calc(5 * var(--px)); padding: calc(3 * var(--px)); } /* 12 x 16, just inside the lit row's outline */
-.player-row .stones { left: calc(21 * var(--px)); top: calc(6 * var(--px)); gap: calc(7 * var(--px)); background: none; }
-/* From after the stones to just before the captured icon (NAME_PLATE_MAX in main.js); a longer
-   name shrinks to fit (--fit, fitPlayerNames), so it always stays on one line. */
+.player-row .coord-plate { left: calc(4 * var(--px)); top: calc(20 * var(--px)); padding: calc(2 * var(--px)); } /* the digit half a pixel right of the first line down */
+.player-row .stones { left: calc(19 * var(--px)); top: calc(19 * var(--px)); gap: calc(3 * var(--px)); background: none; } /* on lines 2 and 3 */
+/* Across the island's first line (NAME_PLATE_MAX in main.js); a longer name shrinks to fit
+   (--fit, fitPlayerNames), so it always stays on one line. */
 .player-row .plate {
-  left: calc(62 * var(--px));
-  top: calc(5 * var(--px));
-  height: calc(17 * var(--px));
-  max-width: calc(113 * var(--px));
+  box-sizing: border-box;
+  left: calc(3 * var(--px));
+  top: var(--px);
+  height: calc(13 * var(--px));
+  max-width: calc(117 * var(--px));
   gap: calc(3 * var(--px));
-  padding: 0 calc(5 * var(--px));
+  padding: 0 calc(4 * var(--px));
   white-space: nowrap;
   line-height: 1.2;
 }
 .player-row .name, .player-row .bot { font-size: max(var(--min-font), calc(10.4 * var(--fit, 1) * var(--px))); }
 .player-row .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
 .player-row .stamp { padding: var(--px) calc(2 * var(--px)); border: var(--px) dashed var(--ink); line-height: 0; }
-.player-row .capt { left: calc(177 * var(--px)); top: calc(8 * var(--px)); padding: calc(2 * var(--px)); }
-.player-row .count { top: calc(6 * var(--px)); gap: calc(2 * var(--px)); padding: calc(2 * var(--px)); } /* left: centred on line 9, by renderPlayers */
-.player-row .kata { left: calc(224 * var(--px)); top: 0; bottom: 0; align-items: flex-start; padding: calc(2 * var(--px)) calc(2 * var(--px)) 0; }
-.player-row.current .kata { top: var(--px); bottom: var(--px); padding-top: var(--px); } /* inside the lit row's outline */
+.player-row .capt { left: calc(57 * var(--px)); top: calc(21 * var(--px)); padding: calc(2 * var(--px)); } /* on line 4 */
+.player-row .count { top: calc(19 * var(--px)); gap: calc(2 * var(--px)); padding: calc(2 * var(--px)); } /* left: centred on line 5, by renderPlayers */
+.player-row .kata { left: calc(96 * var(--px)); top: calc(15 * var(--px)); } /* between lines 6 and 7 */
 .player-row .card-mini { box-sizing: content-box; border: var(--px) solid var(--ink); } /* the frame round its 21 px, not in them */
 /* A seat that passed, or whose player is away, fades its ink; the plates stay solid over the lines. */
 .player-row.faded .stones img, .player-row.faded .name, .player-row.faded .bot, .player-row.faded .card-mini { opacity: 0.45; }

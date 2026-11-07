@@ -43,6 +43,16 @@
   const RIGHT_BANK = 2; // bank sliver at the right edge (reeds)
   const RIVER = 30; // river below the deck (incl. the near bank strip)
   const FAR_BANK = 4; // near-camera bank at the very bottom
+  // The landing (tasks/2026-11-07_turn_landing/PLAN.md): left of the deck, one island a
+  // seat in turn order, water all round each, then the old left channel. An island is a
+  // small deck of the deck's make; its top carries the players panel's row (main.js).
+  const ISLAND_WATER = 12; // water left of the islands
+  const ISLAND_W = 126, ISLAND_H = 42, ISLAND_FRONT = 3; // an island: its top (frame and kaya) and front face
+  const ISLAND_FRAME = 2; // the lacquer band round an island's kaya
+  const ISLAND_GAP = 8; // water between an island's tip and the old left channel
+  const LANDING_W = ISLAND_WATER + ISLAND_W + ISLAND_GAP;
+  const LANDING_LOOP = 120; // s: every drifting lantern's loop closes a whole number of times in it
+  const BOAT_GLIDE_SECONDS = 1.1; // the turn boat from one island to the next
   const AMBIENT_FPS = 10;
   // The PASS sign (drawPassSign): how long it holds, then how long it takes to dither away.
   const PASS_HOLD = 1.6, PASS_FADE = 0.7;
@@ -51,13 +61,13 @@
   const BLINK_ON = 0.3;
 
   // Region codes for the static layer.
-  const R_BANK = 0, R_WATER = 1, R_FRAME = 2, R_KAYA = 3, R_FRONT = 4;
+  const R_BANK = 0, R_WATER = 1, R_FRAME = 2, R_KAYA = 3, R_FRONT = 4, R_ISLAND = 5;
 
   function computeLayout(size) {
     const grid = (size - 1) * SPACING;
     const kaya = grid + 2 * KAYA_MARGIN;
     const board = kaya + 2 * FRAME;
-    const boardX = LEFT, boardY = TOP_BANK + TOP_WATER;
+    const boardX = LANDING_W + LEFT, boardY = TOP_BANK + TOP_WATER;
     const kayaX = boardX + FRAME, kayaY = boardY + FRAME;
     const gridX = kayaX + KAYA_MARGIN, gridY = kayaY + KAYA_MARGIN;
     const boardRight = boardX + board; // exclusive
@@ -68,7 +78,14 @@
     const riverY0 = frontBottom;
     const topWaterY0 = TOP_BANK; // first water row above the deck
     const height = riverY0 + RIVER;
+    // One island a seat, its middle on an eighth of the deck's height: the seats track the board at every size.
+    const islands = [0, 1, 2, 3].map((i) => ({
+      i, x: ISLAND_WATER, y: Math.round(boardY + ((2 * i + 1) * board) / 8 - (ISLAND_H + ISLAND_FRONT) / 2),
+      w: ISLAND_W, h: ISLAND_H, front: ISLAND_FRONT, frame: ISLAND_FRAME,
+    }));
+    const channelX0 = ISLAND_WATER + ISLAND_W; // the first column of water past the islands' tips
     return {
+      landingW: LANDING_W, islands, channelX0, channelCx: (channelX0 + boardX - 1) >> 1,
       size, spacing: SPACING, frame: FRAME, kayaMargin: KAYA_MARGIN,
       width, height,
       boardX, boardY, boardW: board, boardH: board, boardRight, boardBottom, frontBottom,
@@ -112,6 +129,19 @@
     return pts;
   }
 
+  /** The left edges of an island's three posts into the water. */
+  function islandPosts(isl) {
+    return [isl.x + 14, isl.x + 64, isl.x + isl.w - 13];
+  }
+
+  /** The lantern post at an island's tip and its arm over the channel, with the hook at the channel's middle. */
+  function drawIslandPost(surf, isl, L) {
+    const postX = isl.x + isl.w - 2;
+    for (let y = isl.y - 7; y < isl.y; y++) { surf.set(postX - 1, y, K); surf.set(postX, y, S); surf.set(postX + 1, y, K); }
+    for (let x = postX - 1; x <= L.channelCx + 1; x++) surf.set(x, isl.y - 7, K);
+    surf.set(L.channelCx, isl.y - 6, K);
+  }
+
   // ---------------------------------------------------------------------------
   // Static layer: bank, water base, the deck (frame, front face, kaya, grid)
   // ---------------------------------------------------------------------------
@@ -144,6 +174,17 @@
         }
         region[y * W + x] = r;
       }
+    }
+
+    // The landing's islands: top, front face and the posts under it; the lantern post and its
+    // arm over the channel too, so the water's animation leaves them alone.
+    for (const isl of L.islands) {
+      for (let y = isl.y; y < isl.y + isl.h + isl.front; y++) for (let x = isl.x; x < isl.x + isl.w; x++) setR(x, y, R_ISLAND);
+      for (const px of islandPosts(isl)) for (let y = isl.y + isl.h + isl.front; y < isl.y + isl.h + isl.front + 2; y++) for (let d = 0; d < 3; d++) setR(px + d, y, R_ISLAND);
+      const postX = isl.x + isl.w - 2;
+      for (let y = isl.y - 7; y < isl.y; y++) for (let d = -1; d <= 1; d++) setR(postX + d, y, R_ISLAND);
+      for (let x = postX - 1; x <= L.channelCx + 1; x++) setR(x, isl.y - 7, R_ISLAND);
+      setR(L.channelCx, isl.y - 6, R_ISLAND);
     }
 
     // Bank: night grass -- ink ground with a soft teal "lawn" dither along
@@ -208,12 +249,18 @@
 
     // Water base: teal, darkest in the deck's shadow (which now runs all the
     // way round the pier) and along the far lip of each bank.
-    /** Chebyshev distance from a water pixel to the deck, capped at `max`. */
+    /** Chebyshev distance from a water pixel to the deck or an island, capped at `max`. */
+    const shadowRects = [[L.boardX, L.boardY, L.boardRight, L.frontBottom]].concat(
+      L.islands.map((isl) => [isl.x, isl.y, isl.x + isl.w, isl.y + isl.h + isl.front])
+    );
     function toDeck(x, y, max) {
-      const dx = x < L.boardX ? L.boardX - x : x >= L.boardRight ? x - (L.boardRight - 1) : 0;
-      const dy = y < L.boardY ? L.boardY - y : y >= L.frontBottom ? y - (L.frontBottom - 1) : 0;
-      const d = Math.max(dx, dy);
-      return d > max ? max + 1 : d;
+      let best = max + 1;
+      for (const [x0, y0, x1, y1] of shadowRects) {
+        const dx = x < x0 ? x0 - x : x >= x1 ? x - (x1 - 1) : 0;
+        const dy = y < y0 ? y0 - y : y >= y1 ? y - (y1 - 1) : 0;
+        best = Math.min(best, Math.max(dx, dy));
+      }
+      return best > max ? max + 1 : best;
     }
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
@@ -266,6 +313,41 @@
       }
     }
 
+    // The islands: a lacquer frame like the deck's (slate rim light on the top and left
+    // edges and the front edge, mitred corners), a kaya top (its grid and plates are the
+    // players panel's row, laid over it by main.js), a front face with slate seams, posts,
+    // and the lantern post at the tip with its arm over the channel.
+    for (const isl of L.islands) {
+      const x0 = isl.x, y0 = isl.y, x1 = isl.x + isl.w - 1, y1 = isl.y + isl.h - 1, F = isl.frame;
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const ix = x - x0, iy = y - y0, jx = x1 - x, jy = y1 - y;
+          let c = A;
+          if (ix < F || iy < F || jx < F || jy < F) {
+            c = K;
+            if (iy === 1 && ix > 0 && jx > 0) c = S;
+            if (ix === 1 && iy > 0 && jy > 0) c = S;
+            if (jy === 0 && ix > 0 && jx > 0) c = S;
+            if ((ix === iy || jx === jy || jx === iy || ix === jy) && Math.min(ix, jx) < F && Math.min(iy, jy) < F) c = S;
+          }
+          s.px[y * W + x] = c;
+        }
+      }
+      for (let y = y1 + 1; y <= y1 + isl.front; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const fy = y - y1 - 1;
+          let c = K;
+          if (fy === 1 && (x - x0) % 19 === 9) c = S;
+          if (fy === 1 && (x - x0) % 19 === 0) c = T; // peg heads
+          s.px[y * W + x] = c;
+        }
+      }
+      for (const px of islandPosts(isl)) {
+        for (let y = y1 + isl.front + 1; y < y1 + isl.front + 3; y++) { s.set(px, y, K); s.set(px + 1, y, S); s.set(px + 2, y, K); }
+      }
+      drawIslandPost(s, isl, L);
+    }
+
     // Kaya: flat amber, no bevel, and nothing else on
     // it, no grain or specks: the stones and the grid own this surface.
     const kx0 = L.kayaX, ky0 = L.kayaY, kx1 = L.kayaX + L.kayaW - 1, ky1 = L.kayaY + L.kayaH - 1;
@@ -287,6 +369,10 @@
     // Light mask: lantern light never touches the playing surface.
     const noLight = new Uint8Array(W * H);
     for (let i = 0; i < W * H; i++) noLight[i] = region[i] === R_KAYA ? 1 : 0;
+    // Nor the islands' tops, where the players' rows are read.
+    for (const isl of L.islands) {
+      for (let y = isl.y + isl.frame; y < isl.y + isl.h - isl.frame; y++) for (let x = isl.x + isl.frame; x < isl.x + isl.w - isl.frame; x++) noLight[y * W + x] = 1;
+    }
 
     return { surface: s, region, noLight };
   }
@@ -1283,7 +1369,7 @@
       { spr: G.SPRITES.lilyPad, x: 164, y: L.riverY0 + 4 },
       { spr: G.SPRITES.lilyPadSmall, x: 40, y: L.riverY0 + 5 },
       // A couple more in the quieter side channels.
-      { spr: G.SPRITES.lilyPadSmall, x: 2, y: L.boardY + 60 },
+      { spr: G.SPRITES.lilyPadSmall, x: L.boardX - 9, y: L.boardY + 60 },
       { spr: G.SPRITES.lilyPadSmall, x: L.streamX0 + 3, y: L.boardY + 132 },
     ];
     const lotus = { x: 86, y: H - 14 };
@@ -1315,7 +1401,7 @@
       // right channel: running down
       ...makeStreaks(14, "v", 1, L.streamX0 + 2, L.streamX1 - 2, -6, L.riverY0 + 6, 9),
       // left channel: running down
-      ...makeStreaks(12, "v", 1, 1, L.boardX - 2, -6, L.riverY0 + 6, 8),
+      ...makeStreaks(12, "v", 1, L.channelX0 + 1, L.boardX - 2, -6, L.riverY0 + 6, 8),
       // the wide river below: running left, back out of the scene
       ...makeStreaks(30, "h", -1, -6, W + 6, L.riverY0 + 4, H - FAR_BANK - 2, 6),
     ];
@@ -1451,6 +1537,68 @@
         out.push({ x: Math.round(p.x) + sway, y: Math.round(p.y + fl.lane * p.river) + bob, i, fl });
       }
       return out.sort((a, b) => a.y - b.y);
+    }
+
+    // The landing's lanterns: each drifts round one, two or three islands on a loop of its
+    // own (its own lanes, speed and start), down the channel with the current and back up
+    // the far side, so no pattern repeats. A lane keeps a lantern clear of the islands
+    // however little water there is between them (13x13), and every loop closes a whole
+    // number of times in LANDING_LOOP, as the bob does.
+    const LANDING_BOB = (Math.PI * 2 * 40) / LANDING_LOOP; // ~2.1 rad/s like the river's lanterns
+    const landingLoops = (() => {
+      const I = L.islands, rc = 4;
+      const below = (b) => I[b].y + I[b].h + I[b].front; // the first water row under island b
+      const roomBelow = (b) => (b < 3 ? Math.max(0, ((I[b + 1].y - below(b)) >> 1) - 7) : Math.max(0, L.riverY0 - 9 - below(b) - 4));
+      const roomAbove = (a) => (a > 0 ? roomBelow(a - 1) : 2);
+      return [
+        { from: 0, to: 0, l: 0.75, r: 0.5, t: 0.3, b: 0.5, v: 5.5, at: 0.0, phase: 0.4 },
+        { from: 0, to: 1, l: 0.25, r: 0.0, t: 0.8, b: 0.2, v: 6.5, at: 0.42, phase: 2.1 },
+        { from: 2, to: 2, l: 1.0, r: 1.0, t: 0.0, b: 0.8, v: 4.5, at: 0.71, phase: 4.0 },
+        { from: 1, to: 3, l: 0.5, r: 0.5, t: 0.5, b: 0.0, v: 7.0, at: 0.18, phase: 1.3 },
+        { from: 3, to: 3, l: 0.0, r: 1.0, t: 0.3, b: 0.3, v: 5.0, at: 0.6, phase: 5.2 },
+        { from: 1, to: 2, l: 1.0, r: 0.0, t: 1.0, b: 1.0, v: 6.0, at: 0.9, phase: 3.3 },
+        { from: 1, to: 1, l: 0.0, r: 0.5, t: 0.0, b: 0.6, v: 5.0, at: 0.25, phase: 0.9 },
+        { from: 2, to: 3, l: 0.5, r: 1.0, t: 0.7, b: 0.7, v: 6.2, at: 0.05, phase: 2.7 },
+      ].map((sp) => {
+        // A lantern is 7 x 8 and bobs a pixel; a corner of its loop cuts in by about one.
+        const x0 = 3 + Math.round(sp.l * 3); // the far side: 3..6, so a lantern clears both the edge and the island
+        const x1 = L.channelX0 + 5 + Math.round(sp.r * 2); // the channel, along the islands' tips
+        const y0 = I[sp.from].y - 7 - Math.round(sp.t * roomAbove(sp.from));
+        const y1 = below(sp.to) + 5 + Math.round(sp.b * roomBelow(sp.to));
+        const per = 2 * (x1 - x0 + y1 - y0) - 8 * rc + 2 * Math.PI * rc;
+        const laps = Math.max(1, Math.round((sp.v * LANDING_LOOP) / per));
+        return { from: sp.from, to: sp.to, x0, y0, x1, y1, rc, per, laps, speed: (laps * per) / LANDING_LOOP, offset: sp.at * per, phase: sp.phase };
+      });
+    })();
+
+    /** A point on a loop, `s` px along it: right along the top, down the channel, left along the bottom, up the far side. */
+    function loopPoint(lp, s) {
+      const { x0, y0, x1, y1, rc } = lp, q = (Math.PI * rc) / 2;
+      const seg = [x1 - x0 - 2 * rc, q, y1 - y0 - 2 * rc, q, x1 - x0 - 2 * rc, q, y1 - y0 - 2 * rc, q];
+      s = ((s % lp.per) + lp.per) % lp.per;
+      let k = 0;
+      while (k < 7 && s >= seg[k]) { s -= seg[k]; k++; }
+      const arc = (cx, cy, a0) => ({ x: cx + Math.cos(a0 + s / rc) * rc, y: cy + Math.sin(a0 + s / rc) * rc });
+      switch (k) {
+        case 0: return { x: x0 + rc + s, y: y0 };
+        case 1: return arc(x1 - rc, y0 + rc, -Math.PI / 2);
+        case 2: return { x: x1, y: y0 + rc + s };
+        case 3: return arc(x1 - rc, y1 - rc, 0);
+        case 4: return { x: x1 - rc - s, y: y1 };
+        case 5: return arc(x0 + rc, y1 - rc, Math.PI / 2);
+        case 6: return { x: x0, y: y1 - rc - s };
+        default: return arc(x0 + rc, y0 + rc, Math.PI);
+      }
+    }
+
+    /** Where the landing's lanterns float at ambient time `t`, as floaterPositions gives the river's. */
+    function landingFloaters(t) {
+      const tt = ((t % LANDING_LOOP) + LANDING_LOOP) % LANDING_LOOP;
+      return landingLoops.map((lp, i) => {
+        const p = loopPoint(lp, lp.offset + tt * lp.speed);
+        const bob = Math.round(Math.sin(tt * LANDING_BOB + lp.phase) * 0.9);
+        return { x: Math.round(p.x), y: Math.round(p.y) + bob, i: floaters.length + i, fl: lp };
+      });
     }
 
     function drawReflection(x, y, t, len, strong) {
@@ -1701,23 +1849,57 @@
       }
     }
 
-    // --- the turn boat ---------------------------------------------------------------
-    // A little boat drifting up and down the wide river, carrying the round number
-    // on a signboard. It is scenery with one job: it moves on its own clock, not
-    // the game's, and only the number on its sign follows the play. It is there
-    // for orientation, like a clock on the wall.
-    const BOAT_X0 = 34, BOAT_X1 = W - 34, BOAT_SPEED = 3.5; // px per second
-    const BOAT_WATERLINE = L.riverY0 + 21; // the hull's bottom row
-    // The firefly boat is the same craft going the other way: slower, lower in the
-    // water, with a dark sign and the firefly icon, so the two never read as one.
+    // --- the turn boat and the landing ------------------------------------------------
+    // A little boat carrying the round number on a signboard. It used to drift up and
+    // down the wide river on its own clock; since the Landing it is moored at the island
+    // of the seat whose turn it is: on a turn it glides along the channel to the next
+    // island, and after the last seat back up to the first as the sign turns to the next
+    // round. One round is one trip down the landing.
+
+    /**
+     * The landing's hanging lanterns: each seat's on its island's arm over the channel,
+     * lit on that seat's turn (the winner's, at the end), with its light on the water;
+     * an open seat (null) leaves the hook empty. The post and the arm are drawn again
+     * here, over any lantern drifting under them.
+     */
+    function drawLanding(seats, t) {
+      L.islands.forEach((isl, i) => {
+        drawIslandPost(surf, isl, L);
+        const seat = seats[i];
+        if (!seat) return;
+        if (seat.lit) drawReflection(L.channelCx, isl.y + 12, t, 7, true);
+        surf.blit(G.turnLantern(seat.color, !!seat.lit), L.channelCx - 8, isl.y - 6);
+      });
+    }
+    const BOAT_X0 = 34, BOAT_X1 = W - 34;
+    // The firefly boat is the same craft, drifting up and down the wide river on its own
+    // clock: low in the water, with a dark sign and the firefly icon.
     const FIREBOAT = { speed: 2.2, dir: -1, phase: 0.37, waterline: L.riverY0 + 27, bob: 1.3, sign: C, edge: K, text: K, icon: true };
-    function drawBoat(t, label, opts) {
-      const o = opts || { speed: BOAT_SPEED, dir: 1, phase: 0, waterline: BOAT_WATERLINE, bob: 0.9, sign: C, edge: K, text: K };
+    const TURN_BOAT = { sign: C, edge: K, text: K };
+    function drawBoat(t, label, o) {
       const span = BOAT_X1 - BOAT_X0;
       const u = frac(o.phase + o.dir * ((t * o.speed) / (2 * span)));
       const leg = u < 0.5 ? u * 2 : 2 - u * 2; // there and back
       const cx = Math.round(BOAT_X0 + (0.5 - 0.5 * Math.cos(Math.PI * leg)) * span); // slowing at each turn
-      const wl = o.waterline + Math.round(Math.sin(t * 1.6 + o.phase * 9) * o.bob);
+      drawBoatAt(cx, o.waterline + Math.round(Math.sin(t * 1.6 + o.phase * 9) * o.bob), t, label, o);
+    }
+
+    /** The turn boat's waterline at island i: just under its front, below the island's lantern. */
+    const mooringLine = (i) => L.islands[i].y + L.islands[i].h + L.islands[i].front + 1;
+
+    /** The turn boat, `boat` = {seat, round, from?, at?}: moored at `seat`, or gliding there from `from` since `at`. */
+    function drawTurnBoat(boat, t, time, reduced) {
+      if (!boat || !L.islands[boat.seat]) return;
+      let wl = mooringLine(boat.seat);
+      if (!reduced && boat.at !== undefined && L.islands[boat.from] && boat.from !== boat.seat) {
+        const u = Math.max(0, (time - boat.at) / BOAT_GLIDE_SECONDS);
+        if (u < 1) wl = Math.round(mooringLine(boat.from) + (wl - mooringLine(boat.from)) * u * u * (3 - 2 * u));
+      }
+      drawBoatAt(L.channelCx, wl + Math.round(Math.sin(t * 1.6) * 0.6), t, "R" + (boat.round || 1), TURN_BOAT);
+    }
+
+    /** A boat with its waterline at `wl`, its mast at `cx`, `label` on its sign. */
+    function drawBoatAt(cx, wl, t, label, o) {
       const hull = G.SPRITES.boatHull;
       const hullTop = wl - hull.h + 1;
       const ripple = Math.floor(t * 2) & 1;
@@ -1860,7 +2042,7 @@
       const p = pointToNative(x, y);
       if (side === "top") return { x: p.x, y: L.boardY - 3 };
       if (side === "bottom") return { x: p.x, y: L.riverY0 + 12 };
-      if (side === "left") return { x: L.boardX >> 1, y: p.y + 5 };
+      if (side === "left") return { x: L.boardX - (LEFT >> 1), y: p.y + 5 }; // the channel, past the islands
       if (side === "right") return { x: L.streamX0 + (STREAM >> 1), y: p.y + 5 };
       return null;
     }
@@ -2117,7 +2299,10 @@
      *   effects:       [placeEffect(...) | captureEffect(...) | makeEffect(kind, ...)],
      *   overlays:      [{kind: "lily" | "ward" | "drift" | "fire" | "seed" | "mist" | "fog", x, y, owner, until}] -- timed board
      *                  pieces; each shows its rounds left, and owned ones carry their owner's mark,
-     *   round:         the number on the boat's signboard: the round being played (scenery: it drifts on its own clock),
+     *   seats:         [{color, lit} | null] x4, in turn order: each seat's lantern over the channel by its
+     *                  island, lit on its turn (the winner's at the end); null an open seat,
+     *   boat:          {seat, round, from?, at?}: the turn boat, moored at `seat`'s island with the round on its
+     *                  sign; gliding there from `from` for BOAT_GLIDE_SECONDS after `at` (scene time),
      *   passFlash:     time (seconds) a pass happened, to show the PASS sign (omit for none),
      *   fireflies:     the viewing player's firefly count, on a second boat (omit for none),
      *   turnCount:     the room's turn counter (lets a fire show its last round, and every timer its rounds),
@@ -2173,12 +2358,14 @@
       drawFoam(t);
 
       // 2. light sources (applied before the sprites that emit them)
-      const floats = floaterPositions(t);
+      const floats = floaterPositions(t).concat(landingFloaters(t)).sort((a, b) => a.y - b.y);
+      const seats = st.seats || [];
       const lights = [];
       const toroFrame = Math.floor(t * ANIMS.toro.fps) % ANIMS.toro.frames.length;
       lights.push({ x: toro.lightX, y: toro.lightY, r: 17 + (toroFrame === 1 ? 2 : 0), s: 0.6 });
       for (const fl of floats) lights.push({ x: fl.x, y: fl.y - 2, r: 9, s: 0.55 });
       garland.forEach((g) => lights.push({ x: g.x, y: 5, r: 7, s: 0.45 }));
+      seats.forEach((seat, i) => { if (seat && seat.lit && L.islands[i]) lights.push({ x: L.channelCx, y: L.islands[i].y + 2, r: 13, s: 0.6 }); });
       const flies = fireflies.map((ff) => fireflyState(ff, t));
       if (!weather) for (const ff of flies) if (ff.frame === 2) lights.push({ x: ff.x, y: ff.y, r: 3.5, s: 0.7 });
       for (const lt of lights) surf.ramp(G.LIGHT, lt.x, lt.y, lt.r, lt.s, 1, noLight);
@@ -2189,8 +2376,9 @@
         surf.blitCentered(animFrame("floatLantern", t, fl.fl.phase / 6.28), fl.x, fl.y);
       }
 
-      // 3b. the turn boat, drifting on its own clock (only its sign follows play)
-      drawBoat(t, "R" + (st.round === undefined ? 1 : st.round));
+      // 3b. the landing's hanging lanterns, then the turn boat moored at the current seat's island
+      drawLanding(seats, t);
+      drawTurnBoat(st.boat, t, time, reduced);
       if (st.fireflies !== undefined) drawBoat(t, String(st.fireflies), FIREBOAT);
 
       // 4. props: reeds, stone lantern, garland
@@ -2262,7 +2450,8 @@
         const darkOut = STORM_DARKNESS * outsideW;
         const darkIn = STORM_DARKNESS * boardW;
         for (let i = 0; i < surf.px.length; i++) {
-          const d = region[i] === R_KAYA ? darkIn : darkOut;
+          // The playing surface and the islands' tops (noLight): the players' rows stay readable.
+          const d = noLight[i] ? darkIn : darkOut;
           if (d > 0 && bayer[i] < d) surf.px[i] = G.SHADE[surf.px[i]];
         }
         if (!reduced) {
@@ -2423,6 +2612,10 @@
       nativeToPoint,
       creatureAnchor,
       waterAnchor,
+      /** Where the landing's drifting lanterns float at ambient time `t`: [{x, y}], their middles. */
+      landingLanterns: (t) => landingFloaters(t).map((p) => ({ x: p.x, y: p.y })),
+      /** Their loops: [{from, to, speed, laps}], the islands each goes round. */
+      landingLoops: landingLoops.map(({ from, to, speed, laps }) => ({ from, to, speed, laps })),
       timerAnchor,
       /** Region code at a native pixel: 0 bank, 1 water, 2 frame, 3 kaya, 4 deck front. */
       regionAt: (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? region[(y | 0) * W + (x | 0)] : -1),
@@ -2512,6 +2705,8 @@
     SPACING,
     AMBIENT_FPS,
     PASS_SIGN_SECONDS,
+    LANDING_LOOP,
+    BOAT_GLIDE_SECONDS,
     STAGE,
     stageSize,
     pickScale,
@@ -2530,7 +2725,7 @@
     boltTime,
     stormPhase,
     stormLinger,
-    REGION: { BANK: R_BANK, WATER: R_WATER, FRAME: R_FRAME, KAYA: R_KAYA, FRONT: R_FRONT },
+    REGION: { BANK: R_BANK, WATER: R_WATER, FRAME: R_FRAME, KAYA: R_KAYA, FRONT: R_FRONT, ISLAND: R_ISLAND },
     computeLayout,
     createScene,
     starPoints,

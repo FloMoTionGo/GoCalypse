@@ -117,6 +117,7 @@ test("stage: the lines under the hand get their room at the text floor, so a win
   // Three lines of text never under 11 device px (style.css --min-font), 1.2 line height, a margin of one art px each.
   const words = 3 * 11 * 1.2 + 3 * 1.5;
   const s = P.stageSize(13), art = (s.h - P.STAGE.status) * 1.5;
-  assert.equal(P.pickScale(800, Math.ceil(art + words) + 1, 1, 13).k, 1.5, "just enough for the words: 1.5");
-  assert.equal(P.pickScale(800, Math.floor(art + P.STAGE.status * 1.5), 1, 13).k, 1, "enough for the art at 1.5 but not for the words: 1");
+  const wide = Math.ceil(s.w * 1.5) + 1; // wide enough at 1.5: the height decides
+  assert.equal(P.pickScale(wide, Math.ceil(art + words) + 1, 1, 13).k, 1.5, "just enough for the words: 1.5");
+  assert.equal(P.pickScale(wide, Math.floor(art + P.STAGE.status * 1.5), 1, 13).k, 1, "enough for the art at 1.5 but not for the words: 1");
 });
