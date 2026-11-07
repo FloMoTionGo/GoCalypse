@@ -174,6 +174,8 @@ const DEBUG_RIVER_EVERY_TURNS = 2; // and the river's D6 too, so the crab, the s
 // take over a seat whose player is gone for good (ideas.md D-G8).
 const BOT_THINK_MIN_MS = 700;
 const BOT_THINK_SPREAD_MS = 700;
+// How often a changed game is written to disk (state/persist.ts). Nothing is
+// serialised while `dirty` is false, so an idle table costs the timer alone.
 const SAVE_EVERY_MS = 1000;
 // After a restart nobody is connected. Seats not claimed back within this long
 // are handed to lantern keepers, as for a player who drops mid-game.
@@ -231,6 +233,12 @@ export class GoRoom extends Room<GoState> {
   private botIds = new Map<number, string>();
   private seatKeys = new Map<number, string>(); // player color -> that player's secret; see state/persist.ts
   private lastSaved = "";
+  // Whether anything may have changed since the last save: set wherever a
+  // message, a join, a leave, a bot or a timer gets at the game, cleared by
+  // saveSnapshot. Set liberally -- a refused move marks it too -- because a
+  // path missed here would be a game lost on the next restart.
+  private dirty = true;
+  private saveTimer?: Delayed;
   private shuttingDown = false;
   // Every board position so far, for the ko rule (rules/ko.ts).
   private positions = new PositionHistory();
@@ -314,10 +322,12 @@ export class GoRoom extends Room<GoState> {
     this.publishSeats();
     this.refreshSeen();
     this.updateForecast();
-    this.clock.setInterval(() => this.saveSnapshot(), SAVE_EVERY_MS);
+    this.saveTimer = this.clock.setInterval(() => this.saveSnapshot(), SAVE_EVERY_MS);
 
     // Every handler runs within the client's budget (util/limits.ts): past it, the
-    // message is dropped, and the first drop says so once.
+    // message is dropped, and the first drop says so once. Each handler marks the
+    // room dirty itself (the tests call them directly), so the next save tick
+    // serialises whatever it did.
     const within = (client: Client) => {
       if (this.budget.allow(client.sessionId)) return true;
       if (this.budget.dropped(client.sessionId) === 1) this.notice(client, "Slow down: too many messages at once; the rest were dropped.");
@@ -361,11 +371,14 @@ export class GoRoom extends Room<GoState> {
     }, RESTORE_GRACE_MS);
   }
 
-  /** Writes the game to disk when it has changed; a finished game is no longer worth keeping. */
+  /**
+   * Writes the game to disk when it has changed. Serialising the state is the
+   * cost here (findings.md P4), so it only happens once something marked the
+   * room dirty; a finished game is taken off the disk by forgetSnapshot.
+   */
   private saveSnapshot() {
-    if (this.shuttingDown) return;
-    if (this.state.status === "finished") return deleteSnapshot(this.roomId);
-    if (this.state.status !== "playing") return;
+    if (this.shuttingDown || this.state.status !== "playing" || !this.dirty) return;
+    this.dirty = false;
     const json = JSON.stringify({
       room: this.roomName,
       keys: Object.fromEntries(this.seatKeys),
@@ -380,11 +393,19 @@ export class GoRoom extends Room<GoState> {
       saveSnapshot(this.roomId, json);
       this.lastSaved = json;
     } catch (err) {
+      this.dirty = true; // the next tick tries again
       console.error(`GoRoom ${this.roomId}: could not save snapshot:`, err);
     }
   }
 
+  /** The game is over: its snapshot comes off the disk, once, and the save timer stops with it. */
+  private forgetSnapshot() {
+    this.saveTimer?.clear();
+    deleteSnapshot(this.roomId);
+  }
+
   onJoin(client: Client, options: JoinOptions, auth?: { ip?: string }) {
+    this.dirty = true;
     const key = cleanKey(options?.playerKey);
     const seat = this.seatFor(key);
     if (seat) {
@@ -683,6 +704,7 @@ export class GoRoom extends Room<GoState> {
    * asking twice.
    */
   private handleAddBots(client: Client, message: AddBotsMessage) {
+    this.dirty = true;
     if (this.state.status !== "waiting") return;
     if (this.findPlayerIndex(client.sessionId) === -1) return;
     const ids = Array.isArray(message?.ids) ? message.ids : [];
@@ -701,6 +723,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   async onLeave(client: Client, consented: boolean) {
+    this.dirty = true;
     this.releaseSocket(client);
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
@@ -732,6 +755,7 @@ export class GoRoom extends Room<GoState> {
     try {
       await this.allowReconnection(client, 60);
       player.connected = true;
+      this.dirty = true;
     } catch {
       // The seat may have been won back through /rejoin on a new socket meanwhile.
       if (player.sessionId !== client.sessionId) return;
@@ -748,6 +772,7 @@ export class GoRoom extends Room<GoState> {
   private seatToBot(player: PlayerState, playerIndex: number, left = false) {
     const id = left ? DRIFTER_ID : temperamentId(playerIndex);
     const style = styleFor(id)!;
+    this.dirty = true;
     player.bot = true;
     this.playBot(player, id, style);
     this.state.lastEvent = left
@@ -1337,6 +1362,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   private runBotTurn() {
+    this.dirty = true;
     this.botTimer = undefined;
     if (this.state.status !== "playing") return;
 
@@ -1423,6 +1449,7 @@ export class GoRoom extends Room<GoState> {
   // silent refusals a client is never told about.
 
   private handleMove(client: Client, message: MoveMessage) {
+    this.dirty = true;
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
     const refused = this.applyMove(playerIndex, message);
@@ -1607,6 +1634,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   private handlePass(client: Client) {
+    this.dirty = true;
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
     const refused = this.applyPass(playerIndex);
@@ -1678,6 +1706,7 @@ export class GoRoom extends Room<GoState> {
       `${winners.length === 1 ? "wins" : "share first place"} with ${winners[0].finalScore}.`;
     this.recorder?.capture(this.state);
     this.saveHistory("finished");
+    this.forgetSnapshot();
   }
 
   /** A stall for this item, stocked for a full table: its copies shared, a fair share each. */
@@ -1697,6 +1726,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   private handleBuy(client: Client, message: BuyMessage) {
+    this.dirty = true;
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
     const refused = this.applyBuy(playerIndex, message?.id);
@@ -1740,6 +1770,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   private handleUsePowerup(client: Client, message: UsePowerupMessage) {
+    this.dirty = true;
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
     const refused = this.applyUsePowerup(playerIndex, message);
@@ -1845,6 +1876,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   private handleUpgradeCard(client: Client, message: UpgradeCardMessage) {
+    this.dirty = true;
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
     const refused = this.applyUpgradeCard(playerIndex, message);
@@ -1876,6 +1908,7 @@ export class GoRoom extends Room<GoState> {
   }
 
   private handleCardCell(client: Client, message: CardCellMessage, what: "flip" | "remove") {
+    this.dirty = true;
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;
     const refused = what === "flip" ? this.applyFlipCardStone(playerIndex, message) : this.applyRemoveCardStone(playerIndex, message);
