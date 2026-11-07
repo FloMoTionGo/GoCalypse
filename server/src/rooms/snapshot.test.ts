@@ -1,8 +1,9 @@
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "fs";
 import path from "path";
 import { DATA_DIR, makeRoom, move, passAround, seatHumans, startedRoom } from "./room.testkit";
+import * as persist from "../state/persist";
 import { queueRestore, Snapshot } from "../state/persist";
 
 // A game outlives a server restart (state/persist.ts): what the room writes,
@@ -106,4 +107,42 @@ test("a snapshot from before the captures' colour split loads it as ten zeros", 
   for (const p of snap.state.players) delete p.captures;
   const back = makeRoom({ restoreToken: queueRestore(snap) });
   for (const p of back.state.players) assert.deepEqual(Array.from(p.captures), Array(10).fill(0));
+});
+
+// findings.md P4: the save timer used to serialise the whole state every second
+// to find out whether anything had changed, and a finished game was deleted
+// from disk once a second until the room was disposed.
+
+test("an unchanged game is not serialised again until something changes", () => {
+  const { room, clients } = startedRoom();
+  const toJSON = mock.method(room.state, "toJSON");
+  room.saveSnapshot();
+  assert.equal(toJSON.mock.callCount(), 1, "the first save serialises the game");
+  room.saveSnapshot();
+  room.saveSnapshot();
+  assert.equal(toJSON.mock.callCount(), 1, "nothing changed: nothing to serialise");
+  move(room, clients, 3, 3);
+  room.saveSnapshot();
+  assert.equal(toJSON.mock.callCount(), 2, "a move is serialised and saved");
+  assert.equal(read(room).state.turnCount, 1);
+});
+
+test("a finished game deletes its snapshot once, when it ends, and stops the save timer", () => {
+  const { room, clients } = startedRoom();
+  room.saveSnapshot();
+  assert.ok(fs.existsSync(fileOf(room)), "the game under way is on disk");
+  const del = mock.method(persist, "deleteSnapshot");
+  try {
+    passAround(room, clients, 4);
+    assert.equal(room.state.status, "finished");
+    assert.equal(del.mock.callCount(), 1, "deleted as the game ends");
+    assert.equal(fs.existsSync(fileOf(room)), false);
+    room.saveSnapshot();
+    room.saveSnapshot();
+    room.saveSnapshot();
+    assert.equal(del.mock.callCount(), 1, "not deleted again on every tick");
+    assert.equal(room.saveTimer.active, false, "the save timer is stopped");
+  } finally {
+    del.mock.restore();
+  }
 });

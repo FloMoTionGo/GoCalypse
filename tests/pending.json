@@ -1,4 +1,7 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    { "test": "an unchanged game is not serialised again until something changes", "feature": "snapshot-dirty", "tier": "server", "since": "2026-11-07" },
+    { "test": "a finished game deletes its snapshot once, when it ends, and stops the save timer", "feature": "snapshot-dirty", "tier": "server", "since": "2026-11-07" }
+  ]
 }
