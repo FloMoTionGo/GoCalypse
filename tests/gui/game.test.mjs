@@ -377,6 +377,24 @@ test("game: joining again brings nothing of the old game along (B2)", async () =
   assert.ok((await b.ev("window.__renders")) > 0, "the board is drawn again");
 });
 
+test("game: an idle table is drawn at the ambient rate, not every frame (P1)", async () => {
+  // My turn, the last stone's landing played out, the mouse off the board: nothing
+  // on the scene moves but the water, the lanterns and the last-move ember, which
+  // step at 10 and 6 frames a second. The frame counter is the Leave test's wrap of scene.render.
+  await rig.waitMyTurn();
+  await wait(1500);
+  await b.ev("hoverPoint = null; true");
+  const still = await b.ev(
+    "({ effects: effects.length, storm: !!storm, creatures: [riverCreatures.crab, riverCreatures.spirit].filter(Boolean).length, lit: overlays.filter((o) => o.kind === 'fire' || o.kind === 'ward').length, lingering: turnCount < stormUntil, passSign: passFlashAt !== undefined && clock() - passFlashAt < 2.5, hover: hoverPoint, armed: selectedPowerup })"
+  );
+  assert.deepEqual(still, { effects: 0, storm: false, creatures: 0, lit: 0, lingering: false, passSign: false, hover: null, armed: null }, "the table is still");
+  await b.ev("window.__renders = 0; true");
+  await wait(2000);
+  const renders = await b.ev("window.__renders");
+  assert.ok(renders >= 8, `the scene still moves: ${renders} frames in 2 s`);
+  assert.ok(renders <= 40, `but is not redrawn every frame: ${renders} frames in 2 s (30 a second would be 60)`);
+});
+
 test("game: a reload mid-game locks Join while it asks, then sits back down in the same game (B4, B18)", async () => {
   await rig.waitMyTurn();
   const gameId = await b.ev("room.roomId");

@@ -309,3 +309,16 @@ test("the ferry crossing draws the stone on its way with a lit lantern, in the p
   P.drawEffect(s, e, 0.01, cx, cy, true, 0);
   assert.ok(s.px.some((v) => v !== G.TRANSPARENT), "reduced motion still shows the stone");
 });
+
+test("toRGBA writes each palette colour's bytes with full alpha, in place, and the first colour for a code outside the palette", () => {
+  const s = new G.Surface(4, 2);
+  const codes = [0, 1, 2, 3, 4, 250, 255, 1];
+  codes.forEach((c, i) => (s.px[i] = c));
+  const out = new Uint8ClampedArray(4 * 2 * 4);
+  assert.equal(s.toRGBA(out), out, "fills the caller's buffer and returns it");
+  codes.forEach((c, i) => {
+    const rgb = G.PALETTE_RGB[c] || G.PALETTE_RGB[0];
+    assert.deepEqual(Array.from(out.slice(i * 4, i * 4 + 4)), [...rgb, 255], `pixel ${i} (code ${c})`);
+  });
+  assert.deepEqual(Array.from(s.toRGBA()), Array.from(out), "or a fresh buffer, the same");
+});
