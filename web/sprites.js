@@ -35,6 +35,14 @@
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   }
   const PALETTE_RGB = PALETTE.map((c) => hexToRgb(c.hex));
+  // Each palette index as one RGBA word in this machine's byte order, so toRGBA
+  // writes a pixel per step (findings P1); an index outside the palette draws the first colour.
+  const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+  const PALETTE_WORDS = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    const [r, g, b] = PALETTE_RGB[i] || PALETTE_RGB[0];
+    PALETTE_WORDS[i] = LITTLE_ENDIAN ? ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0 : ((r << 24) | (g << 16) | (b << 8) | 255) >>> 0;
+  }
 
   /** 4x4 ordered-dither (Bayer) matrix, values 0..15. */
   const BAYER4 = [
@@ -1238,10 +1246,9 @@
     toRGBA(out) {
       const n = this.w * this.h;
       const dst = out || new Uint8ClampedArray(n * 4);
-      for (let i = 0, j = 0; i < n; i++, j += 4) {
-        const c = PALETTE_RGB[this.px[i]] || PALETTE_RGB[0];
-        dst[j] = c[0]; dst[j + 1] = c[1]; dst[j + 2] = c[2]; dst[j + 3] = 255;
-      }
+      const words = new Uint32Array(dst.buffer, dst.byteOffset, n);
+      const px = this.px;
+      for (let i = 0; i < n; i++) words[i] = PALETTE_WORDS[px[i]];
       return dst;
     }
   }

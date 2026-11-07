@@ -108,6 +108,7 @@ let effects = []; // animations in flight
 let lastMove = null;
 let lastActionSeq = null;
 let lastFrameAt = 0;
+let lastFrameKey = null; // what the last frame drew, while nothing on the scene moves on its own clock (frameKey)
 // Recall: the last RECALL_STEPS boards before the live one, kept in the browser.
 // Anyone can step back to look (bots move fast); nothing is sent to the server.
 const RECALL_STEPS = 5;
@@ -754,7 +755,9 @@ function ensureScene(size) {
   scene = P.createScene({ size });
   boardEl.width = scene.width;
   boardEl.height = scene.height;
-  imageData = boardCtx.createImageData(scene.width, scene.height);
+  // Over the scene's own pixel buffer: render writes it, putImageData reads it, nothing is copied between.
+  imageData = new ImageData(scene.rgba, scene.width, scene.height);
+  lastFrameKey = null;
   sizeCanvas();
 }
 
@@ -836,7 +839,7 @@ function frame() {
     snap ? snap.board : board,
     snap ? snap.overlays.concat(overlays.filter((o) => o.kind === "fog")) : overlays
   );
-  scene.render({
+  const view = {
     time: now,
     board: displayBoard,
     hover: snap ? null : hoverPoint,
@@ -862,9 +865,41 @@ function frame() {
     highlightMine: snap ? null : ownStoneHighlight(displayBoard),
     highlightBlink: !snap && !!firstTarget, // a Ferry's or Skiff's picked stone
     landings: snap ? null : landingHints(displayBoard),
-  });
-  imageData.data.set(scene.rgba);
-  boardCtx.putImageData(imageData, 0, 0);
+  };
+  // A frame that would draw the same picture as the last one is not drawn at
+  // all (findings P1): no render, no upload. The canvas keeps the last picture.
+  const key = frameKey(view, now);
+  if (key !== null && key === lastFrameKey) return;
+  lastFrameKey = key;
+  scene.render(view);
+  boardCtx.putImageData(imageData, 0, 0); // imageData is a view over scene.rgba
+}
+
+/**
+ * What the next frame would show, as a string -- or null while something on the
+ * scene moves on its own clock, so every frame is a new picture: effects in
+ * flight, the weather and its lingering clouds, a river creature, fires and
+ * wards, the PASS sign, the hover preview or reticle, and the marks of an armed
+ * item. With none of those on, the picture changes only when the ambient clock
+ * (water, lanterns, fireflies at AMBIENT_FPS), the last-move ember or something
+ * in the view itself does.
+ */
+function frameKey(view, now) {
+  const moving =
+    view.storm ||
+    view.effects.length > 0 ||
+    view.river.length > 0 ||
+    view.stormTurnCount < view.stormUntil ||
+    view.landings ||
+    view.highlightMine ||
+    (view.hover && (view.hoverKind === "stone" || view.hoverKind === "target")) ||
+    (view.passFlash !== undefined && now - view.passFlash < P.PASS_SIGN_SECONDS) ||
+    view.overlays.some((o) => o.kind === "fire" || o.kind === "ward");
+  if (moving) return null;
+  const { time, ...still } = view;
+  const ambient = view.reducedMotion ? 0 : Math.floor(now * P.AMBIENT_FPS);
+  const ember = view.reducedMotion || !view.lastMove ? 0 : Math.floor(now * G.ANIMS.ember.fps);
+  return `${ambient}|${ember}|${JSON.stringify(still)}`;
 }
 
 /** Whom a point is kept for: a lily pad's owner, or a seed's planter once it sprouts (server reservedFor). */

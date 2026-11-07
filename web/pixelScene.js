@@ -44,6 +44,9 @@
   const RIVER = 30; // river below the deck (incl. the near bank strip)
   const FAR_BANK = 4; // near-camera bank at the very bottom
   const AMBIENT_FPS = 10;
+  // The PASS sign (drawPassSign): how long it holds, then how long it takes to dither away.
+  const PASS_HOLD = 1.6, PASS_FADE = 0.7;
+  const PASS_SIGN_SECONDS = PASS_HOLD + PASS_FADE;
   const BLINK_SECONDS = 0.5; // a picked stone's ember: on for BLINK_ON of every BLINK_SECONDS
   const BLINK_ON = 0.3;
 
@@ -1736,7 +1739,6 @@
     }
 
     /** "PASS" at triple size on an ink plate in the middle of the board; holds, then dithers away. */
-    const PASS_HOLD = 1.6, PASS_FADE = 0.7;
     function drawPassSign(age) {
       if (age < 0 || age > PASS_HOLD + PASS_FADE) return;
       const fade = age > PASS_HOLD ? (age - PASS_HOLD) / PASS_FADE : 0;
@@ -2503,6 +2505,7 @@
   return {
     SPACING,
     AMBIENT_FPS,
+    PASS_SIGN_SECONDS,
     STAGE,
     stageSize,
     pickScale,
