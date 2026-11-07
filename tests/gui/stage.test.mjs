@@ -79,12 +79,13 @@ test("stage: the hand's cards are 150% and the header 85% of the stage's art", a
   assert.ok(Math.abs(m.header - 18 * 0.85 * m.px) < 0.5, `header ${m.header}`);
 });
 
-test("stage: the hand sits below the board, left aligned with it", async () => {
+test("stage: the hand and the lines under it sit below the deck, left aligned with the scene past the islands", async () => {
   const m = await b.ev(`(() => {
-    const h = handEl.getBoundingClientRect(), bd = boardEl.getBoundingClientRect();
-    return { handLeft: h.left, boardLeft: bd.left, handTop: h.top, boardBottom: bd.bottom };
+    const h = handEl.getBoundingClientRect(), bd = boardEl.getBoundingClientRect(), foot = document.getElementById("game-foot").getBoundingClientRect();
+    return { handLeft: h.left, footLeft: foot.left, deckLeft: bd.left + scene.layout.landingW * artPx(), handTop: h.top, boardBottom: bd.bottom };
   })()`);
-  assert.ok(Math.abs(m.handLeft - m.boardLeft) < 1, `the hand starts at the board's left edge: ${m.handLeft} vs ${m.boardLeft}`);
+  assert.ok(Math.abs(m.handLeft - m.deckLeft) < 1, `the hand starts where the islands end: ${m.handLeft} vs ${m.deckLeft}`);
+  assert.ok(Math.abs(m.footLeft - m.deckLeft) < 1, `and so do the lines under it: ${m.footLeft} vs ${m.deckLeft}`);
   assert.ok(m.handTop >= m.boardBottom - 0.5, "below the board");
 });
 
@@ -108,7 +109,7 @@ test("stage: the sidebar runs down beside the hand, and the market shows every s
   await wait(300);
 });
 
-test("stage: a full hand stays under the board, its cards overlapping when they don't fit", async () => {
+test("stage: a full hand stays under the deck, its cards overlapping when they don't fit", async () => {
   // Buy from whichever stall is open until the hand is full (the Kata counts toward the limit).
   for (let tries = 0; tries < 20 && (await b.ev("handEl.querySelectorAll('.card').length < lastState.handLimit")); tries++) {
     await b.ev(`(() => { const open = marketItemsEl.querySelector("button.item:not(:disabled)"); if (open) open.click(); return true; })()`);
@@ -118,10 +119,10 @@ test("stage: a full hand stays under the board, its cards overlapping when they 
   const m = await b.ev(`(() => {
     const h = handEl.getBoundingClientRect(), bd = boardEl.getBoundingClientRect();
     const cards = Array.from(handEl.querySelectorAll(".card, .card-place")).map((c) => c.getBoundingClientRect());
-    return { left: h.left, right: Math.max(...cards.map((c) => c.right)), boardLeft: bd.left, boardRight: bd.right,
+    return { left: h.left, right: Math.max(...cards.map((c) => c.right)), boardLeft: bd.left + scene.layout.landingW * artPx(), boardRight: bd.right,
       overlap: cards.some((c, i) => i > 0 && c.left < cards[i - 1].right - 0.5) };
   })()`);
-  assert.ok(Math.abs(m.left - m.boardLeft) < 1, "left aligned with the board");
+  assert.ok(Math.abs(m.left - m.boardLeft) < 1, "left aligned with the deck, past the islands");
   assert.ok(m.right <= m.boardRight + 0.5, `no wider than the board: ${m.right} vs ${m.boardRight}`);
   assert.equal(m.overlap, true, "five 150% cards overlap under a 13x13 board");
 });
