@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import os from "os";
 import path from "path";
@@ -93,4 +93,41 @@ test("a bot plays on through a storm's grey instead of stalling", () => {
   }
   assert.ok(t.state.passes < 3, "bots played stones, not passes");
   t.close();
+});
+
+// findings.md P3 item 2: the view's isWarded, lilyOwnerAt, isBurning, isFogged
+// and hasSeed each walked the effects list on every call, and the bots call
+// them per stone, per candidate.
+test("a bot's view answers isWarded, lilyOwnerAt, isBurning, isFogged and hasSeed without scanning the effects", () => {
+  const t = table();
+  const { room, state } = t;
+  const n = state.size * state.size;
+  room.addEffect("ward", 2, 2, 1, 2);
+  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) room.addEffect("fog", 6 + dx, 6 + dy, 2, 1);
+  room.addEffect("fire", 9, 9, 0, 1);
+  room.addEffect("lily", 1, 10, 3, 2);
+  room.addEffect("seed", 10, 1, 4, 3); // a seed: nobody's point yet
+  room.addEffect("seed", 11, 11, 2, 2); // a sprout: its planter's
+  room.addEffect("ward", 0, 0, 1, 0); // lapsed this turn: counts for nothing
+  const expected = Array.from({ length: n }, (_, i) => [
+    room.isWarded(i),
+    room.reservedFor(i),
+    room.isBurning(i),
+    room.isFogged(i),
+    room.effectAt("seed", i) !== undefined,
+  ]);
+  assert.ok(expected.some((e) => e[0]) && expected.some((e) => e[1] === 3) && expected.some((e) => e[1] === 2), "the board has wards, a lily and a sprout");
+  assert.ok(expected.some((e) => e[2]) && expected.some((e) => e[3]) && expected.some((e) => e[4]), "and a fire, fog and seeds");
+  assert.equal(expected[0][0], false, "the lapsed ward wards nothing");
+
+  const view = t.view(1);
+  const scan = mock.method(room, "effectAt");
+  try {
+    const got = Array.from({ length: n }, (_, i) => [view.isWarded(i), view.lilyOwnerAt(i), view.isBurning(i), view.isFogged!(i), view.hasSeed!(i)]);
+    assert.deepEqual(got, expected, "the view's answers are the room's");
+    assert.equal(scan.mock.callCount(), 0, "and none of them walked the effects");
+  } finally {
+    scan.mock.restore();
+    t.close();
+  }
 });

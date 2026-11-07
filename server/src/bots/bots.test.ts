@@ -1,5 +1,7 @@
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import assert from "node:assert/strict";
+import * as endgame from "../rules/endgame";
+import * as scoring from "./scoring";
 import {
   applyCaptures,
   boardIndex,
@@ -728,5 +730,49 @@ test("a 4-bot match on 19x19 ends on passes, well inside its turn cap", () => {
     assert.equal(match.finished, true, `${size}x${size} ended`);
     assert.equal(match.board.length, size * size);
     assert.ok(match.stones > size * size * 0.3, `${size}x${size}: ${match.stones} stones, a real game`);
+  }
+});
+
+// findings.md P3 item 1: judging a candidate counted the territory of the board
+// before the move afresh for every candidate, though it is the same board every
+// time within one decision.
+test("judging a turn counts the ground before the move once per decision, not once per candidate", () => {
+  const size = 9;
+  const v = view(size, 1);
+  // A cross of four walls, one of each stone: black and white side by side down
+  // the middle, gray and transparent side by side across it. Every empty point
+  // is one side's settled territory on both fronts, so every candidate is
+  // pointless and the bot passes -- after judging them all.
+  for (let i = 0; i < size; i++) {
+    if (i !== 3 && i !== 4) {
+      v.board[boardIndex(size, 3, i)] = stoneCode(1, "base");
+      v.board[boardIndex(size, 4, i)] = stoneCode(2, "base");
+    }
+    v.board[boardIndex(size, i, 3)] = stoneCode(1, "pattern");
+    v.board[boardIndex(size, i, 4)] = stoneCode(2, "pattern");
+  }
+  const judging: Style = {
+    ...temperamentFor(0),
+    name: "judging",
+    capture: 0, save: 0, atari: 0, connect: 0, contact: 1, cut: 0, locality: 0, extension: 0, line: 0,
+    area: 0, thin: 0, selfAtari: 0, hemmed: 0, axisBias: 0, itemBias: 0,
+    variation: 1,
+    judgement: true,
+  };
+  const judged = mock.method(scoring, "isPointless");
+  const counted = mock.method(endgame, "territoryScore");
+  try {
+    const action = chooseAction(v, judging, new Rng(1));
+    assert.equal(action.kind, "pass", "every point is settled: the bot passes");
+    // Only a candidate with a score reaches the count; the rest are pointless on sight.
+    const reached = judged.mock.calls.filter((c) => (c.arguments[1] as { score: number }).score > 0).length;
+    assert.ok(reached >= 4, `many candidates were judged by the count (${reached})`);
+    assert.ok(
+      counted.mock.callCount() <= reached + 2,
+      `the ground before the move is counted once, not per candidate: ${counted.mock.callCount()} counts for ${reached} candidates`
+    );
+  } finally {
+    judged.mock.restore();
+    counted.mock.restore();
   }
 });
