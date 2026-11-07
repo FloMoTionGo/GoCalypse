@@ -151,34 +151,43 @@ function distanceToOwnSide(view: BotView, x: number, y: number, code: number, ax
   return best;
 }
 
-/**
- * Steps from each empty point to the nearest stone of `side` on one front,
- * over empty points only: any stone (or driftwood) stops the walk, exactly as
- * it stops a territory flood. -1 where the side does not reach.
- */
-function reachOf(board: number[], size: number, front: StoneView, side: Side): Int16Array {
-  const dist = new Int16Array(board.length).fill(-1);
-  const queue: number[] = [];
-  for (let i = 0; i < board.length; i++) {
-    if (board[i] !== 0 && viewValue(front, board[i]) === side) {
-      dist[i] = 0;
-      queue.push(i);
-    }
-  }
-  for (let head = 0; head < queue.length; head++) {
-    const i = queue[head];
-    const d = dist[i];
-    if (d >= AREA_REACH) continue;
-    const x = i % size;
-    const y = (i - x) / size;
-    for (const n of [x > 0 ? i - 1 : -1, x < size - 1 ? i + 1 : -1, y > 0 ? i - size : -1, y < size - 1 ? i + size : -1]) {
-      if (n < 0 || board[n] !== 0 || dist[n] !== -1) continue;
-      dist[n] = d + 1;
-      queue.push(n);
-    }
-  }
-  return dist;
+// Working room for estimateArea, by board size: a neighbour table, and the
+// buffers one walk of the board needs. The estimate runs for every candidate
+// of every decision, and allocating these afresh each time was most of its
+// cost (findings P3). Buffers only, never answers -- nothing in here outlives
+// the call that fills it.
+interface AreaScratch {
+  neighbours: Int32Array; // 4 per point, -1 off the board
+  dist: Int16Array;
+  side: Int8Array;
+  queue: Int32Array;
 }
+const areaScratch = new Map<number, AreaScratch>();
+
+function areaScratchFor(size: number): AreaScratch {
+  let scratch = areaScratch.get(size);
+  if (!scratch) {
+    const n = size * size;
+    const neighbours = new Int32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      const x = i % size;
+      const y = (i - x) / size;
+      neighbours[i * 4] = x > 0 ? i - 1 : -1;
+      neighbours[i * 4 + 1] = x < size - 1 ? i + 1 : -1;
+      neighbours[i * 4 + 2] = y > 0 ? i - size : -1;
+      neighbours[i * 4 + 3] = y < size - 1 ? i + size : -1;
+    }
+    scratch = { neighbours, dist: new Int16Array(n), side: new Int8Array(n), queue: new Int32Array(n) };
+    areaScratch.set(size, scratch);
+  }
+  return scratch;
+}
+
+const AREA_FRONTS: [StoneView, Side, Side][] = [
+  ["base", "black", "white"],
+  ["pattern", "gray", "transparent"],
+];
+const SIDE_A = 1, SIDE_B = 2, TIED = 3;
 
 /**
  * A rough count of the ground each side will end up with: every empty point
@@ -186,20 +195,50 @@ function reachOf(board: number[], size: number, front: StoneView, side: Side): I
  * within AREA_REACH steps, and to no one on a tie. The real count
  * (territoryScore) only sees regions already walled in, so for most of a game it
  * says nothing; this is what a bot reads instead, to tell building from brawling.
+ *
+ * One walk per front from both sides' stones at once, over empty points only
+ * (any stone, driftwood included, stops it, exactly as it stops a territory
+ * flood). Points are reached in order of distance, so the first side to reach
+ * one is the nearest; the other side arriving at the same distance makes it a
+ * tie, and a tie spreads on as a tie, since both sides are equally near beyond it.
  */
 export function estimateArea(board: number[], size: number): Territory {
   const area: Territory = { black: 0, white: 0, gray: 0, transparent: 0 };
-  const fronts: [StoneView, Side, Side][] = [
-    ["base", "black", "white"],
-    ["pattern", "gray", "transparent"],
-  ];
-  for (const [front, a, b] of fronts) {
-    const da = reachOf(board, size, front, a);
-    const db = reachOf(board, size, front, b);
-    for (let i = 0; i < board.length; i++) {
-      if (board[i] !== 0) continue;
-      if (da[i] >= 0 && (db[i] < 0 || da[i] < db[i])) area[a] += 1;
-      else if (db[i] >= 0 && (da[i] < 0 || db[i] < da[i])) area[b] += 1;
+  const n = board.length;
+  const { neighbours, dist, side, queue } = areaScratchFor(size);
+  for (const [front, a, b] of AREA_FRONTS) {
+    dist.fill(-1);
+    let tail = 0;
+    for (let i = 0; i < n; i++) {
+      const code = board[i];
+      if (code === 0) continue;
+      const v = viewValue(front, code);
+      if (v !== a && v !== b) continue;
+      dist[i] = 0;
+      side[i] = v === a ? SIDE_A : SIDE_B;
+      queue[tail++] = i;
+    }
+    for (let head = 0; head < tail; head++) {
+      const i = queue[head];
+      const d = dist[i];
+      if (d >= AREA_REACH) continue;
+      const s = side[i];
+      for (let k = i * 4; k < i * 4 + 4; k++) {
+        const q = neighbours[k];
+        if (q < 0 || board[q] !== 0) continue;
+        if (dist[q] === -1) {
+          dist[q] = d + 1;
+          side[q] = s;
+          queue[tail++] = q;
+        } else if (dist[q] === d + 1 && side[q] !== s) {
+          side[q] = TIED;
+        }
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      if (board[i] !== 0 || dist[i] < 0) continue;
+      if (side[i] === SIDE_A) area[a] += 1;
+      else if (side[i] === SIDE_B) area[b] += 1;
     }
   }
   return area;
