@@ -1274,12 +1274,47 @@ export class GoRoom extends Room<GoState> {
     const board = this.state.seen.toArray();
     const misted = player.misted;
     for (let i = 0; i + 1 < misted.length; i += 2) board[misted[i]] = misted[i + 1];
+    // The questions the bots ask per stone, per candidate (isWarded and the
+    // rest), answered off masks built in one pass over the effects rather than
+    // by a walk of the list on every call (findings P3). The answers are the
+    // room's own (effectAt, reservedFor...): the first effect of a kind on a
+    // point counts, a lapsed one for nothing.
+    const size = this.state.size;
+    const n = size * size;
+    const turnCount = this.state.turnCount;
+    const warded = new Uint8Array(n); // a ward or a fog
+    const fogged = new Uint8Array(n);
+    const burning = new Uint8Array(n);
+    const seeded = new Uint8Array(n); // a seed at any step
+    const padOwner = new Uint8Array(n); // a lily pad's owner
+    const sproutOwner = new Uint8Array(n); // a seed past its first round: its planter's point
     // A rival's mist is drawn for everybody, so like a human (hoverKind) a bot
     // knows not to play under it without knowing what, if anything, is there.
     const rivalMist = new Set<number>();
     for (const e of this.state.effects) {
-      if (e.kind === "mist" && e.owner !== player.color && e.until > this.state.turnCount) {
-        rivalMist.add(boardIndex(this.state.size, e.x, e.y));
+      if (e.until <= turnCount) continue;
+      const i = boardIndex(size, e.x, e.y);
+      switch (e.kind) {
+        case "ward":
+          warded[i] = 1;
+          break;
+        case "fog":
+          warded[i] = 1;
+          fogged[i] = 1;
+          break;
+        case "fire":
+          burning[i] = 1;
+          break;
+        case "lily":
+          if (!padOwner[i]) padOwner[i] = e.owner;
+          break;
+        case "seed":
+          seeded[i] = 1;
+          if (!sproutOwner[i] && this.seedStepOf(e) > 1) sproutOwner[i] = e.owner;
+          break;
+        case "mist":
+          if (e.owner !== player.color) rivalMist.add(i);
+          break;
       }
     }
     return {
@@ -1305,11 +1340,11 @@ export class GoRoom extends Room<GoState> {
       handLimit: HAND_LIMIT,
       card: Array.from(player.card),
       powerfulLimit: POWERFUL_LIMIT,
-      isWarded: (idx) => this.isWarded(idx),
-      lilyOwnerAt: (idx) => this.reservedFor(idx),
-      isBurning: (idx) => this.isBurning(idx),
-      isFogged: (idx) => this.isFogged(idx) || rivalMist.has(idx), // "may not play here, can't see why"
-      hasSeed: (idx) => this.effectAt("seed", idx) !== undefined,
+      isWarded: (idx) => warded[idx] === 1,
+      lilyOwnerAt: (idx) => padOwner[idx] || sproutOwner[idx],
+      isBurning: (idx) => burning[idx] === 1,
+      isFogged: (idx) => fogged[idx] === 1 || rivalMist.has(idx), // "may not play here, can't see why"
+      hasSeed: (idx) => seeded[idx] === 1,
       // The haiku lines still to collect, and this bot's level in each haiku.
       haiku: Array.from(this.state.haiku)
         .filter((h) => !h.by)

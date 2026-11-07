@@ -516,24 +516,32 @@ const TACTICAL: Style = {
  */
 function frontsOf(
   view: BotView,
-  board: number[],
+  territory: Territory,
   axis: StoneView,
   took: Prisoners
 ): { mine: number; other: number } {
-  const territory = territoryScore(board, view.size);
   const sides = sidesOf(view.color);
   const base = territory[sides.base] + countedPrisoners(took.base, territory[sides.base]);
   const pattern = territory[sides.pattern] + countedPrisoners(took.pattern, territory[sides.pattern]);
   return axis === "base" ? { mine: base, other: pattern } : { mine: pattern, other: base };
 }
 
-// Not cached, deliberately. Judging a turn counts the board before the move
-// once per candidate and gets the same answer every time, so a WeakMap keyed on
-// the board array looks like free speed. It is not: a caller is free to hand the
-// same array back after playing on it -- selfplay.ts keeps one board for a whole
-// match and mutates it -- and the cache then answers with the position as it was
-// several moves ago. Tried, and it quietly changed how the bots played before it
-// changed how fast they played.
+/**
+ * What one decision's judging shares between its candidates: the count of the
+ * board before the move, which is the same for every candidate (findings P3).
+ * A caller makes one per decision and hands it to every isPointless of that
+ * decision; it must never outlive the board it counted.
+ *
+ * That is also why there is no cache beyond it. A WeakMap keyed on the board
+ * array looks like free speed, but a caller is free to hand the same array back
+ * after playing on it -- selfplay.ts keeps one board for a whole match and
+ * mutates it -- and such a cache then answers with the position as it was
+ * several moves ago. Tried, and it quietly changed how the bots played before
+ * it changed how fast they played.
+ */
+export interface Judgement {
+  territory?: Territory;
+}
 
 /**
  * Whether a bot with judgement would rather pass than play this move. This is
@@ -564,7 +572,7 @@ function frontsOf(
  * off the bot's OTHER front. Spending a turn to end up behind is never worth it,
  * whatever else the move does.
  */
-export function isPointless(view: BotView, move: Candidate): boolean {
+export function isPointless(view: BotView, move: Candidate, judge?: Judgement): boolean {
   if (move.score <= 0) return true;
   const tactical = scoreMove(view, move.x, move.y, move.axis, TACTICAL);
   if (tactical === null || tactical > 0) return false; // takes or saves: always worth it
@@ -578,8 +586,10 @@ export function isPointless(view: BotView, move: Candidate): boolean {
   const taken = applyCaptures(after, view.size, move.x, move.y, code, (i) => view.isWarded(i));
   const took = { ...view.prisoners };
   for (const c of taken) if (!c.cross) took[c.view] += 1;
-  const before = frontsOf(view, view.board, move.axis, view.prisoners);
-  const now = frontsOf(view, after, move.axis, took);
+  const counted = judge?.territory ?? territoryScore(view.board, view.size);
+  if (judge) judge.territory = counted;
+  const before = frontsOf(view, counted, move.axis, view.prisoners);
+  const now = frontsOf(view, territoryScore(after, view.size), move.axis, took);
   const was = Math.min(before.mine, before.other);
   const is = Math.min(now.mine, now.other);
   if (is > was) return false; // the score rises: always worth the turn

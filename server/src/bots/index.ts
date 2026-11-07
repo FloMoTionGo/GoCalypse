@@ -3,7 +3,7 @@ import { STONE_CARD } from "../rules/stoneCard";
 import { planCard } from "./card";
 import { planItem } from "./items";
 import { Rng } from "./rng";
-import { BotView, Candidate, isPointless, rankMoves } from "./scoring";
+import { BotView, Candidate, isPointless, Judgement, rankMoves } from "./scoring";
 import { Style } from "./styles";
 
 export { Rng } from "./rng";
@@ -87,8 +87,9 @@ function pickMove(view: BotView, style: Style, rng: Rng, ranked: Candidate[]): C
   const width = Math.max(1, style.variation);
   const pool = style.judgement ? [] : ranked.slice(0, width);
   if (style.judgement) {
+    const judge: Judgement = {}; // this decision's count of the board before the move
     for (const move of ranked) {
-      if (isPointless(view, move)) continue;
+      if (isPointless(view, move, judge)) continue;
       pool.push(move);
       if (pool.length >= width) break;
     }
