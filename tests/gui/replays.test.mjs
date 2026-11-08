@@ -152,6 +152,17 @@ test("replays: the step buttons and the arrow keys move through the game, and th
   assert.equal(await b.ev("document.getElementById('replay-back').disabled"), true);
 });
 
+test("replays: the event line names a point by the board's letter and number", async () => {
+  try {
+    for (let i = 0; i < 4; i++) await rig.clickEl("#replay-fwd");
+    assert.equal(await b.ev("document.getElementById('replay-event').textContent"), "P4 played D4");
+    await rig.clickEl("#replay-fwd");
+    assert.equal(await b.ev("document.getElementById('replay-event').textContent"), "P2 played B1, captured 1");
+  } finally {
+    await rig.clickEl("#replay-first");
+  }
+});
+
 test("replays: the slider follows the play head and moves it", async () => {
   await rig.clickEl("#replay-fwd");
   assert.equal(await b.ev("document.getElementById('replay-slider').value"), "1");

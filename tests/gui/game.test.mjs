@@ -112,6 +112,17 @@ test("game: a left click on my turn plays my solid stone there", async () => {
   assert.equal(await b.ev("passButton.disabled"), true);
 });
 
+test("game: the event line and the log name a move's point by the board's letter and number", async () => {
+  await rig.waitMyTurn();
+  const p = await rig.freePoint();
+  await rig.playAt(p.x, p.y, "left", mine(p.x, p.y), "my stone on the board");
+  await b.waitFor("/ played [A-HJ-Z][0-9]+/.test(lastEventEl.textContent)", 10000, "a move named as on the board's edges");
+  assert.doesNotMatch(await b.ev("lastEventEl.textContent"), /\(\d+, \d+\)/);
+  const log = await b.ev("(renderEventLog(), eventLogListEl.textContent)");
+  assert.match(log, / played [A-HJ-Z][0-9]+/);
+  assert.doesNotMatch(log, /\(\d+, \d+\)/);
+});
+
 test("game: a right click plays my pattern stone", async () => {
   await rig.waitMyTurn();
   const p = await rig.freePoint();
