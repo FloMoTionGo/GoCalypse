@@ -54,6 +54,11 @@
   const LANDING_LOOP = 120; // s: every drifting lantern's loop closes a whole number of times in it
   const AMBIENT_FPS = 10;
   const FESTIVAL_SECONDS = 34; // the Lantern Festival: from the first lantern's rise to the last one's sinking
+  const FESTIVAL_DARK_FADE = 3; // seconds the night takes to fall, and to lift
+  const FESTIVAL_DARKNESS = 0.8; // dither coverage of the shade ramp over water, banks and the frame
+  const FESTIVAL_DARKNESS_BOARD = 0.45; // and over the playing surface, where the stones must stay readable
+  const FESTIVAL_LIGHT_R = 24; // how far a festival lantern's light reaches, onto the board too
+  const FESTIVAL_LIGHT = 0.5; // softer than one lantern alone: there are so many
   /** The festival's layout seed: the same on every screen, different for each game and each seat that lights one. */
   function festivalSeed(roomId, by) {
     const key = `${roomId}:${by}`;
@@ -1586,8 +1591,8 @@
       });
     }
 
-    // The Lantern Card's hunt (tasks/2026-11-08_lantern_card/PLAN.md): click every floating lantern once.
-    const HUNT_REACH = 7; // art px each way a click still counts as on a lantern
+    // The lantern hunt (tasks/2026-11-08_issues/PLAN.md item 9): click every floating lantern off.
+    const HUNT_REACH = 11; // art px each way a click still counts as on a lantern; 13 would touch a playable point
 
     /** The twelve floating lanterns as the frame at ambient time `t` draws them, in index order. */
     function floatersAt(t) {
@@ -1596,11 +1601,11 @@
     }
     const onScene = (f) => f.x >= 0 && f.y >= 0 && f.x < W && f.y < H;
 
-    /** The index of the nearest lantern on screen and not in `lit` within reach of a native point, or null. */
-    function lanternAt(nx, ny, t, lit) {
+    /** The index of the nearest lantern on screen and not in `out` within reach of a native point, or null. */
+    function lanternAt(nx, ny, t, out) {
       let best = null, bestD = Infinity;
       for (const f of floatersAt(t)) {
-        if (!onScene(f) || (lit && lit.includes(f.i))) continue;
+        if (!onScene(f) || (out && out.includes(f.i))) continue;
         if (Math.abs(nx - f.x) > HUNT_REACH || Math.abs(ny - f.y) > HUNT_REACH) continue;
         const d = Math.hypot(nx - f.x, ny - f.y);
         if (d < bestD) {
@@ -1611,11 +1616,16 @@
       return best;
     }
 
-    /** The lanterns to light: all of them, or with reduced motion those on screen while the clock stands at 0. */
+    /** The lanterns to turn off: all of them, or with reduced motion those on screen while the clock stands at 0. */
     function lanternGoal(reduced) {
       const all = floatersAt(0);
       return (reduced ? all.filter(onScene) : all).map((f) => f.i);
     }
+
+    // The stone lantern, the hunt's thirteenth: where a click counts as on it. It stands right of
+    // the last grid line, so no playable point is on it.
+    const stoneLantern = { x: toro.x, y: toro.y, w: ANIMS.toro.frames[0].w, h: toroFoot - toro.y };
+    const stoneLanternAt = (nx, ny) => nx >= stoneLantern.x && nx < stoneLantern.x + stoneLantern.w && ny >= stoneLantern.y && ny < stoneLantern.y + stoneLantern.h;
 
     // The Lantern Festival: each lantern rises in the water beside the right or bottom side of
     // the deck (the two sides of the dark border with no numbers), floats onto the border and
@@ -1634,8 +1644,8 @@
         return !keep.some((b) => p.x + 5 > b.x && p.x - 5 < b.x + b.w && p.y + 6 > b.y && p.y - 6 < b.y + b.h);
       };
       // The stone lantern stands on the border at the bottom right corner, in front of whatever is there.
-      const stoneLantern = { x: toro.x - 1, y: toro.y, w: 15, h: 26 };
-      const clearOfStoneLantern = (p) => !(p.x + 5 > stoneLantern.x && p.x - 5 < stoneLantern.x + stoneLantern.w && p.y + 6 > stoneLantern.y && p.y - 6 < stoneLantern.y + stoneLantern.h);
+      const toroBox = { x: toro.x - 1, y: toro.y, w: 15, h: 26 };
+      const clearOfStoneLantern = (p) => !(p.x + 5 > toroBox.x && p.x - 5 < toroBox.x + toroBox.w && p.y + 6 > toroBox.y && p.y - 6 < toroBox.y + toroBox.h);
       const sides = [
         {
           name: "right", len: L.boardBottom - L.boardY, lo: 3, hi: 8,
@@ -1702,6 +1712,14 @@
         y += Math.sin(el * (g < 0.5 ? 2.1 : 1.2) * q.sway + q.phase) * 0.9;
         return { festival: true, up, x: Math.round(x), y: Math.round(y), i: 100 + i, fl: q };
       });
+    }
+
+    /** How dark the festival has made the scene `time` seconds on the clock, 0..1: in, held, out. */
+    function festivalDark(fest, time, reduced) {
+      const el = time - fest.start;
+      if (el < 0 || el >= FESTIVAL_SECONDS) return 0;
+      if (reduced) return 1;
+      return Math.min(1, el / FESTIVAL_DARK_FADE, (FESTIVAL_SECONDS - el) / FESTIVAL_DARK_FADE);
     }
 
     /** A festival lantern: rising or sinking it is cut off at its waterline, in a small ring of ripples. */
@@ -2560,7 +2578,8 @@
      *                  stormLinger) -- for the full 3 rounds, not just the ~10s cloudburst,
      *   stormTurnCount: the turn counter the storm is judged by (defaults to turnCount); the live
      *                  one while an older board is recalled, so a storm on now greys the old boards too,
-     *   litLanterns:   indices of the floating lanterns this player has lit (floatersAt),
+     *   outLanterns:   indices of the floating lanterns this player has turned off (floatersAt),
+     *   stoneLanternOut: this player has turned the stone lantern off too,
      *   festival:      {seed, start: seconds} while the Lantern Festival plays,
      *   reducedMotion: boolean,
      * }
@@ -2607,19 +2626,16 @@
       drawFoam(t);
 
       // 2. light sources (applied before the sprites that emit them)
-      const lit = st.litLanterns || [];
+      const out = st.outLanterns || [];
       const floats = floaterPositions(t).concat(landingFloaters(t));
-      for (const fl of floats) fl.lit = lit.includes(fl.i);
-      if (st.festival) floats.push(...festivalFloats(st.festival, time, reduced));
+      for (const fl of floats) fl.out = out.includes(fl.i);
+      // The festival's lanterns are drawn after the dark has fallen, so they alone stay bright (8c).
+      const festivalLanterns = st.festival ? festivalFloats(st.festival, time, reduced) : [];
       floats.sort((a, b) => a.y - b.y);
       const seats = st.seats || [];
       const lights = [];
       const toroFrame = Math.floor(t * ANIMS.toro.fps) % ANIMS.toro.frames.length;
-      for (const fl of floats) {
-        if (fl.festival) {
-          if (fl.up > 0.4) lights.push({ x: fl.x, y: fl.y - 2, r: 8, s: 0.42 * fl.up }); // softer: there are so many
-        } else lights.push({ x: fl.x, y: fl.y - 2, r: fl.lit ? 13 : 9, s: fl.lit ? 0.8 : 0.55 });
-      }
+      for (const fl of floats) if (!fl.out) lights.push({ x: fl.x, y: fl.y - 2, r: 9, s: 0.55 });
       const lanterns = garlandAt(st.garland && st.garland.every);
       const lanternOut = garlandOut(st.garland, lanterns.length, t, reduced);
       lanterns.forEach((g, i) => { if (!lanternOut(i)) lights.push({ x: g.x, y: 5, r: 7, s: 0.45 }); });
@@ -2630,12 +2646,9 @@
 
       // 3. floating lanterns + reflections
       for (const fl of floats) {
-        if (fl.festival) {
-          drawFestivalLantern(fl, t);
-          continue;
-        }
-        drawReflection(fl.x, fl.y + 3, t, 7, fl.lit);
-        surf.blitCentered(animFrame(fl.lit ? "floatLanternLit" : "floatLantern", t, fl.fl.phase / 6.28), fl.x, fl.y);
+        const lantern = animFrame("floatLantern", t, fl.fl.phase / 6.28);
+        if (!fl.out) drawReflection(fl.x, fl.y + 3, t, 7, false);
+        surf.blitCentered(fl.out ? G.unlitLantern(lantern) : lantern, fl.x, fl.y);
       }
 
       // 3b. the landing's hanging lanterns, then the boats on the wide river
@@ -2787,6 +2800,22 @@
         }
       }
 
+      // 8c. the Lantern Festival's night: everything goes dark, then its lanterns shine out of
+      // it, the only lights that reach the playing surface beside the stone lantern. Under the
+      // hover UI, like the weather, and lighter over the board so the stones stay readable.
+      if (st.festival) {
+        const night = festivalDark(st.festival, time, reduced);
+        const darkOut = FESTIVAL_DARKNESS * night, darkIn = FESTIVAL_DARKNESS_BOARD * night;
+        for (let i = 0; i < surf.px.length; i++) {
+          const d = noLight[i] ? darkIn : darkOut;
+          if (d > 0 && bayer[i] < d) surf.px[i] = G.SHADE[surf.px[i]];
+        }
+        for (const fl of festivalLanterns) {
+          if (fl.up > 0.4) surf.ramp(G.LIGHT, fl.x, fl.y - 2, FESTIVAL_LIGHT_R, FESTIVAL_LIGHT * fl.up);
+        }
+        for (const fl of festivalLanterns.sort((a, b) => a.y - b.y)) drawFestivalLantern(fl, t);
+      }
+
       // 9. hover: split preview or powerup reticle, then the highlighted labels
       if (hover) {
         const p = pointToNative(hover.x, hover.y);
@@ -2817,9 +2846,9 @@
 
       // 9b. the stone lantern, in front of the stones and the hover stone in its corner, its
       // shine laid over them: unlike every other light, this one reaches the playing surface
-      surf.ramp(G.LIGHT, toro.lightX, toro.lightY, 17 + (toroFrame === 1 ? 2 : 0), 0.6);
+      if (!st.stoneLanternOut) surf.ramp(G.LIGHT, toro.lightX, toro.lightY, 17 + (toroFrame === 1 ? 2 : 0), 0.6);
       surf.blit(G.SPRITES.rock, toro.x - 1, toroFoot - 2);
-      surf.blit(ANIMS.toro.frames[toroFrame], toro.x, toro.y);
+      surf.blit(st.stoneLanternOut ? G.unlitLantern(ANIMS.toro.frames[0]) : ANIMS.toro.frames[toroFrame], toro.x, toro.y);
 
       // 10. fireflies (never over the playing surface; they sit the storm out)
       if (!weather) {
@@ -2877,6 +2906,8 @@
       lanternAt,
       lanternGoal,
       festivalLayout,
+      stoneLantern,
+      stoneLanternAt,
       width: W,
       height: H,
       surface: surf,

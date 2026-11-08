@@ -677,9 +677,6 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 .card img, .card-place img { display: block; width: 100% !important; height: 100% !important; } /* the card's own size, over spriteImg's */
 .card { transition: transform 120ms ease-out; }
-.card.lantern-card > img { animation: lantern-card-glow 3.2s ease-in-out infinite; }
-@keyframes lantern-card-glow { 50% { filter: brightness(1.14); } }
-@media (prefers-reduced-motion: reduce) { .card.lantern-card > img { animation: none; } }
 .card:hover:not(:disabled) { background: none; transform: translateY(calc(-1 * var(--px))); }
 /* Armed: lifted clear of the others, in a glow that follows the card's cut corners. */
 .card.active, .card.active:hover:not(:disabled) { transform: translateY(calc(-2 * var(--px))); filter: drop-shadow(0 0 calc(2 * var(--px)) var(--amber)); }

@@ -526,7 +526,7 @@ export class GoRoom extends Room<GoState> {
   private festivalSeats = new Set<number>(); // seats that have had theirs
   private festivalUntil = 0; // when the one on the table's screens is over (Date.now())
 
-  /** A player's Lantern Card asks to show the whole table: once a seat, one festival at a time. */
+  /** A player who has turned off every lantern, the stone one last, asks to show the whole table: once a seat, one festival at a time. */
   private handleLanternFestival(client: Client) {
     const playerIndex = this.findPlayerIndex(client.sessionId);
     if (playerIndex === -1) return;

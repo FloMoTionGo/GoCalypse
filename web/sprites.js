@@ -376,49 +376,6 @@
     ]),
   ]);
 
-  // A floating lantern the player has lit (the Lantern Card's hunt): hot cream paper.
-  anim("floatLanternLit", 4, [
-    sprite("floatLanternLit_0", [
-      "..KAK..",
-      ".KCCCK.",
-      ".KCCCK.",
-      ".KCCCK.",
-      ".KCCCK.",
-      "KKKKKKK",
-      "KCCCCCK",
-      ".KKKKK.",
-    ]),
-    sprite("floatLanternLit_1", [
-      "..KCK..",
-      ".KCCCK.",
-      ".KCCCK.",
-      ".KCCCK.",
-      ".KCCCK.",
-      "KKKKKKK",
-      "KACCCAK",
-      ".KKKKK.",
-    ]),
-  ]);
-
-  // The Lantern Card's art: one big paper lantern on the river.
-  SPRITES.lanternCardIcon = sprite("lanternCardIcon", [
-    "......KKK......",
-    ".....KAAAK.....",
-    "....KKKKKKK....",
-    "...KCCCCCCCK...",
-    "..KCCCCCCCCCK..",
-    "..KCCCACACCCK..",
-    "..KCCCCCCCCCK..",
-    "..KCCCACACCCK..",
-    "..KCCCCCCCCCK..",
-    "...KCCCCCCCK...",
-    "....KKKKKKK....",
-    "...KAAAAAAAK...",
-    "..TTKKKKKKKTT..",
-    ".TT.........TT.",
-    "...TTT...TTT...",
-  ]);
-
   // Hanging festival lanterns (chochin) for the garland, two paper colours.
   anim("garlandAmber", 3, [
     sprite("garlandAmber_0", [
@@ -1414,10 +1371,6 @@
     return (cardCache[key] = makeSprite(`card_${id}_${t}${turn ? "_turn" : ""}`, W, H, s.px));
   }
 
-  /** The secret Lantern Card's face (tasks/2026-11-08_lantern_card/PLAN.md). Not an item: the market never sells it. */
-  function lanternCard() {
-    return itemCard("lantern_card", 3, { icon: SPRITES.lanternCardIcon });
-  }
 
   // The Kata, once the Stone Card (server/src/rules/stoneCard.ts): a 3x3 go board on a card,
   // cells row by row, 0 empty, 1 the owner's base stone, 2 their other one.
@@ -2095,7 +2048,6 @@
     GREY_STONE,
     powerupIcon,
     POWERUP_ICON_IDS,
-    lanternCard,
     CARD_W,
     CARD_H,
     CARD_NAME_Y,
