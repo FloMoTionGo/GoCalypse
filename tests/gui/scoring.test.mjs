@@ -20,6 +20,11 @@ test("scoring modes: the lobby board offers GoCalypse, Japanese and Chinese, GoC
   assert.equal(await b.ev("scoringPick()"), "gocalypse");
 });
 
+test("scoring modes: the lobby board names the row", async () => {
+  const row = await b.ev("window.GoLobbyIsland.modes[0].row");
+  assert.equal(await b.ev(`document.querySelector('.board-label[data-row="${row}"]').textContent`), "Scoring");
+});
+
 test("scoring modes: a black stone on Japanese picks it, the page remembers it, and the table is Japanese", async () => {
   const p = await b.ev(`window.GoLobbyIsland.modes.find((m) => m.mode === "japanese")`);
   await rig.clickLobby(p.col, p.row);

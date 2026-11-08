@@ -53,6 +53,10 @@ test("nine: the scene is told no fireflies, and How to play says what this table
   await b.waitFor("!welcomeEl.open", 3000, "How to play to close");
 });
 
+test("nine: the sky gives no storm forecast", async () => {
+  assert.equal(await b.ev("weatherEl.textContent"), "");
+});
+
 test("nine: a stone can be played on it", async () => {
   await rig.waitMyTurn();
   const turn = await b.ev("turnCount");
