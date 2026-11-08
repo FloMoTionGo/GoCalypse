@@ -1,29 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "captures: stones taken in the storm's grey turn to their real colour when the storm lifts",
-      "feature": "storm-colours",
-      "tier": "server",
-      "since": "2026-11-08"
-    },
-    {
-      "test": "captures: a game that ends under the storm shows the real colours too",
-      "feature": "storm-colours",
-      "tier": "server",
-      "since": "2026-11-08"
-    },
-    {
-      "test": "captures: the real colours of a storm's captures survive a restart",
-      "feature": "storm-colours",
-      "tier": "server",
-      "since": "2026-11-08"
-    },
-    {
-      "test": "captures: the real colours wait on the server, out of the state every client is sent",
-      "feature": "storm-colours",
-      "tier": "server",
-      "since": "2026-11-08"
-    }
-  ]
+  "pending": []
 }

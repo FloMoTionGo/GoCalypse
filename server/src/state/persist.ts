@@ -25,6 +25,7 @@ export interface Snapshot {
   bots?: Record<string, string>; // player color -> bots/styles.ts styleFor id
   positions?: string[]; // rules/ko.ts PositionHistory.save()
   kos?: HeldKo[]; // rules/ko.ts KoWatch.save()
+  stormCaptures?: { color: number; slot: number }[]; // what the storm's grey hides until it lifts (GoRoom.stormCaptures)
   history?: RecorderSave; // the game's record so far (history/recorder.ts); absent when history is off
 }
 

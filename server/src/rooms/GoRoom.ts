@@ -16,6 +16,7 @@ import {
   axisOf,
   Captured,
   captureSlot,
+  CAPTURES_GREY,
   isTwin,
   twinCode,
   viewsOf,
@@ -249,6 +250,9 @@ export class GoRoom extends Room<GoState> {
   private rng = new Rng((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
   // The game's record for replays (history/), from the start of play; none with HISTORY=off.
   private recorder?: GameRecorder;
+  // Stones taken in the storm's grey, by their real slot in PlayerState.captures: kept off the
+  // state every client is sent, and moved out of the grey when the storm lifts (findings B5).
+  private stormCaptures: { color: number; slot: number }[] = [];
   // What each client may send per second (util/limits.ts): past it, messages are dropped.
   private budget = new MessageBudget();
 
@@ -316,6 +320,7 @@ export class GoRoom extends Room<GoState> {
         if (style) this.playBot(player, id!, style);
       }
       if (restored.history) this.recorder = GameRecorder.load(restored.history);
+      this.stormCaptures = restored.stormCaptures ?? [];
     }
     this.setState(state);
     this.publishSeats();
@@ -387,6 +392,7 @@ export class GoRoom extends Room<GoState> {
       positions: this.positions.save(),
       kos: this.kos.save(),
       history: this.recorder?.save(),
+      stormCaptures: this.stormCaptures,
     } satisfies Snapshot);
     if (json === this.lastSaved) return;
     try {
@@ -1056,6 +1062,7 @@ export class GoRoom extends Room<GoState> {
     }
     this.recorder?.capture(this.state); // the turn's stone, item or pass
     this.state.turnCount += 1;
+    if (this.state.turnCount >= this.state.storm.until) this.resolveStormCaptures();
     const order = this.turnOrder();
     this.state.turnIndex = order[(order.indexOf(this.state.turnIndex) + 1) % order.length];
     this.expireEffects();
@@ -1613,8 +1620,21 @@ export class GoRoom extends Room<GoState> {
       else player.basePrisoners += 1;
       const idx = boardIndex(size, c.point.x, c.point.y);
       const unseen = this.effectAt("mist", idx) !== undefined || this.isFogged(idx);
-      player.captures[captureSlot(c, grey, unseen)] += 1;
+      const slot = captureSlot(c, grey, unseen);
+      player.captures[slot] += 1;
+      if (slot === CAPTURES_GREY) this.stormCaptures.push({ color: player.color, slot: captureSlot(c, false, false) });
     }
+  }
+
+  /** The storm is over: what it took shows in its real colours now, for everyone. */
+  private resolveStormCaptures() {
+    for (const { color, slot } of this.stormCaptures) {
+      const player = this.state.players.find((p) => p.color === color);
+      if (!player) continue;
+      player.captures[CAPTURES_GREY] -= 1;
+      player.captures[slot] += 1;
+    }
+    this.stormCaptures = [];
   }
 
   /** Fireflies for `count` captures, doubled while the player's Firefly Jar is lit. */
@@ -1744,6 +1764,7 @@ export class GoRoom extends Room<GoState> {
     // Turns stop here, so a storm still in its three rounds would leave its
     // weather hanging over the final board for good.
     if (state.storm.until > state.turnCount) state.storm.until = state.turnCount;
+    this.resolveStormCaptures();
     // Nor is there a turn left for a river creature to act on: it goes back into the water.
     for (const kind of CREATURE_KINDS) {
       const c = this.creatureOf(kind);
