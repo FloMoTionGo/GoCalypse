@@ -254,10 +254,10 @@
       base.rect(px(s.col) - (w >> 1) - 1, py(s.row) - 3, w + 2, 7, A);
       G.drawText(base, G.FONT_SMALL, String(s.size), px(s.col) - (w >> 1), py(s.row) - 2, K);
     }
-    for (const m of MODES) {
-      const w = G.textWidth(G.FONT_SMALL, m.label);
-      base.rect(px(m.col) - (w >> 1) - 1, py(m.row) - 3, w + 2, 7, A);
-      G.drawText(base, G.FONT_SMALL, m.label, px(m.col) - (w >> 1), py(m.row) - 2, K);
+    for (const m of MODES) { // the small font has digits only
+      const w = G.textWidth(G.FONT_BIG, m.label);
+      base.rect(px(m.col) - (w >> 1) - 1, py(m.row) - 4, w + 2, 8, A);
+      G.drawText(base, G.FONT_BIG, m.label, px(m.col) - (w >> 1), py(m.row) - 3, K);
     }
     // Lamps in the top frame, three under each bot's initials: how much of the Night Market it uses.
     BOT_OPTIONS.forEach((o, c) => {
@@ -502,8 +502,8 @@
     }
 
     if (pickedMode && !busy.has(`${pickedMode.col},${pickedMode.row}`)) {
-      const w = G.textWidth(G.FONT_SMALL, pickedMode.label);
-      G.drawText(surf, G.FONT_SMALL, pickedMode.label, px(pickedMode.col) - (w >> 1), py(pickedMode.row) - 2, C);
+      const w = G.textWidth(G.FONT_BIG, pickedMode.label);
+      G.drawText(surf, G.FONT_BIG, pickedMode.label, px(pickedMode.col) - (w >> 1), py(pickedMode.row) - 3, C);
     }
 
     // the point under the pointer (or the keyboard cursor): the stone a click would play
@@ -581,6 +581,7 @@
   for (let s = 0; s < SEATS; s++) addLabel(`P${s + 2}`, s, py(s) + 0.5);
   addLabel("Bots", null, NAME_Y + 1, "bots-head");
   addLabel("Item buys", null, LAMP_Y + 0.5, "market").title = "How often each bot buys Night Market items: 0 to 3 lit lanterns";
+  addLabel("Scoring", MODE_ROW, py(MODE_ROW) + 0.5, "start");
   addLabel("Size", SIZE_ROW, py(SIZE_ROW) + 0.5, "start");
   addLabel("Start", START_ROW, py(START_ROW) + 0.5, "start");
   addLabel("P1", null, PLATE.y + PLATE.h / 2, "name");

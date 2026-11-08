@@ -2181,6 +2181,7 @@ function renderStatus(state, players) {
  * itself (drawSky) and the garland (garlandView); the numbers are in the title.
  */
 function renderWeather(state) {
+  if (P.isPureGo(state.size)) return weatherEl.replaceChildren(); // no storms at this table
   const s = state.storm;
   const turnsToRoll = s.every > 0 ? s.every - (state.turnCount % s.every) : 0;
   const sky = G.stormSkyOf((Number(s.chance) || 0) / 100);
