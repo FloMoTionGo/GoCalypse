@@ -22,7 +22,7 @@ function view(extra: Partial<BotView> & { creatures?: unknown } = {}): BotView {
       color: 1,
       lastMove: null,
       fireflies: 500,
-      moves: 9,
+      rounds: 9,
       seats: 4,
       passes: 0,
       prisoners: { base: 0, pattern: 0 },

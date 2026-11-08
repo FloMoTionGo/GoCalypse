@@ -16,7 +16,7 @@ function view(size: number, over: Partial<BotView> = {}): BotView {
     color: 1,
     lastMove: null,
     fireflies: 0,
-    moves: 20,
+    rounds: 20,
     seats: 4,
     passes: 0,
     prisoners: { base: 0, pattern: 0 },

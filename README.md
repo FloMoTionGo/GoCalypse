@@ -168,7 +168,7 @@ fallback that keeps a stalled table moving, included (`everyoneElsePassed` in
 
 Placing a stone earns **3 fireflies**, capturing earns **5 per stone**, and
 losing a stone to a lightning fire or a river creature pays you **3** as
-consolation. A player's **Night Market** opens after their **5th move**.
+consolation. The **Night Market** opens for everyone at the **start of round 6**.
 Buying never takes your turn; using an item does. Items that fail (bad
 target) aren't used up.
 

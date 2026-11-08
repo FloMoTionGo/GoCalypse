@@ -1063,7 +1063,7 @@ export class GoRoom extends Room<GoState> {
     // even on the turn its timer runs out. Then those whose timer has run out
     // act, on the board the fires and seeds left: what they take is part of
     // the position the ko rule remembers.
-    if (isRollTurn(this.state.turnCount, this.riverEvery) && this.marketOpenForAll()) this.rollForCreature();
+    if (isRollTurn(this.state.turnCount, this.riverEvery) && this.marketOpen()) this.rollForCreature();
     this.creaturesAct();
     this.positions.record(this.state.board.toArray());
     if (isRollTurn(this.state.turnCount, this.stormEvery)) this.rollForStorm();
@@ -1140,8 +1140,8 @@ export class GoRoom extends Room<GoState> {
     }
   }
 
-  /** The Night Market is open for every seat: no creature comes before anyone could buy a Bait. */
-  private marketOpenForAll(): boolean {
+  /** The Night Market opens for the whole table at once, when shopAfter rounds are done; no creature comes before anyone could buy a Bait. */
+  private marketOpen(): boolean {
     return this.state.turnCount >= this.state.shopAfter * this.state.players.length;
   }
 
@@ -1344,7 +1344,7 @@ export class GoRoom extends Room<GoState> {
       color: player.color,
       lastMove: action.seq > 0 && action.x >= 0 ? { x: action.x, y: action.y } : null,
       fireflies: player.fireflies,
-      moves: player.moves,
+      rounds: Math.floor(this.state.turnCount / this.state.players.length),
       seats: this.state.players.length,
       passes: this.state.passes,
       prisoners: { base: player.basePrisoners, pattern: player.patternPrisoners },
@@ -1797,8 +1797,8 @@ export class GoRoom extends Room<GoState> {
     const stall = definition && this.state.market.find((m) => m.id === definition.id);
     if (!definition || !stall) return "";
 
-    if (player.moves < this.state.shopAfter) {
-      return `The Night Market opens after ${this.state.shopAfter} moves.`;
+    if (!this.marketOpen()) {
+      return `The Night Market opens at the start of round ${this.state.shopAfter + 1}.`;
     }
     // The stall's copies are shared by the table, and nobody may take more than their share.
     const refused = stallRefusal(stall, copiesBought(player.bought, definition.id));

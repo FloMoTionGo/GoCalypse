@@ -33,7 +33,7 @@ test("buying needs no turn", () => {
   assert.equal(room.state.turnCount, 0);
 });
 
-test("the market opens only after shopAfter stones of one's own", () => {
+test("the market opens only after shopAfter rounds of the table", () => {
   const room = makeRoom();
   const clients = seatHumans(room);
   stock(room, ["firefly_jar", "driftwood", "mist", "ferry", "kite", "echo_chime"]);
@@ -41,9 +41,9 @@ test("the market opens only after shopAfter stones of one's own", () => {
   const me = playerOf(room, client);
   me.fireflies = 500;
   room.handleBuy(client, { id: "driftwood" });
-  assert.match(notices(client).at(-1)!, /opens after 5 moves/);
+  assert.match(notices(client).at(-1)!, /opens at the start of round 6/);
   assert.equal(me.powerups.length, 1);
-  me.moves = room.state.shopAfter;
+  room.state.turnCount = room.state.shopAfter * room.state.players.length;
   room.handleBuy(client, { id: "driftwood" });
   assert.ok(me.powerups.includes("driftwood"));
 });

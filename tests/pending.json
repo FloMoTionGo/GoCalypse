@@ -1,29 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "the market stays shut for the whole table until round 6, whatever each seat has played",
-      "feature": "market-round-6",
-      "tier": "server",
-      "since": "2026-11-08"
-    },
-    {
-      "test": "the market opens for every seat at once at the start of round 6, even one that has placed no stone",
-      "feature": "market-round-6",
-      "tier": "server",
-      "since": "2026-11-08"
-    },
-    {
-      "test": "a bot sees how many rounds the table has finished",
-      "feature": "market-round-6",
-      "tier": "server",
-      "since": "2026-11-08"
-    },
-    {
-      "test": "market: the sign counts the rounds the table has finished, the same for every seat, and the tip says round 6",
-      "feature": "market-round-6",
-      "tier": "gui",
-      "since": "2026-11-08"
-    }
-  ]
+  "pending": []
 }

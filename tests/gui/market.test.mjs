@@ -95,11 +95,11 @@ test("market: the view the scene draws follows the table: lit to buy, half lit w
   const v = await b.ev(`(() => {
     const stall = (id, o) => Object.assign({ id, name: id, price: 40, stock: 3, left: 3, share: 1, free: false, tier: 1 }, o);
     const market = [stall("a"), stall("b", { price: 90 }), stall("c", { left: 0 }), stall("d"), stall("e", { free: true })];
-    const state = { status: "playing", shopAfter: 5, handLimit: 5, market };
+    const state = { status: "playing", shopAfter: 5, handLimit: 5, market, turnCount: 25, players: [1, 2, 3, 4] };
     const me = (o) => Object.assign({ moves: 5, bought: ["d"], fireflies: 50, powerups: [] }, o);
     return {
       open: marketView(state, me()),
-      closed: marketView(state, me({ moves: 3 })),
+      closed: marketView(Object.assign({}, state, { turnCount: 15 }), me()),
       full: marketView(state, me({ powerups: ["1", "2", "3", "4", "5"] })),
       done: marketView(Object.assign({}, state, { status: "finished" }), me()),
     };

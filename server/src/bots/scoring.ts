@@ -39,7 +39,7 @@ export interface BotView {
   color: number; // this bot's combo, 1..4
   lastMove: { x: number; y: number } | null;
   fireflies: number;
-  moves: number;
+  rounds: number; // finished by the whole table; the market opens after shopAfter of them
   /** Seats at this table, and how many of them have passed in a row already. */
   seats: number;
   passes: number;

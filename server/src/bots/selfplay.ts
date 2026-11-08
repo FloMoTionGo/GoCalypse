@@ -69,7 +69,7 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
       color,
       lastMove: last,
       fireflies: 0,
-      moves: moves[seat],
+      rounds: moves[seat],
       seats: SEATS,
       passes,
       prisoners: took[seat],

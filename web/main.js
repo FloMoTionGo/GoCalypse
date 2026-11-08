@@ -1719,7 +1719,7 @@ function openWelcome(state) {
     ["earnStone", "Place a stone", "Earns 3 fireflies."],
     ["earnCapture", "Capture a stone", "Earns 5 fireflies."],
     ["earnBack", "Lost to storm or river", "If the storm burns one of your stones or a river creature takes it, you get 3 back."],
-    ["stall", "The market opens", `Once you've placed ${shopAfter} stones, the Night Market opens on the water right of the board.`],
+    ["stall", "The market opens", `At the start of round ${shopAfter + 1}, the Night Market opens on the water right of the board, for everyone at once.`],
     ["tiers", `${tierCounts[0] + tierCounts[1] + tierCounts[2]} stalls a night`,
       `${tierCounts[0]} cozy, ${tierCounts[1]} tactical and ${tierCounts[2]} powerful, drawn for the night, and the Bait's stall, there every night.`],
     ...stockRow,
@@ -3479,11 +3479,12 @@ function flyCard(index, fromRect) {
 
 /** What I can do at the market tonight, for stallStatus. */
 function marketContext(state, me) {
-  const moves = me ? me.moves : 0;
+  const seats = state.players ? state.players.length : 0;
+  const rounds = seats ? Math.floor(state.turnCount / seats) : 0; // finished by the whole table
   const held = me ? Array.from(me.powerups).length : 0;
   return {
-    moves,
-    open: !!me && state.status === "playing" && moves >= state.shopAfter,
+    rounds,
+    open: !!me && state.status === "playing" && rounds >= state.shopAfter,
     bought: me ? Array.from(me.bought) : [],
     wallet: me ? me.fireflies : 0,
     full: held >= state.handLimit,
@@ -3518,13 +3519,13 @@ function marketView(state, me = myPlayer) {
   const c = marketContext(state, me);
   const sign = c.open ? { text: "NIGHT MARKET", lit: true }
     : state.status === "finished" ? { text: "NIGHT MARKET", lit: false }
-    : { text: `OPENS ${Math.min(c.moves, c.shopAfter)}/${c.shopAfter}`, lit: false };
+    : { text: `OPENS ${Math.min(c.rounds, c.shopAfter)}/${c.shopAfter}`, lit: false };
   return { sign, stalls: Array.from(state.market).map((m) => stallView(m, c)) };
 }
 
 /** Why I can or can't buy from a stall, in a sentence. */
 function stallVerdict(m, s, c) {
-  if (s.state === "closed") return `The market opens after ${c.shopAfter} moves (${Math.min(c.moves, c.shopAfter)}/${c.shopAfter}).`;
+  if (s.state === "closed") return `The market opens at the start of round ${c.shopAfter + 1} (${Math.min(c.rounds, c.shopAfter)}/${c.shopAfter} rounds done).`;
   if (s.soldOut) return `${m.name} is sold out tonight.`;
   if (s.hadShare) {
     if (!s.counted) return `${m.name} has already been bought this match.`;
@@ -3552,7 +3553,7 @@ function renderMarket(state) {
   const drawn = items.filter((m) => m.id !== BAIT).length;
   marketStatusEl.textContent = c.open
     ? `${drawn} stalls tonight and the Bait's, shared by the table.`
-    : `Opens after ${state.shopAfter} moves (${Math.min(c.moves, state.shopAfter)}/${state.shopAfter}).`;
+    : `Opens at the start of round ${state.shopAfter + 1} (${Math.min(c.rounds, state.shopAfter)}/${state.shopAfter} rounds done).`;
 
   const layout = scene ? scene.layout : P.computeLayout(state.size || 13);
   const sig = JSON.stringify([layout.size, c.open, c.wallet, c.bought, c.full, items.map((m) => [m.id, m.left])]);

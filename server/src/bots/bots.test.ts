@@ -42,7 +42,7 @@ function view(size: number, color: number, over: Partial<BotView> = {}): BotView
     color,
     lastMove: null,
     fireflies: 0,
-    moves: 0,
+    rounds: 0,
     seats: 4,
     passes: 0,
     prisoners: { base: 0, pattern: 0 },
@@ -361,7 +361,7 @@ test("the recruits run from no items to every item", () => {
 });
 
 test("the pure Go bot never buys, and never uses an item even when handed one", () => {
-  const rich = { moves: 9, fireflies: 500, market: MARKET };
+  const rich = { rounds: 9, fireflies: 500, market: MARKET };
   assert.equal(chooseBuy(view(5, 1, rich), reed()), null);
 
   const v = corneredPair({ powerups: ["lantern_ward"] });
@@ -370,9 +370,9 @@ test("the pure Go bot never buys, and never uses an item even when handed one", 
 });
 
 test("the market bot shops as soon as the market opens, and spends a turn on an item", () => {
-  const rich = { moves: 5, fireflies: 500, market: MARKET };
+  const rich = { rounds: 5, fireflies: 500, market: MARKET };
   assert.equal(chooseBuy(view(5, 1, rich), magpie()), "lantern_ward");
-  assert.equal(chooseBuy(view(5, 1, { ...rich, moves: 4 }), magpie()), null); // not open yet
+  assert.equal(chooseBuy(view(5, 1, { ...rich, rounds: 4 }), magpie()), null); // not open yet
 
   const v = corneredPair({ powerups: ["lantern_ward"] });
   const action = chooseAction(v, magpie(), new Rng(1));

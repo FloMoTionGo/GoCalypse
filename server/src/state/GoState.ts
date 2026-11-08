@@ -40,7 +40,7 @@ export class PlayerState extends Schema {
   @type(["number"]) haikuLines = new ArraySchema<number>();
   @type(["string"]) haikuPlayed = new ArraySchema<string>();
   @view() @type("number") fireflies: number = 0; // market currency, earned this match
-  @type("number") moves: number = 0; // stones placed; the market opens after GoState.shopAfter
+  @type("number") moves: number = 0; // stones placed
   // Filled in once when the game ends (rules/endgame.ts); all 0 until then.
   @type("number") baseTerritory: number = 0; // territory of this player's base side (black or white)
   @type("number") patternTerritory: number = 0; // territory of this player's pattern side (gray or transparent)
@@ -195,7 +195,7 @@ export class GoState extends Schema {
   @type("number") turnCount: number = 0;
   @type("number") passes: number = 0; // passes in a row; the game ends when every player has passed
   @type("string") lastEvent: string = ""; // human-readable log of the last action, for client toasts
-  @type("number") shopAfter: number = 5; // a player's market opens after this many placed stones
+  @type("number") shopAfter: number = 5; // the market opens for the whole table once this many rounds are done
   @type("number") handLimit: number = 5; // cards a player may hold at once, the Stone Card included
   @type([MarketItem]) market = new ArraySchema<MarketItem>();
   @type([BoardEffect]) effects = new ArraySchema<BoardEffect>();

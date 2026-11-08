@@ -103,9 +103,9 @@ test("a refused move is answered with a notice to that client only", async () =>
   onTurn.send("move", { x: 0, y: 0, axis: "base" });
   await until(() => rooms[0].state.turnCount === 1, 5000, "the first move");
   const next = rooms.find((r) => r.state.players[r.state.turnIndex]?.sessionId === r.sessionId);
-  next.send("buy", { id: rooms[0].state.market[0].id }); // the market opens after 5 moves
+  next.send("buy", { id: rooms[0].state.market[0].id }); // the market opens at the start of round 6
   await until(() => heard.get(next).length > 0, 5000, "the notice");
-  assert.match(heard.get(next)[0], /Night Market opens after 5 moves/);
+  assert.match(heard.get(next)[0], /Night Market opens at the start of round 6/);
   assert.ok(rooms.filter((r) => r !== next).every((r) => heard.get(r).length === 0));
 });
 

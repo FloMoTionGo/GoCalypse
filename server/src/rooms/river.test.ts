@@ -10,7 +10,7 @@ import { queueRestore } from "../state/persist";
 // The river crab and the river spirit in a room (see river.testkit.ts).
 
 test("river creatures: no roll until the Night Market is open for the whole table", () => {
-  const { room, clients } = startedRoom(); // the market opens after each seat's 5th move: turn 20 at 4 seats
+  const { room, clients } = startedRoom(); // the market opens at the start of round 6: turn 20 at 4 seats
   room.riverRandom = script(DIE(6), CRAB, SPOT(6));
   assert.equal(room.state.river.every, 5);
   turns(room, clients, 19);

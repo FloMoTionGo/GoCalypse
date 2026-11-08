@@ -450,7 +450,7 @@ export function chooseFree(view: BotView, style: Style, ranked: Candidate[]): Fr
  * spend later, and the wire fills with purchases nobody watched.
  */
 export function chooseBuy(view: BotView, style: Style): string | null {
-  if (view.moves < view.shopAfter) return null;
+  if (view.rounds < view.shopAfter) return null;
   if (view.powerups.filter((id) => !isHaikuCard(id)).length >= view.handLimit) return null; // haiku cards don't count
 
   const held = (id: string) => view.market.find((m) => m.id === id);
