@@ -1,6 +1,6 @@
-// The Lantern Card (tasks/2026-11-08_lantern_card/PLAN.md), in the renderer: the twelve
-// floating lanterns a player hunts, and the Lantern Festival the card plays: lanterns
-// rise from the water and float onto the dark border, on the two sides with no numbers.
+// The lantern hunt in the renderer: the twelve floating lanterns a player turns off, the
+// stone lantern that is the thirteenth, and the Lantern Festival that follows: in the dark,
+// lanterns rise from the water, float onto the border and light the board from there.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadWeb } from "../lib/paths.mjs";
@@ -43,18 +43,18 @@ test("lantern hunt: positions are judged on the frame's own ambient tick", () =>
   assert.deepEqual(scene.floatersAt(5.01), scene.floatersAt(5.09), "the same tick, the same picture");
 });
 
-test("lantern hunt: a click counts within 7 art px of a lantern and not beyond", () => {
+test("lantern hunt: a click counts within 11 art px of a lantern and not beyond", () => {
   const scene = P.createScene({ size: 19 });
   const t = 37;
-  for (const f of scene.floatersAt(t).filter((q) => q.x > 12 && q.y > 12 && q.x < scene.width - 12 && q.y < scene.height - 12)) {
+  for (const f of scene.floatersAt(t).filter((q) => q.x > 16 && q.y > 16 && q.x < scene.width - 16 && q.y < scene.height - 16)) {
     const others = allBut(f.i);
     assert.equal(scene.lanternAt(f.x, f.y, t, others), f.i, `#${f.i} at its middle`);
-    assert.equal(scene.lanternAt(f.x + 7, f.y - 7, t, others), f.i, `#${f.i} at the box's corner`);
-    assert.equal(scene.lanternAt(f.x + 8, f.y, t, others), null, `#${f.i} just outside the box`);
+    assert.equal(scene.lanternAt(f.x + 11, f.y - 11, t, others), f.i, `#${f.i} at the box's corner`);
+    assert.equal(scene.lanternAt(f.x + 12, f.y, t, others), null, `#${f.i} just outside the box`);
   }
 });
 
-test("lantern hunt: of two lanterns close together a click takes the nearest unlit one", () => {
+test("lantern hunt: of two lanterns close together a click takes the nearest one still on", () => {
   const scene = P.createScene({ size: 13 });
   let pair = null;
   for (let t = 0; t < 120 && !pair; t += 0.1) {
@@ -67,10 +67,10 @@ test("lantern hunt: of two lanterns close together a click takes the nearest unl
   assert.equal(scene.lanternAt(a.x, a.y, t, [a.i]), b.i, "then the one beside it");
 });
 
-test("lantern hunt: a lit lantern isn't found again, and open water finds nothing", () => {
+test("lantern hunt: a lantern already out isn't found again, and open water finds nothing", () => {
   const scene = P.createScene({ size: 19 });
   const f = scene.floatersAt(50).find((q) => onScreen(scene, q));
-  assert.equal(scene.lanternAt(f.x, f.y, 50, allBut(-1)), null, "all lit: nothing to find");
+  assert.equal(scene.lanternAt(f.x, f.y, 50, allBut(-1)), null, "all out: nothing to find");
   const L = scene.layout;
   assert.equal(scene.lanternAt(L.gridX + 8, L.gridY + 8, 50, []), null, "the board is no lantern");
 });
@@ -92,7 +92,7 @@ test("lantern hunt: no lantern's click box ever touches a playable point, at any
     for (let t = 0; t < 240; t += 0.25) {
       for (const f of scene.floatersAt(t)) {
         if (!onScreen(scene, f)) continue;
-        for (const [dx, dy] of [[-7, -7], [7, -7], [-7, 7], [7, 7], [0, 0]]) {
+        for (const [dx, dy] of [[-11, -11], [11, -11], [-11, 11], [11, 11], [0, 0]]) {
           assert.equal(scene.nativeToPoint(f.x + dx, f.y + dy), null, `${n}: #${f.i} at t=${t}`);
         }
       }
@@ -111,21 +111,51 @@ test("lantern hunt: with reduced motion the goal is the lanterns on screen, so i
   }
 });
 
-test("lantern hunt: a lit lantern changes the picture round it and stays in the palette", () => {
+test("lantern hunt: a lantern turned off goes dark for that player, and only round it, in the palette", () => {
   const n = 19, scene = P.createScene({ size: n }), t = 37;
   const f = scene.floatersAt(t).find((q) => q.x > 20 && q.y > 20 && q.x < scene.width - 20 && q.y < scene.height - 20);
   const base = { ...blank(n), time: t, ambientTime: t };
-  const off = draw(scene, base), on = draw(scene, { ...base, litLanterns: [f.i] });
-  let changed = 0, far = 0;
+  const on = draw(scene, base), off = draw(scene, { ...base, outLanterns: [f.i] });
+  let changed = 0, far = 0, shine = [0, 0];
   for (let y = 0; y < scene.height; y++) for (let x = 0; x < scene.width; x++) {
     const i = (y * scene.width + x) * 4;
+    shine[0] += on[i] + on[i + 1] + on[i + 2];
+    shine[1] += off[i] + off[i + 1] + off[i + 2];
     if (off[i] === on[i] && off[i + 1] === on[i + 1] && off[i + 2] === on[i + 2]) continue;
     changed++;
     if (Math.max(Math.abs(x - f.x), Math.abs(y - f.y)) > 18) far++;
   }
-  assert.ok(changed > 0, "lighting it shows");
+  assert.ok(changed > 0, "turning it off shows");
   assert.equal(far, 0, "and only round it");
-  assert.equal(offPalette(on), 0);
+  assert.ok(shine[1] < shine[0], "the scene is darker for it");
+  assert.equal(offPalette(off), 0);
+});
+
+test("stone lantern: a click on it is told from the board, and no playable point is on it, at any board size", () => {
+  for (const n of SIZES) {
+    const scene = P.createScene({ size: n }), b = scene.stoneLantern;
+    assert.equal(scene.stoneLanternAt(b.x + (b.w >> 1), b.y + (b.h >> 1)), true, `${n}: its middle`);
+    assert.equal(scene.stoneLanternAt(b.x - 1, b.y), false, `${n}: just left of it`);
+    assert.equal(scene.stoneLanternAt(b.x, b.y + b.h), false, `${n}: just under it`);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const p = scene.pointToNative(x, y);
+      assert.equal(scene.stoneLanternAt(p.x, p.y), false, `${n}: the point (${x}, ${y}) still plays`);
+    }
+  }
+});
+
+test("stone lantern: turned off it loses its light, and stays in the palette", () => {
+  const n = 13, scene = P.createScene({ size: n }), t = 37, b = scene.stoneLantern;
+  const base = { ...blank(n), time: t, ambientTime: t };
+  const on = draw(scene, base), off = draw(scene, { ...base, stoneLanternOut: true });
+  let shine = [0, 0];
+  for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) {
+    const i = (y * scene.width + x) * 4;
+    shine[0] += on[i] + on[i + 1] + on[i + 2];
+    shine[1] += off[i] + off[i + 1] + off[i + 2];
+  }
+  assert.ok(shine[1] < shine[0], "darker where it stands");
+  assert.equal(offPalette(off), 0);
 });
 
 test("lantern festival: it lasts 34 seconds", () => {
@@ -234,19 +264,12 @@ test("lantern festival: nothing shows before it starts or after it ends", () => 
   assert.ok(!sameBytes(draw(scene, during), draw(scene, { ...during, festival })), "while between those it does show");
 });
 
-test("lantern festival: at its height every lantern is on the border, and the kaya is untouched throughout", () => {
+test("lantern festival: at its height every lantern is on the border, in the palette throughout", () => {
   for (const n of SIZES) {
     const scene = P.createScene({ size: n }), W = scene.width, seed = 5, spots = scene.festivalLayout(seed);
     const festival = { seed, start: 0 };
     for (let time = 0; time <= P.FESTIVAL_SECONDS; time += 1.5) {
-      const base = { ...blank(n), time, ambientTime: time };
-      const off = draw(scene, base), on = draw(scene, { ...base, festival });
-      assert.equal(offPalette(on), 0, `${n}: t=${time} stays in the palette`);
-      for (let y = 0; y < scene.height; y++) for (let x = 0; x < W; x++) {
-        if (scene.regionAt(x, y) !== REGION_KAYA) continue;
-        const i = (y * W + x) * 4;
-        assert.ok(off[i] === on[i] && off[i + 1] === on[i + 1] && off[i + 2] === on[i + 2], `${n}: t=${time} kaya at ${x},${y}`);
-      }
+      assert.equal(offPalette(draw(scene, { ...blank(n), time, ambientTime: time, festival })), 0, `${n}: t=${time} stays in the palette`);
     }
     const time = 17, base = { ...blank(n), time, ambientTime: time };
     const off = draw(scene, base), on = draw(scene, { ...base, festival });
@@ -261,6 +284,48 @@ test("lantern festival: at its height every lantern is on the border, and the ka
   }
 });
 
+/** The mean brightness of the pixels `keep` accepts. */
+function shine(rgba, W, H, keep) {
+  let sum = 0, count = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!keep(x, y)) continue;
+    const i = (y * W + x) * 4;
+    sum += rgba[i] + rgba[i + 1] + rgba[i + 2];
+    count++;
+  }
+  return count ? sum / count : 0;
+}
+
+test("lantern festival: the scene goes dark for it, and comes back", () => {
+  const n = 13, scene = P.createScene({ size: n }), W = scene.width, H = scene.height;
+  const festival = { seed: 5, start: 0 }, water = (x, y) => scene.regionAt(x, y) === REGION_WATER;
+  const at = (time, f) => shine(draw(scene, { ...blank(n), time, ambientTime: time, ...(f ? { festival: f } : {}) }), W, H, water);
+  assert.ok(at(17, festival) < at(17) * 0.85, "the water is much darker at its height");
+  assert.ok(at(0.2, festival) > at(17, festival), "it fades in");
+  assert.ok(at(P.FESTIVAL_SECONDS - 0.2, festival) > at(17, festival), "and out");
+});
+
+test("lantern festival: the risen lanterns shine onto the board, beside them more than in the middle", () => {
+  const n = 13, scene = P.createScene({ size: n }), W = scene.width, H = scene.height, spots = scene.festivalLayout(5);
+  const base = { ...blank(n), time: 17, ambientTime: 17 };
+  const on = draw(scene, { ...base, festival: { seed: 5, start: 0 } }), off = draw(scene, base);
+  const kaya = (x, y) => scene.regionAt(x, y) === REGION_KAYA;
+  const near = (x, y) => spots.some((q) => Math.hypot(x - q.x, y - q.y) < 12);
+  const L = scene.layout, cx = L.gridX + L.gridSpan / 2, cy = L.gridY + L.gridSpan / 2;
+  const edgeOverMiddle = (rgba) => shine(rgba, W, H, (x, y) => kaya(x, y) && near(x, y)) - shine(rgba, W, H, (x, y) => kaya(x, y) && Math.hypot(x - cx, y - cy) < 24);
+  assert.ok(edgeOverMiddle(on) > edgeOverMiddle(off) + 15, `edge over middle: ${edgeOverMiddle(on)} in the festival, ${edgeOverMiddle(off)} without`);
+});
+
+test("lantern festival: a black stone and a white one can still be told apart in the dark", () => {
+  const n = 13, scene = P.createScene({ size: n }), W = scene.width, H = scene.height, c = (n - 1) >> 1;
+  const state = blank(n);
+  state.board[c * n + c - 1] = 1;
+  state.board[c * n + c + 1] = 2;
+  const on = draw(scene, { ...state, time: 17, ambientTime: 17, festival: { seed: 5, start: 0 } });
+  const round = (gx) => { const p = scene.pointToNative(gx, c); return (x, y) => Math.hypot(x - p.x, y - p.y) < 4; };
+  assert.ok(shine(on, W, H, round(c + 1)) > shine(on, W, H, round(c - 1)) + 150);
+});
+
 test("lantern festival: with reduced motion the lanterns simply sit on the border until it ends", () => {
   const n = 19, scene = P.createScene({ size: n });
   const festival = { seed: 3, start: 10 }, base = { ...blank(n), reducedMotion: true };
@@ -270,10 +335,8 @@ test("lantern festival: with reduced motion the lanterns simply sit on the borde
   assert.ok(sameBytes(draw(scene, { ...base, time: 45, festival }), draw(scene, { ...base, time: 45 })), "and then gone");
 });
 
-test("lantern card: its face is a card-sized sprite of its own, and the market can't sell it", () => {
-  const card = G.lanternCard();
-  assert.equal(card.w, G.CARD_W);
-  assert.equal(card.h, G.CARD_H);
-  assert.ok(!G.POWERUP_ICON_IDS.includes("lantern_card"), "it isn't an item");
-  assert.equal(G.lanternCard(), card, "drawn once");
+test("lantern festival: there is no Lantern Card any more, in the sprites or the market", () => {
+  assert.equal(G.lanternCard, undefined);
+  assert.equal(G.SPRITES.lanternCardIcon, undefined);
+  assert.ok(!G.POWERUP_ICON_IDS.includes("lantern_card"));
 });

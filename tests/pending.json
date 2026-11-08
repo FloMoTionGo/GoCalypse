@@ -1,4 +1,101 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "lantern hunt: a click counts within 11 art px of a lantern and not beyond",
+      "feature": "lantern-hunt",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: a lantern turned off goes dark for that player, and only round it, in the palette",
+      "feature": "lantern-hunt",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "stone lantern: a click on it is told from the board, and no playable point is on it, at any board size",
+      "feature": "lantern-hunt",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "stone lantern: turned off it loses its light, and stays in the palette",
+      "feature": "lantern-hunt",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern festival: the scene goes dark for it, and comes back",
+      "feature": "lantern-hunt",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern festival: the risen lanterns shine onto the board, beside them more than in the middle",
+      "feature": "lantern-hunt",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern festival: there is no Lantern Card any more, in the sprites or the market",
+      "feature": "lantern-hunt",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: a click on a floating lantern turns it off, and tells the server nothing",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: clicking a lantern already out changes nothing",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: a lantern clicked while looking back counts, with no recall warning",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: the stone lantern does nothing before the twelfth is out",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: with all twelve out the page says only the stone lantern burns, and nothing was sent or changed",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: turning off the stone lantern sends one message, and the festival starts when the server answers",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: while the festival runs the scene is drawn with it on every frame",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: the lanterns stay out after a reload, kept per seat and room, and it can't be done twice",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lantern hunt: another player's festival plays here too, with a notice naming them",
+      "feature": "lantern-hunt",
+      "tier": "gui",
+      "since": "2026-11-08"
+    }
+  ]
 }
