@@ -109,6 +109,25 @@ test("stage: the sidebar runs down beside the hand, and the market shows every s
   await wait(300);
 });
 
+test("stage: with no sidebar the hand stays on the stage, and the market shows every stall without scrolling", async () => {
+  for (const [w, h] of [[1400, 1000], [1920, 950]]) {
+    await b.cdp("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: false });
+    await wait(400);
+    const m = await b.ev(`(() => {
+      const g = gameEl.getBoundingClientRect(), hand = handEl.getBoundingClientRect(), mk = document.getElementById("market");
+      return { sidebar: !!document.getElementById("sidebar"), gameBottom: g.bottom, gameRight: g.right, handBottom: hand.bottom, handRight: hand.right,
+        scroll: mk.scrollHeight - mk.clientHeight, stalls: marketItemsEl.querySelectorAll("button.item").length };
+    })()`);
+    assert.equal(m.sidebar, false, `${w}x${h}: no sidebar`);
+    assert.ok(m.handBottom <= m.gameBottom + 0.5, `${w}x${h}: the hand stays on the stage, down`);
+    assert.ok(m.handRight <= m.gameRight + 0.5, `${w}x${h}: and across`);
+    assert.ok(m.scroll <= 1, `${w}x${h}: the market needs no scrolling (${m.scroll} px over)`);
+    assert.equal(m.stalls, 7);
+  }
+  await b.cdp("Emulation.clearDeviceMetricsOverride", {});
+  await wait(300);
+});
+
 test("stage: a full hand stays under the deck, its cards overlapping when they don't fit", async () => {
   // Buy from whichever stall is open until the hand is full (the Kata counts toward the limit).
   for (let tries = 0; tries < 20 && (await b.ev("handEl.querySelectorAll('.card').length < lastState.handLimit")); tries++) {

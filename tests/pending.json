@@ -1,4 +1,167 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "stone lantern: its shine lies over a stone and over the hover stone on the corner point",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "How to play: the forecast's picture is a stretch of garland, the lanterns gone on the left and those to come on the right",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "How to play: the forecast is the sky over the river and the garland counts the turns, with no sidebar and no dial",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky stage: no sidebar, and the sky row replaces the header row and its gap, so the stage is the scene's width and no taller",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky band: the scene's width by 21 rows, in the five colours, for every sky in both frames",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky band: no cloud reaches the header's planks, the turn or the forecast's words, on any board size, even drifting",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky band: the worse the odds the more clouds, and the moon is gone behind them",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky band: in rain coming and thunder brewing the clouds hold still while the rain and the flash move",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky band: the calmer skies keep their slow drift",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "garland: one lantern a turn between rolls, spread over the scene's width, on every board size",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "garland: only the lanterns for the turns left are lit, going out from the left",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "garland: the next lantern to go blinks, quicker on the last turn, and holds still with reduced motion",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "garland: with no forecast every lantern of the plain garland stays lit",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "stone lantern: it stands on the frame beside the board's bottom right corner at its own size, over the edge of the corner stone, its light with it",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "stone lantern: the bottom left corner no longer has one",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "stone lantern: a stone and the hover stone on the corner point go behind it and still show round it",
+      "feature": "sky-garland",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky: nothing is left of the sidebar, and the sky row sits right on the scene, as wide as the stage",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky: the header's planks are real buttons over the sky, in the row above the hills",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "storm: the forecast is the sky behind the header and the garland, its numbers only in the title",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "storm: the forecast's words sit between the turn and the actions, overlapping neither",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "garland: the scene is told the turns to the next roll, and the debug room's roll has a lantern a turn",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "sky: the canvas draws the band of the forecast's sky",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "stone lantern: a real hover on the corner point puts the hover stone behind it, and a real click still plays there",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "market: no sidebar is left, and the stalls are seven real buttons over the water right of the deck",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "landing: the players sit on four islands left of the board, one a seat in turn order, with no sidebar left",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "landing: a seat's captures tip opens beside its island, over the water, not over the island, and stays on the stage",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "stage: with no sidebar the hand stays on the stage, and the market shows every stall without scrolling",
+      "feature": "sky-garland",
+      "tier": "gui",
+      "since": "2026-11-08"
+    }
+  ]
 }

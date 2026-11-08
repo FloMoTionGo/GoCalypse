@@ -82,6 +82,23 @@ test("landing: the players sit on four islands left of the board, one a seat in 
   assert.ok(m.rows.every((r) => r.kata), "every seat's Kata shows");
 });
 
+test("landing: the players sit on four islands left of the board, one a seat in turn order, with no sidebar left", async () => {
+  const m = await b.ev(LANDING);
+  assert.equal(await b.ev(`!!document.getElementById("sidebar")`), false, "no sidebar");
+  assert.equal(m.rows.length, 4);
+  m.rows.forEach((r, i) => {
+    near(r.row.l, m.islands[i].l, `row ${i} on island ${i}, across`);
+    near(r.row.t, m.islands[i].t, `row ${i} on island ${i}, down`);
+    near(r.row.w, 122 * m.px, `row ${i} as wide as the island's top`);
+    near(r.row.h, 38 * m.px, `row ${i} as tall as it`);
+    assert.ok(r.row.r <= m.board.l + m.landingW * m.px + 0.5, `row ${i} stays on the landing, off the deck`);
+  });
+  assert.deepEqual(m.rows.filter((r) => r.you).map((r) => r.name), [LONG_NAME], "the ember on my island only");
+  assert.equal(m.rows.filter((r) => r.bot === "(B)").length, 3, "three bots");
+  assert.equal(m.ff, 0, "no fireflies on the islands either");
+  assert.ok(m.rows.every((r) => r.kata), "every seat's Kata shows");
+});
+
 test("landing: each island's grid runs edge to edge, the digit and both stones on its crossings, the captures and the Kata on its lines", async () => {
   const m = await b.ev(LANDING);
   m.rows.forEach((r, i) => {
@@ -184,6 +201,23 @@ test("landing: a seat's captures tip opens beside its island, over the water, no
   })()`);
   assert.ok(m.left >= m.rowR - 0.5, `right of the island: ${m.left} vs ${m.rowR}`);
   assert.ok(m.right <= m.sideL + 0.5, "not over the sidebar");
+  assert.ok(m.top <= m.countCy && m.bottom >= m.countCy, "level with the count");
+});
+
+test("landing: a seat's captures tip opens beside its island, over the water, not over the island, and stays on the stage", async () => {
+  const m = await b.ev(`(() => {
+    const row = Array.from(playersEl.querySelectorAll(".player-row")).find((r) => r.querySelector("img.you"));
+    const count = row.querySelector(".count");
+    count.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }));
+    const tip = document.querySelector(".capture-tip"), t = tip.getBoundingClientRect(), r = row.getBoundingClientRect(), c = count.getBoundingClientRect();
+    const out = { left: t.left, right: t.right, top: t.top, bottom: t.bottom, rowR: r.right, countCy: (c.top + c.bottom) / 2,
+      stageR: gameEl.getBoundingClientRect().right, sidebar: !!document.getElementById("sidebar") };
+    count.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" }));
+    return out;
+  })()`);
+  assert.ok(m.left >= m.rowR - 0.5, `right of the island: ${m.left} vs ${m.rowR}`);
+  assert.equal(m.sidebar, false, "no sidebar");
+  assert.ok(m.right <= m.stageR + 0.5, "on the stage");
   assert.ok(m.top <= m.countCy && m.bottom >= m.countCy, "level with the count");
 });
 

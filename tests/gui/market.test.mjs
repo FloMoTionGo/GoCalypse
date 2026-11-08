@@ -70,6 +70,20 @@ test("market: the sidebar holds only the weather, and the stalls are seven real 
   }
 });
 
+test("market: no sidebar is left, and the stalls are seven real buttons over the water right of the deck", async () => {
+  assert.equal(await b.ev(`!!document.getElementById("sidebar")`), false, "no sidebar");
+  const boats = await b.ev(BOATS);
+  assert.equal(boats.length, 7);
+  for (const s of boats) {
+    assert.ok(s.l >= s.zoneL - 2 * s.px - 0.5 && s.r <= s.zoneR + 2 * s.px + 0.5, `${s.id}: over the market's water`);
+    near(s.l, s.wantL, `${s.id}: where the scene put it, across`);
+    near(s.t, s.wantT, `${s.id}: down`);
+    near(s.r - s.l, s.wantW, `${s.id}: as wide`);
+    near(s.b - s.t, s.wantH, `${s.id}: as tall`);
+    assert.equal(s.on, true, `${s.id}: nothing covers its middle`);
+  }
+});
+
 test("market: each boat's button is named for a screen reader with the item and what it costs", async () => {
   for (const s of await b.ev(BOATS)) assert.equal(s.label, `${s.name}, ${s.price} fireflies`, s.id);
 });
