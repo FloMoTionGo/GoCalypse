@@ -43,3 +43,23 @@ test("haiku: the card highlights only the lines I collected of its haiku", async
   assert.equal(await b.ev(`${card}.querySelectorAll(".haiku-line").length`), 3, "all three lines on the card");
   assert.deepEqual(await b.ev(`Array.from(${card}.querySelectorAll(".haiku-line.got")).map((el) => Number(el.dataset.line))`), [point.line]);
 });
+
+test("haiku: every power fits its card under the poem", async () => {
+  const sizes = await b.ev(`(() => {
+    const out = [];
+    for (const h of HAIKU) h.powers.forEach((power, i) => {
+      const card = document.createElement("div");
+      card.className = "card haiku-card";
+      const text = document.createElement("span");
+      text.className = "card-text";
+      text.textContent = h.lines.join(" / ") + " -- " + power;
+      card.append(text);
+      handEl.append(card);
+      out.push({ id: h.id, level: i + 1, need: text.scrollHeight, has: text.clientHeight });
+      card.remove();
+    });
+    return out;
+  })()`);
+  assert.equal(sizes.length, 9);
+  for (const s of sizes) assert.ok(s.need <= s.has + 1, `${s.id} level ${s.level}: needs ${s.need}, has ${s.has}`);
+});
