@@ -309,9 +309,10 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 #welcome::backdrop, #result::backdrop, #event-log::backdrop, #leave-dialog::backdrop { background: rgba(31, 26, 36, 0.75); }
 #leave-dialog { width: min(calc(170 * var(--px)), 92vw); }
+#welcome { width: min(calc(332 * var(--px)), 94vw); }
 .leave-actions { display: flex; justify-content: flex-end; gap: calc(5 * var(--px)); margin-top: calc(6 * var(--px)); }
 /* Keys in How to play: a small framed cap per key. */
-.welcome-keys { margin: calc(2 * var(--px)) 0; padding-left: calc(8 * var(--px)); }
+.welcome-keys { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(2.5 * var(--px)); color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 .welcome-body kbd { font: inherit; font-weight: 700; color: var(--cream); padding: 0 calc(1.5 * var(--px)); border: var(--px) solid var(--slate); border-radius: var(--px); }
 
 /* The event log (main.js renderEventLog): the last ten event lines, the newest lit, each with its round. */
@@ -384,11 +385,11 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .welcome-body { padding: calc(8 * var(--px)) calc(10 * var(--px)) calc(7 * var(--px)); max-height: calc(88vh - 2 * var(--px)); overflow-y: auto; font-size: max(var(--min-font), calc(6.3 * var(--px))); line-height: 1.4; }
 .welcome-body h2 { margin: 0 calc(14 * var(--px)) var(--px) 0; color: var(--amber); font-size: max(var(--min-font), calc(9 * var(--px))); }
 .welcome-body h3 { margin: calc(7 * var(--px)) 0 calc(3 * var(--px)); font-size: max(var(--min-font), calc(5.85 * var(--px))); color: var(--amber); }
-/* The welcome screen's reference sections: folded under a heading that reads like the h3s above. */
-.welcome-more { margin: calc(4 * var(--px)) 0 0; border-top: var(--px) solid var(--teal); padding-top: calc(4 * var(--px)); }
-.welcome-more > summary { cursor: pointer; font-size: max(var(--min-font), calc(5.85 * var(--px))); font-weight: 700; color: var(--amber); }
-.welcome-more > summary:hover, .welcome-more > summary:focus-visible { color: var(--cream); }
-.welcome-more[open] > summary { margin-bottom: calc(3 * var(--px)); }
+/* The welcome screen's chapters: each summary is a tab in a 3x3 grid (--c, --r), reading like the h3s above. */
+.welcome-more > summary { position: absolute; top: calc(var(--r) * (var(--tab-h) + var(--tab-gap))); left: calc(var(--c) * (100% + var(--tab-gap)) / 3); width: calc((100% - 2 * var(--tab-gap)) / 3); height: var(--tab-h); display: flex; align-items: center; gap: calc(3 * var(--px)); padding: 0 calc(3 * var(--px)) 0 var(--px); border: var(--px) solid var(--teal); border-radius: calc(2 * var(--px)); list-style: none; line-height: 1.1; cursor: pointer; font-size: max(var(--min-font), calc(5.85 * var(--px))); font-weight: 700; color: var(--amber); }
+.welcome-more > summary::-webkit-details-marker { display: none; }
+.welcome-more > summary:hover, .welcome-more > summary:focus-visible { color: var(--cream); border-color: var(--amber); }
+.welcome-more[open] > summary { color: var(--cream); background: var(--teal); border-color: var(--amber); }
 .welcome-body p { margin: calc(3 * var(--px)) 0; }
 .welcome-tagline { color: var(--muted); margin-top: 0; }
 .welcome-x {
@@ -406,8 +407,10 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   line-height: calc(9 * var(--px));
 }
 .welcome-x:hover:not(:disabled) { background: var(--ink); border-color: var(--amber); color: var(--amber); }
-.welcome-fronts { list-style: none; margin: calc(3 * var(--px)) 0; padding: 0; display: flex; flex-direction: column; gap: calc(3 * var(--px)); }
-.welcome-fronts li { display: flex; align-items: center; gap: calc(4 * var(--px)); }
+.welcome-fronts { list-style: none; margin: 0; padding: 0; flex-direction: column; align-items: stretch; gap: calc(4 * var(--px)); width: 100%; }
+.welcome-fronts li { display: flex; align-items: center; gap: calc(3 * var(--px)); text-align: left; line-height: 1.2; color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
+.welcome-fronts li b { color: var(--cream); }
+.welcome-fronts li > span { line-height: 1.2; }
 .stone-chip { display: inline-flex; background: var(--amber); padding: var(--px); border-radius: var(--px); flex-shrink: 0; vertical-align: middle; }
 #welcome-powerups { display: flex; flex-direction: column; gap: calc(3 * var(--px)); }
 .welcome-item { display: flex; align-items: flex-start; gap: calc(4 * var(--px)); }
@@ -453,6 +456,64 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .result-row .side-breakdown { font-size: max(var(--min-font), calc(4.5 * var(--px))); color: var(--muted); }
 .result-row .final { text-align: right; font-size: max(var(--min-font), calc(8.1 * var(--px))); font-weight: 700; color: var(--amber); }
 .welcome-footer { margin-top: calc(7 * var(--px)) !important; color: var(--muted); font-size: max(var(--min-font), calc(5.4 * var(--px))); text-align: center; }
+/* How to play (index.html #welcome): the strip over the title, three illustrated steps, nine chapter tabs. */
+.welcome-hero { position: relative; margin: calc(-8 * var(--px)) calc(-10 * var(--px)) calc(2 * var(--px)); padding: calc(8 * var(--px)) calc(10 * var(--px)) calc(5 * var(--px)); min-height: calc(38 * var(--px)); overflow: hidden; }
+.welcome-hero-art { position: absolute; right: 0; top: 0; line-height: 0; }
+.welcome-hero h2, .welcome-hero p { position: relative; }
+
+/* A flipbook (helpArt.js): its frames side by side on one image, stepped through in whole frames. */
+.flip {
+  display: inline-block;
+  width: calc(var(--w) * var(--px));
+  height: calc(var(--h) * var(--px));
+  background-size: calc(var(--w) * var(--n) * var(--px)) calc(var(--h) * var(--px));
+  background-repeat: no-repeat;
+  animation: flip 1s steps(var(--n)) infinite;
+}
+@keyframes flip { to { background-position-x: calc(var(--w) * var(--n) * var(--px) * -1); } }
+
+.howto-steps { list-style: none; margin: calc(4 * var(--px)) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(5 * var(--px)); }
+.howto-step { display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--px)); padding: calc(6 * var(--px)) calc(5 * var(--px)); text-align: center; border: var(--px) solid var(--teal); border-radius: calc(2 * var(--px)); }
+.howto-art { min-height: calc(52 * var(--px)); display: flex; align-items: center; justify-content: center; line-height: 0; }
+.howto-step .welcome-fronts { align-items: stretch; justify-content: center; }
+.howto-step > b { color: var(--amber); }
+.welcome-body .howto-step > p { margin: 0; color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
+
+/* The tabs are the summaries of the <details> below them, placed by position; a closed chapter has no height,
+   an open one's panel flows under the tabs. */
+.welcome-chapters { --tab-h: calc(19 * var(--px)); --tab-gap: calc(2 * var(--px)); position: relative; margin-top: calc(6 * var(--px)); padding-top: calc(3 * var(--tab-h) + 2 * var(--tab-gap)); }
+.welcome-more:nth-of-type(3n + 1) > summary { --c: 0; }
+.welcome-more:nth-of-type(3n + 2) > summary { --c: 1; }
+.welcome-more:nth-of-type(3n) > summary { --c: 2; }
+.welcome-more:nth-of-type(-n + 3) > summary { --r: 0; }
+.welcome-more:nth-of-type(n + 4):nth-of-type(-n + 6) > summary { --r: 1; }
+.welcome-more:nth-of-type(n + 7) > summary { --r: 2; }
+.tab-art { flex: 0 0 calc(17 * var(--px)); display: flex; align-items: center; justify-content: center; line-height: 0; }
+
+.chapter { margin-top: calc(4 * var(--px)); padding: calc(6 * var(--px)); border: var(--px) solid var(--amber); border-radius: calc(2 * var(--px)); animation: chapter-in 0.16s ease-out; }
+@keyframes chapter-in { from { opacity: 0; transform: translateY(calc(2 * var(--px))); } }
+
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(8 * var(--px)) calc(8 * var(--px)); }
+.fact { display: grid; grid-template-columns: calc(44 * var(--px)) minmax(0, 1fr); gap: calc(5 * var(--px)); align-items: start; }
+.fact-art { display: flex; justify-content: center; line-height: 0; }
+.fact b { display: block; margin-bottom: calc(1.5 * var(--px)); }
+.welcome-body .fact p { margin: 0; color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
+
+.keys-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(7 * var(--px)); margin-top: calc(8 * var(--px)); padding-top: calc(7 * var(--px)); border-top: var(--px) solid var(--teal); }
+.keys-title { display: block; margin-bottom: calc(2 * var(--px)); color: var(--amber); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
+.welcome-body .keys-note { margin: calc(7 * var(--px)) 0 0; color: var(--muted); font-size: max(var(--min-font), calc(5.4 * var(--px))); }
+
+.sky-strip { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--px); margin-bottom: calc(8 * var(--px)); }
+.sky-strip figure { margin: 0; width: calc(48 * var(--px)); text-align: center; line-height: 0; }
+.sky-strip figcaption { margin-top: calc(2 * var(--px)); color: var(--muted); font-size: max(var(--min-font), calc(5.4 * var(--px))); line-height: 1.2; }
+
+.item-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(7 * var(--px)) calc(8 * var(--px)); }
+.item-wall { display: flex; flex-wrap: wrap; gap: calc(4 * var(--px)); margin-top: calc(5 * var(--px)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .flip { animation: none; background-position-x: calc(var(--still) * var(--w) * var(--px) * -1); }
+  .chapter { animation: none; }
+}
 
 /* Two small board diagrams under the score table: which points settled as whose
    territory, one front at a time. A full-size square is a stone; a small dot is
@@ -758,10 +819,10 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .turn-icon { vertical-align: middle; flex-shrink: 0; }
 .item .turn-icon { position: absolute; left: calc(-1 * var(--px)); top: calc(-1 * var(--px)); }
 /* The welcome dialog's haiku: each one's kanji, its three lines, and its power ladder. */
-.welcome-haiku { list-style: none; margin: calc(3 * var(--px)) 0 0; padding: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
-.welcome-haiku li { display: flex; gap: calc(4 * var(--px)); align-items: flex-start; }
+.welcome-haiku { list-style: none; margin: calc(8 * var(--px)) 0 0; padding: calc(7 * var(--px)) 0 0; border-top: var(--px) solid var(--teal); display: flex; flex-direction: column; gap: calc(6 * var(--px)); }
+.welcome-haiku > li { display: flex; gap: calc(6 * var(--px)); align-items: flex-start; }
 .welcome-haiku .poem { font-style: italic; color: var(--cream); }
-.welcome-haiku .ladder { color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
+.welcome-haiku .ladder { margin: calc(2 * var(--px)) 0 0; padding-left: calc(8 * var(--px)); color: var(--muted); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 #welcome-turn-legend { display: flex; align-items: center; gap: calc(4 * var(--px)); margin: 0 0 calc(4 * var(--px)); color: var(--cream); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 .item .desc {
   color: var(--muted);

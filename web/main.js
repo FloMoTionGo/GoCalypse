@@ -1591,20 +1591,91 @@ const WELCOME_DEFAULTS = { shopAfter: 5, handLimit: 5, stormEvery: 20, riverEver
 // The stall that is there every night, beside the drawn ones (alwaysStocked in server/src/powerups/definitions.ts).
 const BAIT = "bait";
 
+/** A picture of How to play (helpArt.js) as an element: an <img>, or a .flip that steps through a flipbook's sheet. */
+function helpPicture(name) {
+  const pic = HelpArt.PICTURES[name]();
+  if (!pic.sheet) return spriteImg(`help_${name}`, pic, 2);
+  const el = document.createElement("span");
+  el.className = "flip px";
+  el.style.backgroundImage = `url("${spriteUrl(`help_${name}`, pic.sheet)}")`;
+  el.style.setProperty("--w", pic.w);
+  el.style.setProperty("--h", pic.h);
+  el.style.setProperty("--n", pic.frames);
+  el.style.setProperty("--still", pic.still);
+  el.style.animationDuration = `${pic.ms * pic.frames}ms`;
+  return el;
+}
+
+let helpArtFilled = false;
+
+/** Draws the pictures the markup names, the first time How to play opens. */
+function fillHelpArt() {
+  if (helpArtFilled) return;
+  helpArtFilled = true;
+  for (const el of welcomeEl.querySelectorAll("[data-art]")) el.append(helpPicture(el.dataset.art));
+  for (const fold of welcomeEl.querySelectorAll(".welcome-more")) {
+    const icon = document.createElement("span");
+    icon.className = "tab-art";
+    icon.append(helpPicture(fold.dataset.tab));
+    fold.querySelector("summary").prepend(icon);
+    fold.addEventListener("toggle", () => {
+      if (fold.open) fold.querySelector(".chapter").scrollIntoView({ block: "nearest" });
+    });
+  }
+}
+
+const WELCOME_ART_W = 332; // art px across the dialog: #welcome in style.css
+
+/**
+ * The home screen runs at a small art pixel (its scene is wide), which would leave How to play
+ * tiny on a big window: the dialog then takes the size it would have at a table, whole device
+ * pixels as ever, as far as the window has room.
+ */
+function sizeWelcome() {
+  const dpr = window.devicePixelRatio || 1;
+  const here = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--px")) || 2) * dpr;
+  const fits = Math.floor((0.94 * window.innerWidth * dpr) / WELCOME_ART_W);
+  const k = Math.max(here, Math.min(2, fits));
+  if (k > here) welcomeEl.style.setProperty("--px", `${k / dpr}px`);
+  else welcomeEl.style.removeProperty("--px");
+}
+
+/** A chapter's rows, each [picture, title, a sentence or two]. */
+function renderFacts(el, rows) {
+  el.replaceChildren(
+    ...rows.map(([art, title, words]) => {
+      const row = document.createElement("div");
+      row.className = "fact";
+      const pic = document.createElement("span");
+      pic.className = "fact-art";
+      pic.append(helpPicture(art));
+      const body = document.createElement("div");
+      const name = document.createElement("b");
+      name.textContent = title;
+      const line = document.createElement("p");
+      line.textContent = words;
+      body.append(name, line);
+      row.append(pic, body);
+      return row;
+    })
+  );
+}
+
 /**
  * The welcome screen: how to play, the bots menu while the room waits, and tonight's
  * market. `state` is null on the home screen: then it tells the general rules
  * (no seat, no market yet) and closes back to the home screen.
  */
 function openWelcome(state) {
+  fillHelpArt();
+  sizeWelcome();
   const seated = !!state && !!myPlayer;
   const color = seated ? myPlayer.color : 1;
   const [base, pattern] = LOOK_NAMES[color] || LOOK_NAMES[1];
 
   document.getElementById("welcome-you").textContent = seated
-    ? `You play ${base} with ${pattern}. Every move, you choose which of the two your stone fights with:`
-    : `Each player gets one solid stone (black or white) and one of the other front (gray or transparent), ` +
-      `for example black with gray. Every move, you choose which of the two your stone fights with:`;
+    ? `You play ${base} with ${pattern}.`
+    : "One solid stone, one patterned, for example black with gray.";
   document.getElementById("welcome-base-icon").replaceChildren(stoneChip(color));
   document.getElementById("welcome-pattern-icon").replaceChildren(stoneChip(color + 4));
 
@@ -1618,36 +1689,39 @@ function openWelcome(state) {
   const stormEvery = state ? state.storm.every : WELCOME_DEFAULTS.stormEvery;
   const riverEvery = state && state.river ? state.river.every : WELCOME_DEFAULTS.riverEvery;
   const [cozy, tactical, powerful] = perTier.map((list) => list.find((m) => m.stock > 0));
-  const stockText =
+  const stockRow =
     cozy && tactical && powerful
-      ? `The whole table shares the stock: ${cozy.stock} copies of each cozy item, ${tactical.stock} of each tactical ` +
-        `one and ${powerful.stock === 1 ? "a single" : powerful.stock} powerful one, and nobody may buy more than ` +
-        `their share (${cozy.share}, ${tactical.share} and ${powerful.share}). A sold-out stall stays empty for the night. `
-      : "";
-  document.getElementById("welcome-economy").textContent =
-    `You earn fireflies: 3 for every stone you place and 5 for every stone you capture. ` +
-    `If the storm burns one of your stones or a river creature takes it, you get 3 back. ` +
-    `Once you've placed ${shopAfter} stones, the Night Market opens on the water right of the board. It has ` +
-    `${tierCounts[0] + tierCounts[1] + tierCounts[2]} stalls a night: ${tierCounts[0]} cozy, ${tierCounts[1]} tactical ` +
-    `and ${tierCounts[2]} powerful, drawn for the night, and the Bait's stall, there every night. ` +
-    stockText +
-    `Your hand holds ${handLimit} cards under the board: every item you buy flies into it as a card. ` +
-    `Buying doesn't use your turn; using an item does: pick its card, then click a point on the board (right click cancels). ` +
-    `One place is taken from the start by your ${KATA_NAME} (${KATA_KANJI}, a set form), an empty 3x3 board: build a ` +
-    `shape on it, then play it once per game as one move that places all its stones at once, so nobody can answer in ` +
-    `between. The first stone is free, the next costs 100 fireflies and each one after it 25 more, up to nine. Click a ` +
-    `point on it for your solid stone, right click for your pattern one; a stone's own button takes it off (no refund), ` +
-    `the other switches it. Building costs no turn, even while others move; playing it does: the point you click takes ` +
-    `its centre. Everyone can see everyone's ${KATA_NAME}.`;
+      ? [["stock", "Shared stock",
+          `${cozy.stock} copies of each cozy item, ${tactical.stock} of each tactical, ` +
+          `${powerful.stock === 1 ? "a single" : powerful.stock} powerful. Nobody may buy more than their share ` +
+          `(${cozy.share}, ${tactical.share} and ${powerful.share}). A sold-out stall stays empty for the night.`]]
+      : [];
+  renderFacts(document.getElementById("welcome-economy"), [
+    ["earnStone", "Place a stone", "Earns 3 fireflies."],
+    ["earnCapture", "Capture a stone", "Earns 5 fireflies."],
+    ["earnBack", "Lost to storm or river", "If the storm burns one of your stones or a river creature takes it, you get 3 back."],
+    ["stall", "The market opens", `Once you've placed ${shopAfter} stones, the Night Market opens on the water right of the board.`],
+    ["tiers", `${tierCounts[0] + tierCounts[1] + tierCounts[2]} stalls a night`,
+      `${tierCounts[0]} cozy, ${tierCounts[1]} tactical and ${tierCounts[2]} powerful, drawn for the night, and the Bait's stall, there every night.`],
+    ...stockRow,
+    ["hand", "Your hand", `Holds ${handLimit} cards under the board. Every item you buy flies into it as a card.`],
+    ["useItem", "Using an item", "Buying doesn't use your turn; using an item does. Pick its card, then click a point on the board. Right click cancels."],
+  ]);
 
-  // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
-  document.getElementById("welcome-haiku").textContent =
-    `The lines of three haiku lie on quiet points of the board, each marked with its kanji and its line's dots. ` +
-    `Put a stone on one, by a move or anything that lands a stone, and the line is yours for good, even if the ` +
-    `stone is taken later. Your first line of a haiku brings its card; each further line raises its power, and the ` +
-    `whole haiku is level 3. Play the card once, at the level it has reached: early, or wait for more lines. ` +
-    `A line found after you played its card is worth ${HAIKU_LATE_FIREFLIES} fireflies. Haiku cards don't count toward your 5. ` +
-    `Finished games stay on the server with the names at the table, the newest 500, for the Replays on the home screen.`;
+  renderFacts(document.getElementById("welcome-kata"), [
+    ["kataEmpty", `Your ${KATA_NAME} (${KATA_KANJI}, a set form)`, "An empty 3x3 board that takes one place in your hand from the start. Everyone can see everyone's."],
+    ["kataPrices", "Building it", "The first stone is free, the next costs 100 fireflies and each one after it 25 more, up to nine. Building costs no turn, even while others move."],
+    ["kataClicks", "Stones on it", "Click a point for your solid stone, right click for your pattern one. A stone's own button takes it off (no refund), the other switches it."],
+    ["kataPlay", "Playing it", "Once per game, as your move: all its stones land at once, so nobody can answer in between. The point you click takes its centre."],
+  ]);
+
+  renderFacts(document.getElementById("welcome-haiku"), [
+    ["haikuFind", "Find the lines", "The lines of three haiku lie on quiet points of the board, each marked with its kanji and its line's dots."],
+    ["haikuClaim", "Claim one", "Put a stone on one, by a move or anything that lands a stone, and the line is yours for good, even if the stone is taken later."],
+    ["haikuLevels", "Raise it", "Your first line of a haiku brings its card. Each further line raises its power, and the whole haiku is level 3."],
+    ["haikuCard", "Play it", "Play the card once, at the level it has reached: early, or wait for more lines."],
+    ["jar", "Late lines", `A line found after you played its card is worth ${HAIKU_LATE_FIREFLIES} fireflies. Haiku cards don't count toward your ${handLimit}.`],
+  ]);
   rebuild(document.getElementById("welcome-haiku-list"), "haiku", () => {
     for (const h of HAIKU) {
       const li = document.createElement("li");
@@ -1656,49 +1730,62 @@ function openWelcome(state) {
       const poem = document.createElement("div");
       poem.className = "poem";
       poem.textContent = `${h.kanji} ${h.lines.join(" / ")}`;
-      const ladder = document.createElement("div");
+      const ladder = document.createElement("ol");
       ladder.className = "ladder";
-      ladder.textContent = h.powers.map((p, i) => `${i + 1}: ${p}`).join(" ");
+      for (const power of h.powers) {
+        const step = document.createElement("li");
+        step.textContent = power;
+        ladder.append(step);
+      }
       body.append(poem, ladder);
       li.append(body);
       document.getElementById("welcome-haiku-list").appendChild(li);
     }
   });
 
-  document.getElementById("welcome-weather").textContent =
-    `Every ${stormEvery} turns a D20 is rolled behind the clouds, plus 1 for every calm roll since the last ` +
-    `storm. At 20 or more a thunderstorm breaks: the night darkens, rain sweeps the board for ten seconds and up to ` +
-    `three bolts come down on random points (six on a 19×19 board, eleven on 25×25). Whatever stands there catches fire and burns away three rounds later, ` +
-    `and nobody can play on a burning point until the fire goes out. A fainter storm hangs over the river for all ` +
-    `three rounds, and for those rounds every stone turns the same grey: the rules still know whose is whose, so remember. The forecast in the sidebar shows how good the next roll's ` +
-    `chance is as a sky, from clear through wisps, clouding over, overcast and rain coming to thunder brewing: it starts at 5% and ` +
-    `grows 5% with every calm roll. Its dial has a dot for every turn between two rolls and burns down to the next one. ` +
-    // Mirrors RIVER_RISES_FROM / RIVER_CRAB_SHARE / RIVER_ROUNDS in server/src/rules/river.ts.
-    `Once the Night Market is open for everyone, a D6 is rolled for the river every ${riverEvery} turns. On a 5 or 6 ` +
-    `a creature climbs out of the water onto the edge of the board, facing one of the edge points: usually the river ` +
-    `crab, sometimes the river spirit, and never two of a kind at once. The point it faces and its two neighbours ` +
-    `along the edge are ringed, and a timer over its head counts down 3 rounds. When it runs out, the crab pinches one ` +
-    `stone standing on those points, picked at random, and the river spirit steals every one; then it goes back into ` +
-    `the water. Their owners get 3 fireflies back for each. A ward or a fog keeps a stone safe, and a mist hides one. ` +
-    `Or lure it away with a Bait, on sale every night: click an edge point, and the creature nearer to it along the edge ` +
-    `walks over and waits there instead, its timer running on. Never onto another player's stones, only away from them. ` +
-    `It doesn't use up your turn, and anyone may lure it.`;
+  rebuild(document.getElementById("welcome-skies"), "skies", () => {
+    for (const sky of G.STORM_SKIES) {
+      const figure = document.createElement("figure");
+      const name = document.createElement("figcaption");
+      name.textContent = sky.name;
+      figure.append(artImg(`help_sky_${sky.id}`, G.stormSky(sky.id, 0)), name);
+      document.getElementById("welcome-skies").append(figure);
+    }
+  });
+  // Mirrors STORM_TARGET / STORM_DIE_FACES in server/src/rules/storm.ts; `every` is synced from the room.
+  renderFacts(document.getElementById("welcome-storms"), [
+    ["d20", "The roll", `Every ${stormEvery} turns a D20 is rolled behind the clouds, plus 1 for every calm roll since the last storm. At 20 or more a thunderstorm breaks.`],
+    ["bolt", "The storm", "The night darkens, rain sweeps the board for ten seconds and up to three bolts come down on random points (six on a 19×19 board, eleven on 25×25)."],
+    ["fire", "Fire", "Whatever stands there catches fire and burns away three rounds later. Nobody can play on a burning point until the fire goes out."],
+    ["greyStones", "Every stone grey", "A fainter storm hangs over the river for those three rounds and every stone turns the same grey. The rules still know whose is whose, so remember."],
+    ["dial", "The forecast", "The sky in the sidebar is the next roll's chance: 5%, and 5% more with every calm roll. Its dial has a dot per turn between rolls and burns down to the next."],
+  ]);
+
+  // Mirrors RIVER_RISES_FROM / RIVER_CRAB_SHARE / RIVER_ROUNDS in server/src/rules/river.ts.
+  renderFacts(document.getElementById("welcome-weather"), [
+    ["d6", "The roll", `Once the Night Market is open for everyone, a D6 is rolled for the river every ${riverEvery} turns. On a 5 or 6 a creature climbs onto the edge of the board.`],
+    ["crabSpirit", "Who comes", "Usually the river crab, sometimes the river spirit, and never two of a kind at once."],
+    ["reach", "What it threatens", "It faces one edge point. That point and its two neighbours along the edge are ringed, and a timer over its head counts down 3 rounds."],
+    ["takes", "When the timer ends", "The crab pinches one stone on those points, at random; the spirit steals every one. Then it goes back into the water. Their owners get 3 fireflies back for each."],
+    ["safe", "Staying safe", "A ward or a fog keeps a stone safe, and a mist hides one."],
+    ["bait", "Bait", "On sale every night. Click an edge point: the creature nearer to it along the edge walks over and waits there instead, its timer running on."],
+    ["baitAway", "Luring it", "Never onto another player's stones, only away from them. It doesn't use up your turn, and anyone may lure it."],
+  ]);
 
   // Mirrors territoryScore / finalResults in server/src/rules/endgame.ts.
   const yourTwo = seated ? `your ${base} total and your ${pattern} total` : `your two totals, one per front`;
   const sharers = seated
-    ? `Players who also hold ${base} share the ${base} territory, and players who also hold ${pattern} share ` +
-      `the ${pattern} territory`
+    ? `Players who also hold ${base} share the ${base} territory, and players who also hold ${pattern} share the ${pattern} territory`
     : `Players who hold the same colour share its territory`;
-  document.getElementById("welcome-scoring").textContent =
-    `The board is then counted once on each front, the Japanese way: only territory, the empty points your side ` +
-    `walls in on its own. A stone is worth nothing in itself, only the ground it surrounds, and a stone of the ` +
-    `other front (a gray one on black against white) counts for no one there. On top of that you count your prisoners: the stones you captured ` +
-    `yourself on that side, but never more prisoners than territory: with 4 points of ground there, at most 4 of them count, ` +
-    `so a fight only pays as far as you also hold land. Stones you kill with your other front (black smothering gray) score ` +
-    `nothing: they leave the board, but they are no prisoners. Your score is the lower of ${yourTwo}; the higher one only breaks ties. ` +
-    `${sharers} -- but prisoners are yours alone, so take the capture rather than leave it to them. ` +
-    `Nothing is taken off as dead at the end: capture what should go before you pass.`;
+  renderFacts(document.getElementById("welcome-scoring"), [
+    ["passTally", "Four passes in a row", "That ends the game. A stone or an item played in between starts the count again."],
+    ["territory", "Territory", "Counted once per front, the Japanese way: the empty points your side walls in alone. A stone is worth nothing itself, and one of the other front counts for no one there."],
+    ["prisoners", "Prisoners", "Add the stones you captured yourself on that side, but never more than your territory there: with 4 points of ground, at most 4 count."],
+    ["otherKill", "Kills on your other front", "Black smothering gray takes the stone off the board, but it is no prisoner and scores nothing."],
+    ["lowerScore", "Your score", `The lower of ${yourTwo}. The higher one only breaks ties.`],
+    ["allies", "Shared ground", `${sharers}, but prisoners are yours alone, so take the capture rather than leave it to them.`],
+    ["finishIt", "No dead stones", "Nothing is taken off as dead at the end: capture what should go before you pass."],
+  ]);
 
   renderWelcomeBots(state);
 
@@ -1707,15 +1794,21 @@ function openWelcome(state) {
 
   const list = document.getElementById("welcome-powerups");
   list.replaceChildren();
-  if (!state) {
-    const note = document.createElement("p");
-    note.textContent = "Each night the market stocks a few of eighteen items. Tonight's are listed here once you sit down.";
-    list.append(note);
-  }
   const legend = document.createElement("p");
   legend.id = "welcome-turn-legend";
   legend.append(turnIcon(), " Using an item with this mark takes your turn. Items without it don't: play your stone after.");
   list.append(legend);
+  if (!state) {
+    const ids = G.POWERUP_ICON_IDS.filter((id) => id !== BAIT);
+    const note = document.createElement("p");
+    note.textContent = `Each night the market stocks a few of these ${ids.length} items. Tonight's are listed here once you sit down.`;
+    const wall = document.createElement("div");
+    wall.className = "item-wall";
+    wall.append(...ids.map((id) => spriteImg(`icon_${id}`, G.powerupIcon(id), 2)));
+    list.append(note, wall);
+  }
+  const grid = document.createElement("div");
+  grid.className = "item-grid";
   for (const m of stalls) {
     const row = document.createElement("div");
     row.className = "welcome-item";
@@ -1732,8 +1825,9 @@ function openWelcome(state) {
     desc.textContent = m.description;
     text.append(title, desc);
     row.append(spriteImg(`icon_${m.id}`, G.powerupIcon(m.id) || G.SPRITES.fireflyIcon, 2), text);
-    list.appendChild(row);
+    grid.appendChild(row);
   }
+  list.append(grid);
 
   // How the window is left: before joining, back to the home screen; the first time at a table, to play;
   // reopened later, back to the game.

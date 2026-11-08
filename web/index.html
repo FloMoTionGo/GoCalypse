@@ -12,6 +12,7 @@
   <!-- colyseus.js 0.16.22, the file tests/package.json pins; tests/web/page.test.mjs keeps the two equal. -->
   <script src="vendor/colyseus.js"></script>
   <script src="sprites.js"></script>
+  <script src="helpArt.js"></script>
   <script src="pixelScene.js"></script>
   <script src="replay.js"></script>
   <script src="errorCopy.js"></script>
@@ -136,12 +137,16 @@
     </section>
   </div>
 
-  <!-- Welcome screen: shown on a player's first join, reopened by "How to play". -->
+  <!-- Welcome screen: shown on a player's first join, reopened by "How to play".
+       The pictures come from helpArt.js: data-art and data-tab name them, fillHelpArt() in main.js draws them. -->
   <dialog id="welcome" aria-labelledby="welcome-title">
     <button id="welcome-close" class="welcome-x" type="button" aria-label="Close">&times;</button>
     <div class="welcome-body">
-      <h2 id="welcome-title">Welcome to GoCalypse</h2>
-      <p class="welcome-tagline">Four players, one board, a night of lanterns by the river.</p>
+      <header class="welcome-hero">
+        <span class="welcome-hero-art" data-art="riverNight" aria-hidden="true"></span>
+        <h2 id="welcome-title">Welcome to GoCalypse</h2>
+        <p class="welcome-tagline">Four players, one board, a night of lanterns by the river.</p>
+      </header>
 
       <!-- Only while the room is still waiting for players; see renderWelcomeBots() in main.js. -->
       <section id="welcome-bots" hidden>
@@ -155,53 +160,115 @@
       </section>
 
       <h3>How to play</h3>
-      <p>Four players take turns placing stones. A group whose last free neighbouring point is filled gets captured.</p>
-      <p id="welcome-you"></p>
-      <ul class="welcome-fronts">
-        <li><span id="welcome-base-icon"></span><span><b>Left click</b>: your black or white stone. It fights <b>black against white</b>.</span></li>
-        <li><span id="welcome-pattern-icon"></span><span><b>Right click</b>: your gray or transparent stone. It fights <b>gray against transparent</b>.</span></li>
-      </ul>
-      <p>On your turn you can <b>Pass</b> (button in the header) instead of placing a stone. When <b>all four players pass in a row</b> the game ends.</p>
+      <ol class="howto-steps">
+        <li class="howto-step">
+          <span class="howto-art" data-art="capture" aria-hidden="true"></span>
+          <b>Surround to capture</b>
+          <p>Fill a group's last free point and it is captured.</p>
+        </li>
+        <li class="howto-step">
+          <ul class="welcome-fronts howto-art">
+            <li><span data-art="mouseLeft" aria-hidden="true"></span><span id="welcome-base-icon"></span><span><b>Left click</b><br>black against white</span></li>
+            <li><span data-art="mouseRight" aria-hidden="true"></span><span id="welcome-pattern-icon"></span><span><b>Right click</b><br>gray against transparent</span></li>
+          </ul>
+          <b>Pick a stone each move</b>
+          <p id="welcome-you"></p>
+        </li>
+        <li class="howto-step">
+          <span class="howto-art" data-art="passes" aria-hidden="true"></span>
+          <b>Four passes end it</b>
+          <p>You can <b>Pass</b> (header button) instead of placing a stone. When all four players pass in a row, the game ends.</p>
+        </li>
+      </ol>
 
-      <!-- The rest is reference: folded, so the essentials above fit on one screen (review U2).
-           The scoring fold opens itself once a pass has been seen in the game; see showPass() / openWelcome() in main.js. -->
-      <details class="welcome-more" id="welcome-fronts-fold">
-        <summary>Two fronts, four players</summary>
-        <p>Any stone can capture any other: a free point is filled whatever colour fills it, even your own stone of your other kind. The colour only decides who connects: a stone joins neighbours of its own colour (black with black, gray with gray). Players who hold your black or white, or your gray or transparent, connect with those stones and fight on your side.</p>
-      </details>
-      <details class="welcome-more" id="welcome-scoring-fold">
-        <summary>Ending the game &amp; scoring</summary>
-        <p>Four passes in a row end the game; a stone or an item played in between starts the count again.</p>
-        <p id="welcome-scoring"></p>
-      </details>
-      <details class="welcome-more">
-        <summary>Fireflies, the Night Market &amp; the Kata</summary>
-        <p id="welcome-economy"></p>
-      </details>
-      <details class="welcome-more">
-        <summary>Powerups</summary>
-        <div id="welcome-powerups"></div>
-      </details>
-      <details class="welcome-more">
-        <summary>Reading the board</summary>
-        <p>Anything that doesn't last shows a small number: the <b>rounds it has left</b> (a lily pad, a ward, driftwood or a fire; the number turns amber on its last round). A lily pad or ward also carries its owner's two stones, so you can see whose it is. A seed grows in three pictures, one round each: a seed, a sprout, then a sapling. Anyone may trample the seed, but once it sprouts only its planter may play there. The boat drifting on the river is only for orientation: its sign shows the round being played (R3 = round 3).</p>
-        <p>Keys at the table:</p>
-        <ul class="welcome-keys">
-          <li><kbd>←</kbd> <kbd>→</kbd> step back and forward through the last moves</li>
-          <li><kbd>Esc</kbd> or <kbd>End</kbd> back to the live board; <kbd>Esc</kbd> first lets go of a picked item</li>
-          <li><kbd>L</kbd> the last ten events</li>
-        </ul>
-        <p>On the home screen's board the arrows move, <kbd>Enter</kbd> or <kbd>Space</kbd> places a black stone and <kbd>Delete</kbd> takes it off. In Replays, <kbd>←</kbd> <kbd>→</kbd> step, <kbd>Home</kbd> and <kbd>End</kbd> jump to the first and last step, and <kbd>Space</kbd> plays or pauses.</p>
-      </details>
-      <details class="welcome-more">
-        <summary>Weather</summary>
-        <p id="welcome-weather"></p>
-      </details>
-      <details class="welcome-more">
-        <summary>Haiku</summary>
-        <p id="welcome-haiku"></p>
-        <ul id="welcome-haiku-list" class="welcome-haiku"></ul>
-      </details>
+      <!-- The reference, one chapter at a time: tabs over a panel, so the essentials above fit on one screen
+           (review U2). The scoring chapter opens itself once a pass has been seen in the game; see showPass() /
+           openWelcome() in main.js. Tabs sit in a grid by position: .welcome-more > summary in style.css. -->
+      <div class="welcome-chapters">
+        <details class="welcome-more" name="how-to-play" id="welcome-fronts-fold" data-tab="tabFronts">
+          <summary>Two fronts</summary>
+          <div class="chapter">
+            <div class="facts">
+              <div class="fact"><span class="fact-art" data-art="frontsVs"></span><div><b>Two fights at once</b><p>Black fights white, gray fights transparent. Every stone stands on one of the two fronts.</p></div></div>
+              <div class="fact"><span class="fact-art" data-art="anyCaptures"></span><div><b>Anything can capture</b><p>A free point is filled whatever colour fills it, even your own stone of your other kind.</p></div></div>
+              <div class="fact"><span class="fact-art" data-art="connects"></span><div><b>Colour connects</b><p>A stone only joins neighbours of its own colour: black with black, gray with gray.</p></div></div>
+              <div class="fact"><span class="fact-art" data-art="allies"></span><div><b>Shared colour, shared side</b><p>Players who hold your black or white, or your gray or transparent, connect with those stones and fight on your side.</p></div></div>
+            </div>
+          </div>
+        </details>
+        <details class="welcome-more" name="how-to-play" id="welcome-scoring-fold" data-tab="tabScoring">
+          <summary>Scoring</summary>
+          <div class="chapter"><div class="facts" id="welcome-scoring"></div></div>
+        </details>
+        <details class="welcome-more" name="how-to-play" data-tab="tabMarket">
+          <summary>Night Market</summary>
+          <div class="chapter"><div class="facts" id="welcome-economy"></div></div>
+        </details>
+        <details class="welcome-more" name="how-to-play" data-tab="tabKata">
+          <summary>Kata</summary>
+          <div class="chapter"><div class="facts" id="welcome-kata"></div></div>
+        </details>
+        <details class="welcome-more" name="how-to-play" data-tab="tabItems">
+          <summary>Items</summary>
+          <div class="chapter"><div id="welcome-powerups"></div></div>
+        </details>
+        <details class="welcome-more" name="how-to-play" data-tab="tabBoard">
+          <summary>Reading the board</summary>
+          <div class="chapter">
+            <div class="facts">
+              <div class="fact"><span class="fact-art" data-art="timers"></span><div><b>Rounds left</b><p>Anything that doesn't last shows a small number: a lily pad, a ward, driftwood or a fire. It turns amber on its last round.</p></div></div>
+              <div class="fact"><span class="fact-art" data-art="owners"></span><div><b>Whose is it?</b><p>A lily pad or ward also carries its owner's two stones.</p></div></div>
+              <div class="fact"><span class="fact-art" data-art="growth"></span><div><b>Seed, sprout, sapling</b><p>One picture a round. Anyone may trample the seed, but once it sprouts only its planter may play there.</p></div></div>
+              <div class="fact"><span class="fact-art" data-art="boat"></span><div><b>The boat</b><p>It drifts on the river only for orientation: its sign shows the round being played (R3 = round 3).</p></div></div>
+            </div>
+            <div class="keys-grid">
+              <div>
+                <b class="keys-title">At the table</b>
+                <ul class="welcome-keys">
+                  <li><kbd>←</kbd> <kbd>→</kbd> step through the last moves</li>
+                  <li><kbd>Esc</kbd> or <kbd>End</kbd> back to the live board; <kbd>Esc</kbd> first lets go of a picked item</li>
+                  <li><kbd>L</kbd> the last ten events</li>
+                </ul>
+              </div>
+              <div>
+                <b class="keys-title">On the home screen's board</b>
+                <ul class="welcome-keys">
+                  <li>Arrows move</li>
+                  <li><kbd>Enter</kbd> or <kbd>Space</kbd> place a black stone</li>
+                  <li><kbd>Delete</kbd> takes it off</li>
+                </ul>
+              </div>
+              <div>
+                <b class="keys-title">In Replays</b>
+                <ul class="welcome-keys">
+                  <li><kbd>←</kbd> <kbd>→</kbd> step</li>
+                  <li><kbd>Home</kbd> <kbd>End</kbd> first and last step</li>
+                  <li><kbd>Space</kbd> play or pause</li>
+                </ul>
+              </div>
+            </div>
+            <p class="keys-note">Finished games stay on the server with the names at the table, the newest 500, for the Replays on the home screen.</p>
+          </div>
+        </details>
+        <details class="welcome-more" name="how-to-play" data-tab="tabStorms">
+          <summary>Storms</summary>
+          <div class="chapter">
+            <div class="sky-strip" id="welcome-skies"></div>
+            <div class="facts" id="welcome-storms"></div>
+          </div>
+        </details>
+        <details class="welcome-more" name="how-to-play" data-tab="tabRiver">
+          <summary>The river</summary>
+          <div class="chapter"><div class="facts" id="welcome-weather"></div></div>
+        </details>
+        <details class="welcome-more" name="how-to-play" data-tab="tabHaiku">
+          <summary>Haiku</summary>
+          <div class="chapter">
+            <div class="facts" id="welcome-haiku"></div>
+            <ul id="welcome-haiku-list" class="welcome-haiku"></ul>
+          </div>
+        </details>
+      </div>
 
       <p id="welcome-footer" class="welcome-footer">Click anywhere outside this window to start.</p>
     </div>
