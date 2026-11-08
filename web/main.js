@@ -547,6 +547,10 @@ function resetRoomState() {
   passSeen = false;
   passFlashAt = undefined;
   handBought = null; // a new room: its first state is the hand as it stands, nothing flies in
+  litLanterns = [];
+  lanternCard = null;
+  lanternFlight = null;
+  festival = null;
   if (resultEl.open) resultEl.close();
   renderRecall();
 }
@@ -563,6 +567,8 @@ function attachRoom(joined) {
   room.onStateChange((state) => current() && onState(state));
   room.onMessage("notice", (text) => current() && onServerNotice(text));
   room.onMessage("reveal", (text) => current() && showNotice(text, 15000));
+  room.onMessage("lanternFestival", (m) => current() && onLanternFestival(m));
+  loadLanternCard();
   room.onLeave((code) => {
     if (!current()) return;
     room = null;
@@ -842,6 +848,7 @@ function frame() {
   drawSky(now, reduced);
   effects = P.pruneEffects(effects, now, reduced);
   if (storm && now - storm.start >= P.STORM_SECONDS) storm = null;
+  if (festival && now - festival.start >= P.FESTIVAL_SECONDS) festival = null;
   const snap = viewedSnap();
   // The recall strip must not give away what a fog hides: a fog on the board now covers the older boards too.
   const displayBoard = veiled(
@@ -867,6 +874,8 @@ function frame() {
     market: marketView(lastState), // live scenery too: tonight's boats, even while looking back
     garland: garlandView(lastState), // and the turns to the next roll
     passFlash: passFlashAt,
+    litLanterns,
+    festival,
     fireflies: myPlayer ? myPlayer.fireflies : undefined,
     turnCount: snap ? snap.turnCount : turnCount,
     roundLength,
@@ -923,6 +932,7 @@ function frameKey(view, now) {
     view.river.length > 0 ||
     view.stormTurnCount < view.stormUntil ||
     view.landings ||
+    (view.festival && !view.reducedMotion) ||
     view.highlightMine ||
     (view.hover && (view.hoverKind === "stone" || view.hoverKind === "target")) ||
     (view.passFlash !== undefined && now - view.passFlash < P.PASS_SIGN_SECONDS) ||
@@ -982,6 +992,7 @@ function eventPoint(evt) {
 
 function onBoardClick(evt) {
   if (!room || !lastState) return;
+  if (clickLantern(evt)) return;
   if (viewId !== null) return recallBlocked();
   const p = eventPoint(evt);
   if (!p) return;
@@ -2748,14 +2759,16 @@ function renderHand(state) {
   handBought = myPlayer ? bought : null;
   for (let i = owned.length - fresh; i < owned.length; i++) incoming.add(i); // until flyCard lands it
 
-  const places = Math.max(state.handLimit, owned.length);
+  const allPlaces = Math.max(state.handLimit, owned.length);
+  // The Lantern Card rests on the last free place, without taking it: buying is judged on `powerups`.
+  const places = lanternCard === "found" && owned.length < allPlaces ? allPlaces - 1 : allPlaces;
   const shown = selectedPowerup ? (owned[armedCard] === selectedPowerup ? armedCard : owned.indexOf(selectedPowerup)) : -1;
   handEl.title =
     `Hand: ${owned.filter((id) => !isHaikuCard(id)).length} of ${state.handLimit} cards (haiku cards don't count). ` +
     `Buy items at the Night Market, and on your turn pick a card to use it.`;
   const cardSig = myPlayer && hasStoneCard(myPlayer) ? [Array.from(myPlayer.card).join(""), cardUpgradable(myPlayer), state.status] : null;
   const haikuSig = myPlayer && myPlayer.haikuLines ? Array.from(myPlayer.haikuLines) : []; // a card's level, on its face
-  const sig = JSON.stringify([owned, places, isMyTurn, shown, Array.from(incoming), cardSig, haikuSig]);
+  const sig = JSON.stringify([owned, places, isMyTurn, shown, Array.from(incoming), cardSig, haikuSig, lanternCard]);
   const rebuilt = rebuild(handEl, sig, () => {
     for (let i = 0; i < places; i++) {
       if (i >= owned.length) {
@@ -2779,6 +2792,11 @@ function renderHand(state) {
       card.addEventListener("click", () => pickCard(owned[i], i));
       handEl.appendChild(card);
     }
+    if (lanternCard === "found") {
+      const card = lanternCardEl();
+      card.classList.toggle("incoming", incoming.has(LANTERN_INDEX));
+      handEl.appendChild(card);
+    }
     if (owned.length === 0) {
       const empty = document.createElement("span");
       empty.className = "hand-empty";
@@ -2791,6 +2809,115 @@ function renderHand(state) {
     refreshCardZoom();
   }
   for (let i = owned.length - fresh; i < owned.length; i++) flyCard(i);
+  if (lanternFlight) {
+    const from = lanternFlight;
+    lanternFlight = null;
+    flyCard(LANTERN_INDEX, from);
+  }
+}
+
+// ---- the Lantern Card (tasks/2026-11-08_lantern_card/PLAN.md) ---------------------------
+//
+// A secret, and only for show. Click every floating lantern once and a card flies to your
+// hand; playing it shows the whole table the Lantern Festival. The hunt and the card stay
+// in this browser: the card is never in `powerups`, so it can't touch the turn, the market
+// or the hand limit. Only the festival goes through the server, to reach everyone.
+
+const LANTERN_CARD = "lantern_card";
+const LANTERN_INDEX = "lantern"; // its place in `incoming` and data-index: not a position in `powerups`
+const LANTERNS = 12;
+let litLanterns = []; // indices of the floating lanterns I've lit (scene.floatersAt)
+let lanternCard = null; // null, "found" (in my hand) or "played"
+let lanternFlight = null; // where the card flies in from, until renderHand has drawn it
+let festival = null; // {seed, start} while the Lantern Festival plays
+
+/** Kept per tab, seat and room, as the seat's own key is: a new game starts the hunt afresh. */
+function lanternStore() {
+  return `${playerKeyStore()}.lanternCard.${room.roomId}`;
+}
+
+function loadLanternCard() {
+  try {
+    const kept = sessionStorage.getItem(lanternStore());
+    if (kept !== "found" && kept !== "played") return;
+    lanternCard = kept;
+    litLanterns = Array.from({ length: LANTERNS }, (_, i) => i);
+  } catch (err) {
+    console.warn(`Lantern Card: storage is blocked, so a find lasts until a reload (${err})`);
+  }
+}
+
+function setLanternCard(value) {
+  lanternCard = value;
+  try {
+    sessionStorage.setItem(lanternStore(), value);
+  } catch (err) {
+    console.warn(`Lantern Card: storage is blocked, so a find lasts until a reload (${err})`);
+  }
+}
+
+/** A click on a floating lantern lights it. True when the click was on one, so it goes no further. */
+function clickLantern(evt) {
+  if (!scene || !myPlayer) return false;
+  const rect = boardEl.getBoundingClientRect();
+  const nx = ((evt.clientX - rect.left) * scene.width) / rect.width;
+  const ny = ((evt.clientY - rect.top) * scene.height) / rect.height;
+  const reduced = reducedMotion(), t = reduced ? 0 : clock();
+  if (scene.lanternAt(nx, ny, t, []) === null) return false;
+  const i = lanternCard ? null : scene.lanternAt(nx, ny, t, litLanterns);
+  if (i === null) return true; // already lit: nothing happens
+  litLanterns = litLanterns.concat(i);
+  if (scene.lanternGoal(reduced).every((k) => litLanterns.includes(k))) findLanternCard(scene.floatersAt(t)[i]);
+  return true;
+}
+
+/** Every lantern is lit: the card flies from the last one into the hand. */
+function findLanternCard(from) {
+  setLanternCard("found");
+  incoming.add(LANTERN_INDEX);
+  lanternFlight = lanternFlightStart(from);
+  showNotice("Every lantern on the river is lit, and one of them has left you a card.", 8000);
+  renderHand(lastState);
+}
+
+/** The screen box a card leaves a lantern from: beside the deck, because flyCard's route never crosses it. */
+function lanternFlightStart(f) {
+  const r = boardEl.getBoundingClientRect(), kx = r.width / scene.width, ky = r.height / scene.height, L = scene.layout;
+  const aboveDeck = f.y < L.boardY && f.x > L.boardX - 8 && f.x < L.boardRight;
+  const x = aboveDeck ? L.boardX - 8 : f.x;
+  return { left: r.left + (x - 3) * kx, top: r.top + (f.y - 4) * ky, width: 7 * kx, height: 8 * ky };
+}
+
+/** The card in the hand. Clicking it asks the server to show the table; it stays until the answer comes. */
+function lanternCardEl() {
+  const title = "Lantern Card", about = "Lanterns rise from the river and settle on the board's edge. Only for the view.";
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "card lantern-card";
+  card.dataset.id = LANTERN_CARD;
+  card.dataset.index = LANTERN_INDEX;
+  card.dataset.turn = "0";
+  card.setAttribute("aria-label", `${title}: ${about} Doesn't take your turn.`);
+  card.title = ""; // hovering shows the card enlarged instead
+  const name = document.createElement("span");
+  name.className = "card-name";
+  name.textContent = title;
+  const text = document.createElement("span");
+  text.className = "card-text";
+  text.textContent = about;
+  card.append(spriteImg("card_lantern", G.lanternCard(), 1), name, text);
+  card.addEventListener("click", () => room && room.send("lanternFestival"));
+  return card;
+}
+
+/** Someone at the table played their card (it may be me): the lanterns come out on every screen. */
+function onLanternFestival({ by, name }) {
+  festival = { seed: P.festivalSeed(room.roomId, by), start: clock() };
+  showNotice(`${name} lit the Lantern Festival.`, 8000);
+  if (myPlayer && by === myPlayer.color && lanternCard === "found") {
+    setLanternCard("played");
+    renderHand(lastState);
+  }
 }
 
 // ---- the Kata (型), once the Stone Card: mirrors server/src/rules/stoneCard.ts --------------
@@ -3270,7 +3397,7 @@ const CARD_FLIGHT_MS = 650;
  * the stall's icon, growing to full size and settling from a tilt. The card in
  * the hand stays hidden until it lands.
  */
-function flyCard(index) {
+function flyCard(index, fromRect) {
   const land = () => {
     incoming.delete(index);
     const card = handEl.querySelector(`.card[data-index="${index}"]`);
@@ -3281,11 +3408,11 @@ function flyCard(index) {
   };
   const target = handEl.querySelector(`.card[data-index="${index}"]`);
   // renderMarket builds one button per boat, marked with the stall's item.
-  const source = target ? marketItemsEl.querySelector(`button.item[data-id="${target.dataset.id}"]`) : null;
-  if (!target || !source || reducedMotion() || !target.animate) return land();
+  const source = target && !fromRect ? marketItemsEl.querySelector(`button.item[data-id="${target.dataset.id}"]`) : null;
+  if (!target || (!source && !fromRect) || reducedMotion() || !target.animate) return land();
 
   const to = target.getBoundingClientRect();
-  const from = (source.querySelector(".goods") || source).getBoundingClientRect();
+  const from = fromRect || (source.querySelector(".goods") || source).getBoundingClientRect();
   if (!to.width || !from.width) return land();
   const flier = target.cloneNode(true);
   flier.classList.remove("incoming", "active");

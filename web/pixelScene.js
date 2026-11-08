@@ -53,6 +53,17 @@
   const LANDING_W = ISLAND_WATER + ISLAND_W + ISLAND_GAP;
   const LANDING_LOOP = 120; // s: every drifting lantern's loop closes a whole number of times in it
   const AMBIENT_FPS = 10;
+  const FESTIVAL_SECONDS = 34; // the Lantern Festival: from the first lantern's rise to the last one's sinking
+  /** The festival's layout seed: the same on every screen, different for each game and each seat that lights one. */
+  function festivalSeed(roomId, by) {
+    const key = `${roomId}:${by}`;
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) {
+      h ^= key.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
   // The Night Market (tasks/2026-11-07_night_market_water/PLAN.md): a strip of water right of the
   // lantern channel, the bank moved out past it, and seven small boats loose in it, each held at
   // the bow by a pole fixed in the riverbed.
@@ -1575,6 +1586,142 @@
       });
     }
 
+    // The Lantern Card's hunt (tasks/2026-11-08_lantern_card/PLAN.md): click every floating lantern once.
+    const HUNT_REACH = 7; // art px each way a click still counts as on a lantern
+
+    /** The twelve floating lanterns as the frame at ambient time `t` draws them, in index order. */
+    function floatersAt(t) {
+      const tick = Math.floor(t * AMBIENT_FPS) / AMBIENT_FPS;
+      return floaterPositions(tick).concat(landingFloaters(tick)).map(({ x, y, i }) => ({ x, y, i })).sort((a, b) => a.i - b.i);
+    }
+    const onScene = (f) => f.x >= 0 && f.y >= 0 && f.x < W && f.y < H;
+
+    /** The index of the nearest lantern on screen and not in `lit` within reach of a native point, or null. */
+    function lanternAt(nx, ny, t, lit) {
+      let best = null, bestD = Infinity;
+      for (const f of floatersAt(t)) {
+        if (!onScene(f) || (lit && lit.includes(f.i))) continue;
+        if (Math.abs(nx - f.x) > HUNT_REACH || Math.abs(ny - f.y) > HUNT_REACH) continue;
+        const d = Math.hypot(nx - f.x, ny - f.y);
+        if (d < bestD) {
+          best = f.i;
+          bestD = d;
+        }
+      }
+      return best;
+    }
+
+    /** The lanterns to light: all of them, or with reduced motion those on screen while the clock stands at 0. */
+    function lanternGoal(reduced) {
+      const all = floatersAt(0);
+      return (reduced ? all.filter(onScene) : all).map((f) => f.i);
+    }
+
+    // The Lantern Festival: each lantern rises in the water beside the right or bottom side of
+    // the deck (the two sides of the dark border with no numbers), floats onto the border and
+    // rests there, irregularly: gaps of their own, and never as deep into the border as the
+    // neighbour. It leaves the way it came.
+    let festivalCache = null;
+    function festivalLayout(seed) {
+      const key = seed >>> 0;
+      if (festivalCache && festivalCache.key === key) return festivalCache.spots;
+      const r = rng(key), F = L.frame;
+      const keep = pads.map((p) => ({ x: p.x, y: p.y, w: p.spr.w, h: p.spr.h }));
+      keep.push({ x: lotus.x, y: lotus.y, w: G.SPRITES.lotus.w, h: G.SPRITES.lotus.h });
+      for (const rd of reeds) keep.push({ x: rd.x, y: rd.y, w: ANIMS[rd.anim].frames[0].w, h: ANIMS[rd.anim].frames[0].h });
+      const onWater = (p) => {
+        for (let y = p.y - 5; y <= p.y + 4; y++) for (let x = p.x - 4; x <= p.x + 4; x++) if (region[y * W + x] !== R_WATER) return false;
+        return !keep.some((b) => p.x + 5 > b.x && p.x - 5 < b.x + b.w && p.y + 6 > b.y && p.y - 6 < b.y + b.h);
+      };
+      // The stone lantern stands on the border at the bottom right corner, in front of whatever is there.
+      const stoneLantern = { x: toro.x - 1, y: toro.y, w: 15, h: 26 };
+      const clearOfStoneLantern = (p) => !(p.x + 5 > stoneLantern.x && p.x - 5 < stoneLantern.x + stoneLantern.w && p.y + 6 > stoneLantern.y && p.y - 6 < stoneLantern.y + stoneLantern.h);
+      const sides = [
+        {
+          name: "right", len: L.boardBottom - L.boardY, lo: 3, hi: 8,
+          rest: (s, c) => ({ x: L.boardRight - F + c, y: L.boardY + s }),
+          start: (p, d, j) => ({ x: L.boardRight + d, y: p.y + j }), dLo: 4, dHi: 8,
+        },
+        {
+          name: "bottom", len: L.boardRight - L.boardX, lo: 5, hi: 8,
+          rest: (s, c) => ({ x: L.boardRight - s, y: L.boardBottom - F + c }),
+          start: (p, d, j) => ({ x: p.x + j, y: L.frontBottom + d }), dLo: 5, dHi: H - L.riverY0 - 9,
+        },
+      ];
+      const spots = [];
+      for (const side of sides) {
+        let s = 7 + r() * 16, prev = null;
+        while (s < side.len - 4) {
+          let placed = false;
+          for (let tries = 0; tries < 24 && !placed; tries++) {
+            const inset = Math.round(side.lo + (side.hi - side.lo) * r());
+            if (prev !== null && Math.abs(inset - prev) < 2) continue;
+            const rest = side.rest(Math.round(s), inset);
+            if (!clearOfStoneLantern(rest) || spots.some((q) => Math.hypot(rest.x - q.x, rest.y - q.y) < 11)) continue;
+            for (let k = 0; k < 12 && !placed; k++) {
+              const d = Math.round(side.dLo + (side.dHi - side.dLo) * Math.pow(r(), 1.2));
+              const start = side.start(rest, d, Math.round((r() - 0.5) * 22));
+              if (!onWater(start) || spots.some((q) => Math.hypot(start.x - q.sx, start.y - q.sy) < 10)) continue;
+              spots.push({ side: side.name, inset, ...rest, sx: start.x, sy: start.y });
+              prev = inset;
+              placed = true;
+            }
+          }
+          if (!placed) prev = null;
+          s += 11 + 34 * Math.pow(r(), 1.7); // mostly close, now and then a long stretch
+        }
+      }
+      for (const q of spots) {
+        Object.assign(q, {
+          delay: r() * 6, rise: 1.3 + r() * 1.2, wait: 0.4 + r() * 1.3, glide: 2.2 + r() * 1.6, arc: 2 + r() * 4, back: r() * 2.5,
+          phase: r() * 6.28, sway: 0.35 + r() * 0.5, swayPh: r() * 6.28,
+        });
+      }
+      festivalCache = { key, spots };
+      return spots;
+    }
+
+    const festivalEase = (v) => {
+      const e = Math.max(0, Math.min(1, v));
+      return e * e * (3 - 2 * e);
+    };
+
+    /** Where the festival's lanterns are `time` seconds on the scene's clock: [] outside it; `up` is how far out of the water. */
+    function festivalFloats(fest, time, reduced) {
+      const el = time - fest.start;
+      if (el < 0 || el >= FESTIVAL_SECONDS) return [];
+      return festivalLayout(fest.seed).map((q, i) => {
+        if (reduced) return { festival: true, up: 1, x: q.x, y: q.y, i: 100 + i, fl: q };
+        // Going home is the way out played backwards, each lantern on its own clock.
+        const u = el <= FESTIVAL_SECONDS / 2 ? el : Math.max(0, FESTIVAL_SECONDS - el - q.back);
+        const up = festivalEase((u - q.delay) / q.rise);
+        const g = festivalEase((u - q.delay - q.rise - q.wait) / q.glide);
+        const x = q.sx + (q.x - q.sx) * g + Math.sin(el * q.sway + q.swayPh) * 1.4 * (1 - g);
+        let y = q.sy + (q.y - q.sy) * g - Math.sin(Math.PI * g) * q.arc;
+        if (q.side === "bottom") y = Math.max(y, q.y); // the arc never carries it over the kaya
+        y += Math.sin(el * (g < 0.5 ? 2.1 : 1.2) * q.sway + q.phase) * 0.9;
+        return { festival: true, up, x: Math.round(x), y: Math.round(y), i: 100 + i, fl: q };
+      });
+    }
+
+    /** A festival lantern: rising or sinking it is cut off at its waterline, in a small ring of ripples. */
+    function drawFestivalLantern(fl, t) {
+      if (fl.up <= 0) return;
+      const spr = animFrame("floatLantern", t, fl.fl.phase / 6.28);
+      if (fl.up >= 1) {
+        drawReflection(fl.x, fl.y + 3, t, 7, false);
+        surf.blitCentered(spr, fl.x, fl.y);
+        return;
+      }
+      const waterline = fl.y + 4, rr = 2 + fl.up * 5, cover = 1 - fl.up * 0.7;
+      for (let a = 0; a < 6.28; a += 0.3) {
+        const x = Math.round(fl.x + Math.cos(a) * rr), y = Math.round(waterline + Math.sin(a) * rr * 0.45);
+        if (G.ditherOn(x, y, cover)) waterSet(x, y, C);
+      }
+      const k = Math.round(spr.h * fl.up);
+      if (k > 0) surf.blit({ ...spr, h: k, px: spr.px.slice(0, spr.w * k) }, fl.x - (spr.w >> 1), waterline - k);
+    }
+
     function drawReflection(x, y, t, len, strong) {
       for (let k = 0; k < len; k++) {
         const yy = y + k;
@@ -2413,6 +2560,8 @@
      *                  stormLinger) -- for the full 3 rounds, not just the ~10s cloudburst,
      *   stormTurnCount: the turn counter the storm is judged by (defaults to turnCount); the live
      *                  one while an older board is recalled, so a storm on now greys the old boards too,
+     *   litLanterns:   indices of the floating lanterns this player has lit (floatersAt),
+     *   festival:      {seed, start: seconds} while the Lantern Festival plays,
      *   reducedMotion: boolean,
      * }
      * Returns the RGBA buffer (Uint8ClampedArray, width*height*4).
@@ -2458,11 +2607,19 @@
       drawFoam(t);
 
       // 2. light sources (applied before the sprites that emit them)
-      const floats = floaterPositions(t).concat(landingFloaters(t)).sort((a, b) => a.y - b.y);
+      const lit = st.litLanterns || [];
+      const floats = floaterPositions(t).concat(landingFloaters(t));
+      for (const fl of floats) fl.lit = lit.includes(fl.i);
+      if (st.festival) floats.push(...festivalFloats(st.festival, time, reduced));
+      floats.sort((a, b) => a.y - b.y);
       const seats = st.seats || [];
       const lights = [];
       const toroFrame = Math.floor(t * ANIMS.toro.fps) % ANIMS.toro.frames.length;
-      for (const fl of floats) lights.push({ x: fl.x, y: fl.y - 2, r: 9, s: 0.55 });
+      for (const fl of floats) {
+        if (fl.festival) {
+          if (fl.up > 0.4) lights.push({ x: fl.x, y: fl.y - 2, r: 8, s: 0.42 * fl.up }); // softer: there are so many
+        } else lights.push({ x: fl.x, y: fl.y - 2, r: fl.lit ? 13 : 9, s: fl.lit ? 0.8 : 0.55 });
+      }
       const lanterns = garlandAt(st.garland && st.garland.every);
       const lanternOut = garlandOut(st.garland, lanterns.length, t, reduced);
       lanterns.forEach((g, i) => { if (!lanternOut(i)) lights.push({ x: g.x, y: 5, r: 7, s: 0.45 }); });
@@ -2473,8 +2630,12 @@
 
       // 3. floating lanterns + reflections
       for (const fl of floats) {
-        drawReflection(fl.x, fl.y + 3, t, 7, false);
-        surf.blitCentered(animFrame("floatLantern", t, fl.fl.phase / 6.28), fl.x, fl.y);
+        if (fl.festival) {
+          drawFestivalLantern(fl, t);
+          continue;
+        }
+        drawReflection(fl.x, fl.y + 3, t, 7, fl.lit);
+        surf.blitCentered(animFrame(fl.lit ? "floatLanternLit" : "floatLantern", t, fl.fl.phase / 6.28), fl.x, fl.y);
       }
 
       // 3b. the landing's hanging lanterns, then the boats on the wide river
@@ -2712,6 +2873,10 @@
     return {
       layout: L,
       garlandAt,
+      floatersAt,
+      lanternAt,
+      lanternGoal,
+      festivalLayout,
       width: W,
       height: H,
       surface: surf,
@@ -2813,6 +2978,8 @@
   return {
     SPACING,
     AMBIENT_FPS,
+    FESTIVAL_SECONDS,
+    festivalSeed,
     PASS_SIGN_SECONDS,
     LANDING_LOOP,
     STAGE,

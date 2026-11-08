@@ -150,7 +150,8 @@ test("lantern festival: every lantern comes to rest on the right or bottom borde
     const px = draw(scene, { ...blank(n), time: 3, ambientTime: 3 });
     const isNumber = (x, y) => {
       const i = (y * scene.width + x) * 4;
-      return scene.regionAt(x, y) === REGION_FRAME && px[i] === 0xd4 && px[i + 1] === 0x90 && px[i + 2] === 0x40;
+      const numbered = y < L.boardY + L.frame || x < L.boardX + L.frame; // the stone lantern's glow is amber too, on the other two
+      return numbered && scene.regionAt(x, y) === REGION_FRAME && px[i] === 0xd4 && px[i + 1] === 0x90 && px[i + 2] === 0x40;
     };
     for (let seed = 0; seed < LAYOUTS; seed++) {
       const spots = scene.festivalLayout(seed);
@@ -163,6 +164,9 @@ test("lantern festival: every lantern comes to rest on the right or bottom borde
           assert.ok(q.y - 5 >= L.boardBottom - L.frame && q.y + 3 < L.boardBottom, `${n}/${seed}: inside the bottom border`);
         }
         assert.equal(scene.regionAt(q.x, q.y), REGION_FRAME, `${n}/${seed}: on the frame`);
+        // The stone lantern stands in the bottom right corner, drawn in front of the border.
+        const tx = L.gridX + L.gridSpan + 2, ty = L.gridY + L.gridSpan + 12 - 21;
+        assert.ok(q.x + 4 < tx || q.x - 4 >= tx + 15 || q.y + 4 < ty || q.y - 5 >= ty + 26, `${n}/${seed}: clear of the stone lantern at ${q.x},${q.y}`);
         for (let y = q.y - 5; y <= q.y + 4; y++) for (let x = q.x - 4; x <= q.x + 4; x++) {
           assert.equal(isNumber(x, y), false, `${n}/${seed}: clear of the numbers`);
         }

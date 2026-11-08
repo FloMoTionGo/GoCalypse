@@ -167,6 +167,7 @@ function smotheredNews(captured: Captured[]): string {
   return parts.length ? `, smothered ${parts.join(" and ")} (no points)` : "";
 }
 const HAND_LIMIT = 5; // cards a player may hold at once, the Stone Card included
+const FESTIVAL_BUSY_MS = 36_000; // a Lantern Festival's length on the page (web/pixelScene.js FESTIVAL_SECONDS), and a little over
 const DEBUG_STORM_EVERY_TURNS = 6; // debug rooms roll far more often, so storms can be watched
 const DEBUG_RIVER_EVERY_TURNS = 2; // and the river's D6 too, so the crab, the spirit and the Bait can be tried
 // Bots are only ever seated on request (the welcome screen's "add bots"), or to
@@ -339,6 +340,7 @@ export class GoRoom extends Room<GoState> {
     this.onMessage("upgradeCard", (client, message: UpgradeCardMessage) => within(client) && this.handleUpgradeCard(client, message));
     this.onMessage("flipCardStone", (client, message: CardCellMessage) => within(client) && this.handleCardCell(client, message, "flip"));
     this.onMessage("removeCardStone", (client, message: CardCellMessage) => within(client) && this.handleCardCell(client, message, "remove"));
+    this.onMessage("lanternFestival", (client) => within(client) && this.handleLanternFestival(client));
 
     if (restored) this.resumeRestored();
   }
@@ -511,6 +513,27 @@ export class GoRoom extends Room<GoState> {
   private haikuLevel(player: PlayerState, card: string): number {
     const at = HAIKU.findIndex((h) => h.id === haikuOfCard(card)?.id);
     return Math.max(1, Math.min(3, Number(player.haikuLines[at] ?? 0)));
+  }
+
+  // The Lantern Festival (tasks/2026-11-08_lantern_card/PLAN.md): only for show, so nothing
+  // here touches the game state and nothing is saved. A restart can cost one extra animation.
+  private festivalSeats = new Set<number>(); // seats that have had theirs
+  private festivalUntil = 0; // when the one on the table's screens is over (Date.now())
+
+  /** A player's Lantern Card asks to show the whole table: once a seat, one festival at a time. */
+  private handleLanternFestival(client: Client) {
+    const playerIndex = this.findPlayerIndex(client.sessionId);
+    if (playerIndex === -1) return;
+    const player = this.state.players[playerIndex];
+    if (this.festivalSeats.has(player.color)) return;
+    const now = Date.now();
+    if (now < this.festivalUntil) {
+      this.notice(client, "The lanterns are still out. Play your card when they have gone.");
+      return;
+    }
+    this.festivalSeats.add(player.color);
+    this.festivalUntil = now + FESTIVAL_BUSY_MS;
+    this.broadcast("lanternFestival", { by: player.color, name: player.name });
   }
 
   /** Cards in the hand that count toward HAND_LIMIT: the haiku's don't. */

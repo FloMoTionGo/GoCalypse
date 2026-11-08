@@ -376,6 +376,49 @@
     ]),
   ]);
 
+  // A floating lantern the player has lit (the Lantern Card's hunt): hot cream paper.
+  anim("floatLanternLit", 4, [
+    sprite("floatLanternLit_0", [
+      "..KAK..",
+      ".KCCCK.",
+      ".KCCCK.",
+      ".KCCCK.",
+      ".KCCCK.",
+      "KKKKKKK",
+      "KCCCCCK",
+      ".KKKKK.",
+    ]),
+    sprite("floatLanternLit_1", [
+      "..KCK..",
+      ".KCCCK.",
+      ".KCCCK.",
+      ".KCCCK.",
+      ".KCCCK.",
+      "KKKKKKK",
+      "KACCCAK",
+      ".KKKKK.",
+    ]),
+  ]);
+
+  // The Lantern Card's art: one big paper lantern on the river.
+  SPRITES.lanternCardIcon = sprite("lanternCardIcon", [
+    "......KKK......",
+    ".....KAAAK.....",
+    "....KKKKKKK....",
+    "...KCCCCCCCK...",
+    "..KCCCCCCCCCK..",
+    "..KCCCACACCCK..",
+    "..KCCCCCCCCCK..",
+    "..KCCCACACCCK..",
+    "..KCCCCCCCCCK..",
+    "...KCCCCCCCK...",
+    "....KKKKKKK....",
+    "...KAAAAAAAK...",
+    "..TTKKKKKKKTT..",
+    ".TT.........TT.",
+    "...TTT...TTT...",
+  ]);
+
   // Hanging festival lanterns (chochin) for the garland, two paper colours.
   anim("garlandAmber", 3, [
     sprite("garlandAmber_0", [
@@ -1352,7 +1395,7 @@
       }
     }
     for (const [x, y] of [[a.x + 3, a.y + 2], [a.x + 24, a.y + 1], [a.x + 26, a.y + 6], [a.x + 1, a.y + 8]]) s.set(x, y, S);
-    const icon = powerupIcon(id) || SPRITES.fireflyIcon;
+    const icon = (opts && opts.icon) || powerupIcon(id) || SPRITES.fireflyIcon;
     s.blitCentered(icon, a.x + (a.w >> 1), a.y + (a.h >> 1));
     // The rule under the name: slate dots, fading out towards the frame.
     for (let x = 6; x < W - 6; x += 2) s.set(x, CARD_RULE_Y, S);
@@ -1369,6 +1412,11 @@
     // Clear of the third gem (it reaches x = 26), over the cut corner like a stamp.
     if (turn) s.blit(SPRITES.turnIcon, W - SPRITES.turnIcon.w, 0);
     return (cardCache[key] = makeSprite(`card_${id}_${t}${turn ? "_turn" : ""}`, W, H, s.px));
+  }
+
+  /** The secret Lantern Card's face (tasks/2026-11-08_lantern_card/PLAN.md). Not an item: the market never sells it. */
+  function lanternCard() {
+    return itemCard("lantern_card", 3, { icon: SPRITES.lanternCardIcon });
   }
 
   // The Kata, once the Stone Card (server/src/rules/stoneCard.ts): a 3x3 go board on a card,
@@ -2047,6 +2095,7 @@
     GREY_STONE,
     powerupIcon,
     POWERUP_ICON_IDS,
+    lanternCard,
     CARD_W,
     CARD_H,
     CARD_NAME_Y,
