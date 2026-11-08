@@ -74,3 +74,12 @@ test("lantern festival: the game state is byte for byte the same before and afte
   room.handleLanternFestival(clients[2]);
   assert.equal(JSON.stringify(room.state.toJSON()), before);
 });
+
+test("lantern festival: the wait notice speaks of the stone lantern, not of a card", (t) => {
+  const { room, clients } = startedRoom();
+  room.handleLanternFestival(clients[0]);
+  room.handleLanternFestival(clients[1]);
+  const said = notices(clients[1]).at(-1) ?? "";
+  assert.match(said, /stone lantern/);
+  assert.doesNotMatch(said, /card/i);
+});
