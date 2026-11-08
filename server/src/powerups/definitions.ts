@@ -7,6 +7,7 @@ import {
   isOnBoard,
   isPlayerStone,
   ownerOf,
+  sharesColour,
   stoneCode,
   viewsOf,
 } from "../rules/goRules";
@@ -261,6 +262,33 @@ const ferry: PowerupDefinition = {
   },
 };
 
+/**
+ * Sends the stone on `target` along its row or column to `target2`, over empty
+ * points only, if `mayCarry` allows it and it isn't warded. The Skiff carries
+ * your own; the river haiku at level 3 any stone of your two colours.
+ */
+function glide(ctx: Parameters<PowerupDefinition["apply"]>[0], mayCarry: (code: number) => boolean): boolean {
+  const from = targetIndex(ctx);
+  const { target, target2, size } = ctx;
+  if (from === -1 || !target2 || !isOnBoard(size, target2.x, target2.y)) return false;
+  const code = ctx.state.board[from];
+  if (!isPlayerStone(code) || !mayCarry(code) || ctx.isWarded(from)) return false;
+  const dx = Math.sign(target2.x - target!.x);
+  const dy = Math.sign(target2.y - target!.y);
+  if ((dx === 0) === (dy === 0)) return false; // neither the same row nor the same column, or no move at all
+  // Every point on the way, and the landing point, must be empty.
+  for (let x = target!.x + dx, y = target!.y + dy; ; x += dx, y += dy) {
+    if (ctx.state.board[boardIndex(size, x, y)] !== 0) return false;
+    if (x === target2.x && y === target2.y) break;
+  }
+  ctx.state.board[from] = 0;
+  if (ctx.placeStone(target2.x, target2.y, code) === null) {
+    ctx.state.board[from] = code; // refused: the stone stays where it was
+    return false;
+  }
+  return true;
+}
+
 const skiff: PowerupDefinition = {
   id: "skiff",
   tier: 2,
@@ -269,27 +297,7 @@ const skiff: PowerupDefinition = {
     "Send one of your stones gliding along its row or column to an empty point, as far as the way is clear. Captures are judged as if you had played it there.",
   price: 65,
   points: 2,
-  apply(ctx) {
-    const from = targetIndex(ctx);
-    const { target, target2, size } = ctx;
-    if (from === -1 || !target2 || !isOnBoard(size, target2.x, target2.y)) return false;
-    const code = ctx.state.board[from];
-    if (!isPlayerStone(code) || ownerOf(code) !== ownColor(ctx) || ctx.isWarded(from)) return false;
-    const dx = Math.sign(target2.x - target!.x);
-    const dy = Math.sign(target2.y - target!.y);
-    if ((dx === 0) === (dy === 0)) return false; // neither the same row nor the same column, or no move at all
-    // Every point on the way, and the landing point, must be empty.
-    for (let x = target!.x + dx, y = target!.y + dy; ; x += dx, y += dy) {
-      if (ctx.state.board[boardIndex(size, x, y)] !== 0) return false;
-      if (x === target2.x && y === target2.y) break;
-    }
-    ctx.state.board[from] = 0;
-    if (ctx.placeStone(target2.x, target2.y, code) === null) {
-      ctx.state.board[from] = code; // refused: the stone stays where it was
-      return false;
-    }
-    return true;
-  },
+  apply: (ctx) => glide(ctx, (code) => ownerOf(code) === ownColor(ctx)),
 };
 
 const twinWick: PowerupDefinition = {
@@ -457,7 +465,7 @@ export function haikuPower(card: string, level: number): PowerupDefinition | und
     price: 0,
   };
   if (haiku.id === "moon") return { ...base, apply: (ctx) => haikuWard(ctx, lv) };
-  if (haiku.id === "river") return { ...base, points: 2, free: lv >= 3, apply: (lv === 1 ? ferry : skiff).apply };
+  if (haiku.id === "river") return { ...base, points: 2, free: lv >= 3, apply: lv === 1 ? ferry.apply : lv === 2 ? skiff.apply : (ctx) => glide(ctx, (code) => sharesColour(code, ownColor(ctx))) };
   return { ...base, points: lv >= 3 ? 2 : 1, apply: (ctx) => haikuSeeds(ctx, lv) };
 }
 

@@ -72,7 +72,7 @@ const HAIKU = [
   {
     id: "river", kanji: "川", name: "River",
     lines: ["The river carries", "one stone to a quiet shore", "the ferry comes home"],
-    powers: ["Move one of your stones one step to an empty point beside it.", "Glide one of your stones along its row or column to an empty point, as far as the way is clear.", "Glide one of your stones along its row or column, as far as the way is clear, and keep your turn."],
+    powers: ["Move one of your stones one step to an empty point beside it.", "Glide one of your stones along its row or column to an empty point, as far as the way is clear.", "Glide any stone of your two colours along its row or column, as far as the way is clear, and keep your turn."],
   },
   {
     id: "tree", kanji: "木", name: "Tree",
@@ -1015,7 +1015,7 @@ function onBoardClick(evt) {
       // Ferry and Skiff: first one of your stones, then where it goes. Another of
       // your stones picks that one instead; the picked stone again un-picks it.
       // While the storm greys the stones, any stone is taken: there is no telling.
-      const mineAt = stormGreys() || (myPlayer && isMyStoneCode(board[p.y * lastState.size + p.x], myPlayer.color));
+      const mineAt = stormGreys() || (myPlayer && mayCarry(board[p.y * lastState.size + p.x]));
       if (firstTarget && firstTarget.x === p.x && firstTarget.y === p.y) {
         firstTarget = null;
         setTargetingHint();
@@ -1091,6 +1091,21 @@ function isMyStoneCode(code, myColor) {
   return code >= 10 && code <= 13 && code - 9 === myColor;
 }
 
+/** True if board code `code` shows one of this player's two colours, whoever placed it (mirrors sharesColour() in goRules.ts). */
+function sharesMyColour(code, myColor) {
+  const [base, pattern] = LOOK_NAMES[myColor];
+  const looks = code >= 1 && code <= 4 ? [LOOK_NAMES[code][0]] : code >= 5 && code <= 8 ? [LOOK_NAMES[code - 4][1]] : code >= 10 && code <= 13 ? LOOK_NAMES[code - 9] : [];
+  return looks.includes(base) || looks.includes(pattern);
+}
+
+/** The 川 haiku at level 3 carries any stone of my two colours; every other card, my own. */
+const carriesMyColours = () => selectedPowerup === "haiku_river" && haikuLevel(myPlayer, "river") >= 3;
+
+/** Whether the armed card may pick the stone with board code `code`. */
+function mayCarry(code) {
+  return carriesMyColours() ? sharesMyColour(code, myPlayer.color) : isMyStoneCode(code, myPlayer.color);
+}
+
 /** True while the storm greys the stones (its full three rounds): nobody is shown whose stone is whose. */
 function stormGreys() {
   return P.stormLinger(turnCount, stormUntil, roundLength) > 0;
@@ -1109,7 +1124,7 @@ function ownStoneHighlight(boardArr) {
   if (stormGreys()) return null;
   const points = [];
   for (let i = 0; i < boardArr.length; i++) {
-    if (isMyStoneCode(boardArr[i], myPlayer.color)) points.push(i);
+    if (mayCarry(boardArr[i])) points.push(i);
   }
   return points;
 }
@@ -1212,9 +1227,10 @@ function targetingText() {
   const item = selectedPowerup && marketItem(selectedPowerup);
   if (!item) return "";
   const ownStone = OWN_STONE_TARGET_ITEMS.has(item.id) && !firstTarget;
+  const stones = carriesMyColours() ? "a stone of your two colours" : "one of your stones";
   const pickOwn = stormGreys()
-    ? `${item.name}: pick one of your stones -- the storm hides which are yours -- right click to cancel.`
-    : `${item.name}: pick one of your stones, each marked with an ember -- right click to cancel.`;
+    ? `${item.name}: pick ${stones} -- the storm hides which are yours -- right click to cancel.`
+    : `${item.name}: pick ${stones}, each marked with an ember -- right click to cancel.`;
   return aimedAs(item.id) === "seedling"
     ? item.points >= 2
       ? firstTarget

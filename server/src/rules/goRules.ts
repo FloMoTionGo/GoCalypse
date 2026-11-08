@@ -93,6 +93,14 @@ export function viewValue(view: StoneView, code: number): string | null {
   return view === "base" ? STONE_BASE[player] : STONE_PATTERN[player];
 }
 
+/** Whether a player stone shows either of `player`'s two colours, whoever placed it (a twin shows both of its owner's). */
+export function sharesColour(code: number, player: number): boolean {
+  return viewsOf(code).some((view) => {
+    const colour = viewValue(view, code);
+    return colour === STONE_BASE[player] || colour === STONE_PATTERN[player];
+  });
+}
+
 /** Whether two (non-empty) codes are on the same side for this view. Never true if either is a wall on this view. */
 export function sameView(view: StoneView, a: number, b: number): boolean {
   const va = viewValue(view, a);

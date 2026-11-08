@@ -42,7 +42,7 @@ export const HAIKU: Haiku[] = [
     powers: [
       "Move one of your stones one step to an empty point beside it.",
       "Glide one of your stones along its row or column to an empty point, as far as the way is clear.",
-      "Glide one of your stones along its row or column, as far as the way is clear, and keep your turn.",
+      "Glide any stone of your two colours along its row or column, as far as the way is clear, and keep your turn.",
     ],
   },
   {
