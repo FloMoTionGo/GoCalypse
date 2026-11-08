@@ -195,7 +195,7 @@ function renderReplayStep() {
   const step = steps[player.index];
   if (!step) return;
   document.getElementById("replay-step").textContent = `Step ${player.index + 1} of ${steps.length} · turn ${step.turnCount}`;
-  document.getElementById("replay-event").textContent = step.event;
+  document.getElementById("replay-event").textContent = P.namePoints(step.event);
   replaySliderEl.value = String(player.index);
   document.getElementById("replay-first").disabled = player.index === 0;
   document.getElementById("replay-back").disabled = player.index === 0;

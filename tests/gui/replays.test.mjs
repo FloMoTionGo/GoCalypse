@@ -129,7 +129,7 @@ test("replays: the step buttons and the arrow keys move through the game, and th
   for (let i = 0; i < 4; i++) await rig.clickEl("#replay-fwd");
   assert.equal(await index(), 4);
   assert.deepEqual(await b.ev("replays.steps[replays.player.index].board"), boardAfter(sep01, 4));
-  assert.equal(await b.ev("document.getElementById('replay-event').textContent"), "P4 played (3, 3)");
+  assert.equal(await b.ev("document.getElementById('replay-event').textContent"), "P4 played D4");
   await wait(200);
   assert.notEqual((await canvasPrint()).hash, first, "the canvas shows the stones");
   await rig.clickEl("#replay-back");
@@ -137,7 +137,7 @@ test("replays: the step buttons and the arrow keys move through the game, and th
   await b.key("ArrowRight");
   await b.key("ArrowRight");
   assert.equal(await index(), 5);
-  assert.equal(await b.ev("document.getElementById('replay-event').textContent"), "P2 played (0, 1), captured 1");
+  assert.equal(await b.ev("document.getElementById('replay-event').textContent"), "P2 played B1, captured 1");
   await b.key("ArrowLeft");
   assert.equal(await index(), 4);
   await b.key("End");

@@ -32,7 +32,7 @@
   // ---------------------------------------------------------------------------
   const SPACING = 16; // native px between grid lines (x2 = today's 32 CSS px)
   const FRAME = 12; // dark lacquer frame band around the kaya (holds the labels)
-  const LABEL_GAP = 2; // px between the row/column numbers and the wooden board
+  const LABEL_GAP = 2; // px between the row letters / column numbers and the wooden board
   const KAYA_MARGIN = 6; // kaya between the outer grid line and the frame
   const FRONT = 5; // visible front face of the deck
   // The deck is a pier standing in the river: water runs all the way round it.
@@ -1252,6 +1252,17 @@
     return G.makeSprite(spr.name + "_top" + h, spr.w, h, spr.px.slice(0, spr.w * h));
   }
 
+  // The names on the main board's edges: rows lettered from A at the top, columns numbered from 1.
+  const ROW_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"; // no I, as on a Go board; as many as the largest table has rows
+  const rowLabel = (y) => ROW_LETTERS[y];
+  const columnLabel = (x) => String(x + 1);
+  const pointLabel = (x, y) => rowLabel(y) + columnLabel(x);
+
+  /** The server's lines and saved games say "(x, y)", counted from 0; on screen they say what the board's edges say. */
+  function namePoints(text) {
+    return text.replace(/\((\d+), (\d+)\)/g, (whole, x, y) => (+x < ROW_LETTERS.length && +y < ROW_LETTERS.length ? pointLabel(+x, +y) : whole));
+  }
+
   function createScene(options) {
     const opts = options || {};
     const size = opts.size || 13;
@@ -1774,13 +1785,13 @@
     function drawLabels(hover) {
       const f = G.FONT_SMALL;
       for (let i = 0; i < size; i++) {
-        const label = String(i);
-        const w = G.textWidth(f, label);
         if (!(hover && hover.x === i)) {
-          G.drawText(surf, f, label, L.gridX + i * SPACING - (w >> 1), L.boardY + FRAME - LABEL_GAP - 5, A);
+          const column = columnLabel(i);
+          G.drawText(surf, f, column, L.gridX + i * SPACING - (G.textWidth(f, column) >> 1), L.boardY + FRAME - LABEL_GAP - 5, A);
         }
         if (!(hover && hover.y === i)) {
-          G.drawText(surf, f, label, L.kayaX - LABEL_GAP - w, L.gridY + i * SPACING - 2, A);
+          const row = rowLabel(i);
+          G.drawText(surf, f, row, L.kayaX - LABEL_GAP - G.textWidth(f, row), L.gridY + i * SPACING - 2, A);
         }
       }
     }
@@ -2851,8 +2862,8 @@
             surf.blitCentered(G.stoneSprite(g.code), q.x, q.y, { coverage: 0.5 });
           }
         }
-        drawHighlightTag(String(hover.x), L.gridX + hover.x * SPACING, L.boardY + FRAME - LABEL_GAP - 3, "down");
-        drawHighlightTag(String(hover.y), L.kayaX - LABEL_GAP - 4, L.gridY + hover.y * SPACING, "right");
+        drawHighlightTag(columnLabel(hover.x), L.gridX + hover.x * SPACING, L.boardY + FRAME - LABEL_GAP - 3, "down");
+        drawHighlightTag(rowLabel(hover.y), L.kayaX - LABEL_GAP - 4, L.gridY + hover.y * SPACING, "right");
       }
 
       // 9b. the stone lantern, in front of the stones and the hover stone in its corner, its
@@ -3023,6 +3034,8 @@
     FESTIVAL_SECONDS,
     festivalSeed,
     PASS_SIGN_SECONDS,
+    pointLabel,
+    namePoints,
     LANDING_LOOP,
     STAGE,
     stageSize,

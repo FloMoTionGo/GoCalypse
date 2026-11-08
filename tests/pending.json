@@ -1,16 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {"test": "board axes: a 9x9 board numbers its columns from 1 and letters its rows from A", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "board axes: a 13x13 board numbers its columns from 1 and letters its rows from A", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "board axes: a 19x19 board numbers its columns from 1 and letters its rows from A", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "board axes: a 25x25 board numbers its columns from 1 and letters its rows from A", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "board axes: the hovered point's tags show its column number and row letter", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "board axes: both board fonts can write every row letter, each one its own shape", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "board axes: pointLabel names a point by row letter and column number", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "board axes: namePoints turns the server's (x, y) into the board's own names", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "board axes: namePoints leaves any other text alone", "feature": "board-axes", "tier": "web", "since": "2026-11-08"},
-    {"test": "game: the event line and the log name a move's point by the board's letter and number", "feature": "board-axes", "tier": "gui", "since": "2026-11-08"},
-    {"test": "replays: the event line names a point by the board's letter and number", "feature": "board-axes", "tier": "gui", "since": "2026-11-08"}
-  ]
+  "pending": []
 }

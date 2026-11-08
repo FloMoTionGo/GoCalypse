@@ -1342,7 +1342,7 @@ function renderEventLog() {
       const round = document.createElement("span");
       round.className = "log-round";
       round.textContent = "R" + e.round;
-      li.append(round, e.text);
+      li.append(round, P.namePoints(e.text));
       return li;
     });
   if (!items.length) {
@@ -1388,7 +1388,7 @@ function renderRecall() {
   const off = viewOffset();
   recallStepsEl.textContent = off === 0 ? "0" : `-${off}`;
   const snap = viewedSnap();
-  const title = snap ? `${off} back: ${snap.event}` : "Moves back from the live board";
+  const title = snap ? `${off} back: ${P.namePoints(snap.event)}` : "Moves back from the live board";
   recallStepsEl.title = title;
   const count = document.getElementById("recall-count");
   pixelText(count, recallStepsEl.textContent, off > 0 ? G.INDEX.C : G.INDEX.A);
@@ -1586,7 +1586,7 @@ function onState(state) {
   renderPass(state);
   renderWeather(state);
   setTargetingHint();
-  lastEventEl.textContent = state.lastEvent || "";
+  lastEventEl.textContent = P.namePoints(state.lastEvent || "");
   logEvent(state);
   showPass(state);
 

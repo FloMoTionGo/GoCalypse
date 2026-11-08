@@ -18,10 +18,7 @@
   const { Surface, TRANSPARENT, SPRITES, ANIMS, FONT_SMALL, FONT_BIG } = G;
   const { K, C, A, T, S } = G.INDEX;
 
-  // The game's 3x5 font is digits only; these letters finish it for the signs in the pictures.
-  const LETTERS = { A: "010101111101101", E: "111100110100111", F: "111100110100100", G: "011100101101011", M: "101111111101101", O: "010101101101010", P: "110101110100100", R: "110101110101101", S: "011100010001110", V: "101101101101010" };
-  const SIGN = { name: "help_sign", height: 5, spacing: 1, glyphs: { ...FONT_SMALL.glyphs } };
-  for (const [ch, bits] of Object.entries(LETTERS)) SIGN.glyphs[ch] = { w: 3, h: 5, bits: Uint8Array.from(bits, Number) };
+  const SIGN = FONT_SMALL; // the signs in the pictures
 
   // Board codes: the characters the little boards below are written in.
   const STONE = { b: 1, w: 2, g: 5, t: 7, e: G.GREY_STONE };
