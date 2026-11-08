@@ -1,4 +1,6 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    { "test": "cards: the see-through stone on an empty Kata point sits centred on its grid node, on the hand card and enlarged", "feature": "kata-hover", "tier": "gui", "since": "2026-11-08" }
+  ]
 }

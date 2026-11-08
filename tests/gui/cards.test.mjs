@@ -150,6 +150,28 @@ test("cards: nothing on the page calls it the Stone Card any more", async () => 
   rig.assertClean("the Kata");
 });
 
+test("cards: the see-through stone on an empty Kata point sits centred on its grid node, on the hand card and enlarged", async () => {
+  const measure = (root) => b.ev(`(() => {
+    const cell = document.querySelector(${JSON.stringify(`${root} .card-cell:not(.set)`)});
+    if (!cell) return null;
+    const c = cell.getBoundingClientRect(), g = cell.querySelector(".card-ghost").getBoundingClientRect();
+    return { dx: g.left + g.width / 2 - (c.left + c.width / 2), dy: g.top + g.height / 2 - (c.top + c.height / 2), width: g.width / c.width };
+  })()`);
+  await b.ev("hideCardZoom(); setSelectedPowerup(null); true");
+  const name = await b.ev(`(() => { const r = document.querySelector('#hand .card[data-id="stone_card"] .card-name').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  await b.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: name.x, y: name.y });
+  await b.waitFor("!!document.querySelector('.card.zoom.live')", 2000, "the Kata enlarged");
+  await wait(400); // the enlarged card's pop has settled
+  for (const [where, root] of [["the hand card", "#hand .stone-card"], ["the enlarged card", ".card.zoom.live"]]) {
+    const m = await measure(root);
+    assert.ok(m, `an empty point on ${where}`);
+    assert.ok(Math.abs(m.dx) < 0.5 && Math.abs(m.dy) < 0.5, `${where}: the ghost is off its node by (${m.dx}, ${m.dy})`);
+    assert.ok(Math.abs(m.width - 7 / 9) < 0.02, `${where}: the ghost is ${m.width} of the point's width, not 7/9`);
+  }
+  await b.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+  await b.ev("hideCardZoom(); true");
+});
+
 // Review U6: on a tablet nothing hovers, so the cards' 5 px text could never be read.
 // The first tap on a card shows it enlarged (the Kata's live copy, whose points take
 // stones); a tap on the card already shown acts as a click; a tap elsewhere lets it go.
