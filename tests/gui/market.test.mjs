@@ -115,6 +115,26 @@ test("market: the view the scene draws follows the table: lit to buy, half lit w
   assert.deepEqual(v.done.sign, { text: "NIGHT MARKET", lit: false });
 });
 
+test("market: the sign counts the rounds the table has finished, the same for every seat, and the tip says round 6", async () => {
+  const v = await b.ev(`(() => {
+    const state = (turnCount) => ({ status: "playing", shopAfter: 5, handLimit: 5, market: [], turnCount, players: [1, 2, 3, 4] });
+    const me = (moves) => ({ moves, bought: [], fireflies: 50, powerups: [] });
+    return {
+      played: marketView(state(14), me(9)).sign,
+      idle: marketView(state(14), me(0)).sign,
+      lastTurn: marketView(state(19), me(9)).sign,
+      open: marketView(state(20), me(0)).sign,
+      tip: stallVerdict({ name: "x" }, { state: "closed" }, marketContext(state(14), me(9))),
+    };
+  })()`);
+  assert.deepEqual(v.played, { text: "OPENS 3/5", lit: false });
+  assert.deepEqual(v.idle, v.played, "the same for a seat that has placed no stone");
+  assert.deepEqual(v.lastTurn, { text: "OPENS 4/5", lit: false });
+  assert.deepEqual(v.open, { text: "NIGHT MARKET", lit: true });
+  assert.match(v.tip, /start of round 6/);
+  assert.doesNotMatch(v.tip, /moves/);
+});
+
 test("market: a real click on a boat buys its item, takes one lantern off its string and flies the card in from the boat", async () => {
   await b.ev(`(() => {
     window.__flights = [];

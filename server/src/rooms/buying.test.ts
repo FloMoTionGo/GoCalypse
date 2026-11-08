@@ -154,3 +154,40 @@ test("the market knows no powerful item: no stall carries a removal flag and the
   assert.equal((room.state as any).powerfulLimit, undefined);
   for (const m of Array.from(room.state.market) as any[]) assert.equal(m.removal, undefined, m.id);
 });
+
+test("the market stays shut for the whole table until round 6, whatever each seat has played", () => {
+  const room = makeRoom();
+  const clients = seatHumans(room);
+  stock(room, ["firefly_jar", "driftwood", "mist", "ferry", "kite", "echo_chime"]);
+  const client = onTurn(room, clients);
+  const me = playerOf(room, client);
+  me.fireflies = 500;
+  me.moves = 99;
+  room.state.turnCount = 19; // the last turn of round 5 at four seats
+  room.handleBuy(client, { id: "driftwood" });
+  assert.match(notices(client).at(-1)!, /start of round 6/);
+  assert.equal(me.powerups.length, 1, "only the Kata");
+});
+
+test("the market opens for every seat at once at the start of round 6, even one that has placed no stone", () => {
+  const room = makeRoom();
+  const clients = seatHumans(room);
+  stock(room, ["firefly_jar", "driftwood", "mist", "ferry", "kite", "echo_chime"]);
+  room.state.turnCount = 20;
+  ["firefly_jar", "driftwood", "mist", "ferry"].forEach((id, i) => {
+    const me = playerOf(room, clients[i]);
+    me.fireflies = 500;
+    me.moves = 0;
+    room.handleBuy(clients[i], { id });
+    assert.ok(me.powerups.includes(id), `seat ${i} bought ${id}`);
+  });
+});
+
+test("a bot sees how many rounds the table has finished", () => {
+  const room: any = makeRoom();
+  seatHumans(room);
+  room.state.turnCount = 19;
+  assert.equal(room.botView(0).rounds, 4);
+  room.state.turnCount = 20;
+  assert.equal(room.botView(0).rounds, 5);
+});
