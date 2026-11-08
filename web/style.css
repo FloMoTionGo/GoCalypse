@@ -466,7 +466,7 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 #game-body { flex: 1 1 auto; min-height: 0; display: flex; gap: calc(6 * var(--px)); align-items: stretch; }
 #board-wrap { flex: 0 0 auto; width: calc(var(--scene-w) * var(--px)); min-width: 0; display: flex; flex-direction: column; }
 /* Under the board, in its column: the hand row, then the three lines. The sidebar runs down beside them. */
-#game-foot { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; margin-left: calc(var(--landing-w, 0) * var(--px)); } /* the board above never gives way to it; under the deck, past the islands */
+#game-foot { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; margin-left: calc(var(--landing-w, 0) * var(--px)); margin-right: calc(var(--market-w, 0) * var(--px)); } /* the board above never gives way to it; under the deck, past the islands, short of the market */
 /* The three lines under it all: one line each, so a long one never pushes the stage taller. */
 #game-foot > .hint, #game-foot > .status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: var(--px); min-height: 0; line-height: 1.2; }
 
@@ -483,13 +483,11 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 }
 #board.my-turn, #board.targeting { cursor: pointer; }
 
-/* Exactly 264 art px (pixelScene.js STAGE.sidebar): min-width 0 stops long content from
-   widening it. 264 since the players panel became a kaya grid of 12 columns of 22; the players
-   moved onto the landing's islands on 2026-11-07, and the weather and the market kept the width.
-   As tall as the stage lets it be; the market scrolls. */
-#sidebar { flex: 0 0 calc(264 * var(--px)); min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
+/* Exactly 192 art px (pixelScene.js STAGE.sidebar): min-width 0 stops long content from
+   widening it. Only the weather lives here since the players went onto the islands and the
+   market onto the water, which took its 72 art px from this column. */
+#sidebar { flex: 0 0 calc(192 * var(--px)); min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
 #sidebar > .panel { flex: 0 0 auto; }
-#sidebar > #market { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--slate) var(--ink); }
 
 .panel {
   border: var(--px) solid var(--slate);
@@ -578,9 +576,21 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .ff img { flex-shrink: 0; }
 
 
-/* Two columns (main.js renderMarket): cozy stalls on the left, tactical and powerful on the right. */
-#market-items { display: flex; gap: calc(2 * var(--px)); align-items: flex-start; }
-.market-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: calc(2 * var(--px)); }
+/* The Night Market's boats are on the canvas; each has a real button over it (main.js renderMarket),
+   placed from the scene's layout, with corner brackets while it's pointed at or focused. */
+#market, #market-items { position: absolute; inset: 0; pointer-events: none; }
+#market-items .item { position: absolute; display: block; padding: 0; margin: 0; border: 0; background: transparent; color: inherit; pointer-events: auto; cursor: pointer; }
+#market-items .item:disabled { cursor: help; background: transparent; }
+#market-items .item:hover, #market-items .item:focus-visible { outline: none; background:
+  linear-gradient(var(--cream), var(--cream)) left top / calc(4 * var(--px)) var(--px) no-repeat,
+  linear-gradient(var(--cream), var(--cream)) left top / var(--px) calc(4 * var(--px)) no-repeat,
+  linear-gradient(var(--cream), var(--cream)) right top / calc(4 * var(--px)) var(--px) no-repeat,
+  linear-gradient(var(--cream), var(--cream)) right top / var(--px) calc(4 * var(--px)) no-repeat,
+  linear-gradient(var(--cream), var(--cream)) left bottom / calc(4 * var(--px)) var(--px) no-repeat,
+  linear-gradient(var(--cream), var(--cream)) left bottom / var(--px) calc(4 * var(--px)) no-repeat,
+  linear-gradient(var(--cream), var(--cream)) right bottom / calc(4 * var(--px)) var(--px) no-repeat,
+  linear-gradient(var(--cream), var(--cream)) right bottom / var(--px) calc(4 * var(--px)) no-repeat; }
+#market-items .item .goods { position: absolute; width: calc(15 * var(--px)); height: calc(15 * var(--px)); pointer-events: none; }
 /* Under the board: the hand of cards. Sized in art pixels like everything else, so the cards
    scale in whole device pixels like the board. width 0 + min-width 100%: the row never widens
    the board's column. */
@@ -721,14 +731,6 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .item img { flex-shrink: 0; }
 .item .text { flex: 1 1 auto; min-width: 0; }
 .item .title { display: flex; justify-content: space-between; gap: calc(3 * var(--px)); font-weight: 700; font-size: max(var(--min-font), calc(5.85 * var(--px))); }
-/* A stall in its column: the icon beside the name and price, the stock and the description under both. */
-#market-items .item { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: calc(3 * var(--px)); padding: calc(3 * var(--px)); }
-#market-items .item > .text { display: contents; }
-#market-items .item .title { grid-column: 2; flex-wrap: wrap; column-gap: calc(2 * var(--px)); row-gap: 0; }
-#market-items .item .stock { grid-column: 1 / -1; }
-/* Compact stalls: what an item does shows beside the stall on hover (main.js showMarketTip), so the
-   whole market fits the sidebar without scrolling. */
-#market-items .item .desc { display: none; }
 .market-tip, .capture-tip {
   position: fixed;
   z-index: 70;
@@ -743,6 +745,9 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   line-height: 1.25;
 }
 .market-tip b, .capture-tip b { display: block; color: var(--amber); margin-bottom: var(--px); }
+.market-tip .tier { font-weight: 400; color: var(--mist); font-size: 0.85em; }
+.market-tip .muted { color: var(--muted); }
+.market-tip .amber { color: var(--amber); }
 /* A seat's captures by colour (main.js showCaptureTip): per colour taken, its stone on kaya with its count. */
 .capture-tip { max-width: none; white-space: nowrap; }
 .capture-tip > div { display: flex; align-items: center; gap: calc(2 * var(--px)); margin-top: calc(2 * var(--px)); }
@@ -773,10 +778,6 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 #board.recalling { cursor: not-allowed; filter: sepia(.35) saturate(.8); }
 
 .item .tier { color: var(--muted); font-size: max(var(--min-font), calc(4.5 * var(--px))); font-weight: 400; }
-/* A stall's stock as tiny cards (main.js stockRow): filled copies left, dotted outlines sold; the last one glows. */
-.item .stock { display: flex; flex-wrap: wrap; gap: var(--px); margin: var(--px) 0 var(--px); }
-.item .stock img { flex-shrink: 0; }
-.item .stock img.last { filter: drop-shadow(0 0 var(--px) var(--amber)); }
 
 /* The Stone Card (stoneCardEl in main.js): its name and text sit lower than an item's, under the
    3x3 grid (sprites.js STONE_CARD_NAME_Y / STONE_CARD_TEXT_Y), and each open point of the grid is a

@@ -56,8 +56,9 @@ function poleCells(m) {
   return cells;
 }
 
-const T0 = 3.3, FRAMES = 80, FPS = 10;
-const time = (f) => T0 + f / FPS;
+const FRAMES = 80;
+const time = (f) => (33 + f) / 10; // 3.3 s on, in tenths: the ambient clock's own steps
+const AT = (t) => t + 1e-6; // the render floors its clock to those steps: land just past one
 
 test("market: the scene gains 72 art px of water right of the lantern channel, the bank moved out past it, on every board size", () => {
   for (const n of SIZES) {
@@ -124,7 +125,7 @@ test("market: every pole stands still through the whole loop while its boat bobs
   const bobs = L.stalls.map(() => new Set());
   for (let f = 0; f < FRAMES; f++) {
     const t = time(f);
-    const rgba = draw(scene, { time: t, market: market(stalls) });
+    const rgba = draw(scene, { time: AT(t), market: market(stalls) });
     L.stalls.forEach((m, i) => {
       for (const [x, y, want] of poleCells(m)) assert.equal(pixel(rgba, W, x, y), want, `frame ${f}: pole ${i} at ${x},${y}`);
       const boat = scene.marketBoat(i, t, stalls[i]);
@@ -156,7 +157,7 @@ test("market: the hovering lantern replays its boat's bob 0.6 s late, and only a
     assert.equal(outLate.size, 1, `boat ${i}: but it still follows the boat late`);
   });
   for (const t of [3.3, 4.7, 6.1]) {
-    const rgba = draw(scene, { time: t, market: market(stalls) });
+    const rgba = draw(scene, { time: AT(t), market: market(stalls) });
     L.stalls.forEach((_, i) => assert.ok(paper(rgba, W, scene.marketBoat(i, t, stalls[i]).lantern) > 8, `at ${t}: lantern ${i} is drawn where it says`));
   }
 });
@@ -170,7 +171,7 @@ test("market: the stock string moves as one with its boat, a small lantern lit f
       const t = time(f), boat = scene.marketBoat(i, t, s);
       assert.equal(boat.string.length, 6, `boat ${i}: one lantern a copy`);
       shapes.add(boat.string.map((b) => `${b.x}:${b.y - boat.y}`).join());
-      const rgba = draw(scene, { time: t, market: market(stalls) });
+      const rgba = draw(scene, { time: AT(t), market: market(stalls) });
       boat.string.forEach((b, k) => {
         assert.equal(pixel(rgba, W, b.x, b.y - 1), k < 2 ? C : S, `frame ${f}: boat ${i} lantern ${k}'s cap`);
         assert.equal(pixel(rgba, W, b.x, b.y), k < 2 ? A : K, `frame ${f}: boat ${i} lantern ${k}'s paper`);
@@ -196,7 +197,7 @@ test("market: a sold-out boat is empty and says SOLD, an open one carries its it
   const scene = P.createScene({ size: 19 });
   const L = scene.layout, W = scene.width, m = L.stalls[0];
   const hullTop = m.wl - G.SPRITES.boatHull.h + 1;
-  const goods = [m.cx - 7, hullTop - 11, 15, 9], tag = [m.cx + 4, hullTop - 21, 30, 12];
+  const goods = [m.cx - 7, hullTop - 9, 15, 7], tag = [m.cx + 4, hullTop - 21, 30, 12];
   const none = still(scene, []), open = still(scene, [stall("fog", "open")]), sold = still(scene, [stall("fog", "sold", { left: 0 })]);
   assert.notEqual(box(open, W, goods), box(none, W, goods), "the item stands in an open boat");
   assert.equal(box(sold, W, goods), box(none, W, goods), "a sold-out boat is empty");
@@ -208,7 +209,7 @@ test("market: the turn marker is on boats whose item takes the turn, on the side
   const scene = P.createScene({ size: 19 });
   const L = scene.layout, W = scene.width, H = scene.height;
   [0, 1].forEach((i) => {
-    const m = L.stalls[i], hullTop = m.wl - G.SPRITES.boatHull.h + 1;
+    const m = L.stalls[i], hullTop = scene.marketBoat(i, 0, stall("kite", "open")).hullTop;
     const fill = [stall("bait", "open"), stall("fog", "open")].slice(0, i);
     const without = still(scene, fill.concat(stall("kite", "open", { turn: false })));
     const withIt = still(scene, fill.concat(stall("kite", "open", { turn: true })));

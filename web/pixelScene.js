@@ -53,6 +53,18 @@
   const LANDING_W = ISLAND_WATER + ISLAND_W + ISLAND_GAP;
   const LANDING_LOOP = 120; // s: every drifting lantern's loop closes a whole number of times in it
   const AMBIENT_FPS = 10;
+  // The Night Market (tasks/2026-11-07_night_market_water/PLAN.md): a strip of water right of the
+  // lantern channel, the bank moved out past it, and seven small boats loose in it, each held at
+  // the bow by a pole fixed in the riverbed.
+  const MARKET_W = 72;
+  const MOOR_X = [16, 54, 14, 52, 16, 54, 18]; // each boat's middle, from the strip's left edge
+  const MOOR_FLIP = [0, 1, 0, 1, 0, 1, 0]; // bow right: the string trails left, away from the bank
+  const MOOR_DOWN = [0, 32, 80, 116, 164, 202, 258]; // how far down the strip each lies at 19x19 ...
+  const MOOR_SPAN = 258, MOOR_FIRST = 42; // ... the span of those, and the first waterline below the deck's top
+  const MOOR_SPAN_MIN = 212, MOOR_GAP = 32; // a small board's span runs on past the deck; the rows between two boats
+  const MARKET_BOB_W = Math.PI / 2; // twice in 8 s
+  const LANTERN_LAG = 0.6; // s: how late the hovering lantern answers its boat
+  const MAST = 21; // the rows from the hull's top up to where the tag hangs, under the lantern
   // The PASS sign (drawPassSign): how long it holds, then how long it takes to dither away.
   const PASS_HOLD = 1.6, PASS_FADE = 0.7;
   const PASS_SIGN_SECONDS = PASS_HOLD + PASS_FADE;
@@ -61,6 +73,17 @@
 
   // Region codes for the static layer.
   const R_BANK = 0, R_WATER = 1, R_FRAME = 2, R_KAYA = 3, R_FRONT = 4, R_ISLAND = 5;
+
+  /** The seven moorings of a scene: each boat's middle and waterline, its heading and its pole. */
+  function marketMoorings(x0, boardY, board) {
+    const span = Math.max(board - 66, MOOR_SPAN_MIN);
+    let last = -MOOR_GAP;
+    return MOOR_DOWN.map((down, i) => {
+      last = Math.max(Math.round((down * span) / MOOR_SPAN), last + MOOR_GAP);
+      const cx = x0 + MOOR_X[i], flip = !!MOOR_FLIP[i];
+      return { i, cx, wl: boardY + MOOR_FIRST + last, flip, poleX: cx + (flip ? 14 : -14) };
+    });
+  }
 
   function computeLayout(size) {
     const grid = (size - 1) * SPACING;
@@ -73,7 +96,8 @@
     const boardBottom = boardY + board; // exclusive (top surface of the deck)
     const frontBottom = boardBottom + FRONT;
     const streamX0 = boardRight, streamX1 = streamX0 + STREAM;
-    const width = streamX1 + RIGHT_BANK;
+    const marketX0 = streamX1, marketX1 = marketX0 + MARKET_W; // the Night Market's water
+    const width = marketX1 + RIGHT_BANK;
     const riverY0 = frontBottom;
     const topWaterY0 = TOP_BANK; // first water row above the deck
     const height = riverY0 + RIVER;
@@ -91,7 +115,38 @@
       kayaX, kayaY, kayaW: kaya, kayaH: kaya,
       gridX, gridY, gridSpan: grid,
       streamX0, streamX1, riverY0, topWaterY0, topBank: TOP_BANK, farBank: FAR_BANK,
+      marketX0, marketX1, stalls: marketMoorings(marketX0, boardY, board),
     };
+  }
+
+  const hullBob = (t, phase) => Math.round(Math.sin(t * MARKET_BOB_W + phase) * 0.9);
+  /** How lit a boat's lantern is: 1 you can buy, 0.5 for sale but not to you now, 0 gone or not open yet. */
+  const stallLevel = (s) => (s.state === "open" ? 1 : s.state === "poor" ? 0.5 : 0);
+  /** Which way a boat's tag hangs: towards the strip's wider side from the boat; the turn marker takes the other. */
+  const marketSide = (L, m) => (m.cx - L.marketX0 > L.marketX1 - m.cx ? -1 : 1);
+
+  /** A boat's tag: its price in the small digits, or SOLD / BOUGHT; none before the market opens. */
+  function marketTag(s) {
+    if (s.state === "closed") return null;
+    const word = s.state === "sold" ? "SOLD" : s.state === "bought" ? "BOUGHT" : null;
+    const text = word || String(s.price), font = word ? G.FONT_BIG : G.FONT_SMALL;
+    return { text, font, digits: !word, w: G.textWidth(font, text) + (word ? 4 : 9), h: font.height + 4 };
+  }
+
+  /**
+   * A boat's hit area in art px, at rest: its hull, its turn marker and its hovering lantern at
+   * their widest, and its tag as far as the strip's middle, so no boat's area reaches over the
+   * boat across the strip. `item` is where its goods stand (a card flies in from there).
+   */
+  function marketBox(L, i, s) {
+    const m = L.stalls[i], rest = m.wl - G.SPRITES.boatHull.h + 1, y0 = rest - MAST - 11;
+    let x0 = m.cx - 14, x1 = m.cx + 15;
+    const tag = marketTag(s);
+    if (tag) {
+      if (marketSide(L, m) < 0) x0 = Math.min(x0, Math.max(m.cx - 5 - tag.w, L.marketX0 + 28));
+      else x1 = Math.max(x1, Math.min(m.cx + 6 + tag.w, L.marketX0 + 44));
+    }
+    return { x: x0, y: y0, w: x1 - x0, h: m.wl + 4 - y0, item: { x: m.cx - 7, y: rest - 14 } };
   }
 
   // ---------------------------------------------------------------------------
@@ -158,7 +213,7 @@
         // Wavy bank lips, so no shoreline is a ruled line.
         const topLip = L.topBank + Math.round(Math.sin(x * 0.11) * 1.2 + Math.sin(x * 0.27 + 2) * 0.6);
         const nearLip = H - FAR_BANK + Math.round(Math.sin(x * 0.09 + 1) * 1.2 + Math.sin(x * 0.23) * 0.6);
-        const rightLip = L.streamX1 + Math.round(Math.sin(y * 0.13 + 1) * 0.8);
+        const rightLip = L.marketX1 + Math.round(Math.sin(y * 0.13 + 1) * 0.8);
         let r;
         if (y < topLip) r = R_BANK;
         else if (y >= nearLip) r = R_BANK;
@@ -244,7 +299,7 @@
     for (let x = 12 + Math.floor(rb() * 8); x < W - 6; x += 18 + Math.floor(rb() * 20)) {
       s.blit(G.SPRITES.grassTuft, x, nearLipAt(x) - 1);
     }
-    for (let y = L.topBank + 8; y < L.riverY0 - 8; y += 14 + Math.floor(rb() * 16)) s.set(L.streamX1 + (y & 1), y, T);
+    for (let y = L.topBank + 8; y < L.riverY0 - 8; y += 14 + Math.floor(rb() * 16)) s.set(L.marketX1 + (y & 1), y, T);
 
     // Water base: teal, darkest in the deck's shadow (which now runs all the
     // way round the pier) and along the far lip of each bank.
@@ -1349,9 +1404,9 @@
     addFly(6, 110, 3, 24); addFly(6, 210, 3, 22);
 
     const reeds = [
-      { anim: "reedsTall", x: L.streamX1 - 7, y: 60 - 15, phase: 0.3 },
-      { anim: "reedsShort", x: L.streamX1 - 6, y: 140 - 15, phase: 1.3 },
-      { anim: "reedsTall", x: L.streamX1 - 7, y: 220 - 15, phase: 2.1 },
+      { anim: "reedsTall", x: L.marketX1 - 7, y: 60 - 15, phase: 0.3 },
+      { anim: "reedsShort", x: L.marketX1 - 6, y: 140 - 15, phase: 1.3 },
+      { anim: "reedsTall", x: L.marketX1 - 7, y: 220 - 15, phase: 2.1 },
       { anim: "reedsTall", x: 60, y: H - 18, phase: 0.8 },
       { anim: "reedsShort", x: 150, y: H - 17, phase: 1.9 },
       { anim: "reedsTall", x: 206, y: H - 17, phase: 2.7 },
@@ -1378,18 +1433,18 @@
      * the water runs; `dir` which way along it. Positions are seeded inside
      * the channel's band and wrap around it.
      */
-    function makeStreaks(count, axis, dir, x0, x1, y0, y1, speed) {
+    function makeStreaks(count, axis, dir, x0, x1, y0, y1, speed, rand = r) {
       const out = [];
       for (let i = 0; i < count; i++) {
         out.push({
           axis, dir,
           x0, x1, y0, y1,
-          across: axis === "h" ? y0 + Math.floor(r() * Math.max(1, y1 - y0)) : x0 + Math.floor(r() * Math.max(1, x1 - x0)),
-          along: r(),
-          speed: speed * (0.7 + r() * 0.6),
-          period: 1.1 + r() * 1.8,
-          phase: r(),
-          len: 2 + Math.floor(r() * 4),
+          across: axis === "h" ? y0 + Math.floor(rand() * Math.max(1, y1 - y0)) : x0 + Math.floor(rand() * Math.max(1, x1 - x0)),
+          along: rand(),
+          speed: speed * (0.7 + rand() * 0.6),
+          period: 1.1 + rand() * 1.8,
+          phase: rand(),
+          len: 2 + Math.floor(rand() * 4),
         });
       }
       return out;
@@ -1403,6 +1458,8 @@
       ...makeStreaks(12, "v", 1, L.channelX0 + 1, L.boardX - 2, -6, L.riverY0 + 6, 8),
       // the wide river below: running left, back out of the scene
       ...makeStreaks(30, "h", -1, -6, W + 6, L.riverY0 + 4, H - FAR_BANK - 2, 6),
+      // the market's backwater: slow, on its own seed so the rest of the river keeps its pattern
+      ...makeStreaks(8, "v", 1, L.marketX0 + 2, L.marketX1 - 2, -6, L.riverY0 + 6, 4, rng(4242)),
     ];
     const foamSpecks = [];
     for (let i = 0; i < 14; i++) foamSpecks.push({ x0: r() * W, row: 1 + (i % 3), speed: 5 + r() * 4, period: 2 + r() * 2, phase: r() });
@@ -1510,7 +1567,7 @@
       }
       // Bank edge ripples on the right bank and stream mouth.
       for (let y = 4; y < L.riverY0 - 3; y += 7) {
-        if (((y >> 3) + Math.floor(t * 2)) & 1) waterSet(L.streamX1 - 1, y, S);
+        if (((y >> 3) + Math.floor(t * 2)) & 1) waterSet(L.marketX1 - 1, y, S);
       }
       // Twinkling glints: dot, then a small cross, then gone.
       for (const tw of twinkles) {
@@ -1908,6 +1965,147 @@
       G.drawText(surf, G.FONT_BIG, label, sx + 2 + iconW, sy + ((sh - G.FONT_BIG.height) >> 1), o.text);
     }
 
+    // --- the Night Market ---------------------------------------------------------------
+    // Drawn over the water and the props each frame. Two masks, reset per frame: what the market
+    // has painted (the water's ripples and shade leave it alone) and what its lights leave alone
+    // (the scene's noLight and everything of the market's but the hulls).
+    const marketSolid = new Uint8Array(W * H), marketMask = new Uint8Array(W * H);
+    const hullFlipped = G.flipX(G.SPRITES.boatHull);
+
+    function mset(x, y, c, litOk) {
+      if (x < 0 || y < 0 || x >= W || y >= H) return;
+      const i = y * W + x;
+      surf.px[i] = c;
+      marketSolid[i] = 1;
+      if (!litOk) marketMask[i] = 1;
+    }
+    const mwater = (x, y, c) => { if (isWater(x, y) && !marketSolid[y * W + x]) surf.px[y * W + x] = c; };
+    function mblit(spr, x, y, dim, litOk) {
+      for (let sy = 0; sy < spr.h; sy++) for (let sx = 0; sx < spr.w; sx++) {
+        const v = spr.px[sy * spr.w + sx];
+        if (v === G.TRANSPARENT || (dim && !G.ditherOn(x + sx, y + sy, dim))) continue;
+        mset(x + sx, y + sy, litOk && v === C ? A : v, litOk);
+      }
+    }
+    /** A plate with a 1 px edge, its corners knocked off. */
+    function mplate(x, y, w, h, fill, edge) {
+      for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+        if ((xx === 0 || xx === w - 1) && (yy === 0 || yy === h - 1)) continue;
+        mset(x + xx, y + yy, xx === 0 || yy === 0 || xx === w - 1 || yy === h - 1 ? edge : fill);
+      }
+    }
+    /** A paper lantern at (x, y): lit, half lit (the paper dithered dark) or out. */
+    function mlantern(x, y, level, t, phase) {
+      const a = ANIMS.garlandAmber, spr = a.frames[Math.floor(t * a.fps + phase * a.frames.length) % a.frames.length];
+      const clear = (sx, sy) => spr.px[sy * spr.w + sx] === G.TRANSPARENT;
+      for (let sy = 0; sy < spr.h; sy++) for (let sx = 0; sx < spr.w; sx++) {
+        const v = spr.px[sy * spr.w + sx];
+        if (v === G.TRANSPARENT) continue;
+        const edge = sx === 0 || sy === 0 || sx === spr.w - 1 || sy === spr.h - 1 || clear(sx - 1, sy) || clear(sx + 1, sy) || clear(sx, sy - 1) || clear(sx, sy + 1);
+        let c = v;
+        if (level === 0) c = edge ? S : K;
+        else if (level < 1 && v !== K && !G.ditherOn(x + sx, y + sy, level)) c = K;
+        mset(x + sx, y + sy, c);
+      }
+    }
+    const mlight = (x, y, r, s) => surf.ramp(G.LIGHT, x, y, r, s, 1, marketMask);
+    function mreflection(x, y, t, len) {
+      for (let k = 0; k < len; k++) {
+        const yy = y + k, wob = Math.round(Math.sin(t * 5 + k * 1.4 + x) * (k > 1 ? 1 : 0)), cov = 0.8 - k * (0.8 / len);
+        if (G.ditherOn(x + wob, yy, cov)) mwater(x + wob, yy, A);
+        if (k < len - 2 && G.ditherOn(x + wob + 1, yy, cov * 0.6)) mwater(x + wob + 1, yy, A);
+        if (k < len - 2 && G.ditherOn(x + wob - 1, yy, cov * 0.6)) mwater(x + wob - 1, yy, A);
+      }
+    }
+    function mripples(x0, x1, y, t) {
+      const ph = Math.floor(t * 2) & 1;
+      mwater(x0 - 1 - ph, y, S); mwater(x0 - 3 + ph, y + 1, C);
+      mwater(x1 + 1 + ph, y, S); mwater(x1 + 3 - ph, y + 1, C);
+    }
+
+    /**
+     * Where boat `i` selling `s` is at ambient time `t`: the hull rides the water; the lantern
+     * over it replays the hull's bob LANTERN_LAG late, and sways as late while it is lit; the
+     * stock's string is one piece with the hull.
+     */
+    function marketBoat(i, t, s) {
+      const m = L.stalls[i], hull = G.SPRITES.boatHull, phase = i * 0.73, level = stallLevel(s);
+      const y = m.wl + hullBob(t, phase), late = t - LANTERN_LAG, mastTop = m.wl - hull.h + 1 - MAST;
+      const sway = level > 0 ? Math.round(Math.cos(late * MARKET_BOB_W + phase) * 1.4) : 0, lift = hullBob(late, phase);
+      const hx0 = m.cx - (hull.w >> 1), dir = m.flip ? -1 : 1, stern = m.flip ? hx0 : hx0 + hull.w - 1;
+      const string = [];
+      for (let k = 0; k < (s.stock || 0); k++) string.push({ x: stern + dir * (5 + k * 4), y: y - 2 + ((k + i) & 1) });
+      return { y, hullTop: y - hull.h + 1, hx0, phase, level, sway, lift, mastTop, dir, lantern: { x: m.cx - 3 + sway, y: mastTop - 9 + lift }, string };
+    }
+
+    function drawStall(s, i, t) {
+      const m = L.stalls[i], hull = m.flip ? hullFlipped : G.SPRITES.boatHull;
+      const { y, hullTop, hx0, phase, level, sway, lift, mastTop, dir, lantern, string } = marketBoat(i, t, s);
+      const empty = s.state === "sold", side = marketSide(L, m);
+      // The pole, fixed in the riverbed, and its short rope to the bow.
+      for (let yy = m.wl - 5; yy <= m.wl; yy++) { mset(m.poleX - 1, yy, K); mset(m.poleX, yy, S); mset(m.poleX + 1, yy, K); }
+      mset(m.poleX, m.wl - 6, C);
+      const from = m.flip ? m.cx + 8 : m.cx - 8, to = m.flip ? m.poleX - 2 : m.poleX + 2;
+      for (let x = Math.min(from, to); x <= Math.max(from, to); x++) mset(x, m.wl - 1 + ((x + from) & 1 ? 0 : 1), S);
+      mripples(hx0 + 1, hx0 + hull.w - 2, y + 1, t + phase);
+      // The goods standing in the boat, the turn marker on the side away from the tag, the hull in front.
+      if (!empty) mblit(G.powerupIcon(s.id) || G.SPRITES.fireflyIcon, m.cx - 7, hullTop - 14, level === 0 ? 0.45 : 0);
+      if (s.turn && !empty) mblit(G.SPRITES.turnIcon, side < 0 ? m.cx + 4 : m.cx - 12, hullTop - 17);
+      mblit(hull, hx0, hullTop, 0, true);
+      // The stock: a small lantern a copy on a string behind the stern, lit while it's for sale.
+      string.forEach((b, k) => {
+        const on = k < s.left && s.state !== "closed";
+        for (let x = b.x - dir * 3; x !== b.x - dir; x += dir) mset(x, y - 1, S);
+        mset(b.x, b.y - 1, on ? C : S); mset(b.x - 1, b.y, K); mset(b.x + 1, b.y, K); mset(b.x, b.y, on ? A : K);
+        mset(b.x - 1, b.y + 1, K); mset(b.x + 1, b.y + 1, K); mset(b.x, b.y + 1, on ? A : K); mset(b.x, b.y + 2, K);
+        if (on) mlight(b.x, b.y + 1, 4, 0.5);
+      });
+      // The hovering lantern, and the tag hanging from it.
+      mlantern(lantern.x, lantern.y, level, t, phase);
+      if (level > 0) mlight(m.cx + sway, mastTop - 5 + lift, 9, 0.55);
+      const tag = marketTag(s);
+      if (tag) {
+        const tx0 = m.cx + sway + (side < 0 ? -4 - tag.w : 5), ty0 = mastTop + 1 + lift;
+        mplate(tx0, ty0, tag.w, tag.h, C, K);
+        mset(m.cx + sway + side * 3, ty0 - 1, S); mset(m.cx + sway + side * 2, ty0 - 2, S);
+        const faded = s.state === "poor";
+        if (tag.digits) {
+          for (const [dx, dy] of [[0, -1], [-1, 0], [0, 0], [1, 0], [0, 1]]) mset(tx0 + 3 + dx, ty0 + 3 + dy, faded ? S : A);
+          G.drawText(surf, tag.font, tag.text, tx0 + 7, ty0 + 2, faded ? S : K);
+        } else G.drawText(surf, tag.font, tag.text, tx0 + 2, ty0 + 2, K);
+      }
+      if (level > 0) mreflection(m.cx, y + 2, t, 4);
+    }
+
+    /** A light shade on the water right beside a hull: a quarter dither, nothing round anything else. */
+    function shadeBeside(i, t, s) {
+      const { y, hullTop, hx0 } = marketBoat(i, t, s), hull = G.SPRITES.boatHull;
+      for (let yy = hullTop - 1; yy <= y + 1; yy++) for (let x = hx0 - 1; x <= hx0 + hull.w; x++) {
+        if (!isWater(x, yy) || marketSolid[yy * W + x] || !G.ditherOn(x, yy, 0.25)) continue;
+        let near = false;
+        for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const c = (yy + dy) * W + x + dx;
+          if (marketSolid[c] && !marketMask[c]) { near = true; break; }
+        }
+        if (near) surf.px[yy * W + x] = K;
+      }
+    }
+
+    /** market = {sign: {text, lit}, stalls: [{id, state, price, stock, left, turn}]}, one boat a stall in mooring order. */
+    function drawMarket(market, t) {
+      marketSolid.fill(0);
+      marketMask.set(noLight);
+      // The sign, hanging from the garland's rope over the strip.
+      const cx = L.marketX0 + (MARKET_W >> 1), { text, lit } = market.sign;
+      const w = G.textWidth(G.FONT_BIG, text) + 7, x0 = cx - (w >> 1), y0 = L.topBank + 2;
+      for (let y = 3; y < y0; y++) { mset(x0 + 3, y, S); mset(x0 + w - 4, y, S); }
+      mplate(x0, y0, w, 10, K, lit ? A : S);
+      G.drawText(surf, G.FONT_BIG, text, x0 + 4, y0 + 2, lit ? C : S);
+      const stalls = market.stalls.slice(0, L.stalls.length);
+      stalls.forEach((s, i) => drawStall(s, i, t));
+      stalls.forEach((s, i) => shadeBeside(i, t, s));
+    }
+
     /** "PASS" at triple size on an ink plate in the middle of the board; holds, then dithers away. */
     function drawPassSign(age) {
       if (age < 0 || age > PASS_HOLD + PASS_FADE) return;
@@ -2284,6 +2482,8 @@
      *                  pieces; each shows its rounds left, and owned ones carry their owner's mark,
      *   seats:         [{color, lit} | null] x4, in turn order: each seat's lantern over the channel by its
      *                  island, lit on its turn (the winner's at the end); null an open seat,
+     *   market:        {sign: {text, lit}, stalls: [{id, state, price, stock, left, turn}]}: the Night Market's
+     *                  boats (state: open | poor | bought | sold | closed); omit for none,
      *   round:         the number on the boat's signboard: the round being played (scenery: it drifts on its own clock),
      *   passFlash:     time (seconds) a pass happened, to show the PASS sign (omit for none),
      *   fireflies:     the viewing player's firefly count, on a second boat (omit for none),
@@ -2368,6 +2568,9 @@
       surf.blit(G.SPRITES.rock, toro.x - 1, H - 5);
       surf.blit(ANIMS.toro.frames[toroFrame], toro.x, toro.y);
       drawGarland(t);
+
+      // 4b. the Night Market, in its water right of the channel
+      if (st.market) drawMarket(st.market, t);
 
       // 5. board labels (the hovered row/column label is drawn later as a tag)
       const hover = st.hover && st.hover.x >= 0 && st.hover.y >= 0 && st.hover.x < size && st.hover.y < size ? st.hover : null;
@@ -2598,6 +2801,8 @@
       landingLanterns: (t) => landingFloaters(t).map((p) => ({ x: p.x, y: p.y })),
       /** Their loops: [{from, to, speed, laps}], the islands each goes round. */
       landingLoops: landingLoops.map(({ from, to, speed, laps }) => ({ from, to, speed, laps })),
+      /** Where boat `i`, selling `stall`, is at ambient time `t`: {y, hullTop, lantern: {x, y}, string: [{x, y}]}. */
+      marketBoat,
       timerAnchor,
       /** Region code at a native pixel: 0 bank, 1 water, 2 frame, 3 kaya, 4 deck front. */
       regionAt: (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? region[(y | 0) * W + (x | 0)] : -1),
@@ -2620,7 +2825,7 @@
     handScale: HAND_SCALE,
     header: 18 * HEADER_SCALE, // the header row: 18 of its own art pixels
     gap: 6, // between the scene and the sidebar, and under the header
-    sidebar: 12 * 22, // the sidebar column: the players panel's kaya grid, 12 columns of 22 (main.js PLAYER_GRID)
+    sidebar: 192, // the sidebar column: only the weather since the players and the market went on the water
     hand: 3 + (52 + 6) * HAND_SCALE, // the hand row: 3 above the cards, 52 of card, 6 for the Kata's UPGRADABLE under it
     status: 22, // the hint, notice and last-event lines under it all
   };
@@ -2708,6 +2913,7 @@
     stormLinger,
     REGION: { BANK: R_BANK, WATER: R_WATER, FRAME: R_FRAME, KAYA: R_KAYA, FRONT: R_FRONT, ISLAND: R_ISLAND },
     computeLayout,
+    marketBox,
     createScene,
     starPoints,
     placeEffect,

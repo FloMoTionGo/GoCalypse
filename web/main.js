@@ -786,6 +786,7 @@ function sizeCanvas() {
   root.setProperty("--stage-h", String(stage.h));
   root.setProperty("--scene-w", String(scene.width));
   root.setProperty("--landing-w", String(scene.layout.landingW)); // the hand and the lines start past the islands
+  root.setProperty("--market-w", String(scene.layout.marketX1 - scene.layout.marketX0)); // and end short of the market's water
   boardEl.style.width = `${(scene.width * k) / dpr}px`;
   boardEl.style.height = `${(scene.height * k) / dpr}px`;
   hideCardZoom(); // drawn at the old card size
@@ -856,6 +857,7 @@ function frame() {
     // the landing's lanterns, and the round on the river boat's sign (the round looked back
     // at, while recalling an older board)
     ...landingView(lastState, snap ? snap.turnCount : turnCount),
+    market: marketView(lastState), // live scenery too: tonight's boats, even while looking back
     passFlash: passFlashAt,
     fireflies: myPlayer ? myPlayer.fireflies : undefined,
     turnCount: snap ? snap.turnCount : turnCount,
@@ -1625,7 +1627,7 @@ function openWelcome(state) {
   document.getElementById("welcome-economy").textContent =
     `You earn fireflies: 3 for every stone you place and 5 for every stone you capture. ` +
     `If someone's item removes one of your stones, you get 3 back. ` +
-    `Once you've placed ${shopAfter} stones, the Night Market opens in the sidebar. It has ` +
+    `Once you've placed ${shopAfter} stones, the Night Market opens on the water right of the board. It has ` +
     `${tierCounts[0] + tierCounts[1] + tierCounts[2]} stalls a night: ${tierCounts[0]} cozy, ${tierCounts[1]} tactical ` +
     `and ${tierCounts[2]} powerful, drawn for the night, and the Bait's stall, there every night. ` +
     stockText +
@@ -2612,9 +2614,9 @@ function fitPlayerNames() {
 }
 
 /** Removal ("powerful") items the viewing player is carrying right now. */
-function powerfulHeld() {
-  if (!myPlayer) return 0;
-  return Array.from(myPlayer.powerups).filter((id) => {
+function powerfulHeld(me = myPlayer) {
+  if (!me) return 0;
+  return Array.from(me.powerups).filter((id) => {
     const item = marketItem(id);
     return item && item.removal;
   }).length;
@@ -3185,12 +3187,12 @@ function flyCard(index) {
     }
   };
   const target = handEl.querySelector(`.card[data-index="${index}"]`);
-  // renderMarket builds one button per stall, marked with the stall's item.
+  // renderMarket builds one button per boat, marked with the stall's item.
   const source = target ? marketItemsEl.querySelector(`button.item[data-id="${target.dataset.id}"]`) : null;
   if (!target || !source || reducedMotion() || !target.animate) return land();
 
   const to = target.getBoundingClientRect();
-  const from = (source.querySelector("img") || source).getBoundingClientRect();
+  const from = (source.querySelector(".goods") || source).getBoundingClientRect();
   if (!to.width || !from.width) return land();
   const flier = target.cloneNode(true);
   flier.classList.remove("incoming", "active");
@@ -3204,15 +3206,16 @@ function flyCard(index) {
 
   // Centre to centre, never across the board: first straight down (or up) beside
   // it to the hand's height, then along under the board into its place, the two
-  // legs overlapping a little for a rounded corner. The sidebar is always to the
-  // right of the board, so the first leg runs in the gap or over the sidebar.
+  // legs overlapping a little for a rounded corner. The boats are always to the
+  // right of the board, so the first leg runs over their water.
   // All relative to the card's place in the hand, as the transform is.
   const cx = to.left + to.width / 2, cy = to.top + to.height / 2;
   const x0 = from.left + from.width / 2 - cx;
   const y0 = from.top + from.height / 2 - cy;
   const s0 = Math.min(1, from.width / to.width);
-  const b = boardEl.getBoundingClientRect();
-  const boardBox = { left: b.left - cx, right: b.right - cx, top: b.top - cy, bottom: b.bottom - cy };
+  // The deck, not the canvas: the islands and the market's boats are on the canvas too.
+  const b = boardEl.getBoundingClientRect(), L = scene.layout, px = artPx();
+  const boardBox = { left: b.left + L.boardX * px - cx, right: b.left + L.boardRight * px - cx, top: b.top + L.boardY * px - cy, bottom: b.top + L.frontBottom * px - cy };
   const smooth = (a, z, v) => {
     const k = Math.min(1, Math.max(0, (v - a) / (z - a)));
     return k * k * (3 - 2 * k);
@@ -3254,64 +3257,116 @@ function flyCard(index) {
   flight.oncancel = finish;
 }
 
-function renderMarket(state) {
-  const me = myPlayer;
+/** What I can do at the market tonight, for stallStatus. */
+function marketContext(state, me) {
   const moves = me ? me.moves : 0;
-  const open = !!me && state.status === "playing" && moves >= state.shopAfter;
-  const bought = me ? Array.from(me.bought) : [];
-  const wallet = me ? me.fireflies : 0;
-
   const held = me ? Array.from(me.powerups).length : 0;
-  const full = held >= state.handLimit;
-  const powerfulFull = powerfulHeld() >= state.powerfulLimit;
+  return {
+    moves,
+    open: !!me && state.status === "playing" && moves >= state.shopAfter,
+    bought: me ? Array.from(me.bought) : [],
+    wallet: me ? me.fireflies : 0,
+    full: held >= state.handLimit,
+    powerfulFull: powerfulHeld(me) >= state.powerfulLimit,
+    handLimit: state.handLimit,
+    powerfulLimit: state.powerfulLimit,
+    shopAfter: state.shopAfter,
+  };
+}
 
+/**
+ * A stall to me. Each stall's copies are shared by the table and capped per player (stallCopies /
+ * fairShare in server/src/powerups/definitions.ts). A server from before stalls had stock sends
+ * none: there only removal items are limited, once each. `state` is what its boat shows: open
+ * (lit: buy), poor (half lit: for sale, not to me now), bought or sold (out), closed (out: not open for me).
+ */
+function stallStatus(m, c) {
+  const counted = m.stock > 0;
+  const mine = c.bought.filter((id) => id === m.id).length;
+  const soldOut = counted && m.left <= 0;
+  const hadShare = counted ? mine >= m.share : m.removal && mine > 0;
+  const blocked = c.full || (m.removal && c.powerfulFull);
+  const state = !c.open ? "closed" : soldOut ? "sold" : hadShare ? "bought" : blocked || c.wallet < m.price ? "poor" : "open";
+  return { counted, soldOut, hadShare, blocked, state };
+}
+
+/** One boat as the scene draws it. */
+function stallView(m, c) {
+  return { id: m.id, state: stallStatus(m, c).state, price: m.price, stock: m.stock, left: m.left, turn: !m.free };
+}
+
+/** The Night Market as the scene draws it (pixelScene.js render `market`). */
+function marketView(state, me = myPlayer) {
+  if (!state) return null;
+  const c = marketContext(state, me);
+  const sign = c.open ? { text: "NIGHT MARKET", lit: true }
+    : state.status === "finished" ? { text: "NIGHT MARKET", lit: false }
+    : { text: `OPENS ${Math.min(c.moves, c.shopAfter)}/${c.shopAfter}`, lit: false };
+  return { sign, stalls: Array.from(state.market).map((m) => stallView(m, c)) };
+}
+
+/** Why I can or can't buy from a stall, in a sentence. */
+function stallVerdict(m, s, c) {
+  if (s.state === "closed") return `The market opens after ${c.shopAfter} moves (${Math.min(c.moves, c.shopAfter)}/${c.shopAfter}).`;
+  if (s.soldOut) return `${m.name} is sold out tonight.`;
+  if (s.hadShare) {
+    if (!s.counted) return `${m.name} has already been bought this match.`;
+    return m.share === 1 ? `${m.name} is one to a player, and you've had yours.` : `You've bought your share of ${m.name} (${m.share} to a player).`;
+  }
+  if (c.full) return `Your hand is full (${c.handLimit} cards).`;
+  if (m.removal && c.powerfulFull) return `You can only carry ${c.powerfulLimit} powerful item at a time.`;
+  if (c.wallet < m.price) return `You have ${c.wallet} fireflies, ${m.price - c.wallet} short.`;
+  return "Click to buy.";
+}
+
+/** A stall's copies in words: its tip, and its button for a screen reader. */
+function stallStock(m, s) {
+  if (!s.counted) return "";
+  return s.soldOut ? `All ${m.stock} sold tonight.` : `${m.left} of ${m.stock} left tonight, ${m.share} to a player.`;
+}
+
+/**
+ * The Night Market's boats are drawn in the scene (drawMarket); this builds one real button per
+ * boat over the canvas, placed from the scene's layout: the hit area, the tip and what a screen
+ * reader hears. The sign's words stay in #market-status for screen readers too.
+ */
+function renderMarket(state) {
+  const c = marketContext(state, myPlayer);
   const items = Array.from(state.market);
   const drawn = items.filter((m) => m.id !== BAIT).length;
-  marketStatusEl.textContent = open
+  marketStatusEl.textContent = c.open
     ? `${drawn} stalls tonight and the Bait's, shared by the table.`
-    : `Opens after ${state.shopAfter} moves (${Math.min(moves, state.shopAfter)}/${state.shopAfter}).`;
+    : `Opens after ${state.shopAfter} moves (${Math.min(c.moves, state.shopAfter)}/${state.shopAfter}).`;
 
-  const sig = JSON.stringify([open, wallet, bought, held, powerfulFull, items.map((m) => [m.id, m.left])]);
+  const layout = scene ? scene.layout : P.computeLayout(state.size || 13);
+  const sig = JSON.stringify([layout.size, c.open, c.wallet, c.bought, c.full, c.powerfulFull, items.map((m) => [m.id, m.left])]);
   rebuild(marketItemsEl, sig, () => {
-    hideMarketTip(); // its stall is about to go
-    // Two columns: the cozy stalls (tier 1, the Bait's among them) on the left, tactical and powerful on the right.
-    const columns = [1, 2].map((side) => {
-      const col = document.createElement("div");
-      col.className = `market-col market-col-${side}`;
-      marketItemsEl.appendChild(col);
-      return col;
-    });
-    for (const m of items) {
-      // Each stall's copies are shared by the table and capped per player (stallCopies / fairShare
-      // in server/src/powerups/definitions.ts). A server from before stalls had stock sends none:
-      // there only removal items are limited, once each.
-      const counted = m.stock > 0;
-      const mine = bought.filter((id) => id === m.id).length;
-      const soldOut = counted && m.left <= 0;
-      const hadShare = counted ? mine >= m.share : m.removal && mine > 0;
-      const blocked = full || (m.removal && powerfulFull);
+    hideMarketTip(); // its boat is about to go
+    items.slice(0, layout.stalls.length).forEach((m, i) => {
+      const s = stallStatus(m, c);
+      const box = P.marketBox(layout, i, stallView(m, c));
       const button = document.createElement("button");
+      button.type = "button";
       button.className = "item";
       button.dataset.id = m.id;
-      button.title = soldOut
-        ? `${m.name} is sold out tonight.`
-        : hadShare
-        ? !counted
-          ? `${m.name} has already been bought this match.`
-          : m.share === 1
-          ? `${m.name} is one to a player, and you've had yours.`
-          : `You've bought your share of ${m.name} (${m.share} to a player).`
-        : full
-        ? `Your hand is full (${state.handLimit} cards).`
-        : m.removal && powerfulFull
-        ? `You can only carry ${state.powerfulLimit} powerful item at a time.`
-        : counted
-        ? `${m.left} of ${m.stock} left tonight, ${m.share} to a player. ${m.description}`
-        : m.description;
-      button.disabled = !open || soldOut || hadShare || blocked || wallet < m.price;
+      Object.assign(button.style, { left: `calc(${box.x} * var(--px))`, top: `calc(${box.y} * var(--px))`, width: `calc(${box.w} * var(--px))`, height: `calc(${box.h} * var(--px))` });
+      button.title = stallVerdict(m, s, c);
+      button.disabled = s.state !== "open";
+      button.setAttribute("aria-label",
+        s.state === "sold" ? `${m.name}, sold out`
+        : s.state === "bought" ? `${m.name}, bought`
+        : s.state === "closed" ? `${m.name}, not open yet`
+        : s.blocked ? `${m.name}, no room`
+        : `${m.name}, ${m.price} fireflies`);
 
+      // Where its goods stand: a card bought here flies in from them.
+      const goods = document.createElement("span");
+      goods.className = "goods";
+      Object.assign(goods.style, { left: `calc(${box.item.x - box.x} * var(--px))`, top: `calc(${box.item.y - box.y} * var(--px))` });
+
+      // The stall in words: no text is drawn over the water, the tip carries it.
       const text = document.createElement("span");
-      text.className = "text";
+      text.className = "text visually-hidden";
       const title = document.createElement("span");
       title.className = "title";
       const name = document.createElement("span");
@@ -3321,67 +3376,46 @@ function renderMarket(state) {
       tier.textContent = ["", "I", "II", "III"][m.tier] || "";
       tier.title = `Tier ${m.tier}`;
       name.append(" ", tier);
-      title.append(
-        name,
-        soldOut ? tag("sold out") : hadShare ? tag("bought") : blocked ? tag("no room") : fireflies(m.price)
-      );
-      const desc = document.createElement("span");
-      desc.className = "desc";
-      desc.textContent = m.description;
-      text.append(title);
-      if (counted) text.append(stockRow(m));
-      text.append(desc);
+      title.append(name, s.soldOut ? tag("sold out") : s.hadShare ? tag("bought") : s.blocked ? tag("no room") : fireflies(m.price));
+      text.append(title, ` ${stallStock(m, s)}`);
 
-      button.append(spriteImg(`icon_${m.id}`, G.powerupIcon(m.id) || G.SPRITES.fireflyIcon, 2), text);
-      // On the card's top-left corner, clear of the name and the stock under it.
-      if (!m.free) button.append(turnIcon());
+      button.append(goods, text);
       button.addEventListener("click", () => room && room.send("buy", { id: m.id }));
-      columns[m.tier === 1 ? 0 : 1].appendChild(button);
-    }
+      marketItemsEl.appendChild(button);
+    });
   });
 }
 
 /**
- * A stall's stock as tiny cards in the hand cards' ratio (sprites.js miniCard): one
- * in the tier's colour for every copy still for sale, a dotted outline for every
- * copy sold. The last copy glows. The numbers stay in the row's words.
- */
-function stockRow(m) {
-  const row = document.createElement("span");
-  row.className = "stock";
-  const words = m.left > 0 ? `${m.left} of ${m.stock} left tonight, ${m.share} to a player` : `0 of ${m.stock} left: sold out tonight`;
-  row.setAttribute("role", "img");
-  row.setAttribute("aria-label", words);
-  row.title = words;
-  for (let i = 0; i < m.stock; i++) {
-    const left = i < m.left;
-    const img = spriteImg(`mini_card_${m.tier}_${left ? "left" : "gone"}`, G.miniCard(m.tier, left ? "left" : "gone"), 1);
-    img.classList.add(left ? "mini-left" : "mini-gone");
-    if (left && m.left === 1) img.classList.add("last");
-    row.append(img);
-  }
-  return row;
-}
-
-/**
- * What a stall's item does, in a tip beside the sidebar while the pointer rests
- * on the stall (or it has keyboard focus): the stalls themselves are kept short,
- * so the whole market fits without scrolling.
+ * What a boat sells, beside the boat while the pointer rests on it (or it has keyboard focus):
+ * the name, what it does, how many are left, whether it takes the turn and why you can or can't
+ * buy it. A disabled boat explains itself too.
  */
 function showMarketTip(button) {
   hideMarketTip();
   const m = lastState && Array.from(lastState.market).find((s) => s.id === button.dataset.id);
   if (!m || !button.isConnected) return;
+  const c = marketContext(lastState, myPlayer), s = stallStatus(m, c);
   const tip = document.createElement("div");
   tip.className = "market-tip";
   const name = document.createElement("b");
   name.textContent = m.name;
-  tip.append(name, m.description);
+  const tier = document.createElement("span");
+  tier.className = "tier";
+  tier.textContent = ` ${["", "I", "II", "III"][m.tier] || ""}`;
+  name.append(tier);
+  const facts = document.createElement("span");
+  facts.className = "muted";
+  facts.textContent = `${stallStock(m, s)} ${m.free ? "Doesn't take your turn." : "Takes your turn."}`.trim();
+  const verdict = document.createElement("span");
+  verdict.className = s.state === "open" ? "muted" : "amber";
+  verdict.textContent = stallVerdict(m, s, c);
+  tip.append(name, m.description, document.createElement("br"), facts, document.createElement("br"), verdict);
   document.body.appendChild(tip);
-  const r = button.getBoundingClientRect(), side = document.getElementById("sidebar").getBoundingClientRect();
+  const r = button.getBoundingClientRect();
   const gap = 6, margin = 8;
   const top = Math.max(margin, Math.min(r.top, window.innerHeight - margin - tip.offsetHeight));
-  Object.assign(tip.style, { left: `${Math.max(margin, side.left - gap - tip.offsetWidth)}px`, top: `${top}px` });
+  Object.assign(tip.style, { left: `${Math.max(margin, r.left - gap - tip.offsetWidth)}px`, top: `${top}px` });
 }
 
 function hideMarketTip() {

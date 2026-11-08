@@ -108,6 +108,13 @@
             <!-- The players on the landing (renderPlayers() in main.js): one row a seat, in turn
                  order, laid over its island's top left of the deck. -->
             <div id="players"></div>
+            <!-- The Night Market (renderMarket() in main.js): the boats are drawn on the canvas, in the
+                 water right of the channel; one real button per boat lies over each. -->
+            <div id="market">
+              <h3 class="visually-hidden">Night Market</h3>
+              <p id="market-status" class="visually-hidden"></p>
+              <div id="market-items"></div>
+            </div>
           </div>
           <!-- Under the board, never over it (the river carries the firefly boat): the hand of item
                cards (renderHand() in main.js), left aligned under the deck past the islands, then
@@ -124,12 +131,6 @@
 
         <aside id="sidebar">
           <div id="weather" class="panel"></div>
-
-          <div id="market" class="panel">
-            <h3>Night Market</h3>
-            <p id="market-status" class="hint"></p>
-            <div id="market-items"></div>
-          </div>
         </aside>
       </div>
     </section>
