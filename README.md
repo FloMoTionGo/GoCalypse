@@ -407,8 +407,8 @@ end by about 6%.
 
 ### Replays
 
-Every game is saved by the server when it ends, with no action needed from
-anyone: played to the end, or abandoned after at least one turn (everyone
+Every game of 50 turns or more is saved by the server when it ends, with no action needed from
+anyone: played to the end, or abandoned after that many turns (everyone
 left). **Replays** on the home screen lists them, newest first, with who
 finished where. From / To dates (or *Today*, *7 days*, *30 days*, *All*)
 narrow the list to the days the games ended. Pick one to play it back:
@@ -430,6 +430,11 @@ haiku where the board is quiet. Games saved before this rule are cleared with
 `DATA_DIR=/data node build/tools/purgeHistory.js --dry-run` (lists what would
 go and why), then without `--dry-run`; `--any-bot` also drops the games where
 only some seats were bots. Same restart note as above.
+
+**Short games are not kept:** a game of fewer than 50 turns, counted across the
+whole table (`HISTORY_MIN_TURNS`), is never saved. Games saved before this rule
+are cleared with the same tool and `--short` instead of `--any-bot`, which
+removes those games and nothing else.
 
 ## Architecture
 

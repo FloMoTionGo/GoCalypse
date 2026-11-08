@@ -12,6 +12,19 @@ import type { GameRecord, GameSummary } from "./recorder";
 const GAME_ID = /^[A-Za-z0-9_-]{6,40}$/;
 const DEFAULT_LIMIT = 50;
 const DEFAULT_MAX = 500;
+const DEFAULT_MIN_TURNS = 50;
+
+/** The fewest turns (the whole table's) a game must last to be kept for replays: HISTORY_MIN_TURNS, or 50. */
+export function minReplayTurns(): number {
+  const raw = process.env.HISTORY_MIN_TURNS?.trim();
+  const turns = raw ? Number(raw) : NaN;
+  return Number.isFinite(turns) && turns >= 0 ? turns : DEFAULT_MIN_TURNS;
+}
+
+/** Whether a game ended too soon to be a replay. A record that doesn't say how long it was is left alone. */
+export function tooShort(game: { turns?: number }, minTurns = minReplayTurns()): boolean {
+  return typeof game.turns === "number" && game.turns < minTurns;
+}
 
 /** A game id: the only names that are ever turned into a path. */
 export function isGameId(id: unknown): id is string {
@@ -134,6 +147,17 @@ export class HistoryStore {
       if (!opts.dryRun) this.delete(summary.id);
     }
     return gone;
+  }
+
+  /**
+   * Forgets every saved game too short to be a replay (tooShort), and only
+   * those, saying how long each lasted. A dry run only says. For the games
+   * saved before the threshold (tools/purgeHistory.ts --short).
+   */
+  purgeShort(opts: { dryRun?: boolean } = {}): { id: string; turns: number }[] {
+    const gone = this.newest().filter((game) => tooShort(game));
+    if (!opts.dryRun) for (const game of gone) this.delete(game.id);
+    return gone.map(({ id, turns }) => ({ id, turns }));
   }
 
   list(query: ListQuery = {}): { games: GameSummary[]; total: number } {

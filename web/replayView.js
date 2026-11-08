@@ -71,7 +71,7 @@ async function loadReplayList() {
     replays.games = games;
     renderReplayList(games);
     const filtered = range.from !== undefined || range.to !== undefined;
-    if (total === 0) replayStatus(filtered ? "No games on these days." : "No games yet: every game played to its end shows up here.");
+    if (total === 0) replayStatus(filtered ? "No games on these days." : "No games yet: games of 50 turns or more show up here.");
     else if (total > games.length) replayStatus(`The newest ${games.length} of ${total} games`);
     else replayStatus(`${total} game${total === 1 ? "" : "s"}`);
   } catch (err) {

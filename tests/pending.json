@@ -1,13 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    { "test": "history store: a replay needs 50 turns unless HISTORY_MIN_TURNS says otherwise", "feature": "replay-min-turns", "tier": "server", "since": "2026-11-08" },
-    { "test": "history store: 49 turns is too short for a replay, 50 is enough", "feature": "replay-min-turns", "tier": "server", "since": "2026-11-08" },
-    { "test": "history store: purgeShort forgets the games under 50 turns, keeps every other game and lists each with its turns", "feature": "replay-min-turns", "tier": "server", "since": "2026-11-08" },
-    { "test": "history store: a purgeShort dry run lists the short games and removes nothing", "feature": "replay-min-turns", "tier": "server", "since": "2026-11-08" },
-    { "test": "history room: a game finished at 49 turns is not kept for replays", "feature": "replay-min-turns", "tier": "server", "since": "2026-11-08" },
-    { "test": "history room: a game abandoned under 50 turns is not kept, one abandoned at 50 is", "feature": "replay-min-turns", "tier": "server", "since": "2026-11-08" },
-    { "test": "history http: a server set to 50 turns lists no game shorter than that", "feature": "replay-min-turns", "tier": "integration", "since": "2026-11-08" },
-    { "test": "replays: the dialog says only games of 50 turns or more are kept", "feature": "replay-min-turns", "tier": "web", "since": "2026-11-08" }
-  ]
+  "pending": []
 }

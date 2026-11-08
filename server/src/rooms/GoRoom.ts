@@ -8,7 +8,7 @@ import { Seat, startedTables } from "./tables";
 import { BOARD_SIZES } from "./sizes";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import { GameRecorder, Outcome } from "../history/recorder";
-import { historyStore, noiseOf } from "../history/store";
+import { historyStore, minReplayTurns, noiseOf, tooShort } from "../history/store";
 import { heatmap } from "../history/heatmap";
 import { HAIKU, HAIKU_LATE_FIREFLIES, haikuCardId, haikuOfCard, isHaikuCard, pickHaikuPoints } from "../rules/haiku";
 import {
@@ -570,7 +570,8 @@ export class GoRoom extends Room<GoState> {
 
   /**
    * Keeps the finished (or abandoned) game for replays, unless it is test noise
-   * (a debug table, or no person ever at the table: history/store.ts noiseOf).
+   * (a debug table, or no person ever at the table: history/store.ts noiseOf)
+   * or it ended too soon to be worth watching (store.ts minReplayTurns).
    * A failed write costs the replay, never the game.
    */
   private saveHistory(outcome: Outcome) {
@@ -580,6 +581,10 @@ export class GoRoom extends Room<GoState> {
       const noise = noiseOf(record);
       if (noise) {
         console.log(`GoRoom ${this.roomId}: game ${record.id} not kept (${noise === "debug" ? "a debug table" : "nobody human played"})`);
+        return;
+      }
+      if (tooShort(record)) {
+        console.log(`GoRoom ${this.roomId}: game ${record.id} not kept (${record.turns} turns, a replay needs ${minReplayTurns()})`);
         return;
       }
       historyStore().save(record);
