@@ -137,6 +137,17 @@ test("history http: GET /history answers any origin (the web client is served el
   assert.equal(res.headers.get("access-control-allow-origin"), "*");
 });
 
+test("history http: a server set to 50 turns lists no game shorter than that", async () => {
+  const strict = await startServer({ env: { HISTORY_MIN_TURNS: "50" } });
+  try {
+    const rooms = await table(["Ivy", "Jon", "Kim", "Lou"], strict);
+    await passOut(rooms);
+    assert.deepEqual((await getJson(strict, "/history")).body, { games: [], total: 0 });
+  } finally {
+    await strict.stop();
+  }
+});
+
 test("history http: saved games outlive a restart, and a game the restart cut into keeps its earlier moves", async () => {
   const dataDir = tempDir("history-restart");
   let srv = await startServer({ dataDir });

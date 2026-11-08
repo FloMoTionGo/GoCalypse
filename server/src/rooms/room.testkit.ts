@@ -5,6 +5,7 @@ import os from "os";
 import path from "path";
 
 process.env.DATA_DIR = process.env.DATA_DIR || path.join(os.tmpdir(), `gocalypse-test-${process.pid}`);
+process.env.HISTORY_MIN_TURNS = process.env.HISTORY_MIN_TURNS ?? "0"; // these tables last a few turns; rooms/history.test.ts tries the real threshold
 
 import { MarketItem } from "../state/GoState";
 import { fairShare, getPowerup, stallCopies } from "../powerups/definitions";

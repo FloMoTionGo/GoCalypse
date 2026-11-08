@@ -15,6 +15,12 @@ const R = () => require(path.join(WEB, "replay.js"));
 const [sep01, sep15, oct01] = fixtureGames();
 const summary = ({ frames, territory, ...rest }) => rest;
 
+test("replays: the dialog says only games of 50 turns or more are kept", () => {
+  const fs = require("node:fs");
+  assert.match(fs.readFileSync(path.join(WEB, "index.html"), "utf8"), /Games of 50 turns or more, newest first/);
+  assert.match(fs.readFileSync(path.join(WEB, "replayView.js"), "utf8"), /games of 50 turns or more show up here/);
+});
+
 test("replay: decode gives one step per frame, each with the whole board after it", () => {
   const steps = R().decode(sep01);
   assert.equal(steps.length, sep01.frames.length);

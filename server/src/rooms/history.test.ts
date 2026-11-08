@@ -171,3 +171,56 @@ test("history room: with HISTORY=off nothing is recorded or saved", () => {
   passAround(room, clients, 4);
   assert.ok(saved(room), "on again by default");
 });
+
+// The rest of this file plays games far shorter than a replay may be, under the
+// room test kit's HISTORY_MIN_TURNS=0. These run under the server's own default.
+
+function underTheDefaultThreshold(run: () => void) {
+  const before = process.env.HISTORY_MIN_TURNS;
+  delete process.env.HISTORY_MIN_TURNS;
+  try {
+    run();
+  } finally {
+    if (before === undefined) delete process.env.HISTORY_MIN_TURNS;
+    else process.env.HISTORY_MIN_TURNS = before;
+  }
+}
+
+test("history room: a game finished at 49 turns is not kept for replays", () => {
+  underTheDefaultThreshold(() => {
+    const { room, clients } = startedRoom();
+    room.state.turnCount = 46;
+    passAround(room, clients, 4); // three turns go by, the fourth pass ends the game
+    assert.equal(room.state.status, "finished");
+    assert.equal(room.state.turnCount, 49);
+    assert.equal(saved(room), undefined, "nothing on disk");
+  });
+});
+
+test("history room: a game finished at exactly 50 turns is kept for replays", () => {
+  underTheDefaultThreshold(() => {
+    const { room, clients } = startedRoom();
+    room.state.turnCount = 47;
+    passAround(room, clients, 4);
+    assert.equal(room.state.turnCount, 50);
+    const record = saved(room);
+    assert.ok(record, "the game is on disk");
+    assert.equal(record.turns, 50);
+  });
+});
+
+test("history room: a game abandoned under 50 turns is not kept, one abandoned at 50 is", () => {
+  underTheDefaultThreshold(() => {
+    const short = startedRoom();
+    move(short.room, short.clients, 4, 4);
+    short.room.state.turnCount = 49;
+    short.room.onDispose();
+    assert.equal(saved(short.room), undefined, "49 turns: nothing on disk");
+
+    const long = startedRoom();
+    move(long.room, long.clients, 4, 4);
+    long.room.state.turnCount = 50;
+    long.room.onDispose();
+    assert.equal(saved(long.room).outcome, "abandoned", "50 turns: kept");
+  });
+});

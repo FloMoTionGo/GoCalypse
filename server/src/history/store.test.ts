@@ -224,3 +224,55 @@ test("history store: purge with anyBot also drops the games where only some seat
   assert.deepEqual(store.purge({ anyBot: true }).map((g: any) => g.id), ["game-mixed0002"]);
   assert.deepEqual(store.list().games.map((g: any) => g.id), ["game-human0002"]);
 });
+
+// The threshold: a game of fewer than 50 turns is no replay. It is never saved,
+// and purgeShort() clears the ones saved before this rule.
+
+test("history store: a replay needs 50 turns unless HISTORY_MIN_TURNS says otherwise", () => {
+  const { minReplayTurns } = storeModule();
+  const before = process.env.HISTORY_MIN_TURNS;
+  try {
+    delete process.env.HISTORY_MIN_TURNS;
+    assert.equal(minReplayTurns(), 50);
+    process.env.HISTORY_MIN_TURNS = "0";
+    assert.equal(minReplayTurns(), 0, "0 is a threshold too: no limit");
+    process.env.HISTORY_MIN_TURNS = "120";
+    assert.equal(minReplayTurns(), 120);
+    process.env.HISTORY_MIN_TURNS = "lots";
+    assert.equal(minReplayTurns(), 50, "nonsense falls back on the default");
+  } finally {
+    if (before === undefined) delete process.env.HISTORY_MIN_TURNS;
+    else process.env.HISTORY_MIN_TURNS = before;
+  }
+});
+
+test("history store: 49 turns is too short for a replay, 50 is enough", () => {
+  const { tooShort } = storeModule();
+  assert.equal(tooShort({ turns: 49 }, 50), true);
+  assert.equal(tooShort({ turns: 50 }, 50), false);
+  assert.equal(tooShort({ turns: 0 }, 50), true);
+  assert.equal(tooShort({}, 50), false, "a record that doesn't say how long it was is left alone");
+});
+
+test("history store: purgeShort forgets the games under 50 turns, keeps every other game and lists each with its turns", () => {
+  const { HistoryStore } = storeModule();
+  const dir = folder();
+  const store = new HistoryStore(dir);
+  store.save(record("game-short0001", T0, { turns: 49 }));
+  store.save(record("game-long00001", T0 + DAY, { turns: 50 }));
+  store.save(record("game-bots00004", T0 + 2 * DAY, { turns: 80, players: bots(true) }));
+  assert.deepEqual(store.purgeShort(), [{ id: "game-short0001", turns: 49 }]);
+  assert.deepEqual(store.list().games.map((g: any) => g.id), ["game-bots00004", "game-long00001"]);
+  assert.deepEqual(fs.readdirSync(dir).sort(), ["game-bots00004.json", "game-long00001.json"], "only the short game's file is gone, other noise is not its business");
+});
+
+test("history store: a purgeShort dry run lists the short games and removes nothing", () => {
+  const { HistoryStore } = storeModule();
+  const dir = folder();
+  const store = new HistoryStore(dir);
+  store.save(record("game-short0002", T0, { turns: 12 }));
+  store.save(record("game-long00002", T0 + DAY, { turns: 200 }));
+  assert.deepEqual(store.purgeShort({ dryRun: true }), [{ id: "game-short0002", turns: 12 }]);
+  assert.equal(store.list().total, 2, "both still listed");
+  assert.equal(fs.readdirSync(dir).length, 2, "both still on disk");
+});

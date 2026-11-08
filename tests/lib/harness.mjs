@@ -75,7 +75,7 @@ async function startServerOnce(dataDir, port, env) {
   let log = "";
   const child = spawn(process.execPath, [entry], {
     cwd: path.dirname(SERVER_BUILD),
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, ...env },
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, HISTORY_MIN_TURNS: "0", ...env }, // test games last a few turns
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stdout.on("data", (d) => (log += d));
