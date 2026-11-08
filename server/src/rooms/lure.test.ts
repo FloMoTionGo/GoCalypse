@@ -8,8 +8,8 @@ import { stoneCode } from "../rules/goRules";
 // The Bait lures a river creature (ideas.md §11.7): tossed onto an edge point,
 // it draws the creature along the frame to face that point, with its timer
 // running on as it was; when it runs out, it takes what is in its new reach.
-// Only ever defensive (D-Q3): a lure that would bring it onto another player's
-// stone is refused. It still doesn't take the turn.
+// The spirit only ever defensively (D-Q3): a lure that would bring it onto another
+// player's stone is refused; the crab may go anywhere. It still doesn't take the turn.
 
 function baitInHand(room: any, clients: any[]) {
   const client = onTurn(room, clients);
@@ -75,28 +75,28 @@ test("lure: refused and kept off the ring, with no creature out, on the point it
   assert.equal(holds(up.room, client), 1, "kept: no point given");
 });
 
-test("lure: never onto a rival's stone: a lure whose new reach holds another player's stone is refused and kept", () => {
-  const { room, clients } = risen(CRAB);
-  const crab = room.state.river.crab;
+test("lure: the spirit never onto a rival's stone: a lure whose new reach holds another player's stone is refused and kept", () => {
+  const { room, clients } = risen(SPIRIT);
+  const spirit = room.state.river.spirit;
   const client = baitInHand(room, clients);
   const rival = (playerOf(room, client).color % 4) + 1;
   put(room, 12, 5, stoneCode(rival, "pattern"));
   lure(room, client, 12, 4);
   assert.equal(holds(room, client), 1, "kept");
-  assert.deepEqual([crab.x, crab.y], [6, 0], "the crab stays where it was");
+  assert.deepEqual([spirit.x, spirit.y], [6, 0], "the spirit stays where it was");
   lure(room, client, 12, 8);
-  assert.deepEqual([crab.x, crab.y], [12, 8], "clear of the rival's stone, it goes");
+  assert.deepEqual([spirit.x, spirit.y], [12, 8], "clear of the rival's stone, it goes");
 });
 
 test("lure: a rival's stone the creature couldn't take, under a ward or a fog, doesn't stop it", () => {
   for (const shield of ["ward", "fog"]) {
-    const { room, clients } = risen(CRAB);
+    const { room, clients } = risen(SPIRIT);
     const client = baitInHand(room, clients);
     const rival = (playerOf(room, client).color % 4) + 1;
     put(room, 12, 5, stoneCode(rival, "base"));
     effect(room, shield, 12, 5, rival);
     lure(room, client, 12, 4);
-    assert.deepEqual([room.state.river.crab.x, room.state.river.crab.y], [12, 4], shield);
+    assert.deepEqual([room.state.river.spirit.x, room.state.river.spirit.y], [12, 4], shield);
   }
 });
 

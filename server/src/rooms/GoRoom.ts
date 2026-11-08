@@ -1242,10 +1242,11 @@ export class GoRoom extends Room<GoState> {
   /**
    * A Bait tossed on edge point `idx` by the player of `color`: the creature
    * nearer to it along the ring (the crab on a tie) walks over along the frame
-   * and faces it, with its reach moved along and its timer as it was. Only ever
-   * defensive (D-Q3): refused when the new reach holds a stone of another player
-   * that it could take. Also refused off the ring, with nothing out, and on the
-   * point it already faces.
+   * and faces it, with its reach moved along and its timer as it was. The spirit
+   * takes every stone in reach, so it only ever goes defensively (D-Q3): refused
+   * when the new reach holds a stone of another player that it could take. The
+   * crab takes one stone and may be lured onto anyone's. Also refused off the
+   * ring, with nothing out, and on the point it already faces.
    */
   private lureCreature(idx: number, color: number): boolean {
     const size = this.state.size;
@@ -1257,7 +1258,7 @@ export class GoRoom extends Room<GoState> {
     const spot = spotFacing(size, idx, near.at);
     if (!spot) return false;
     const reach = creatureReach(size, spot.x, spot.y);
-    if (reach.some((i) => this.creatureCanTake(i) && ownerOf(this.state.board[i]) !== color)) return false;
+    if (near.kind === "spirit" && reach.some((i) => this.creatureCanTake(i) && ownerOf(this.state.board[i]) !== color)) return false;
 
     const c = near.c;
     c.fromSide = c.side;

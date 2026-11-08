@@ -315,8 +315,8 @@ the **crab pinches one** stone in its reach, picked at random; the **spirit
 steals every one**. Warded and fogged stones are safe, it can't see a stone
 under a mist, and driftwood isn't a stone. Owners get the usual 3-firefly
 consolation per stone, and nobody gets a prisoner. A **Bait** tossed onto an
-edge point lures the nearer creature there, its timer unchanged -- never onto
-another player's stones; a game that ends while one is out sends it back.
+edge point lures the nearer creature there, its timer unchanged. The crab can be lured onto
+anyone's stones, the spirit only away from other players'; a game that ends while one is out sends it back.
 
 **Board sizes and haiku.** The lobby board's line above Start picks a 13×13
 (the default), 19×19 or 25×25 table; Quick join only finds tables of that size.

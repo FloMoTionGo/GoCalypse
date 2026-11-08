@@ -39,8 +39,8 @@ export interface PowerupContext {
   /**
    * Lures a river creature to this edge point with a Bait (rules/river.ts): the
    * nearer one walks over to face it, its timer unchanged. False when it may
-   * not: nothing is out, the point is off the ring or already faced, or the new
-   * reach holds another player's stone the creature could take.
+   * not: nothing is out, the point is off the ring or already faced, or it is
+   * the spirit and the new reach holds another player's stone it could take.
    */
   lureCreature?(idx: number): boolean;
 }

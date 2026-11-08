@@ -376,7 +376,7 @@ function stoneAhead(view: BotView, style: Style, ranked: Candidate[]): boolean {
  * Where to toss a Bait (rules/river.ts): a river creature has our stones in its
  * reach with nothing shielding them -- with `soon`, one whose timer runs out
  * before our next turn -- and an edge point would lure it to a reach holding
- * fewer of ours and none of anyone else's, since a lure is only ever defensive
+ * fewer of ours and none of anyone else's, since a bot only ever lures defensively
  * (D-Q3). The point saving the most, the nearest of those; or null.
  */
 function baitTarget(view: BotView, soon: boolean): number | null {

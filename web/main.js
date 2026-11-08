@@ -1788,7 +1788,7 @@ function openWelcome(state) {
     ["takes", "When the timer ends", "The crab pinches one stone on those points, at random; the spirit steals every one. Then it goes back into the water. Their owners get 3 fireflies back for each."],
     ["safe", "Staying safe", "A ward or a fog keeps a stone safe, and a mist hides one."],
     ["bait", "Bait", "On sale every night. Click an edge point: the creature nearer to it along the edge walks over and waits there instead, its timer running on."],
-    ["baitAway", "Luring it", "Never onto another player's stones, only away from them. It doesn't use up your turn, and anyone may lure it."],
+    ["baitAway", "Luring it", "The crab can be lured onto anyone's stones, the spirit only away from other players' stones. It doesn't use up your turn, and anyone may lure it."],
   ]);
 
   // Mirrors territoryScore / finalResults in server/src/rules/endgame.ts.
