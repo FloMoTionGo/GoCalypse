@@ -545,7 +545,7 @@ export class GoRoom extends Room<GoState> {
     if (this.festivalSeats.has(player.color)) return;
     const now = Date.now();
     if (now < this.festivalUntil) {
-      this.notice(client, "The lanterns are still out. Play your card when they have gone.");
+      this.notice(client, "The lanterns are still out. Turn off the stone lantern when they have gone.");
       return;
     }
     this.festivalSeats.add(player.color);
