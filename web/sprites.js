@@ -757,34 +757,6 @@
     "....a....",
   ]);
 
-  SPRITES.gustIcon = sprite("gustIcon", [
-    "..........CC...",
-    ".........C..C..",
-    "............C..",
-    "CCCCCCCCCCCC...",
-    "...............",
-    "..SSSSSSSSSSS..",
-    "...............",
-    ".CCCCCCCCCC....",
-    "...........C...",
-    "........C..C...",
-    ".........CC....",
-  ]);
-  SPRITES.fireworkIcon = sprite("fireworkIcon", [
-    ".......A.......",
-    "..A....C....A..",
-    "...C...A...C...",
-    "....C.....C....",
-    ".......C.......",
-    "......CAC......",
-    "AAC..CAAAC..CAA",
-    "......CAC......",
-    ".......C.......",
-    "....C.....C....",
-    "...C...A...C...",
-    "..A....C....A..",
-    ".......A.......",
-  ]);
   // Icons for the market's newer items, and the two board markers (a seed and a mist).
   const pad15 = (rows) => rows.map((r) => r.padEnd(15, "."));
   SPRITES.jarIcon = sprite("jarIcon", pad15([
@@ -872,17 +844,6 @@
     ".SCS...SCS.....",
     ".SCS...SCS.....",
     "SSSSS.SSSSS....",
-  ]));
-  SPRITES.currentIcon = sprite("currentIcon", pad15([
-    "...............",
-    ".TT..TT..TT..T.",
-    "T..TT..TT..TT..",
-    "...............",
-    ".TT..TT..TT.TTT",
-    "T..TT..TT..TT..",
-    "...............",
-    "..TT..TT..TT.T.",
-    ".T..TT..TT..TT.",
   ]));
   SPRITES.chimeIcon = sprite("chimeIcon", pad15([
     ".......S.......",
@@ -1013,13 +974,6 @@
     "......AAAAA....",
     "...............",
   ]);
-  // Firework sparks: ink-outlined so they read on the kaya and on white stones alike.
-  anim("burstStar", 12, [
-    sprite("burstStar_0", [".......", "...K...", "..KCK..", ".KCCCK.", "..KCK..", "...K...", "......."]),
-    sprite("burstStar_1", [".....", "..K..", ".KCK.", "..K..", "....."]),
-    sprite("burstStar_2", ["...", ".C.", "..."]),
-  ], { loop: false });
-
   // Fireflies are the market currency: a little glowing light.
   SPRITES.fireflyIcon = sprite("fireflyIcon", [
     "...a...",
@@ -1289,16 +1243,6 @@
         s.blit(SPRITES.flipArrows, 0, 0);
         s.blitCentered(splitPreviewSprite(1, "icon"), c, c);
         break;
-      case "gust":
-        s.blitCentered(SPRITES.gustIcon, c, c);
-        break;
-      case "remove_stone":
-        s.blitCentered(ANIMS.reticle.frames[0], c, c);
-        s.blitCentered(stoneSprite(2, "icon"), c, c);
-        break;
-      case "bomb":
-        s.blitCentered(SPRITES.fireworkIcon, c, c);
-        break;
       case "firefly_jar":
         s.blitCentered(SPRITES.jarIcon, c, c);
         break;
@@ -1316,9 +1260,6 @@
         break;
       case "twin_wick":
         s.blitCentered(SPRITES.twinWickIcon, c, c);
-        break;
-      case "river_current":
-        s.blitCentered(SPRITES.currentIcon, c, c);
         break;
       case "echo_chime":
         s.blitCentered(SPRITES.chimeIcon, c, c);
@@ -1348,8 +1289,8 @@
     return (iconCache[id] = makeSprite(`icon_${id}`, 15, 15, s.px));
   }
   const POWERUP_ICON_IDS = [
-    "driftwood", "lily_pad", "lantern_ward", "turn_lantern", "gust", "remove_stone", "bomb",
-    "firefly_jar", "seedling", "mist", "kite", "ferry", "twin_wick", "river_current", "echo_chime", "stepping_stones",
+    "driftwood", "lily_pad", "lantern_ward", "turn_lantern",
+    "firefly_jar", "seedling", "mist", "kite", "ferry", "twin_wick", "echo_chime", "stepping_stones",
     "fog", "skiff", "bait",
   ];
 

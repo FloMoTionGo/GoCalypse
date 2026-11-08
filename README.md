@@ -119,9 +119,9 @@ On top of its side's territory each player counts its own **prisoners**: the
 stones *it* captured on that front over the match. Territory belongs to a side,
 so the two seats holding it share it; prisoners belong to whoever played the
 capturing move, the same way fireflies do — so take the capture rather than
-leave it to the ally who shares your front. Stones swept off by a removal item
-are not prisoners: their owner is already paid consolation fireflies, and nobody
-surrounded them. Nor are stones **smothered** across the fronts: a group killed by
+leave it to the ally who shares your front. Stones the storm burns or a river
+creature takes are not prisoners: their owner is already paid consolation
+fireflies, and nobody surrounded them. Nor are stones **smothered** across the fronts: a group killed by
 a stone of the other front (black filling a gray group's last liberty) leaves the
 board and still pays the capture fireflies, but scores no prisoner; Results shows
 how many each player smothered.
@@ -167,8 +167,8 @@ fallback that keeps a stalled table moving, included (`everyoneElsePassed` in
 ### Fireflies & the Night Market
 
 Placing a stone earns **3 fireflies**, capturing earns **5 per stone**, and
-losing a stone to someone's item — or to a lightning fire or a river creature —
-pays you **3** as consolation. A player's **Night Market** opens after their **5th move**.
+losing a stone to a lightning fire or a river creature pays you **3** as
+consolation. A player's **Night Market** opens after their **5th move**.
 Buying never takes your turn; using an item does. Items that fail (bad
 target) aren't used up.
 
@@ -176,10 +176,10 @@ Items come in three **tiers**, and the market stocks **six per match: 3 of
 tier 1, 2 of tier 2 and 1 of tier 3**, drawn fresh each match, and beside them
 the **Bait**'s stall, there every match (the answer to the river creatures,
 below). The market is one per room, so every player and bot at the table shops
-from the same stalls. Only
-tier 3 holds powerful (removal) items, so **at most one** is ever on sale. Your
-**hand holds five cards** and only **one powerful item** at a time; a
-purchase past either limit is refused with a notice. The hand is a row of
+from the same stalls. **No item takes another player's stones off the board**:
+the game stays cozy, and the only things that lift a stone are a capture by the
+rules, the storm's fire and the river creatures. Your **hand holds five
+cards**; a purchase past that is refused with a notice. The hand is a row of
 portrait cards under the board: a bought item flies in from its stall as a
 card, and on your turn you pick a card to use it.
 
@@ -252,12 +252,8 @@ captured 1`, and so does the event log (see *Reading the board*).
 
 | Item | Price | Effect |
 |---|---|---|
-| River Current | 130 | Washes away one enemy stone on the edge of the board. Once per match. |
 | Echo Chime | 160 | Place a stone, and the chime places another for you on the opposite side of the centre point, if that point is free and legal. |
-| Gust | 180 | Removes one enemy stone whose group is in atari. Once per match. |
 | Stepping Stones | 200 | Free. Place two stones this turn: your next move doesn't end your turn. |
-| Snipe | 280 | Removes any single enemy stone. Once per match. |
-| Firework | 400 | Clears a 3x3 area (your stones and driftwood too; warded stones are spared). Once per match. |
 
 The bots don't use the new items yet: they shop from their own lists, which only
 name the older ones, so they simply skip what isn't on sale.
@@ -381,8 +377,8 @@ name show how much of the Night Market it uses.
 | Honte | Pure Go: stones only | Never buys, never uses an item |
 | Atsumi | Careful builder: keeps its stones together, fights only for something real | Few: spends slowly and keeps a reserve |
 | Moyo | Pattern fighter: reaches for its gray or transparent stones first, builds with walls | Some |
-| Seme | A fighter that goes looking for contact | Some: buys a removal item or a trick when it pays |
-| Tenuki | Item player: plays the market as much as the board | Many: logs, lily pads, seeds, the odd bomb |
+| Seme | A fighter that goes looking for contact | Some: buys a trick when it pays |
+| Tenuki | Item player: plays the market as much as the board | Many: logs, lily pads, seeds, the odd chime |
 | Ko | Market shark | Max: spends turns on items whenever one can do anything, and shops down the whole list |
 
 Bots are strictly opt-in: nobody is ever seated at a table that didn't ask for

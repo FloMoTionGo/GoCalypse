@@ -15,7 +15,7 @@ import {
 
 const NEW_TIER_1 = ["firefly_jar", "seedling", "mist"];
 const NEW_TIER_2 = ["twin_wick", "ferry", "kite"];
-const NEW_TIER_3 = ["river_current", "echo_chime", "stepping_stones"];
+const NEW_TIER_3 = ["echo_chime", "stepping_stones"];
 
 test("the new items are registered in the tiers they were asked for", () => {
   for (const id of NEW_TIER_1) assert.equal(getPowerup(id)?.tier, 1, id);
@@ -34,10 +34,6 @@ test("every item has a tier, a unique id and a price that fits its tier", () => 
   }
 });
 
-test("removal items are all tier 3", () => {
-  for (const p of allPowerups()) if (p.removal) assert.equal(p.tier, 3, p.id);
-});
-
 test("the market stocks 3 tier 1, 2 tier 2 and 1 tier 3 item", () => {
   for (let k = 0; k < 100; k++) {
     const stock = marketStock();
@@ -45,14 +41,6 @@ test("the market stocks 3 tier 1, 2 tier 2 and 1 tier 3 item", () => {
     for (const tier of [1, 2, 3] as const) {
       assert.equal(stock.filter((p) => p.tier === tier).length, MARKET_TIER_SLOTS[tier], `tier ${tier}`);
     }
-  }
-});
-
-test("nothing is stocked twice, and at most one removal item is ever on sale", () => {
-  for (let k = 0; k < 100; k++) {
-    const stock = marketStock();
-    assert.equal(new Set(stock.map((p) => p.id)).size, stock.length);
-    assert.ok(stock.filter((p) => p.removal).length <= 1);
   }
 });
 
@@ -104,8 +92,8 @@ test("stall copies follow the number of seats, and tier 3 always has just one", 
 });
 
 test("copies bought are counted per item", () => {
-  assert.equal(copiesBought(["fog", "gust", "fog"], "fog"), 2);
-  assert.equal(copiesBought(["fog"], "gust"), 0);
+  assert.equal(copiesBought(["fog", "mist", "fog"], "fog"), 2);
+  assert.equal(copiesBought(["fog"], "mist"), 0);
   assert.equal(copiesBought([], "fog"), 0);
 });
 
@@ -115,7 +103,7 @@ test("a stall refuses when it is sold out or the player has had their share", ()
   assert.equal(stallRefusal(stall, 1), null);
   assert.match(stallRefusal(stall, 2)!, /share of Fog \(2 to a player\)/);
   assert.match(stallRefusal({ ...stall, left: 0 }, 0)!, /sold out/);
-  assert.match(stallRefusal({ name: "Gust", left: 1, share: 1 }, 1)!, /one to a player/);
+  assert.match(stallRefusal({ name: "Echo Chime", left: 1, share: 1 }, 1)!, /one to a player/);
 });
 
 test("item descriptions leave the turn to the card's turn icon: none says whether it uses up the turn", () => {

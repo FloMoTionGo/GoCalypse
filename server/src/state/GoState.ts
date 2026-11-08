@@ -67,7 +67,6 @@ export class MarketItem extends Schema {
   @type("string") name: string = "";
   @type("string") description: string = "";
   @type("number") price: number = 0;
-  @type("boolean") removal: boolean = false; // removes stones: pricey, and always tier 3
   @type("number") tier: number = 1; // 1 cozy, 2 tactical, 3 powerful
   @type("number") points: number = 1; // board points the use needs: 0, 1 or 2
   @type("boolean") free: boolean = false; // using it does not take the turn
@@ -198,7 +197,6 @@ export class GoState extends Schema {
   @type("string") lastEvent: string = ""; // human-readable log of the last action, for client toasts
   @type("number") shopAfter: number = 5; // a player's market opens after this many placed stones
   @type("number") handLimit: number = 5; // cards a player may hold at once, the Stone Card included
-  @type("number") powerfulLimit: number = 1; // removal items a player may hold at once
   @type([MarketItem]) market = new ArraySchema<MarketItem>();
   @type([BoardEffect]) effects = new ArraySchema<BoardEffect>();
   @type([HaikuPoint]) haiku = new ArraySchema<HaikuPoint>(); // tonight's haiku points, set when the game starts

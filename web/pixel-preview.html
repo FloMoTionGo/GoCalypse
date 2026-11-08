@@ -430,8 +430,7 @@
         ["fog", "Fog", 1], ["driftwood", "Driftwood", 1], ["lily_pad", "Lily Pad", 1],
         ["kite", "Kite", 2], ["ferry", "Ferry", 2], ["skiff", "Skiff", 2],
         ["lantern_ward", "Lantern Ward", 2], ["twin_wick", "Twin Wick", 2], ["turn_lantern", "Turn the Lantern", 2],
-        ["river_current", "River Current", 3], ["echo_chime", "Echo Chime", 3], ["gust", "Gust", 3],
-        ["stepping_stones", "Stepping Stones", 3], ["remove_stone", "Snipe", 3], ["bomb", "Firework", 3],
+        ["echo_chime", "Echo Chime", 3], ["stepping_stones", "Stepping Stones", 3],
       ];
       (function buildItemCards() {
         const list = document.getElementById("item-cards");
@@ -572,14 +571,10 @@
         ["lily", "Lily Pad unfurls", { owner: 2 }],
         ["ward", "Lantern Ward", { owner: 1 }],
         ["flip", "Turn the Lantern", { from: 1, code: 5 }],
-        ["gust", "Gust", { code: 2 }],
-        ["snipe", "Snipe", { code: 3 }],
-        ["firework", "Firework", {}],
       ];
       for (const [kind, label, props] of POWERUP_FX) {
         const effect = Object.assign({ kind, start: 0 }, props);
-        const big = kind === "firework" || kind === "gust";
-        const W = big ? 64 : 48;
+        const W = 48;
         addCard(puGroup, label, `${P.effectDuration(effect, false).toFixed(2)} s`, W, W, (s, time) => {
           s.fill(A);
           const cx = W >> 1;

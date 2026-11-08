@@ -78,7 +78,6 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
       shopAfter: Number.MAX_SAFE_INTEGER, // the market never opens here
       market: [],
       handLimit: 5,
-      powerfulLimit: 1,
       isWarded: () => false,
       lilyOwnerAt: () => 0,
       isBurning: () => false,

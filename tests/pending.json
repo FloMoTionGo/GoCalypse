@@ -1,12 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    { "test": "the tier 3 stalls are Echo Chime and Stepping Stones: nothing at the Night Market removes another player's stones", "feature": "cozy-market", "tier": "server", "since": "2026-11-08" },
-    { "test": "nothing is stocked twice, and the tier 3 stall is Echo Chime or Stepping Stones", "feature": "cozy-market", "tier": "server", "since": "2026-11-08" },
-    { "test": "no item takes the stone it is used on off the board: a rival's edge stone stands after every item", "feature": "cozy-market", "tier": "server", "since": "2026-11-08" },
-    { "test": "no bot's shopping list names an item that removes stones", "feature": "cozy-market", "tier": "server", "since": "2026-11-08" },
-    { "test": "the market knows no powerful item: no stall carries a removal flag and the state no powerful-item limit", "feature": "cozy-market", "tier": "server", "since": "2026-11-08" },
-    { "test": "diffTurn knows no gust, snipe or firework: a stone that vanishes under an item is captured like any other", "feature": "cozy-market", "tier": "web", "since": "2026-11-08" },
-    { "test": "the item icons are the market's items and no more: no icon for Gust, Snipe, Firework or River Current", "feature": "cozy-market", "tier": "web", "since": "2026-11-08" }
-  ]
+  "pending": []
 }

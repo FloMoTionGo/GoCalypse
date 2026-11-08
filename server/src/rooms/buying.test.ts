@@ -7,7 +7,7 @@ import { makeRoom, move, notices, onTurn, playerOf, seatHumans, startedRoom, sto
 
 function richRoom() {
   const { room, clients } = startedRoom({ debug: true }); // 1200 fireflies, market open from the start
-  stock(room, ["firefly_jar", "driftwood", "mist", "ferry", "kite", "bomb"]);
+  stock(room, ["firefly_jar", "driftwood", "mist", "ferry", "kite", "echo_chime"]);
   return { room, clients };
 }
 
@@ -36,7 +36,7 @@ test("buying needs no turn", () => {
 test("the market opens only after shopAfter stones of one's own", () => {
   const room = makeRoom();
   const clients = seatHumans(room);
-  stock(room, ["firefly_jar", "driftwood", "mist", "ferry", "kite", "bomb"]);
+  stock(room, ["firefly_jar", "driftwood", "mist", "ferry", "kite", "echo_chime"]);
   const client = onTurn(room, clients);
   const me = playerOf(room, client);
   me.fireflies = 500;
@@ -77,26 +77,17 @@ test("nobody buys past their share of a stall", () => {
 
 test("a sold-out stall sells nothing more, to anyone", () => {
   const { room, clients } = richRoom();
-  room.handleBuy(clients[0], { id: "bomb" }); // tier 3: a single copy
-  room.handleBuy(clients[1], { id: "bomb" });
+  room.handleBuy(clients[0], { id: "echo_chime" }); // tier 3: a single copy
+  room.handleBuy(clients[1], { id: "echo_chime" });
   assert.match(notices(clients[1]).at(-1)!, /sold out/);
-  const stall = room.state.market.find((m: any) => m.id === "bomb");
+  const stall = room.state.market.find((m: any) => m.id === "echo_chime");
   assert.equal(stall.left, 0);
   assert.equal(room.state.lastEvent, `a bought the last ${stall.name}`);
 });
 
-test("only one powerful (removal) item is carried at a time", () => {
-  const { room, clients } = richRoom();
-  stock(room, ["bomb", "gust"]);
-  room.handleBuy(clients[0], { id: "bomb" });
-  room.handleBuy(clients[0], { id: "gust" });
-  assert.match(notices(clients[0]).at(-1)!, /only carry 1 powerful item/);
-  assert.ok(!playerOf(room, clients[0]).powerups.includes("gust"));
-});
-
 test("an item this match's market doesn't stock, or no item at all, is refused without a word", () => {
   const { room, clients } = richRoom();
-  for (const message of [{ id: "river_current" }, { id: "no_such_item" }, { id: 7 }, {}, null]) {
+  for (const message of [{ id: "skiff" }, { id: "no_such_item" }, { id: 7 }, {}, null]) {
     room.handleBuy(clients[0], message);
   }
   assert.equal(playerOf(room, clients[0]).powerups.length, 1);

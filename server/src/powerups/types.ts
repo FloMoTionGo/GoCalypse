@@ -21,11 +21,6 @@ export interface PowerupContext {
   /** Adds a timed board marker lasting `rounds` full rounds from now. */
   addEffect(kind: EffectKind, x: number, y: number, owner: number, rounds: number, axis?: "base" | "pattern"): void;
   /**
-   * Clears these cells (stones or driftwood). Owners of removed player stones
-   * other than `byColor` get consolation fireflies. Returns how many were removed.
-   */
-  removePieces(indices: number[], byColor: number): number;
-  /**
    * Credits captures made by this powerup to the user: score, fireflies, and a
    * prisoner on each dead group's own front (rules/endgame.ts).
    */
@@ -56,7 +51,6 @@ export interface PowerupDefinition {
   description: string;
   tier: 1 | 2 | 3; // the market stocks 3 / 2 / 1 items of tiers 1 / 2 / 3 per match
   price: number; // fireflies at the Night Market
-  removal: boolean; // removes stones: priced high and limited to one purchase per match
   /** Board points the use needs: 0 (nothing), 1 (the default) or 2 (Ferry). */
   points?: 0 | 1 | 2;
   /** True when using it does not take the turn (the player still moves afterwards). */

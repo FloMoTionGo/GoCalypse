@@ -13,7 +13,7 @@ const holds = (room: any, client: any) => Array.from(playerOf(room, client).powe
 test("bait: always on sale at the Night Market, beside the six drawn stalls", () => {
   const def = getPowerup("bait")!;
   assert.ok(def, "the Bait is an item");
-  assert.deepEqual([def.tier, def.price, def.removal, !!def.free, def.points ?? 1], [1, 30, false, true, 1]);
+  assert.deepEqual([def.tier, def.price, !!def.free, def.points ?? 1], [1, 30, true, 1]);
   for (let k = 0; k < 20; k++) {
     const room = makeRoom();
     const market = Array.from(room.state.market) as any[];

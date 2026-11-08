@@ -116,7 +116,6 @@ export function stock(room: any, ids: string[]) {
     item.name = def.name;
     item.description = def.description;
     item.price = def.price;
-    item.removal = def.removal;
     item.tier = def.tier;
     item.points = def.points ?? 1;
     item.free = !!def.free;

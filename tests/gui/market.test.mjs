@@ -94,9 +94,9 @@ test("market: hovering a boat names the item and says what it does, its stock, w
 
 test("market: the view the scene draws follows the table: lit to buy, half lit when short or out of room, out once sold or had, dark before it opens", async () => {
   const v = await b.ev(`(() => {
-    const stall = (id, o) => Object.assign({ id, name: id, price: 40, stock: 3, left: 3, share: 1, free: false, removal: false, tier: 1 }, o);
+    const stall = (id, o) => Object.assign({ id, name: id, price: 40, stock: 3, left: 3, share: 1, free: false, tier: 1 }, o);
     const market = [stall("a"), stall("b", { price: 90 }), stall("c", { left: 0 }), stall("d"), stall("e", { free: true })];
-    const state = { status: "playing", shopAfter: 5, handLimit: 5, powerfulLimit: 1, market };
+    const state = { status: "playing", shopAfter: 5, handLimit: 5, market };
     const me = (o) => Object.assign({ moves: 5, bought: ["d"], fireflies: 50, powerups: [] }, o);
     return {
       open: marketView(state, me()),

@@ -11,7 +11,7 @@ import { stoneCode } from "../rules/goRules";
 
 function richRoom() {
   const { room, clients } = startedRoom({ debug: true }); // 1200 fireflies, market open from the start
-  stock(room, ["ferry", "skiff", "driftwood", "mist", "kite", "bomb"]);
+  stock(room, ["ferry", "skiff", "driftwood", "mist", "kite", "echo_chime"]);
   return { room, clients };
 }
 

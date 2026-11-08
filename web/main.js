@@ -1626,7 +1626,7 @@ function openWelcome(state) {
       : "";
   document.getElementById("welcome-economy").textContent =
     `You earn fireflies: 3 for every stone you place and 5 for every stone you capture. ` +
-    `If someone's item removes one of your stones, you get 3 back. ` +
+    `If the storm burns one of your stones or a river creature takes it, you get 3 back. ` +
     `Once you've placed ${shopAfter} stones, the Night Market opens on the water right of the board. It has ` +
     `${tierCounts[0] + tierCounts[1] + tierCounts[2]} stalls a night: ${tierCounts[0]} cozy, ${tierCounts[1]} tactical ` +
     `and ${tierCounts[2]} powerful, drawn for the night, and the Bait's stall, there every night. ` +
@@ -1762,9 +1762,9 @@ const BOT_OPTIONS = [
   { id: "pattern", name: "Moyo", kind: "Pattern fighter", items: 1, itemsLabel: "Some powerups",
     desc: "Reaches for its gray or transparent stones first and builds with walls." },
   { id: "balanced", name: "Seme", kind: "Fighter", items: 1, itemsLabel: "Some powerups",
-    desc: "Goes looking for fights, and buys a removal item or a trick when it pays off." },
+    desc: "Goes looking for fights, and buys a trick when it pays off." },
   { id: "items", name: "Tenuki", kind: "Item player", items: 2, itemsLabel: "Many powerups",
-    desc: "Plays the market as much as the board: logs, lily pads, seeds and the odd bomb." },
+    desc: "Plays the market as much as the board: logs, lily pads, seeds and the odd chime." },
   { id: "shark", name: "Ko", kind: "Market shark", items: 3, itemsLabel: "Max powerups",
     desc: "Spends turns on items whenever it can, and shops down the whole list." },
 ];
@@ -2613,15 +2613,6 @@ function fitPlayerNames() {
   }
 }
 
-/** Removal ("powerful") items the viewing player is carrying right now. */
-function powerfulHeld(me = myPlayer) {
-  if (!me) return 0;
-  return Array.from(me.powerups).filter((id) => {
-    const item = marketItem(id);
-    return item && item.removal;
-  }).length;
-}
-
 // ---- the hand of item cards under the board ---------------------------------
 
 let handBought = null; // my `bought` count at the last render; null until this room's first state
@@ -2658,7 +2649,7 @@ function renderHand(state) {
   const places = Math.max(state.handLimit, owned.length);
   const shown = selectedPowerup ? (owned[armedCard] === selectedPowerup ? armedCard : owned.indexOf(selectedPowerup)) : -1;
   handEl.title =
-    `Hand: ${owned.filter((id) => !isHaikuCard(id)).length} of ${state.handLimit} cards (haiku cards don't count), at most ${state.powerfulLimit} of them powerful. ` +
+    `Hand: ${owned.filter((id) => !isHaikuCard(id)).length} of ${state.handLimit} cards (haiku cards don't count). ` +
     `Buy items at the Night Market, and on your turn pick a card to use it.`;
   const cardSig = myPlayer && hasStoneCard(myPlayer) ? [Array.from(myPlayer.card).join(""), cardUpgradable(myPlayer), state.status] : null;
   const haikuSig = myPlayer && myPlayer.haikuLines ? Array.from(myPlayer.haikuLines) : []; // a card's level, on its face
@@ -3267,25 +3258,22 @@ function marketContext(state, me) {
     bought: me ? Array.from(me.bought) : [],
     wallet: me ? me.fireflies : 0,
     full: held >= state.handLimit,
-    powerfulFull: powerfulHeld(me) >= state.powerfulLimit,
     handLimit: state.handLimit,
-    powerfulLimit: state.powerfulLimit,
     shopAfter: state.shopAfter,
   };
 }
 
 /**
  * A stall to me. Each stall's copies are shared by the table and capped per player (stallCopies /
- * fairShare in server/src/powerups/definitions.ts). A server from before stalls had stock sends
- * none: there only removal items are limited, once each. `state` is what its boat shows: open
+ * fairShare in server/src/powerups/definitions.ts). `state` is what its boat shows: open
  * (lit: buy), poor (half lit: for sale, not to me now), bought or sold (out), closed (out: not open for me).
  */
 function stallStatus(m, c) {
   const counted = m.stock > 0;
   const mine = c.bought.filter((id) => id === m.id).length;
   const soldOut = counted && m.left <= 0;
-  const hadShare = counted ? mine >= m.share : m.removal && mine > 0;
-  const blocked = c.full || (m.removal && c.powerfulFull);
+  const hadShare = counted && mine >= m.share;
+  const blocked = c.full;
   const state = !c.open ? "closed" : soldOut ? "sold" : hadShare ? "bought" : blocked || c.wallet < m.price ? "poor" : "open";
   return { counted, soldOut, hadShare, blocked, state };
 }
@@ -3314,7 +3302,6 @@ function stallVerdict(m, s, c) {
     return m.share === 1 ? `${m.name} is one to a player, and you've had yours.` : `You've bought your share of ${m.name} (${m.share} to a player).`;
   }
   if (c.full) return `Your hand is full (${c.handLimit} cards).`;
-  if (m.removal && c.powerfulFull) return `You can only carry ${c.powerfulLimit} powerful item at a time.`;
   if (c.wallet < m.price) return `You have ${c.wallet} fireflies, ${m.price - c.wallet} short.`;
   return "Click to buy.";
 }
@@ -3339,7 +3326,7 @@ function renderMarket(state) {
     : `Opens after ${state.shopAfter} moves (${Math.min(c.moves, state.shopAfter)}/${state.shopAfter}).`;
 
   const layout = scene ? scene.layout : P.computeLayout(state.size || 13);
-  const sig = JSON.stringify([layout.size, c.open, c.wallet, c.bought, c.full, c.powerfulFull, items.map((m) => [m.id, m.left])]);
+  const sig = JSON.stringify([layout.size, c.open, c.wallet, c.bought, c.full, items.map((m) => [m.id, m.left])]);
   rebuild(marketItemsEl, sig, () => {
     hideMarketTip(); // its boat is about to go
     items.slice(0, layout.stalls.length).forEach((m, i) => {

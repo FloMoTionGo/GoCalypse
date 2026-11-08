@@ -25,7 +25,6 @@ function view(size: number, over: Partial<BotView> = {}): BotView {
     shopAfter: 5,
     market: [],
     handLimit: 5,
-    powerfulLimit: 1,
     isWarded: () => false,
     lilyOwnerAt: () => 0,
     isBurning: () => false,
@@ -75,14 +74,6 @@ test("Skiff glides a stone to a capture along a clear row", () => {
   const plan = planItem(v, tanuki(), rankMoves(v, tanuki()));
   assert.equal(plan?.id, "skiff");
   assert.deepEqual(plan?.target2, { x: 4, y: 3 });
-});
-
-test("River Current only washes away stones on the edge", () => {
-  const v = view(5, { powerups: ["river_current"] });
-  put(v, 2, 2, 2); // in the middle: out of reach
-  assert.equal(planItem(v, tanuki(), rankMoves(v, tanuki())), null);
-  put(v, 0, 3, 2);
-  assert.deepEqual(planItem(v, tanuki(), rankMoves(v, tanuki()))?.target, { x: 0, y: 3 });
 });
 
 test("Fog goes over a group of ours in atari", () => {

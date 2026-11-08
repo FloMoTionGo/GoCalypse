@@ -51,7 +51,6 @@ function view(size: number, color: number, over: Partial<BotView> = {}): BotView
     shopAfter: 5,
     market: [],
     handLimit: 5,
-    powerfulLimit: 1,
     isWarded: () => false,
     lilyOwnerAt: () => 0,
     isBurning: () => false,
@@ -319,11 +318,10 @@ test("the count is against the seats at the table, not against four", () => {
 // ---- the bots a player can seat from the welcome screen ---------------------------
 
 const MARKET = [
-  { id: "driftwood", price: 30, removal: false },
-  { id: "lily_pad", price: 40, removal: false },
-  { id: "lantern_ward", price: 60, removal: false },
-  { id: "turn_lantern", price: 80, removal: false },
-  { id: "gust", price: 180, removal: true },
+  { id: "driftwood", price: 30 },
+  { id: "lily_pad", price: 40 },
+  { id: "lantern_ward", price: 60 },
+  { id: "turn_lantern", price: 80 },
 ];
 
 /** Our two black stones in the corner, both on their last liberty at (1, 1). */

@@ -148,7 +148,7 @@ test("the turn icon is a 9x9 ring around a 1, in palette colours", () => {
 });
 
 test("an item card whose use takes the turn carries the turn icon in its top-right corner, and nowhere else", () => {
-  for (const [id, tier] of [["driftwood", 1], ["skiff", 2], ["remove_stone", 3]]) {
+  for (const [id, tier] of [["driftwood", 1], ["skiff", 2], ["echo_chime", 3]]) {
     const plain = G.itemCard(id, tier);
     const marked = G.itemCard(id, tier, { turn: true });
     assert.equal(G.itemCard(id, tier, { turn: false }).px.join(), plain.px.join(), `${id}: no flag, no icon`);

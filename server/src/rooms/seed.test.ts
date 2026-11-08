@@ -111,21 +111,6 @@ test("a sprouting seed is safe from rivals' items: driftwood, a lily pad and the
   assert.ok(seedAt(room, 3, 3));
 });
 
-test("a Firework clears a seed in its first round, but not a sprout", () => {
-  const { room, clients } = startedRoom();
-  const { client } = plant(room, clients, 3, 3);
-  untilTurnOf(room, clients, client);
-  turns(room, clients, 1);
-  plant(room, clients, 5, 5); // a rival's fresh seed
-  const bomber = onTurn(room, clients);
-  put(room, 4, 3, stoneCode(playerOf(room, bomber).color, "base"));
-  playerOf(room, bomber).powerups.push("bomb");
-  room.handleUsePowerup(bomber, { id: "bomb", target: { x: 4, y: 4 } });
-  assert.equal(at(room, 4, 3), 0, "the firework went off");
-  assert.equal(seedAt(room, 5, 5), undefined, "the fresh seed is burnt");
-  assert.ok(seedAt(room, 3, 3), "the sprout is not");
-});
-
 test("lightning never strikes a sprouting seed", () => {
   const { room, clients } = startedRoom();
   const { client } = plant(room, clients, 3, 3);

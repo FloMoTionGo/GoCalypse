@@ -24,15 +24,14 @@ function shopper(market: MarketRow[], bought: string[] = []): BotView {
     shopAfter: 5,
     market,
     handLimit: 5,
-    powerfulLimit: 1,
     isWarded: () => false,
     lilyOwnerAt: () => 0,
     isBurning: () => false,
   };
 }
 
-const ward = (left: number): MarketRow => ({ id: "lantern_ward", price: 60, removal: false, left, share: 1 });
-const lily = (left: number): MarketRow => ({ id: "lily_pad", price: 40, removal: false, left, share: 2 });
+const ward = (left: number): MarketRow => ({ id: "lantern_ward", price: 60, left, share: 1 });
+const lily = (left: number): MarketRow => ({ id: "lily_pad", price: 40, left, share: 2 });
 
 test("a bot buys the first thing on its list while the stall has copies", () => {
   assert.equal(chooseBuy(shopper([ward(3), lily(6)]), magpie()), "lantern_ward");
@@ -50,7 +49,7 @@ test("a bot stops at its share, even while the stall still has copies", () => {
 });
 
 test("a row without stock or share limits is always on sale", () => {
-  const free: MarketRow = { id: "lantern_ward", price: 60, removal: false };
+  const free: MarketRow = { id: "lantern_ward", price: 60 };
   assert.equal(chooseBuy(shopper([free], ["lantern_ward", "lantern_ward"]), magpie()), "lantern_ward");
 });
 
@@ -60,7 +59,7 @@ test("a bot never picks a buy the room's stall check refuses", () => {
   for (let left = 0; left <= 3; left++) {
     for (let share = 1; share <= 2; share++) {
       for (let mine = 0; mine <= 3; mine++) {
-        const row: MarketRow = { id: "lantern_ward", price: 60, removal: false, left, share };
+        const row: MarketRow = { id: "lantern_ward", price: 60, left, share };
         const pick = chooseBuy(shopper([row], new Array(mine).fill("lantern_ward")), magpie());
         const refused = stallRefusal({ name: "Lantern Ward", left, share }, mine);
         assert.equal(pick === "lantern_ward", refused === null, `left ${left}, share ${share}, mine ${mine}`);
@@ -70,7 +69,7 @@ test("a bot never picks a buy the room's stall check refuses", () => {
 });
 
 test("the single powerful copy goes once, and then no bot can buy it", () => {
-  const gust = (left: number): MarketRow => ({ id: "gust", price: 180, removal: true, left, share: 1 });
-  assert.equal(chooseBuy(shopper([gust(1)]), magpie()), "gust");
-  assert.equal(chooseBuy(shopper([gust(0)]), magpie()), null);
+  const chime = (left: number): MarketRow => ({ id: "echo_chime", price: 160, left, share: 1 });
+  assert.equal(chooseBuy(shopper([chime(1)]), magpie()), "echo_chime");
+  assert.equal(chooseBuy(shopper([chime(0)]), magpie()), null);
 });

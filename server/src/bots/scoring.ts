@@ -22,7 +22,6 @@ import { Style } from "./styles";
 export interface MarketRow {
   id: string;
   price: number;
-  removal: boolean;
   /** Copies still for sale to the table, and the most one player may buy. Absent means no limit. */
   left?: number;
   share?: number;
@@ -51,7 +50,6 @@ export interface BotView {
   shopAfter: number;
   market: MarketRow[];
   handLimit: number;
-  powerfulLimit: number;
   /** The Stone Card's 9 cells while it is in the hand (rules/stoneCard.ts). Absent or empty means none. */
   card?: number[];
   isWarded(idx: number): boolean;

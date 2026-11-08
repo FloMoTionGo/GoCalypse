@@ -270,7 +270,6 @@ function botView(over: Partial<BotView> = {}): BotView {
     shopAfter: 5,
     market: [],
     handLimit: 5,
-    powerfulLimit: 1,
     card: [0, 0, 0, 0, CARD_BASE, 0, 0, 0, 0],
     isWarded: () => false,
     lilyOwnerAt: () => 0,

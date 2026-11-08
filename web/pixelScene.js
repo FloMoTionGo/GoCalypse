@@ -518,34 +518,6 @@
     { ms: 60, kind: "flip", side: "to", shape: "normal", dy: 0, spark: 1, sparkR: 10 },
     { ms: 70, kind: "flip", side: "to", shape: "normal", dy: 0, spark: 2, sparkR: 11 },
   ];
-  // Gust: wind streaks sweep in, the stone leans, then tumbles away on the wind.
-  const GUST_TIMELINE = [
-    { ms: 60, kind: "gust", wind: 0, dx: 0, dy: 0, shape: "normal", cov: 1 },
-    { ms: 60, kind: "gust", wind: 1, dx: -1, dy: 0, shape: "normal", cov: 1 },
-    { ms: 60, kind: "gust", wind: 2, dx: 1, dy: -1, shape: "stretch", cov: 1 },
-    { ms: 60, kind: "gust", wind: 3, dx: 3, dy: -3, shape: "normal", cov: 1 },
-    { ms: 60, kind: "gust", wind: 4, dx: 6, dy: -5, shape: "small", cov: 1 },
-    { ms: 70, kind: "gust", wind: 5, dx: 10, dy: -7, shape: "small", cov: 0.8 },
-    { ms: 70, kind: "gust", wind: 6, dx: 15, dy: -8, shape: "icon", cov: 0.6 },
-    { ms: 70, kind: "gust", wind: 7, dx: 21, dy: -8, shape: "icon", cov: 0.35 },
-    { ms: 70, kind: "gust", wind: 8, dx: 27, dy: -7, shape: "icon", cov: 0.15 },
-  ];
-  // Snipe: brackets close in on the stone, strike, then the usual capture lantern.
-  const SNIPE_TIMELINE = [
-    { ms: 80, kind: "aim", d: 12 },
-    { ms: 70, kind: "aim", d: 9 },
-    { ms: 60, kind: "aim", d: 7, strike: true },
-  ].concat(CAPTURE_TIMELINE.slice(2));
-  // Firework: a burst of sparks from the target point, then drifting embers.
-  const FIREWORK_TIMELINE = [
-    { ms: 90, kind: "burst", r: 0, flash: true },
-    { ms: 60, kind: "burst", r: 7, star: 0, ring: 0 },
-    { ms: 60, kind: "burst", r: 12, star: 0, ring: 1, trail: 1 },
-    { ms: 70, kind: "burst", r: 17, star: 0, ring: 2, trail: 0.66 },
-    { ms: 70, kind: "burst", r: 21, star: 1, trail: 0.33, embers: 0 },
-    { ms: 80, kind: "burst", r: 23, star: 2, embers: 1 },
-    { ms: 80, kind: "burst", r: 24, embers: 2 },
-  ];
 
   // A stone the lightning set alight, three rounds on: it shrivels in the
   // flame and goes up as smoke (nobody captured it, so no lantern rises).
@@ -611,9 +583,6 @@
     ward: [WARD_TIMELINE, [{ ms: 150, kind: "ward", ring: true, lanternDy: 0 }]],
     flip: [FLIP_TIMELINE, []],
     ferry: [FERRY_TIMELINE, REDUCED_FERRY_TIMELINE],
-    gust: [GUST_TIMELINE, REDUCED_CAPTURE_TIMELINE],
-    snipe: [SNIPE_TIMELINE, REDUCED_CAPTURE_TIMELINE],
-    firework: [FIREWORK_TIMELINE, [{ ms: 150, kind: "burst", r: 0, flash: true }]],
     riverTake: [RIVER_TAKE_TIMELINE, [
       { ms: 150, kind: "riverTake", fade: 0.66 },
       { ms: 150, kind: "riverTake", fade: 0.33 },
@@ -652,7 +621,6 @@
    * Any other effect kind (see TIMELINES), e.g.
    *   makeEffect("flip", x, y, { from: 1, code: 5 }, t)
    *   makeEffect("lily", x, y, { owner: 2 }, t)
-   *   makeEffect("gust", x, y, { code: 3 }, t)
    *   makeEffect("ferry", x, y, { code: 3, fx, fy }, t)   -- carried to (x, y) from (fx, fy)
    */
   function makeEffect(kind, x, y, props, start) {
@@ -704,8 +672,7 @@
    * LastAction ({kind: "move"|"powerup", id, x, y}) if it changed in this
    * update, else null. `newOverlays` are lily/ward markers that just appeared.
    * Picks the matching animation per changed cell: driftwood drops in or
-   * drifts away, a flipped stone turns over, the Gust/Snipe target gets its
-   * own exit, everything else that vanished is captured (Firework included).
+   * drifts away, a flipped stone turns over, everything else that vanished is captured.
    * `takes` ([{kind, took: [board indices], side, x, y}]) names the stones the
    * river creatures took in this update: they leave in the crab's claw or the
    * spirit's hands rather than as captures.
@@ -732,7 +699,6 @@
         if (ferried.size) break;
       }
     }
-    const inBurst = (x, y) => used === "bomb" && Math.abs(x - action.x) <= 1 && Math.abs(y - action.y) <= 1;
     // Cells whose lightning fire just went out: whatever stood there burned up.
     const burntOut = new Set(
       (goneOverlays || []).filter((o) => o.kind === "fire").map((o) => o.y * size + o.x)
@@ -752,9 +718,7 @@
           const t = takenBy.get(i);
           effects.push(makeEffect("riverTake", x, y, { code: a, creature: t.kind, side: t.side, sx: t.x, sy: t.y }, time));
         } else if (burntOut.has(i)) effects.push(makeEffect("burnAway", x, y, { code: a }, time));
-        else if (a === G.DRIFTWOOD && !inBurst(x, y)) effects.push(makeEffect("driftAway", x, y, { code: a }, time));
-        else if (used === "gust" && isTarget(x, y)) effects.push(makeEffect("gust", x, y, { code: a }, time));
-        else if (used === "remove_stone" && isTarget(x, y)) effects.push(makeEffect("snipe", x, y, { code: a }, time));
+        else if (a === G.DRIFTWOOD) effects.push(makeEffect("driftAway", x, y, { code: a }, time));
         else effects.push(captureEffect(x, y, a, time));
       } else if (a <= 8 && b <= 8 && (a > 4 ? a - 4 : a + 4) === b) {
         effects.push(makeEffect("flip", x, y, { from: a, code: b }, time));
@@ -762,7 +726,6 @@
         effects.push(captureEffect(x, y, a, time), placeEffect(x, y, b, time));
       }
     }
-    if (used === "bomb") effects.push(makeEffect("firework", action.x, action.y, {}, time));
     for (const o of newOverlays || []) {
       if (o.kind === "lily" || o.kind === "ward") effects.push(makeEffect(o.kind, o.x, o.y, { owner: o.owner }, time));
     }
@@ -928,23 +891,6 @@
         surf.set(lx + 1, ly, C);
         return { x: lx, y: ly, r: 7 };
       }
-      case "gust": {
-        drawWind(surf, cx, cy, f.wind);
-        blitPiece(surf, effect.code, f.shape, cx + f.dx, cy + f.dy, grey, { coverage: f.cov });
-        return null;
-      }
-      case "aim": {
-        blitPiece(surf, effect.code, "normal", cx, cy, grey);
-        drawBrackets(surf, cx, cy, f.d);
-        if (f.strike) {
-          for (let k = 3; k <= 10; k++) {
-            surf.set(cx - k, cy, C); surf.set(cx + k, cy, C);
-            surf.set(cx, cy - k, C); surf.set(cx, cy + k, C);
-          }
-          return { x: cx, y: cy, r: 8 };
-        }
-        return null;
-      }
       case "burn": {
         if (f.cov > 0 && effect.code) {
           blitPiece(surf, effect.code, f.shape, cx, cy, grey, { coverage: f.cov });
@@ -965,34 +911,6 @@
           }
         }
         return f.flame !== undefined ? { x: cx, y: cy - 3, r: 7 } : null;
-      }
-      case "burst": {
-        if (f.flash) {
-          surf.blitCentered(G.STONES.glow.big, cx, cy);
-          return { x: cx, y: cy, r: 14 };
-        }
-        if (f.ring !== undefined) surf.blitCentered(ANIMS.ripple.frames[f.ring], cx, cy);
-        for (let k = 0; k < 8; k++) {
-          const a = (k * Math.PI) / 4 + (k & 1 ? 0.2 : 0);
-          const rr = k & 1 ? f.r * 0.8 : f.r;
-          const px = Math.round(cx + Math.cos(a) * rr), py = Math.round(cy + Math.sin(a) * rr);
-          if (f.trail !== undefined) {
-            for (let d = 5; d < rr - 3; d++) {
-              const tx = Math.round(cx + Math.cos(a) * d), ty = Math.round(cy + Math.sin(a) * d);
-              if (G.ditherOn(tx, ty, f.trail * 0.5)) surf.set(tx, ty, k & 1 ? A : C);
-            }
-          }
-          if (f.star !== undefined) {
-            // Alternate cream and amber hearts; the ink outline keeps every spark visible.
-            surf.blitCentered(ANIMS.burstStar.frames[f.star], px, py, k & 1 ? { map: SWAP_CREAM_AMBER } : undefined);
-          }
-          if (f.embers !== undefined) {
-            const ey = py + 1 + f.embers * 2;
-            surf.set(px, ey, f.embers < 2 ? A : S);
-            if (f.embers === 0) surf.set(px, ey - 1, C);
-          }
-        }
-        return f.r < 20 ? { x: cx, y: cy, r: 22 - f.r } : null;
       }
       default:
         return undefined;
@@ -1017,7 +935,6 @@
   }
 
   const WARD_LANTERN_DX = 5, WARD_LANTERN_DY = -6;
-  const SWAP_CREAM_AMBER = new Uint8Array(256).map((_, i) => (i === C ? A : i === A ? C : i));
 
   // ---------------------------------------------------------------------------
   // Thunderstorm. Every 20 turns the server rolls a D20 (plus a bonus for every
@@ -1194,30 +1111,6 @@
     for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 0], [1, 0]]) {
       surf.set(cx + sx * (d + 2), cy + sy * (2 + step) - 1, step < 2 ? C : T);
       if (step === 0) surf.set(cx + sx * (d + 1), cy + sy * (2 + step), T);
-    }
-  }
-
-  /** Three wind streaks sweeping left to right, each with a curl at its head. */
-  function drawWind(surf, cx, cy, step) {
-    const rows = [[-6, 0, C], [-1, 3, S], [4, -2, C]];
-    for (const [oy, ox, c] of rows) {
-      const head = cx - 14 + step * 5 + ox;
-      const len = step < 7 ? 7 : 9 - step;
-      for (let k = 0; k < len; k++) surf.set(head - k, cy + oy, c);
-      surf.set(head + 1, cy + oy - 1, c);
-      surf.set(head + 1, cy + oy - 2, c);
-      surf.set(head, cy + oy - 3, c);
-    }
-  }
-
-  /** Four corner brackets at distance d from (cx, cy) (the snipe's closing sight). */
-  function drawBrackets(surf, cx, cy, d) {
-    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const x = cx + sx * d, y = cy + sy * d;
-      for (let k = 0; k < 3; k++) {
-        surf.set(x - sx * k, y, C);
-        surf.set(x, y - sy * k, C);
-      }
     }
   }
 

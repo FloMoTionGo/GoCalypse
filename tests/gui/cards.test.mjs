@@ -53,7 +53,7 @@ test("cards: How to play marks the items that take the turn, and says what the i
 
 test("cards: a card in my hand says whether using it takes the turn", async () => {
   const turnTaker = await b.ev(`(() => {
-    const i = Array.from(lastState.market).findIndex((m) => !m.free && !m.removal);
+    const i = Array.from(lastState.market).findIndex((m) => !m.free);
     return i < 0 ? null : lastState.market[i].id;
   })()`);
   for (const id of [turnTaker, "bait"].filter(Boolean)) {

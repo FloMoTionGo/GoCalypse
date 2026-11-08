@@ -60,7 +60,7 @@ const BALANCED: Style = {
   axisBias: 300,
   prefers: "base",
   itemBias: 0,
-  shopping: ["lantern_ward", "driftwood", "firefly_jar", "ferry", "fog", "gust", "river_current", "remove_stone"],
+  shopping: ["lantern_ward", "driftwood", "firefly_jar", "ferry", "fog"],
   variation: 3,
   judgement: true,
 };
@@ -105,7 +105,7 @@ export function heron(): Style {
     axisBias: 300,
     prefers: "base",
     itemBias: -400,
-    shopping: ["lantern_ward", "fog", "lily_pad", "seedling", "driftwood", "ferry", "echo_chime", "remove_stone"],
+    shopping: ["lantern_ward", "fog", "lily_pad", "seedling", "driftwood", "ferry", "echo_chime"],
     variation: 4,
   };
 }
@@ -128,7 +128,7 @@ export function tanuki(): Style {
     axisBias: 300,
     prefers: "base",
     itemBias: 300,
-    shopping: ["gust", "remove_stone", "river_current", "firefly_jar", "twin_wick", "skiff", "lantern_ward", "bomb"],
+    shopping: ["firefly_jar", "twin_wick", "skiff", "lantern_ward"],
     variation: 2,
   };
 }
@@ -153,7 +153,7 @@ export function oldToad(): Style {
     itemBias: 900,
     shopping: [
       "driftwood", "lily_pad", "seedling", "mist", "lantern_ward", "turn_lantern", "skiff",
-      "stepping_stones", "echo_chime", "bomb",
+      "stepping_stones", "echo_chime",
     ],
     variation: 3,
   };
@@ -177,7 +177,7 @@ export function moth(): Style {
     axisBias: 700,
     prefers: "pattern",
     itemBias: 100,
-    shopping: ["driftwood", "turn_lantern", "twin_wick", "fog", "lantern_ward", "ferry", "gust"],
+    shopping: ["driftwood", "turn_lantern", "twin_wick", "fog", "lantern_ward", "ferry"],
     variation: 3,
   };
 }
@@ -216,7 +216,7 @@ export function magpie(): Style {
     shopping: [
       "stepping_stones", "echo_chime", "lantern_ward", "turn_lantern", "twin_wick", "skiff", "ferry",
       "firefly_jar", "driftwood", "fog", "seedling", "lily_pad", "mist", "kite",
-      "gust", "river_current", "remove_stone", "bomb", "bait",
+      "bait",
     ],
     variation: 3,
   };

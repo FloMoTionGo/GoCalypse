@@ -67,10 +67,6 @@ function table(): Harness {
         e.until = state.turnCount + rounds * state.players.length;
         state.effects.push(e);
       },
-      removePieces: (indices) => {
-        for (const i of indices) state.board[i] = 0;
-        return indices.length;
-      },
       creditCaptures: (c) => credited.push(c.length),
       placeStone: (x, y, code) => {
         if (at(x, y) !== 0) return null;
@@ -191,11 +187,11 @@ test("Kite shows an enemy player's hand and fireflies to the user only", () => {
   const t = table();
   t.put(2, 2, stoneCode(3, "base"));
   t.state.players[2].fireflies = 42;
-  t.state.players[2].powerups.push("mist", "gust");
+  t.state.players[2].powerups.push("mist", "fog");
   assert.equal(use(t, "kite", { x: 2, y: 2 }), true);
   assert.equal(t.revealed.length, 1);
   assert.match(t.revealed[0], /P3/);
-  assert.match(t.revealed[0], /Mist, Gust/);
+  assert.match(t.revealed[0], /Mist, Fog/);
   assert.match(t.revealed[0], /42 fireflies/);
 });
 
@@ -251,22 +247,6 @@ test("Twin Wick arms the next stone once", () => {
 
 // ---- tier 3 -----------------------------------------------------------------------
 
-test("River Current only washes away an enemy stone on the edge", () => {
-  const t = table();
-  t.put(0, 4, stoneCode(2, "base")); // left edge
-  t.put(4, 8, stoneCode(3, "pattern")); // bottom edge
-  t.put(4, 4, stoneCode(2, "base")); // the middle
-  t.put(8, 8, stoneCode(1, "base")); // an edge stone of the user's own
-  assert.equal(use(t, "river_current", { x: 4, y: 4 }), false, "not on the edge");
-  assert.equal(use(t, "river_current", { x: 8, y: 8 }), false, "own stone");
-  assert.equal(use(t, "river_current", { x: 5, y: 8 }), false, "empty");
-  assert.equal(use(t, "river_current", { x: 0, y: 4 }), true);
-  assert.equal(use(t, "river_current", { x: 4, y: 8 }), true);
-  assert.equal(t.at(0, 4), 0);
-  assert.equal(t.at(4, 4), stoneCode(2, "base"));
-  assert.ok(getPowerup("river_current")!.removal);
-});
-
 test("Echo Chime places a stone and its mirror across the centre", () => {
   const t = table();
   assert.equal(use(t, "echo_chime", { x: 1, y: 2 }), true);
@@ -296,7 +276,6 @@ test("Stepping Stones grants one extra stone, once", () => {
   assert.equal(t.state.players[0].extra, 1);
   assert.equal(use(t, "stepping_stones"), false);
   assert.ok(getPowerup("stepping_stones")!.free);
-  assert.ok(!getPowerup("stepping_stones")!.removal, "upgraded to tier 3 for its power, but it is not a removal item");
 });
 
 // ---- fog (tier 1) and skiff (tier 2) --------------------------------------------------

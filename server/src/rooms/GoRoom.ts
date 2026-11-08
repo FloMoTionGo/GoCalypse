@@ -153,7 +153,7 @@ const MAX_BOTS = 3; // bots a table may be given in all, from any mix of kinds
 const SHOP_AFTER_MOVES = 5;
 const FIREFLIES_PER_MOVE = 3;
 const FIREFLIES_PER_CAPTURE = 5;
-const CONSOLATION_PER_STONE = 3; // paid to the owner of a stone removed by someone's item
+const CONSOLATION_PER_STONE = 3; // paid to the owner of a stone the storm burnt or a river creature took
 
 /** ", smothered 3 gray stones (no points)" for the kills a stone made across the fronts, or "". */
 function smotheredNews(captured: Captured[]): string {
@@ -167,7 +167,6 @@ function smotheredNews(captured: Captured[]): string {
   return parts.length ? `, smothered ${parts.join(" and ")} (no points)` : "";
 }
 const HAND_LIMIT = 5; // cards a player may hold at once, the Stone Card included
-const POWERFUL_LIMIT = 1; // removal items a player may hold at once
 const DEBUG_STORM_EVERY_TURNS = 6; // debug rooms roll far more often, so storms can be watched
 const DEBUG_RIVER_EVERY_TURNS = 2; // and the river's D6 too, so the crab, the spirit and the Bait can be tried
 // Bots are only ever seated on request (the welcome screen's "add bots"), or to
@@ -280,7 +279,6 @@ export class GoRoom extends Room<GoState> {
     this.kos = new KoWatch(size);
     state.shopAfter = this.shopAfterMoves;
     state.handLimit = HAND_LIMIT;
-    state.powerfulLimit = POWERFUL_LIMIT;
     state.storm.every = this.stormEvery;
     state.river.every = this.riverEvery;
     for (let i = 0; i < size * size; i++) {
@@ -850,11 +848,6 @@ export class GoRoom extends Room<GoState> {
     for (const cell of newCard()) player.card.push(cell);
   }
 
-  /** Removal ("powerful") items sitting in a player's hand right now. */
-  private powerfulHeld(player: PlayerState): number {
-    return player.powerups.filter((id) => getPowerup(id)?.removal).length;
-  }
-
   private notice(client: Client, text: string) {
     client.send("notice", text);
   }
@@ -950,7 +943,7 @@ export class GoRoom extends Room<GoState> {
       const idx = boardIndex(size, e.x, e.y);
       if (e.kind === "drift" && board[idx] === DRIFTWOOD) board[idx] = 0;
       // The fire goes out and the stone it was eating is gone with it. Its
-      // owner gets the same consolation as for a stone removed by an item.
+      // owner gets the same consolation as for a stone a river creature took.
       if (e.kind === "fire" && board[idx] !== 0) this.removePieces([idx], 0);
       if (e.kind === "ward" || e.kind === "fog") lapsedWards.push(idx);
       if (e.kind === "seed") grownSeeds.push({ x: e.x, y: e.y, owner: e.owner, axis: e.axis === "pattern" ? "pattern" : "base" });
@@ -994,7 +987,7 @@ export class GoRoom extends Room<GoState> {
     }
   }
 
-  /** Clears cells for a removal item; pays consolation to the owners of removed stones. */
+  /** Clears cells the storm burnt or a river creature took; pays consolation to the owners of removed stones. */
   private removePieces(indices: number[], byColor: number): number {
     const board = this.state.board;
     let removed = 0;
@@ -1189,7 +1182,7 @@ export class GoRoom extends Room<GoState> {
    * crab pinches one of the stones within its reach, picked at random, the
    * spirit steals every one. Neither can take what a ward or a fog shields,
    * nor a stone it can't see under a mist, and driftwood is no stone. Nobody is
-   * credited the stones; their owners get the consolation an item's removal pays.
+   * credited the stones; their owners get the consolation fireflies.
    */
   private creaturesAct() {
     const state = this.state;
@@ -1333,13 +1326,11 @@ export class GoRoom extends Room<GoState> {
       market: Array.from(this.state.market).map((m) => ({
         id: m.id,
         price: m.price,
-        removal: m.removal,
         left: m.left,
         share: m.share,
       })),
       handLimit: HAND_LIMIT,
       card: Array.from(player.card),
-      powerfulLimit: POWERFUL_LIMIT,
       isWarded: (idx) => warded[idx] === 1,
       lilyOwnerAt: (idx) => padOwner[idx] || sproutOwner[idx],
       isBurning: (idx) => burning[idx] === 1,
@@ -1578,8 +1569,8 @@ export class GoRoom extends Room<GoState> {
   /**
    * Books each captured stone as a prisoner of the player who took it, on the
    * front its group was judged on -- so a twin stone counts on whichever of its
-   * two fronts actually ran out of liberties. Stones swept off by a removal
-   * item are not prisoners: their owner is already paid consolation fireflies,
+   * two fronts actually ran out of liberties. Stones the storm burnt or a river
+   * creature took are not prisoners: their owner is already paid consolation fireflies,
    * and nobody surrounded them. Nor are stones killed across the fronts: they
    * are counted as smothered, for no points. Each stone also goes into the
    * player's colour split, as everyone saw it (captureSlot).
@@ -1751,7 +1742,6 @@ export class GoRoom extends Room<GoState> {
     item.name = def.name;
     item.description = def.description;
     item.price = def.price;
-    item.removal = def.removal;
     item.tier = def.tier;
     item.points = def.points ?? 1;
     item.free = !!def.free;
@@ -1787,9 +1777,6 @@ export class GoRoom extends Room<GoState> {
     if (refused) return refused;
     if (this.handCount(player) >= HAND_LIMIT) {
       return `Your hand only holds ${HAND_LIMIT} cards. Play one first.`;
-    }
-    if (definition.removal && this.powerfulHeld(player) >= POWERFUL_LIMIT) {
-      return `You can only carry ${POWERFUL_LIMIT} powerful item at a time.`;
     }
     if (player.fireflies < definition.price) {
       return `Not enough fireflies for ${definition.name}.`;
@@ -1844,7 +1831,6 @@ export class GoRoom extends Room<GoState> {
       lilyOwnerAt: (idx) => this.reservedFor(idx),
       isBurning: (idx) => this.isBurning(idx),
       addEffect: (kind, x, y, owner, rounds, axis) => this.addEffect(kind, x, y, owner, rounds, axis),
-      removePieces: (indices, byColor) => this.removePieces(indices, byColor),
       creditCaptures: (captured) => {
         player.score += captured.length;
         this.creditPrisoners(player, captured);

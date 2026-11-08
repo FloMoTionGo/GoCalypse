@@ -10,7 +10,7 @@ import {
   stoneCode,
   viewsOf,
 } from "../rules/goRules";
-import { SEED_ROUNDS, seedStep } from "../rules/seed";
+import { SEED_ROUNDS } from "../rules/seed";
 import { haikuOfCard } from "../rules/haiku";
 import { STONE_CARD, STONE_CARD_NAME } from "../rules/stoneCard";
 import { PowerupContext, PowerupDefinition } from "./types";
@@ -37,19 +37,12 @@ function ownColor(ctx: PowerupContext): number {
   return ctx.state.players[ctx.playerIndex].color;
 }
 
-/** A rival's stone that nothing shields: the only thing removal items may hit. */
-function isRemovableEnemy(ctx: PowerupContext, idx: number): boolean {
-  const code = ctx.state.board[idx];
-  return isPlayerStone(code) && ownerOf(code) !== ownColor(ctx) && !ctx.isWarded(idx);
-}
-
 const driftwood: PowerupDefinition = {
   id: "driftwood",
   tier: 1,
   name: "Driftwood",
   description: "Drop a log on an empty point: a wall on both fronts that no one owns or can capture. Floats away after 3 rounds.",
   price: 30,
-  removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
     if (idx === -1 || ctx.lilyOwnerAt(idx) || ctx.isBurning(idx)) return false;
@@ -68,7 +61,6 @@ const lilyPad: PowerupDefinition = {
   name: "Lily Pad",
   description: "Reserve an empty point for 3 rounds: only you may place a stone there.",
   price: 40,
-  removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
     if (idx === -1 || ctx.state.board[idx] !== 0 || ctx.lilyOwnerAt(idx) || ctx.isBurning(idx)) return false;
@@ -83,7 +75,6 @@ const lanternWard: PowerupDefinition = {
   name: "Lantern Ward",
   description: "Light a lantern over one of your groups: it can't be captured or removed until the end of your next turn.",
   price: 60,
-  removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
     if (idx === -1) return false;
@@ -107,7 +98,6 @@ const turnLantern: PowerupDefinition = {
   name: "Turn the Lantern",
   description: "Flip one of your stones to your other front (black/white <-> gray/transparent). Captures count on the new front.",
   price: 80,
-  removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
     if (idx === -1) return false;
@@ -124,75 +114,6 @@ const turnLantern: PowerupDefinition = {
   },
 };
 
-const gust: PowerupDefinition = {
-  id: "gust",
-  tier: 3,
-  name: "Gust",
-  description: "Blow away one enemy stone whose group is in atari (down to its last liberty). Once per match.",
-  price: 180,
-  removal: true,
-  apply(ctx) {
-    const idx = targetIndex(ctx);
-    if (idx === -1 || !isRemovableEnemy(ctx, idx)) return false;
-    const code = ctx.state.board[idx];
-    const inAtari = viewsOf(code).some(
-      (view) => findGroup(ctx.state.board.toArray(), ctx.size, ctx.target!.x, ctx.target!.y, view).liberties === 1
-    );
-    if (!inAtari) return false;
-    ctx.removePieces([idx], ownColor(ctx));
-    return true;
-  },
-};
-
-const removeStone: PowerupDefinition = {
-  id: "remove_stone",
-  tier: 3,
-  name: "Snipe",
-  description: "Remove any single enemy stone. Once per match.",
-  price: 280,
-  removal: true,
-  apply(ctx) {
-    const idx = targetIndex(ctx);
-    if (idx === -1 || !isRemovableEnemy(ctx, idx)) return false;
-    ctx.removePieces([idx], ownColor(ctx));
-    return true;
-  },
-};
-
-const bomb: PowerupDefinition = {
-  id: "bomb",
-  tier: 3,
-  name: "Firework",
-  description: "Burst a 3x3 area clear -- your own stones and driftwood too. Warded stones are spared. Once per match.",
-  price: 400,
-  removal: true,
-  apply(ctx) {
-    if (targetIndex(ctx) === -1) return false;
-    const { size, target } = ctx;
-    const cells: number[] = [];
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const x = target!.x + dx;
-        const y = target!.y + dy;
-        if (!isOnBoard(size, x, y)) continue;
-        const idx = boardIndex(size, x, y);
-        if (ctx.state.board[idx] !== 0 && !ctx.isWarded(idx)) cells.push(idx);
-      }
-    }
-    // Seeds in their first round burn with the stones; a sprout has taken root.
-    const { effects, turnCount, players } = ctx.state;
-    const seeds: number[] = [];
-    effects.forEach((e, i) => {
-      if (e.kind !== "seed" || Math.abs(e.x - target!.x) > 1 || Math.abs(e.y - target!.y) > 1) return;
-      if (seedStep(e.until, turnCount, players.length) === 1) seeds.push(i);
-    });
-    if (cells.length === 0 && seeds.length === 0) return false; // nothing to burst: keep the item
-    ctx.removePieces(cells, ownColor(ctx));
-    for (const i of seeds.reverse()) effects.splice(i, 1);
-    return true;
-  },
-};
-
 // ---- tier 1 ---------------------------------------------------------------------
 
 /** Turns a Firefly Jar stays lit: the rest of the turn it is opened in, and the next three. */
@@ -204,7 +125,6 @@ const fireflyJar: PowerupDefinition = {
   name: "Firefly Jar",
   description: "Your captures earn double fireflies for the rest of this turn and your next 3.",
   price: 25,
-  removal: false,
   points: 0,
   free: true,
   apply(ctx) {
@@ -222,7 +142,6 @@ const seedling: PowerupDefinition = {
   description:
     "Plant a seed. In its first round anyone can trample it; after that only you may play there. It grows into your stone after 3 rounds.",
   price: 30,
-  removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
     if (idx === -1 || ctx.state.board[idx] !== 0 || ctx.isBurning(idx)) return false;
@@ -242,7 +161,6 @@ const mist: PowerupDefinition = {
   description:
     "Your next stone is hidden in a mist until the end of the round: the others can't see which front it fights on.",
   price: 30,
-  removal: false,
   points: 0,
   free: true,
   apply(ctx) {
@@ -263,7 +181,6 @@ const fog: PowerupDefinition = {
   description:
     "Roll a fog over a 3x3 area for 2 rounds: stones inside can't be captured or removed, and nobody can see them, not even you or their owners, nor in the move recall. No stone can be placed inside it.",
   price: 35,
-  removal: false,
   apply(ctx) {
     if (targetIndex(ctx) === -1) return false;
     const { x, y } = ctx.target!;
@@ -289,7 +206,6 @@ const bait: PowerupDefinition = {
   description:
     "Toss a bait onto an edge point: the river crab or spirit walks over to it and takes its stones from there when its timer runs out. Never onto another player's stones. On sale every night.",
   price: 30,
-  removal: false,
   free: true,
   always: true,
   apply(ctx) {
@@ -307,7 +223,6 @@ const kite: PowerupDefinition = {
   description:
     "Fly a kite over an enemy stone: only you see what its player is holding and how many fireflies they have.",
   price: 45,
-  removal: false,
   free: true,
   apply(ctx) {
     const idx = targetIndex(ctx);
@@ -328,7 +243,6 @@ const ferry: PowerupDefinition = {
   name: "Ferry",
   description: "Move one of your stones one step to an empty point beside it. Captures are judged as if you had played it there.",
   price: 50,
-  removal: false,
   points: 2,
   apply(ctx) {
     const from = targetIndex(ctx);
@@ -353,7 +267,6 @@ const skiff: PowerupDefinition = {
   description:
     "Send one of your stones gliding along its row or column to an empty point, as far as the way is clear. Captures are judged as if you had played it there.",
   price: 65,
-  removal: false,
   points: 2,
   apply(ctx) {
     const from = targetIndex(ctx);
@@ -385,7 +298,6 @@ const twinWick: PowerupDefinition = {
   description:
     "Your next stone fights on both fronts at once: it joins and captures on both, but is lost if either of its groups runs out of liberties.",
   price: 70,
-  removal: false,
   points: 0,
   free: true,
   apply(ctx) {
@@ -398,23 +310,6 @@ const twinWick: PowerupDefinition = {
 
 // ---- tier 3 ---------------------------------------------------------------------
 
-const riverCurrent: PowerupDefinition = {
-  id: "river_current",
-  tier: 3,
-  name: "River Current",
-  description: "Wash away one enemy stone on the edge of the board. Once per match.",
-  price: 130,
-  removal: true,
-  apply(ctx) {
-    const idx = targetIndex(ctx);
-    if (idx === -1 || !isRemovableEnemy(ctx, idx)) return false;
-    const { x, y } = ctx.target!;
-    if (x !== 0 && y !== 0 && x !== ctx.size - 1 && y !== ctx.size - 1) return false;
-    ctx.removePieces([idx], ownColor(ctx));
-    return true;
-  },
-};
-
 const echoChime: PowerupDefinition = {
   id: "echo_chime",
   tier: 3,
@@ -422,7 +317,6 @@ const echoChime: PowerupDefinition = {
   description:
     "Place a stone on an empty point, and the chime places another for you on the opposite side of the centre point, if that point is free and legal.",
   price: 160,
-  removal: false,
   apply(ctx) {
     const idx = targetIndex(ctx);
     if (idx === -1) return false;
@@ -442,7 +336,6 @@ const steppingStones: PowerupDefinition = {
   name: "Stepping Stones",
   description: "Place two stones this turn: your next move doesn't end your turn.",
   price: 200,
-  removal: false,
   points: 0,
   free: true,
   apply(ctx) {
@@ -458,7 +351,7 @@ const REGISTRY = new Map<string, PowerupDefinition>(
   [
     fireflyJar, seedling, mist, bait, fog, driftwood, lilyPad, // tier 1
     kite, ferry, skiff, lanternWard, twinWick, turnLantern, // tier 2
-    riverCurrent, echoChime, gust, steppingStones, removeStone, bomb, // tier 3
+    echoChime, steppingStones, // tier 3
   ]
     .sort((a, b) => a.tier - b.tier || a.price - b.price)
     .map((p) => [p.id, p])
@@ -561,7 +454,6 @@ export function haikuPower(card: string, level: number): PowerupDefinition | und
     description: haiku.powers[lv - 1],
     tier: 2 as const,
     price: 0,
-    removal: false,
   };
   if (haiku.id === "moon") return { ...base, apply: (ctx) => haikuWard(ctx, lv) };
   if (haiku.id === "river") return { ...base, points: 2, free: lv >= 3, apply: (lv === 1 ? ferry : skiff).apply };
@@ -586,7 +478,7 @@ export function alwaysStocked(): PowerupDefinition[] {
  * 3, drawn fresh per match from the items not always on sale. There is one
  * market per room, so every player and bot at the table shops from the same
  * stall. Kept in registry order (tier, then price), so it always reads cheap to
- * dear. Only tier 3 holds removal ("powerful") items, so at most one is ever on sale.
+ * dear. Nothing on sale removes another player's stones: the game stays cozy (2026-11-08).
  */
 export function marketStock(random: () => number = Math.random): PowerupDefinition[] {
   const all = allPowerups();

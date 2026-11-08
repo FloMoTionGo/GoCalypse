@@ -12,7 +12,7 @@ import { creatureReach } from "../rules/river";
 
 const N = 9;
 const at = (x: number, y: number) => boardIndex(N, x, y);
-const baitRow: MarketRow = { id: "bait", price: 30, removal: false, left: 6, share: 2 };
+const baitRow: MarketRow = { id: "bait", price: 30, left: 6, share: 2 };
 
 function view(extra: Partial<BotView> & { creatures?: unknown } = {}): BotView {
   return Object.assign(
@@ -31,7 +31,6 @@ function view(extra: Partial<BotView> & { creatures?: unknown } = {}): BotView {
       shopAfter: 5,
       market: [baitRow],
       handLimit: 5,
-      powerfulLimit: 1,
       isWarded: () => false,
       lilyOwnerAt: () => 0,
       isBurning: () => false,
