@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { at, onTurn, playerOf, put, startedRoom } from "./room.testkit";
+import fs from "fs";
+import path from "path";
+import { at, DATA_DIR, makeRoom, onTurn, playerOf, put, startedRoom } from "./room.testkit";
+import { queueRestore } from "../state/persist";
 import { DRIFTWOOD, stoneCode, twinCode } from "../rules/goRules";
 
 // Each player's captured stones split by colour (PlayerState.captures), for the
@@ -86,4 +89,55 @@ test("captures: a stone taken in the storm's grey is booked as grey, and one und
     assert.equal(me.captures[9], 1, "booked as unseen");
     assert.equal(me.captures[stoneCode(rival, "base") - 1], 0, "not as the rival's");
   }
+});
+
+/** A rival's base stone taken at turn 0 in a storm lasting `until` turns from now; the taker's seat and the slot it belongs in. */
+function takenInTheStorm(until: number) {
+  const { room, clients } = startedRoom();
+  const client = onTurn(room, clients);
+  const me = playerOf(room, client);
+  const rival = rivalOn("base", me.color);
+  lastLiberty(room, stoneCode(rival, "base"));
+  room.state.storm.until = room.state.turnCount + until;
+  room.handleMove(client, { x: 3, y: 4, axis: "base" });
+  assert.equal(me.captures[8], 1, "grey while the storm lasts");
+  return { room, clients, me, real: stoneCode(rival, "base") - 1 };
+}
+const pass = (room: any) => room.applyPass(room.state.turnIndex);
+
+test("captures: stones taken in the storm's grey turn to their real colour when the storm lifts", () => {
+  const { room, me, real } = takenInTheStorm(3); // the move was turn 1 of the 3
+  pass(room);
+  assert.deepEqual([me.captures[8], me.captures[real]], [1, 0], "one turn of grey left: still grey");
+  pass(room);
+  assert.deepEqual([me.captures[8], me.captures[real]], [0, 1], "lifted: the real colour");
+  assert.equal(total(me), me.score, "the split still adds up");
+});
+
+test("captures: a game that ends under the storm shows the real colours too", () => {
+  const { room, me, real } = takenInTheStorm(100);
+  for (let i = 0; i < 4; i++) pass(room);
+  assert.equal(room.state.status, "finished");
+  assert.deepEqual([me.captures[8], me.captures[real]], [0, 1]);
+});
+
+test("captures: the real colours of a storm's captures survive a restart", () => {
+  const { room, me, real } = takenInTheStorm(3);
+  room.dirty = true;
+  room.saveSnapshot();
+  const snapshot = JSON.parse(fs.readFileSync(path.join(DATA_DIR!, "rooms", `${room.roomId}.json`), "utf8"));
+  const restored: any = makeRoom({ restoreToken: queueRestore(snapshot) });
+  const again = restored.state.players.find((p: any) => p.color === me.color);
+  assert.equal(again.captures[8], 1, "still grey after the restart");
+  pass(restored);
+  pass(restored);
+  assert.deepEqual([again.captures[8], again.captures[real]], [0, 1]);
+  restored.onDispose();
+});
+
+test("captures: the real colours wait on the server, out of the state every client is sent", () => {
+  const { room, real } = takenInTheStorm(3);
+  assert.equal(room.stormCaptures.length, 1, "held back for when the storm lifts");
+  assert.equal(room.stormCaptures[0].slot, real);
+  assert.equal(JSON.stringify(room.state.toJSON()).includes("stormCaptures"), false);
 });
