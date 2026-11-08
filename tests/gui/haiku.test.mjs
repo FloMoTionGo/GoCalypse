@@ -78,3 +78,24 @@ test("haiku: 川 at level 3 marks every stone of my two colours, below that only
   assert.deepEqual(v.two, [1, 5, 10], "level 2: my own, the twin included");
   assert.deepEqual(v.three, [1, 5, 3, 6, 10, 11, 12], "level 3: black and gray whoever's, and any twin showing either");
 });
+
+test("haiku: 木 at level 3 sends the colour of each click, left then right and right then left", async () => {
+  await b.ev(`(() => {
+    window.__real = { send: room.send, level: haikuLevel };
+    window.__seeds = [];
+    room.send = function (type, msg) { if (type === "usePowerup") window.__seeds.push(msg); };
+    haikuLevel = () => 3;
+    return true;
+  })()`);
+  try {
+    for (const [first, second] of [["left", "right"], ["right", "left"]]) {
+      await b.ev(`setSelectedPowerup("haiku_tree"); true`);
+      await rig.clickBoard(2, 2, first);
+      await rig.clickBoard(9, 9, second);
+    }
+  } finally {
+    await b.ev("room.send = window.__real.send; haikuLevel = window.__real.level; setSelectedPowerup(null); true");
+  }
+  const sent = await b.ev("window.__seeds");
+  assert.deepEqual(sent.map((m) => [m.target.x, m.target2.x, m.axis, m.axis2]), [[2, 9, "base", "pattern"], [2, 9, "pattern", "base"]]);
+});

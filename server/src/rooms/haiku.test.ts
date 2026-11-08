@@ -250,3 +250,21 @@ test("haiku: 川 at level 3 can't carry a warded stone", () => {
   glideFrom(room, client, 5);
   assert.equal(at(room, 5, 6), code, "warded: it stays");
 });
+
+test("haiku: 木 at level 3 gives each seed the colour of its own click", () => {
+  for (const [axis, axis2] of [["base", "pattern"], ["pattern", "base"], ["pattern", "pattern"], ["base", "base"]]) {
+    const { room, clients } = startedRoom();
+    const { client } = holding(room, clients, "tree", 3);
+    room.handleUsePowerup(client, { id: "haiku_tree", target: { x: 2, y: 2 }, target2: { x: 9, y: 9 }, axis, axis2 });
+    const seed = (x: number) => (Array.from(room.state.effects) as any[]).find((e) => e.kind === "seed" && e.x === x);
+    assert.deepEqual([seed(2).axis, seed(9).axis], [axis, axis2]);
+  }
+});
+
+test("haiku: 木 at level 3 from a page that sends one colour plants both seeds in it", () => {
+  const { room, clients } = startedRoom();
+  const { client } = holding(room, clients, "tree", 3);
+  room.handleUsePowerup(client, { id: "haiku_tree", target: { x: 2, y: 2 }, target2: { x: 9, y: 9 }, axis: "pattern" });
+  const axes = (Array.from(room.state.effects) as any[]).filter((e) => e.kind === "seed").map((e) => e.axis);
+  assert.deepEqual(axes, ["pattern", "pattern"]);
+});

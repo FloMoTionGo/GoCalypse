@@ -1,4 +1,17 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "haiku: 木 at level 3 gives each seed the colour of its own click",
+      "feature": "seedling-colours",
+      "tier": "server",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "haiku: 木 at level 3 sends the colour of each click, left then right and right then left",
+      "feature": "seedling-colours",
+      "tier": "gui",
+      "since": "2026-11-08"
+    }
+  ]
 }
