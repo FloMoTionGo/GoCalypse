@@ -1,4 +1,29 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "lure: the crab can be lured onto another player's stone, and pinches it from there",
+      "feature": "bait-and-driftwood",
+      "tier": "server",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "lure: the Bait's description says the crab may go onto anyone's stones and the spirit may not",
+      "feature": "bait-and-driftwood",
+      "tier": "server",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "driftwood: a point needs at least one empty neighbour, however many it has",
+      "feature": "bait-and-driftwood",
+      "tier": "server",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "the Driftwood's description says it needs an empty point beside it",
+      "feature": "bait-and-driftwood",
+      "tier": "server",
+      "since": "2026-11-08"
+    }
+  ]
 }

@@ -355,3 +355,17 @@ test("cross-front: a Turn the Lantern capture is judged by the flipped stone's n
   assert.equal(stranded.length, 1);
   assert.equal(crossOf(stranded[0]), true);
 });
+
+test("driftwood: a point needs at least one empty neighbour, however many it has", () => {
+  const size = 3;
+  const empty = () => new Array(size * size).fill(0);
+  const wall = (board: number[], points: number[][]) => {
+    for (const [x, y] of points) board[y * size + x] = DRIFTWOOD;
+    return board;
+  };
+  assert.equal(canPlaceNeutral(wall(empty(), [[0, 1], [2, 1], [1, 0], [1, 2]]), size, 1, 1), false, "the middle, walled in on four sides");
+  assert.equal(canPlaceNeutral(wall(empty(), [[1, 0], [0, 1]]), size, 0, 0), false, "a corner, on its two sides");
+  assert.equal(canPlaceNeutral(wall(empty(), [[0, 0], [2, 0], [1, 1]]), size, 1, 0), false, "an edge, on its three sides");
+  assert.equal(canPlaceNeutral(wall(empty(), [[0, 1], [2, 1], [1, 0]]), size, 1, 1), true, "one empty neighbour is enough");
+  assert.equal(canPlaceNeutral(wall(empty(), [[1, 0]]), size, 0, 0), true, "a corner with one side open");
+});

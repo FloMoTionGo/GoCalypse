@@ -335,3 +335,7 @@ test("no item takes the stone it is used on off the board: a rival's edge stone 
     assert.equal(t.at(0, 4), rival, `${def.id} took the stone`);
   }
 });
+
+test("the Driftwood's description says it needs an empty point beside it", () => {
+  assert.match(getPowerup("driftwood")!.description, /at least one empty point beside it/);
+});

@@ -141,3 +141,33 @@ test("lure: the Bait says it lures: an edge point, the creature walks over and t
   assert.match(d, /walks/);
   assert.doesNotMatch(d, /goes back into the water at once/);
 });
+
+test("lure: the crab can be lured onto another player's stone, and pinches it from there", () => {
+  const { room, clients } = risen(CRAB);
+  const crab = room.state.river.crab;
+  const client = baitInHand(room, clients);
+  const rival = (playerOf(room, client).color % 4) + 1;
+  put(room, 12, 4, stoneCode(rival, "base"));
+  lure(room, client, 12, 4);
+  assert.equal(holds(room, client), 0, "the Bait is used up");
+  assert.deepEqual([crab.x, crab.y], [12, 4]);
+  until(room, clients, crab.by);
+  assert.equal(at(room, 12, 4), 0, "the rival's stone is pinched");
+});
+
+test("lure: the spirit is refused wherever another player's stone is in its new reach", () => {
+  const { room, clients } = risen(SPIRIT);
+  const spirit = room.state.river.spirit;
+  const client = baitInHand(room, clients);
+  const rival = (playerOf(room, client).color % 4) + 1;
+  put(room, 12, 4, stoneCode(rival, "base"));
+  lure(room, client, 12, 4);
+  assert.equal(holds(room, client), 1, "kept");
+  assert.deepEqual([spirit.x, spirit.y], [6, 0], "the spirit stays where it was");
+});
+
+test("lure: the Bait's description says the crab may go onto anyone's stones and the spirit may not", () => {
+  const d = getPowerup("bait")!.description;
+  assert.match(d, /crab can be lured onto anyone's stones/);
+  assert.match(d, /spirit only away from other players' stones/);
+});
