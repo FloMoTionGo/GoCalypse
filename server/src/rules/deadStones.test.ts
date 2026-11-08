@@ -45,10 +45,10 @@ test("dead stones: two stones apart in the same ground both go", () => {
 
 test("dead stones: a group with two eyes inside the other side's ground lives", () => {
   assert.deepEqual(deadOf([
-    "WWWWB..",
-    "W.W.B..",
-    "WWWWB..",
-    "BBBBB..",
+    "WWWWWB.",
+    "W.W.WB.",
+    "WWWWWB.",
+    "BBBBBB.",
     ".......",
     ".......",
     ".......",
@@ -56,14 +56,16 @@ test("dead stones: a group with two eyes inside the other side's ground lives", 
 });
 
 test("dead stones: a group with one small eye and no way out is dead", () => {
-  assert.deepEqual(deadOf([
-    "......B",
-    ".WWW..B",
-    ".W.W..B",
-    ".WWW..B",
-    "......B",
-    "BBBBBBB",
-    ".......",
+  assert.equal(deadOf([
+    "WWW.B....",
+    "W.W.B....",
+    "WWW.B....",
+    "....B....",
+    "BBBBB....",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
   ]).length, 8);
 });
 
@@ -97,15 +99,16 @@ test("dead stones: stones in ground too wide to call settled stand", () => {
 });
 
 test("dead stones: a surrounder that can't live either leaves the stone standing", () => {
-  assert.deepEqual(deadOf([
-    "..BWWWW",
-    ".WB.WT.",
-    "..BWWWW",
-    "BBBWTTT",
-    "WWWWT..",
-    "TTTTT..",
+  const dead = deadOf([
+    ".WBW...",
+    "..BW...",
+    "BBBW...",
+    "WWWW...",
     ".......",
-  ]).filter(([x, y]) => x === 1 && y === 1), [], "black's ground is under six points and black has no other eye");
+    ".......",
+    ".......",
+  ]);
+  assert.equal(dead.some(([x, y]) => x === 1 && y === 0), false, "black's ground is under six points and black has no other eye");
 });
 
 test("dead stones: it works the same on the pattern front", () => {

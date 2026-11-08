@@ -31,8 +31,16 @@
 // That gives each player two totals -- territory + counted prisoners on the
 // base front, and the same on the pattern front. The lower of the two is their
 // final score; the higher only breaks a tie.
+//
+// That is GoCalypse scoring, the default. A table can pick another at creation:
+// Japanese counts every prisoner, with no cap; Chinese counts territory and
+// stones on the board, and no prisoners. Both of those also take dead groups off
+// before counting (rules/deadStones.ts); GoCalypse keeps "what stands is alive".
 
 import { boardIndex, neighbors, StoneView, stoneCode, viewValue } from "./goRules";
+
+export const SCORING_MODES = ["gocalypse", "japanese", "chinese"] as const;
+export type ScoringMode = (typeof SCORING_MODES)[number];
 
 export type Side = "black" | "white" | "gray" | "transparent";
 export type Territory = Record<Side, number>;
@@ -52,8 +60,8 @@ export interface PlayerResult {
   patternTerritory: number; // territory of this player's pattern side (gray or transparent)
   basePrisoners: number; // base-front stones this player captured
   patternPrisoners: number; // pattern-front stones this player captured
-  baseCounted: number; // the base prisoners that count: no more than baseTerritory
-  patternCounted: number; // the pattern prisoners that count: no more than patternTerritory
+  baseCounted: number; // what counts on top of baseTerritory: prisoners (GoCalypse: no more than it), or Chinese stones
+  patternCounted: number; // the same on the pattern front
   base: number; // baseTerritory + baseCounted
   pattern: number; // patternTerritory + patternCounted
   score: number; // the lower of the two: the final score
@@ -188,6 +196,24 @@ export function countedPrisoners(prisoners: number, territory: number): number {
   return Math.max(0, Math.min(prisoners, territory));
 }
 
+/** What a player's prisoners on a front are worth under a mode: Chinese counts stones instead, so none. */
+export function prisonersWorth(mode: ScoringMode, prisoners: number, territory: number): number {
+  if (mode === "chinese") return 0;
+  return mode === "japanese" ? prisoners : countedPrisoners(prisoners, territory);
+}
+
+/** Stones on the board per side: each on the front it shows, a twin on both, driftwood on neither. */
+export function stoneScore(board: ArrayLike<number>, size: number): Territory {
+  const totals: Territory = { black: 0, white: 0, gray: 0, transparent: 0 };
+  for (let i = 0; i < size * size; i++) {
+    for (const view of ["base", "pattern"] as StoneView[]) {
+      const side = viewValue(view, board[i]) as Side | null;
+      if (side) totals[side] += 1;
+    }
+  }
+  return totals;
+}
+
 /**
  * Final scores and places for the given combos, in the order they are given.
  * `prisoners` runs alongside `colors`: one entry per player, since two players
@@ -196,15 +222,18 @@ export function countedPrisoners(prisoners: number, territory: number): number {
 export function finalResults(
   territory: Territory,
   colors: number[],
-  prisoners: Prisoners[] = []
+  prisoners: Prisoners[] = [],
+  mode: ScoringMode = "gocalypse",
+  stones: Territory = { black: 0, white: 0, gray: 0, transparent: 0 }
 ): PlayerResult[] {
   const results: PlayerResult[] = colors.map((color, i) => {
     const sides = sidesOf(color);
     const took = prisoners[i] ?? { base: 0, pattern: 0 };
     const baseTerritory = territory[sides.base];
     const patternTerritory = territory[sides.pattern];
-    const baseCounted = countedPrisoners(took.base, baseTerritory);
-    const patternCounted = countedPrisoners(took.pattern, patternTerritory);
+    // What goes on top of the ground: prisoners, or under Chinese scoring the stones on the board.
+    const baseCounted = mode === "chinese" ? stones[sides.base] : prisonersWorth(mode, took.base, baseTerritory);
+    const patternCounted = mode === "chinese" ? stones[sides.pattern] : prisonersWorth(mode, took.pattern, patternTerritory);
     const base = baseTerritory + baseCounted;
     const pattern = patternTerritory + patternCounted;
     return {
