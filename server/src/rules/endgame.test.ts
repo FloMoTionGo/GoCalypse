@@ -239,3 +239,41 @@ test("results come back in the order the combos were given", () => {
   const results = finalResults({ black: 1, white: 2, gray: 3, transparent: 4 }, [4, 1]);
   assert.deepEqual(results.map((r) => r.color), [4, 1]);
 });
+
+// The three scoring modes a table can pick. All are per front, the lower front the score.
+
+const modes = () => require("./endgame") as any;
+const GROUND = { black: 10, white: 6, gray: 8, transparent: 4 };
+const STONES = { black: 3, white: 5, gray: 2, transparent: 7 };
+const TOOK = [{ base: 30, pattern: 1 }, { base: 2, pattern: 2 }, { base: 0, pattern: 0 }, { base: 0, pattern: 0 }];
+
+test("scoring modes: GoCalypse is the default and caps prisoners at the ground, as ever", () => {
+  const [mine] = modes().finalResults(GROUND, [1, 2, 3, 4], TOOK);
+  const [same] = modes().finalResults(GROUND, [1, 2, 3, 4], TOOK, "gocalypse", STONES);
+  assert.deepEqual(same, mine);
+  assert.deepEqual([mine.baseCounted, mine.base, mine.patternCounted, mine.pattern, mine.score], [10, 20, 1, 9, 9]);
+});
+
+test("scoring modes: Japanese counts ground and every prisoner, with no cap", () => {
+  const [mine] = modes().finalResults(GROUND, [1, 2, 3, 4], TOOK, "japanese", STONES);
+  assert.deepEqual([mine.baseCounted, mine.base, mine.patternCounted, mine.pattern, mine.score], [30, 40, 1, 9, 9]);
+});
+
+test("scoring modes: Chinese counts ground and stones, and no prisoners", () => {
+  const [mine] = modes().finalResults(GROUND, [1, 2, 3, 4], TOOK, "chinese", STONES);
+  assert.deepEqual([mine.baseCounted, mine.base, mine.patternCounted, mine.pattern, mine.score], [3, 13, 2, 10, 10]);
+});
+
+test("scoring modes: stones are counted on the front they show, a twin on both, driftwood on none", () => {
+  const board = new Array(9).fill(0);
+  board[0] = 1; // black
+  board[1] = 2; // white
+  board[2] = 5; // gray
+  board[3] = 12; // the third seat's twin: black and transparent
+  board[4] = 9; // driftwood
+  assert.deepEqual(modes().stoneScore(board, 3), { black: 2, white: 1, gray: 1, transparent: 1 });
+});
+
+test("scoring modes: only the three known modes are modes", () => {
+  assert.deepEqual(modes().SCORING_MODES, ["gocalypse", "japanese", "chinese"]);
+});
