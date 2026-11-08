@@ -853,8 +853,8 @@ function frame() {
     storm: snap ? null : storm,
     // live scenery, like the weather: drawn as it is now even while looking back
     river: [riverCreatures.crab, riverCreatures.spirit].filter(Boolean),
-    // the landing: each seat's lantern, and the turn boat moored at the current seat with the
-    // round on its sign (the round looked back at, while recalling an older board)
+    // the landing's lanterns, and the round on the river boat's sign (the round looked back
+    // at, while recalling an older board)
     ...landingView(lastState, snap ? snap.turnCount : turnCount),
     passFlash: passFlashAt,
     fireflies: myPlayer ? myPlayer.fireflies : undefined,
@@ -878,18 +878,13 @@ function frame() {
   boardCtx.putImageData(imageData, 0, 0); // imageData is a view over scene.rgba
 }
 
-let boatGlide = { seat: null }; // the turn boat's last mooring, and when it left it (landingView)
-
 /**
- * The landing as the scene draws it (pixelScene.js render `seats` and `boat`):
- * each seat's lantern in turn order, lit on its turn (the winner's at the end),
- * null for an open seat; and the turn boat, moored at the current seat's island
- * (the winner's at the end, the first seat while waiting) with the round of
- * `turns` on its sign. When the turn moves on, the boat glides there from the
- * last seat for BOAT_GLIDE_SECONDS.
+ * The turn as the scene draws it (pixelScene.js render `seats` and `round`): each
+ * seat's lantern in turn order, lit on its turn (the winner's at the end), null
+ * for an open seat; and the round of `turns`, on the river boat's sign.
  */
 function landingView(state, turns = turnCount) {
-  if (!state) return { seats: [], boat: null };
+  if (!state) return { seats: [], round: 1 };
   const players = Array.from(state.players);
   const inOrder = players.slice().sort((a, b) => a.color - b.color);
   const playing = state.status === "playing", finished = state.status === "finished";
@@ -898,22 +893,17 @@ function landingView(state, turns = turnCount) {
     const p = inOrder[i];
     return p ? { color: p.color, lit: finished ? p.place === 1 : p === current } : null;
   });
-  const seat = current ? inOrder.indexOf(current) : finished ? Math.max(0, inOrder.findIndex((p) => p.place === 1)) : 0;
-  if (boatGlide.seat !== seat) boatGlide = { seat, from: boatGlide.seat === null ? undefined : boatGlide.seat, at: boatGlide.seat === null ? undefined : clock() };
-  const round = roundLength > 0 ? Math.floor(turns / roundLength) + 1 : 1;
-  const boat = { seat, round };
-  if (boatGlide.at !== undefined) Object.assign(boat, { from: boatGlide.from, at: boatGlide.at });
-  return { seats, boat };
+  return { seats, round: roundLength > 0 ? Math.floor(turns / roundLength) + 1 : 1 };
 }
 
 /**
  * What the next frame would show, as a string -- or null while something on the
  * scene moves on its own clock, so every frame is a new picture: effects in
  * flight, the weather and its lingering clouds, a river creature, fires and
- * wards, the PASS sign, the turn boat gliding to the next island, the hover
- * preview or reticle, and the marks of an armed item. With none of those on, the
- * picture changes only when the ambient clock (water, lanterns, fireflies, the
- * landing's drifting lanterns at AMBIENT_FPS), the last-move ember or something
+ * wards, the PASS sign, the hover preview or reticle, and the marks of an armed
+ * item. With none of those on, the picture changes only when the ambient clock
+ * (water, lanterns, fireflies, the boats, the landing's drifting lanterns at
+ * AMBIENT_FPS), the last-move ember or something
  * in the view itself does.
  */
 function frameKey(view, now) {
@@ -924,7 +914,6 @@ function frameKey(view, now) {
     view.stormTurnCount < view.stormUntil ||
     view.landings ||
     view.highlightMine ||
-    (view.boat && view.boat.at !== undefined && now - view.boat.at < P.BOAT_GLIDE_SECONDS) ||
     (view.hover && (view.hoverKind === "stone" || view.hoverKind === "target")) ||
     (view.passFlash !== undefined && now - view.passFlash < P.PASS_SIGN_SECONDS) ||
     view.overlays.some((o) => o.kind === "fire" || o.kind === "ward");
@@ -1387,7 +1376,7 @@ function pixelText(img, text, color) {
 /**
  * The header's middle: YOUR TURN on my turn, the seats taken while waiting, and
  * nothing else. Whose turn it is and the round live on the landing since
- * 2026-11-07 (the lit lantern, the moored boat), so the header's lantern and
+ * 2026-11-07 (the lit lantern, the river boat's sign), so the header's lantern and
  * name (#hdr-lantern, #hdr-name) stay hidden.
  */
 function renderHeader(state, players) {

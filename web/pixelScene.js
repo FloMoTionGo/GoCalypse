@@ -52,7 +52,6 @@
   const ISLAND_GAP = 8; // water between an island's tip and the old left channel
   const LANDING_W = ISLAND_WATER + ISLAND_W + ISLAND_GAP;
   const LANDING_LOOP = 120; // s: every drifting lantern's loop closes a whole number of times in it
-  const BOAT_GLIDE_SECONDS = 1.1; // the turn boat from one island to the next
   const AMBIENT_FPS = 10;
   // The PASS sign (drawPassSign): how long it holds, then how long it takes to dither away.
   const PASS_HOLD = 1.6, PASS_FADE = 0.7;
@@ -1849,12 +1848,7 @@
       }
     }
 
-    // --- the turn boat and the landing ------------------------------------------------
-    // A little boat carrying the round number on a signboard. It used to drift up and
-    // down the wide river on its own clock; since the Landing it is moored at the island
-    // of the seat whose turn it is: on a turn it glides along the channel to the next
-    // island, and after the last seat back up to the first as the sign turns to the next
-    // round. One round is one trip down the landing.
+    // --- the landing, and the boats on the wide river ----------------------------------
 
     /**
      * The landing's hanging lanterns: each seat's on its island's arm over the channel,
@@ -1871,31 +1865,20 @@
         surf.blit(G.turnLantern(seat.color, !!seat.lit), L.channelCx - 8, isl.y - 6);
       });
     }
-    const BOAT_X0 = 34, BOAT_X1 = W - 34;
-    // The firefly boat is the same craft, drifting up and down the wide river on its own
-    // clock: low in the water, with a dark sign and the firefly icon.
+    // A little boat drifting up and down the wide river, carrying the round number on a
+    // signboard. It is scenery with one job: it moves on its own clock, not the game's, and
+    // only the number on its sign follows the play.
+    const BOAT_X0 = 34, BOAT_X1 = L.streamX1 - 32; // under the deck and the landing, never into the water right of the channel
+    const ROUND_BOAT = { speed: 3.5, dir: 1, phase: 0, waterline: L.riverY0 + 21, bob: 0.9, sign: C, edge: K, text: K };
+    // The firefly boat is the same craft going the other way: slower, lower in the water,
+    // with a dark sign and the firefly icon, so the two never read as one.
     const FIREBOAT = { speed: 2.2, dir: -1, phase: 0.37, waterline: L.riverY0 + 27, bob: 1.3, sign: C, edge: K, text: K, icon: true };
-    const TURN_BOAT = { sign: C, edge: K, text: K };
     function drawBoat(t, label, o) {
       const span = BOAT_X1 - BOAT_X0;
       const u = frac(o.phase + o.dir * ((t * o.speed) / (2 * span)));
       const leg = u < 0.5 ? u * 2 : 2 - u * 2; // there and back
       const cx = Math.round(BOAT_X0 + (0.5 - 0.5 * Math.cos(Math.PI * leg)) * span); // slowing at each turn
       drawBoatAt(cx, o.waterline + Math.round(Math.sin(t * 1.6 + o.phase * 9) * o.bob), t, label, o);
-    }
-
-    /** The turn boat's waterline at island i: just under its front, below the island's lantern. */
-    const mooringLine = (i) => L.islands[i].y + L.islands[i].h + L.islands[i].front + 1;
-
-    /** The turn boat, `boat` = {seat, round, from?, at?}: moored at `seat`, or gliding there from `from` since `at`. */
-    function drawTurnBoat(boat, t, time, reduced) {
-      if (!boat || !L.islands[boat.seat]) return;
-      let wl = mooringLine(boat.seat);
-      if (!reduced && boat.at !== undefined && L.islands[boat.from] && boat.from !== boat.seat) {
-        const u = Math.max(0, (time - boat.at) / BOAT_GLIDE_SECONDS);
-        if (u < 1) wl = Math.round(mooringLine(boat.from) + (wl - mooringLine(boat.from)) * u * u * (3 - 2 * u));
-      }
-      drawBoatAt(L.channelCx, wl + Math.round(Math.sin(t * 1.6) * 0.6), t, "R" + (boat.round || 1), TURN_BOAT);
     }
 
     /** A boat with its waterline at `wl`, its mast at `cx`, `label` on its sign. */
@@ -2301,8 +2284,7 @@
      *                  pieces; each shows its rounds left, and owned ones carry their owner's mark,
      *   seats:         [{color, lit} | null] x4, in turn order: each seat's lantern over the channel by its
      *                  island, lit on its turn (the winner's at the end); null an open seat,
-     *   boat:          {seat, round, from?, at?}: the turn boat, moored at `seat`'s island with the round on its
-     *                  sign; gliding there from `from` for BOAT_GLIDE_SECONDS after `at` (scene time),
+     *   round:         the number on the boat's signboard: the round being played (scenery: it drifts on its own clock),
      *   passFlash:     time (seconds) a pass happened, to show the PASS sign (omit for none),
      *   fireflies:     the viewing player's firefly count, on a second boat (omit for none),
      *   turnCount:     the room's turn counter (lets a fire show its last round, and every timer its rounds),
@@ -2376,9 +2358,9 @@
         surf.blitCentered(animFrame("floatLantern", t, fl.fl.phase / 6.28), fl.x, fl.y);
       }
 
-      // 3b. the landing's hanging lanterns, then the turn boat moored at the current seat's island
+      // 3b. the landing's hanging lanterns, then the boats on the wide river
       drawLanding(seats, t);
-      drawTurnBoat(st.boat, t, time, reduced);
+      drawBoat(t, "R" + (st.round === undefined ? 1 : st.round), ROUND_BOAT);
       if (st.fireflies !== undefined) drawBoat(t, String(st.fireflies), FIREBOAT);
 
       // 4. props: reeds, stone lantern, garland
@@ -2706,7 +2688,6 @@
     AMBIENT_FPS,
     PASS_SIGN_SECONDS,
     LANDING_LOOP,
-    BOAT_GLIDE_SECONDS,
     STAGE,
     stageSize,
     pickScale,

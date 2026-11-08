@@ -126,18 +126,6 @@
       "feature": "night-market-boats",
       "tier": "gui",
       "since": "2026-11-08"
-    },
-    {
-      "test": "round boat: it drifts left and right along the wide river at the bottom on its own clock, only the number on its sign following the play",
-      "feature": "round-boat-drift",
-      "tier": "web",
-      "since": "2026-11-08"
-    },
-    {
-      "test": "landing: the seat whose turn it is has its lantern lit, the river boat's sign shows the round, and the header says only YOUR TURN",
-      "feature": "round-boat-drift",
-      "tier": "gui",
-      "since": "2026-11-08"
     }
   ]
 }
