@@ -774,3 +774,16 @@ test("judging a turn counts the ground before the move once per decision, not on
     counted.mock.restore();
   }
 });
+
+test("scoring modes: a capture past the cap still pays under Japanese, and pays no prisoner under Chinese", () => {
+  const size = 5;
+  const make = (scoring: string) => {
+    const v = view(size, 1, { prisoners: { base: 99, pattern: 0 }, scoring } as any);
+    v.board[boardIndex(size, 2, 2)] = stoneCode(2, "base");
+    for (const [x, y] of [[1, 2], [3, 2], [2, 1]]) v.board[boardIndex(size, x, y)] = stoneCode(1, "base");
+    return v;
+  };
+  const pay = (scoring: string) => scoreMove(make(scoring), 2, 3, "base", tanuki())!;
+  assert.ok(pay("japanese") > pay("gocalypse"), `${pay("japanese")} against ${pay("gocalypse")}`);
+  assert.ok(pay("chinese") <= pay("gocalypse"));
+});

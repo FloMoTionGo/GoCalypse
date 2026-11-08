@@ -75,3 +75,17 @@ test("9x9: every festival has lanterns on both sides of the board", () => {
 test("9x9: a whole stage fits a common window at a bigger scale than 13x13", () => {
   assert.ok(P.pickScale(1920, 950, 1, 9).k >= P.pickScale(1920, 950, 1, 13).k);
 });
+
+test("final board: a dead stone is drawn faded, in the palette", () => {
+  const n = 9, scene = P.createScene({ size: n }), board = new Array(n * n).fill(0), at = 4 * n + 4;
+  board[at] = 1;
+  const base = { board, effects: [], overlays: [], time: 5, ambientTime: 5 };
+  const plain = Uint8ClampedArray.from(scene.render(base)), marked = Uint8ClampedArray.from(scene.render({ ...base, deadStones: [at] }));
+  let differs = 0, bad = 0;
+  for (let i = 0; i < marked.length; i += 4) {
+    if (plain[i] !== marked[i] || plain[i + 1] !== marked[i + 1] || plain[i + 2] !== marked[i + 2]) differs++;
+    if (!PALETTE.has(`${marked[i]},${marked[i + 1]},${marked[i + 2]}`)) bad++;
+  }
+  assert.ok(differs > 10, `${differs} pixels change`);
+  assert.equal(bad, 0);
+});
