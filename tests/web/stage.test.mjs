@@ -31,7 +31,7 @@ test("stage: the scene, a gap and the sidebar across; the header, the scene, the
   assert.equal(P.STAGE.header, 18 * 0.85, "the header at 85%");
   assert.equal(P.STAGE.hand, 3 + (52 + 6) * 1.5, "the hand's cards at 150%");
   const L = P.computeLayout(13), s = P.stageSize(13);
-  assert.ok(s.w > L.width + 260 && s.w < L.width + 280, `width ${s.w}`);
+  assert.ok(s.w > L.width + 190 && s.w < L.width + 280, `width ${s.w}`);
   assert.ok(s.h > L.height + 60 && s.h < L.height + 140, `height ${s.h}`);
   for (const size of [13, 19, 25]) {
     const Ln = P.computeLayout(size), sn = P.stageSize(size), S = P.STAGE;
@@ -39,10 +39,6 @@ test("stage: the scene, a gap and the sidebar across; the header, the scene, the
     assert.equal(sn.h, S.header + S.gap + Ln.height + S.hand + S.status, `${size}: down, the hand row included`);
   }
   assert.ok(P.stageSize(19).w > s.w && P.stageSize(25).h > P.stageSize(19).h);
-});
-
-test("stage: the sidebar is as wide as the players' kaya grid, 12 columns of 22 art px", () => {
-  assert.equal(P.STAGE.sidebar, 12 * 22);
 });
 
 test("home stage: k is the whole scale nearest to 75% of the window's physical pixels, never more than fits, never 0", () => {

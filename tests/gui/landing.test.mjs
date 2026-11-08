@@ -2,8 +2,8 @@
 // players panel leaves the sidebar for four islands left of the board, one a
 // seat in turn order. Each island carries the Kaya scorebook's grid edge to
 // edge, the name on its first line, the digit, both stones, the captures and
-// the Kata on its second; the round and whose turn it is live on the boat and
-// the lanterns, so the header keeps only YOUR TURN. Joined under the longest
+// the Kata on its second; the round lives on the river boat's sign and whose
+// turn it is on the lanterns, so the header keeps only YOUR TURN. Joined under the longest
 // name the server allows, with three bots in a debug room; the tests share one
 // page and run in order.
 import { test, before, after } from "node:test";
@@ -187,19 +187,19 @@ test("landing: a seat's captures tip opens beside its island, over the water, no
   assert.ok(m.top <= m.countCy && m.bottom >= m.countCy, "level with the count");
 });
 
-test("landing: the boat is moored at the seat whose turn it is with the round, that seat's lantern lit, and the header says only YOUR TURN", async () => {
+test("landing: the seat whose turn it is has its lantern lit, the river boat's sign shows the round, and the header says only YOUR TURN", async () => {
   const look = `(() => {
     const v = landingView(lastState), label = document.getElementById("hdr-label");
     const order = Array.from(lastState.players).sort((a, b) => a.color - b.color);
-    return { boat: v.boat, lit: v.seats.map((s) => !!(s && s.lit)), turnSeat: order.indexOf(lastState.players[lastState.turnIndex]),
+    return { sign: v.round, moored: "boat" in v, lit: v.seats.map((s) => !!(s && s.lit)), turnSeat: order.indexOf(lastState.players[lastState.turnIndex]),
       round: Math.floor(lastState.turnCount / Array.from(lastState.players).length) + 1,
       label: label.hidden ? "" : label.dataset.text || "", lantern: !document.getElementById("hdr-lantern").hidden,
       name: document.getElementById("hdr-name").textContent };
   })()`;
   await rig.waitMyTurn();
   let m = await b.ev(look);
-  assert.equal(m.boat.seat, m.turnSeat, "moored at my island");
-  assert.equal(m.boat.round, m.round, "with the round on its sign");
+  assert.equal(m.sign, m.round, "the round on the river boat's sign");
+  assert.equal(m.moored, false, "no boat moored at an island");
   assert.deepEqual(m.lit, [0, 1, 2, 3].map((i) => i === m.turnSeat), "my lantern alone lit");
   assert.match(m.label, /YOUR TURN/, "the header calls me");
   assert.doesNotMatch(m.label, /R\d/, "but leaves the round to the boat");
@@ -208,8 +208,8 @@ test("landing: the boat is moored at the seat whose turn it is with the round, t
   await b.ev("passButton.click(); true");
   await b.waitFor("!isMyTurn", 10000, "a bot's turn");
   m = await b.ev(look);
-  assert.equal(m.boat.seat, m.turnSeat, "the boat moves on with the turn");
-  assert.deepEqual(m.lit, [0, 1, 2, 3].map((i) => i === m.turnSeat), "and the light with it");
+  assert.equal(m.moored, false, "and still no boat at the islands");
+  assert.deepEqual(m.lit, [0, 1, 2, 3].map((i) => i === m.turnSeat), "the light moves on with the turn");
   assert.equal(m.label, "", "the header is quiet on another's turn");
 });
 

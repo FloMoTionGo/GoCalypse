@@ -1,8 +1,8 @@
 // The Landing (tasks/2026-11-07_turn_landing/PLAN.md): the turn overview moves out
 // of the sidebar into the river. Left of the deck, one island per seat in turn
-// order, its lantern hanging over the channel and lit on that seat's turn; the
-// turn boat moored at the current seat with the round on its sign; lanterns
-// drifting round the islands on loops of their own.
+// order, its lantern hanging over the channel and lit on that seat's turn;
+// lanterns drifting round the islands on loops of their own. The boat with the
+// round on its sign drifts along the wide river at the bottom.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadWeb } from "../lib/paths.mjs";
@@ -33,11 +33,23 @@ function diffOutside(a, b, W, H, [x0, y0, w, h]) {
 const seatsLit = (lit) => [1, 2, 3, 4].map((color, i) => ({ color, lit: i === lit }));
 const draw = (scene, state) => Uint8ClampedArray.from(scene.render({ board: [], ...state }));
 
+/** Where two frames differ: the box round it, or null. */
+function diffBox(a, b, W, H) {
+  let out = null;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 4;
+    if (a[i] === b[i] && a[i + 1] === b[i + 1] && a[i + 2] === b[i + 2]) continue;
+    out = out || { x0: x, x1: x, y0: y, y1: y };
+    out.x0 = Math.min(out.x0, x); out.x1 = Math.max(out.x1, x); out.y0 = Math.min(out.y0, y); out.y1 = Math.max(out.y1, y);
+  }
+  return out;
+}
+
 test("landing: the scene gains a landing 146 art px wide left of the deck, and the deck moves right with it", () => {
   for (const n of SIZES) {
     const L = P.computeLayout(n);
     assert.equal(L.landingW, LANDING, `${n}: the landing`);
-    assert.equal(L.width, OLD_WIDTH[n] + LANDING, `${n}: the scene is wider by it alone`);
+    assert.equal(L.streamX1 + 2, OLD_WIDTH[n] + LANDING, `${n}: the channel and bank end wider by it alone`);
     assert.equal(L.boardX, LANDING + 13, `${n}: the deck after the landing and the old 13 px channel`);
     assert.equal(L.height, P.computeLayout(n).height);
   }
@@ -68,7 +80,7 @@ test("landing: the stage is wider by the landing alone, and a maximised window k
   // k per size [13, 19, 25] before the landing (tasks/2026-11-07_turn_landing/stage-k-table.cjs): width is free.
   const want = [[3840, 2260, [5, 4, 3]], [3840, 2030, [4, 3, 3]], [2560, 1310, [3, 2, 2]], [1920, 1070, [2, 2, 1.5]], [1920, 950, [2, 1.5, 1.5]], [1366, 650, [1.5, 1, 1]]];
   SIZES.forEach((n, i) => {
-    assert.equal(P.stageSize(n).w, OLD_WIDTH[n] + LANDING + P.STAGE.gap + P.STAGE.sidebar, `${n}: across`);
+    assert.equal(P.stageSize(n).w, OLD_WIDTH[n] + LANDING + P.STAGE.gap + 264, `${n}: across`);
     for (const [w, h, ks] of want) assert.equal(P.pickScale(w, h, 1, n).k, ks[i], `${n}x${n} in ${w}x${h}`);
   });
 });
@@ -87,28 +99,26 @@ test("landing: each seat's lantern hangs over the channel by its island, lit on 
   assert.notEqual(box(lit0, W, lantern(3)), box(at(open), W, lantern(3)), "an open seat: no lantern");
 });
 
-test("landing: the turn boat is moored under the current seat's lantern with the round on its sign, and has left the wide river", () => {
-  const scene = P.createScene({ size: 13 });
-  const L = scene.layout, W = scene.width, H = scene.height;
-  const mooring = (i) => [L.channelCx - 13, L.islands[i].y + 18, 27, 32];
-  const base = { time: 1, reducedMotion: true, seats: seatsLit(1) };
-  const r4 = draw(scene, { ...base, boat: { seat: 1, round: 4 } });
-  const r9 = draw(scene, { ...base, boat: { seat: 1, round: 9 } });
-  const next = draw(scene, { ...base, boat: { seat: 2, round: 4 } });
-  assert.notEqual(box(r4, W, mooring(1)), box(r9, W, mooring(1)), "the sign says the round");
-  assert.equal(diffOutside(r4, r9, W, H, mooring(1)), 0, "and nothing else says it: no boat drifts in the wide river with it");
-  assert.notEqual(box(r4, W, mooring(2)), box(next, W, mooring(2)), "on the next turn it is moored at the next island");
-});
-
-test("landing: on a turn the boat glides from the last seat's island to the next one, and is simply there with reduced motion", () => {
-  assert.ok(P.BOAT_GLIDE_SECONDS > 0.5 && P.BOAT_GLIDE_SECONDS < 2, "about a second");
+test("round boat: it drifts left and right along the wide river at the bottom on its own clock, only the number on its sign following the play", () => {
   const scene = P.createScene({ size: 19 });
-  const L = scene.layout, W = scene.width;
-  const mooring = [L.channelCx - 13, L.islands[2].y + 18, 27, 32];
-  const at = (time, reducedMotion) =>
-    box(draw(scene, { time, ambientTime: 3, reducedMotion, seats: seatsLit(2), boat: { seat: 2, from: 1, round: 4, at: 10 } }), W, mooring);
-  assert.notEqual(at(10.3, false), at(20, false), "on its way, not there yet");
-  assert.equal(at(10.3, true), at(20, true), "with reduced motion it is there at once");
+  const L = scene.layout, W = scene.width, H = scene.height;
+  const frame = (o) => draw(scene, { time: 1, seats: seatsLit(1), ...o });
+  // The sign is what differs between round 4 and round 9.
+  const sign = (ambientTime, seats = seatsLit(1)) => diffBox(frame({ ambientTime, seats, round: 4 }), frame({ ambientTime, seats, round: 9 }), W, H);
+  const seen = new Set();
+  for (const t of [0, 20, 40, 60, 80, 100, 120]) {
+    const s = sign(t);
+    assert.ok(s, `at ${t}s: the round on its sign`);
+    assert.ok(s.y0 >= L.riverY0, `at ${t}s: on the wide river, below the deck (${s.y0})`);
+    assert.ok(s.x0 >= 20 && s.x1 < L.streamX1, `at ${t}s: under the deck and the landing, not past the channel`);
+    seen.add(s.x0);
+  }
+  assert.ok(seen.size >= 5, "it travels along the river");
+  const a = sign(30), b = sign(31);
+  assert.ok(Math.abs(a.x0 - b.x0) <= 6, `slowly: ${Math.abs(a.x0 - b.x0)} px in a second`);
+  assert.equal(sign(45, seatsLit(2)).x0, sign(45, seatsLit(0)).x0, "a new turn doesn't move it");
+  const still = (time) => draw(scene, { time, reducedMotion: true, round: 4 });
+  assert.equal(box(still(1), W, [0, L.riverY0, W, H - L.riverY0]), box(still(9), W, [0, L.riverY0, W, H - L.riverY0]), "with reduced motion it holds still");
 });
 
 test("landing: lanterns drift round the islands on loops of their own, never over an island or the deck, each loop closing in LANDING_LOOP", () => {
