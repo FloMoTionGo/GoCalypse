@@ -255,12 +255,14 @@ export function isSuicide(board: ArrayLike<number>, size: number, x: number, y: 
 
 /**
  * Whether a neutral piece (driftwood) may land on the empty cell (x, y): it
- * must not leave any adjacent player group with zero liberties, since
- * neutral pieces never capture anything.
+ * must have at least one empty neighbour (it can't plug an eye) and must not
+ * leave any adjacent player group with zero liberties, since neutral pieces
+ * never capture anything.
  */
 export function canPlaceNeutral(board: ArrayLike<number>, size: number, x: number, y: number): boolean {
   const idx = index(size, x, y);
   if (board[idx] !== 0) return false;
+  if (!neighbors(size, x, y).some((n) => board[index(size, n.x, n.y)] === 0)) return false;
   const trial = Array.from(board);
   trial[idx] = DRIFTWOOD;
   for (const n of neighbors(size, x, y)) {

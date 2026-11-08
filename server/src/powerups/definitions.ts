@@ -41,7 +41,7 @@ const driftwood: PowerupDefinition = {
   id: "driftwood",
   tier: 1,
   name: "Driftwood",
-  description: "Drop a log on an empty point: a wall on both fronts that no one owns or can capture. Floats away after 3 rounds.",
+  description: "Drop a log on an empty point with at least one empty point beside it: a wall on both fronts that no one owns or can capture. Floats away after 3 rounds.",
   price: 30,
   apply(ctx) {
     const idx = targetIndex(ctx);
