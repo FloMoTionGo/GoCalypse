@@ -5,6 +5,8 @@ import path from "path";
 import { DATA_DIR, makeRoom, move, seatHumans } from "./room.testkit";
 import { queueRestore } from "../state/persist";
 import { pickStrikes } from "../rules/storm";
+import { playMatch } from "../bots/selfplay";
+import { heron, moth, oldToad, tanuki } from "../bots/styles";
 
 // 19x19 and 25x25 boards beside the 13x13 default (ideas.md §11.10): the room
 // takes its size from the create options, a restored game keeps its own, and
@@ -64,4 +66,66 @@ test("storm: a storm on 25x25 can bring more than 3 bolts down, and the state ho
   assert.equal(bolts.length, 11);
   assert.deepEqual([storm.strike0, storm.strike1, storm.strike2], bolts.slice(0, 3), "the first three where older clients look");
   assert.equal(new Set(bolts).size, 11);
+});
+
+// The 9x9 table is pure Go (tasks/2026-11-08_issues/PLAN.md item 10).
+
+test("board size: a 9x9 room has 81 points, an empty market and no weather", () => {
+  const room = makeRoom({ size: 9 });
+  assert.deepEqual([room.state.size, room.state.board.length, room.kos.size], [9, 81, 9]);
+  assert.equal(room.state.market.length, 0);
+  assert.equal(room.state.storm.every, 0);
+  assert.equal(room.state.river.every, 0);
+});
+
+test("board size: at a 9x9 table nobody is dealt a Kata and no haiku lies on the board", () => {
+  const room = makeRoom({ size: 9 });
+  seatHumans(room);
+  assert.equal(room.state.status, "playing");
+  for (const p of room.state.players as any) {
+    assert.deepEqual(Array.from(p.powerups), [], p.name);
+    assert.equal(p.card.length, 0, p.name);
+  }
+  assert.equal(room.state.haiku.length, 0);
+});
+
+test("board size: a 9x9 game never rolls for a storm or a river creature, however long it plays", () => {
+  const room: any = makeRoom({ size: 9 });
+  seatHumans(room);
+  const random = Math.random;
+  Math.random = () => 0.999; // every roll would hit
+  try {
+    for (let i = 0; i < 120; i++) room.advanceTurn();
+  } finally {
+    Math.random = random;
+  }
+  assert.equal(room.state.storm.rolledAt, 0);
+  assert.equal(room.state.river.crab.out || room.state.river.spirit.out, false);
+});
+
+test("board size: a 9x9 game is told nothing is for sale", () => {
+  const room: any = makeRoom({ size: 9 });
+  const clients = seatHumans(room);
+  room.state.turnCount = 40;
+  room.handleBuy(clients[0], { id: "bait" });
+  assert.equal(Array.from(room.state.players[0].powerups).length, 0);
+});
+
+test("board size: bots play a 9x9 game to its end", () => {
+  for (let seed = 1; seed <= 5; seed++) {
+    const m = playMatch(seed, [heron(), tanuki(), oldToad(), moth()], { size: 9 });
+    assert.equal(m.finished, true, `seed ${seed}`);
+    assert.ok(m.turns >= 50, `seed ${seed}: long enough to be a replay (${m.turns})`);
+  }
+});
+
+test("board size: the snapshot of a 9x9 game comes back with no stalls", () => {
+  const room = makeRoom({ size: 9 });
+  const clients = seatHumans(room);
+  move(room, clients, 4, 4);
+  room.saveSnapshot();
+  const snap = JSON.parse(fs.readFileSync(path.join(DATA_DIR!, "rooms", `${room.roomId}.json`), "utf8"));
+  const back = makeRoom({ restoreToken: queueRestore(snap) });
+  assert.equal(back.state.size, 9);
+  assert.equal(back.state.market.length, 0);
 });

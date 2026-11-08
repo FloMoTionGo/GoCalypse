@@ -106,3 +106,7 @@ test("heatmap: a game's stones count where they landed, folded over the board's 
   assert.ok(h[at(2, 4)] > h[at(5, 5)]);
   assert.equal(map.heatFor(19).length, 361, "another size keeps its own");
 });
+
+test("haiku: none on a 9x9 board, which is pure Go", () => {
+  assert.equal(haiku().haikuCount(9), 0);
+});
