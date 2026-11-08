@@ -72,11 +72,6 @@ test("market: the scene gains 72 art px of water right of the lantern channel, t
   }
 });
 
-test("market: the sidebar gives up what the market takes, so the stage keeps its width and no window loses a scale step", () => {
-  assert.equal(P.STAGE.sidebar, 192);
-  for (const n of SIZES) assert.equal(P.stageSize(n).w, OLD_WIDTH[n] + P.STAGE.gap + 264, `${n}: as wide as before`);
-});
-
 test("market: seven moorings on every board size, in the market's water, each 32 rows or more from the next, clear of the sign and the near bank", () => {
   for (const n of SIZES) {
     const scene = P.createScene({ size: n });

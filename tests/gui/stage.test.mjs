@@ -76,7 +76,7 @@ test("stage: the hand's cards are 150% and the header 85% of the stage's art", a
     return { px, cardW: card.width, cardH: card.height, header: document.getElementById("game-header").getBoundingClientRect().height };
   })()`);
   assert.ok(Math.abs(m.cardW - 36 * 1.5 * m.px) < 0.5 && Math.abs(m.cardH - 52 * 1.5 * m.px) < 0.5, `card ${m.cardW}x${m.cardH} at px ${m.px}`);
-  assert.ok(Math.abs(m.header - 18 * 0.85 * m.px) < 0.5, `header ${m.header}`);
+  assert.ok(Math.abs(m.header - 21 * m.px) < 0.5, `the sky row ${m.header}`);
 });
 
 test("stage: the hand and the lines under it sit below the deck, left aligned with the scene past the islands", async () => {
@@ -87,26 +87,6 @@ test("stage: the hand and the lines under it sit below the deck, left aligned wi
   assert.ok(Math.abs(m.handLeft - m.deckLeft) < 1, `the hand starts where the islands end: ${m.handLeft} vs ${m.deckLeft}`);
   assert.ok(Math.abs(m.footLeft - m.deckLeft) < 1, `and so do the lines under it: ${m.footLeft} vs ${m.deckLeft}`);
   assert.ok(m.handTop >= m.boardBottom - 0.5, "below the board");
-});
-
-test("stage: the sidebar runs down beside the hand, and the market shows every stall without scrolling", async () => {
-  for (const [w, h] of [[1400, 1000], [1920, 950]]) {
-    await b.cdp("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: false });
-    await wait(400);
-    const m = await b.ev(`(() => {
-      const sb = document.getElementById("sidebar").getBoundingClientRect(), g = gameEl.getBoundingClientRect();
-      const hand = handEl.getBoundingClientRect(), mk = document.getElementById("market");
-      return { sideBottom: sb.bottom, gameBottom: g.bottom, handBottom: hand.bottom, sideLeft: sb.left, handRight: hand.right,
-        scroll: mk.scrollHeight - mk.clientHeight, stalls: marketItemsEl.querySelectorAll("button.item").length };
-    })()`);
-    assert.ok(m.sideBottom >= m.handBottom - 0.5, `${w}x${h}: the sidebar reaches down beside the hand`);
-    assert.ok(m.sideBottom <= m.gameBottom + 0.5, `${w}x${h}: and stays on the stage`);
-    assert.ok(m.handRight <= m.sideLeft + 0.5, `${w}x${h}: the hand stays left of it`);
-    assert.ok(m.scroll <= 1, `${w}x${h}: the market needs no scrolling (${m.scroll} px over)`);
-    assert.equal(m.stalls, 7);
-  }
-  await b.cdp("Emulation.clearDeviceMetricsOverride", {});
-  await wait(300);
 });
 
 test("stage: with no sidebar the hand stays on the stage, and the market shows every stall without scrolling", async () => {
@@ -144,21 +124,6 @@ test("stage: a full hand stays under the deck, its cards overlapping when they d
   assert.ok(Math.abs(m.left - m.boardLeft) < 1, "left aligned with the deck, past the islands");
   assert.ok(m.right <= m.boardRight + 0.5, `no wider than the board: ${m.right} vs ${m.boardRight}`);
   assert.equal(m.overlap, true, "five 150% cards overlap under a 13x13 board");
-});
-
-test("storm: the forecast is a dial and a sky that blink in two frames, its numbers only in words", async () => {
-  const w = await b.ev(`(() => {
-    const meter = weatherEl.querySelector(".meter");
-    return { label: meter.getAttribute("aria-label"), text: meter.textContent,
-      dial: meter.querySelectorAll(".flicker.dial img").length, sky: meter.querySelectorAll(".flicker.sky img").length,
-      names: G.STORM_SKIES.map((s) => s.name), chance: lastState.storm.chance };
-  })()`);
-  assert.equal(w.dial, 2, "the dial's two frames");
-  assert.equal(w.sky, 2, "the sky's two frames");
-  assert.ok(!/\d/.test(w.text), `no numbers on show: ${w.text}`);
-  assert.ok(w.names.some((n) => w.text.includes(n)), `the sky named: ${w.text}`);
-  assert.match(w.label, new RegExp(`${w.chance}% chance`));
-  assert.match(w.label, /next roll in \d+ turns?/);
 });
 
 test("header: the turn lantern is lit on my turn, dark on another's", async () => {

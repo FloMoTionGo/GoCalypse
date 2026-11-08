@@ -80,7 +80,7 @@ test("landing: the stage is wider by the landing alone, and a maximised window k
   // k per size [13, 19, 25] before the landing (tasks/2026-11-07_turn_landing/stage-k-table.cjs): width is free.
   const want = [[3840, 2260, [5, 4, 3]], [3840, 2030, [4, 3, 3]], [2560, 1310, [3, 2, 2]], [1920, 1070, [2, 2, 1.5]], [1920, 950, [2, 1.5, 1.5]], [1366, 650, [1.5, 1, 1]]];
   SIZES.forEach((n, i) => {
-    assert.equal(P.stageSize(n).w, OLD_WIDTH[n] + LANDING + P.STAGE.gap + 264, `${n}: across`);
+    assert.equal(P.stageSize(n).w, OLD_WIDTH[n] + LANDING + 72, `${n}: across: the old scene, the landing and the market's water`);
     for (const [w, h, ks] of want) assert.equal(P.pickScale(w, h, 1, n).k, ks[i], `${n}x${n} in ${w}x${h}`);
   });
 });

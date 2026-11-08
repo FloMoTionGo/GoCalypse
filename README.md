@@ -271,9 +271,10 @@ take liberties: a burning point counts as empty for the purposes of staying
 alive, it just can't be filled.
 
 The chance of a storm at each roll starts at **5%** and grows **5% with every
-calm roll**, then starts over after a storm. The sidebar's **storm forecast**
-says so in words (5–10% *unlikely*, 15–25% *likely*, 30% and up *very likely*)
-and counts down to the next roll.
+calm roll**, then starts over after a storm. The **sky over the far bank** is
+the forecast: it clouds over and darkens as the odds climb, and its name stands
+beside the moon. The **garland** counts the turns, a lantern for each turn
+between rolls, going out one by one until the next.
 
 The storm also **lasts for its full 3 rounds**, not just the ten-second
 cloudburst: behind it a much weaker copy of the same weather (a faint dusk,

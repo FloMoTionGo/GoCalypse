@@ -37,8 +37,6 @@ const LANDING = `(() => {
     px, board: box(boardEl),
     landingW: scene.layout.landingW,
     islands: scene.layout.islands.map((i) => ({ l: bd.left + (i.x + 2) * px, t: bd.top + (i.y + 2) * px })),
-    inSidebar: document.getElementById("sidebar").contains(playersEl),
-    sidebarFirst: document.getElementById("sidebar").firstElementChild.id,
     ff: playersEl.querySelectorAll(".ff").length,
     rows: Array.from(playersEl.querySelectorAll(".player-row")).map((r) => {
       const name = r.querySelector(".name"), plate = r.querySelector(".plate");
@@ -63,24 +61,6 @@ const LANDING = `(() => {
 })()`;
 
 const near = (a, b, label, tol = 0.51) => assert.ok(Math.abs(a - b) <= tol, `${label}: ${a} vs ${b}`);
-
-test("landing: the players sit on four islands left of the board, one a seat in turn order, and the sidebar opens with the weather", async () => {
-  const m = await b.ev(LANDING);
-  assert.equal(m.inSidebar, false, "the players are not in the sidebar");
-  assert.equal(m.sidebarFirst, "weather", "the weather is on top of it now");
-  assert.equal(m.rows.length, 4);
-  m.rows.forEach((r, i) => {
-    near(r.row.l, m.islands[i].l, `row ${i} on island ${i}, across`);
-    near(r.row.t, m.islands[i].t, `row ${i} on island ${i}, down`);
-    near(r.row.w, 122 * m.px, `row ${i} as wide as the island's top`);
-    near(r.row.h, 38 * m.px, `row ${i} as tall as it`);
-    assert.ok(r.row.r <= m.board.l + m.landingW * m.px + 0.5, `row ${i} stays on the landing, off the deck`);
-  });
-  assert.deepEqual(m.rows.filter((r) => r.you).map((r) => r.name), [LONG_NAME], "the ember on my island only");
-  assert.equal(m.rows.filter((r) => r.bot === "(B)").length, 3, "three bots");
-  assert.equal(m.ff, 0, "no fireflies on the islands either");
-  assert.ok(m.rows.every((r) => r.kata), "every seat's Kata shows");
-});
 
 test("landing: the players sit on four islands left of the board, one a seat in turn order, with no sidebar left", async () => {
   const m = await b.ev(LANDING);
@@ -186,22 +166,6 @@ test("landing: a passed or away seat fades its stones and name, its stamp on the
   assert.equal(away.clipped, false);
   assert.ok(away.plateR <= away.rowR + 0.5, "and the plate stays on its island");
   assert.equal(passed.stamp, "", "a pass shows by the fade alone");
-});
-
-test("landing: a seat's captures tip opens beside its island, over the water, not over the island or the sidebar", async () => {
-  const m = await b.ev(`(() => {
-    const row = Array.from(playersEl.querySelectorAll(".player-row")).find((r) => r.querySelector("img.you"));
-    const count = row.querySelector(".count");
-    count.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }));
-    const tip = document.querySelector(".capture-tip"), t = tip.getBoundingClientRect(), r = row.getBoundingClientRect(), c = count.getBoundingClientRect();
-    const out = { left: t.left, right: t.right, top: t.top, bottom: t.bottom, rowR: r.right, countCy: (c.top + c.bottom) / 2,
-      sideL: document.getElementById("sidebar").getBoundingClientRect().left };
-    count.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" }));
-    return out;
-  })()`);
-  assert.ok(m.left >= m.rowR - 0.5, `right of the island: ${m.left} vs ${m.rowR}`);
-  assert.ok(m.right <= m.sideL + 0.5, "not over the sidebar");
-  assert.ok(m.top <= m.countCy && m.bottom >= m.countCy, "level with the count");
 });
 
 test("landing: a seat's captures tip opens beside its island, over the water, not over the island, and stays on the stage", async () => {

@@ -457,8 +457,15 @@
     return done("help_grey", board(["eee"]));
   }
 
+  /** The forecast's dial is the garland now: a stretch of it, the turns gone on the left, those to come on the right. */
   function dial() {
-    return G.stormDial(6, 3, 0);
+    const pitch = 8, n = 4, s = blank(pitch * n, 11);
+    for (let x = 0; x < s.w; x++) s.set(x, 1 + ((x % pitch) * (pitch - (x % pitch)) >> 3), S);
+    for (let i = 0; i < n; i++) {
+      const lit = ANIMS[i % 2 ? "garlandCream" : "garlandAmber"].frames[0];
+      s.blit(i < n >> 1 ? G.unlitLantern(lit) : lit, i * pitch, 2);
+    }
+    return done("help_garland", s);
   }
 
   // ---- the river ---------------------------------------------------------------------

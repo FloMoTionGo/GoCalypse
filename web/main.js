@@ -44,6 +44,7 @@ const welcomeBotsAddButton = document.getElementById("welcome-bots-add");
 const welcomeBotsNoteEl = document.getElementById("welcome-bots-note");
 const boardHintEl = document.getElementById("board-hint");
 const weatherEl = document.getElementById("weather");
+const skyEl = document.getElementById("sky");
 
 const boardCtx = boardEl.getContext("2d");
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -758,6 +759,10 @@ function ensureScene(size) {
   // Over the scene's own pixel buffer: render writes it, putImageData reads it, nothing is copied between.
   imageData = new ImageData(scene.rgba, scene.width, scene.height);
   lastFrameKey = null;
+  skyEl.width = scene.width;
+  skyEl.height = G.SKY_H;
+  skyImage = new ImageData(scene.width, G.SKY_H);
+  lastSkyKey = null;
   sizeCanvas();
 }
 
@@ -785,6 +790,7 @@ function sizeCanvas() {
   root.setProperty("--stage-w", String(stage.w));
   root.setProperty("--stage-h", String(stage.h));
   root.setProperty("--scene-w", String(scene.width));
+  root.setProperty("--sky-words-x", String(G.skyPlan(scene.width).wordsX)); // right of the moon
   root.setProperty("--landing-w", String(scene.layout.landingW)); // the hand and the lines start past the islands
   root.setProperty("--market-w", String(scene.layout.marketX1 - scene.layout.marketX0)); // and end short of the market's water
   boardEl.style.width = `${(scene.width * k) / dpr}px`;
@@ -833,6 +839,7 @@ function frame() {
   lastFrameAt = now;
 
   const reduced = reducedMotion();
+  drawSky(now, reduced);
   effects = P.pruneEffects(effects, now, reduced);
   if (storm && now - storm.start >= P.STORM_SECONDS) storm = null;
   const snap = viewedSnap();
@@ -858,6 +865,7 @@ function frame() {
     // at, while recalling an older board)
     ...landingView(lastState, snap ? snap.turnCount : turnCount),
     market: marketView(lastState), // live scenery too: tonight's boats, even while looking back
+    garland: garlandView(lastState), // and the turns to the next roll
     passFlash: passFlashAt,
     fireflies: myPlayer ? myPlayer.fireflies : undefined,
     turnCount: snap ? snap.turnCount : turnCount,
@@ -1758,7 +1766,7 @@ function openWelcome(state) {
     ["bolt", "The storm", "The night darkens, rain sweeps the board for ten seconds and up to three bolts come down on random points (six on a 19×19 board, eleven on 25×25)."],
     ["fire", "Fire", "Whatever stands there catches fire and burns away three rounds later. Nobody can play on a burning point until the fire goes out."],
     ["greyStones", "Every stone grey", "A fainter storm hangs over the river for those three rounds and every stone turns the same grey. The rules still know whose is whose, so remember."],
-    ["dial", "The forecast", "The sky in the sidebar is the next roll's chance: 5%, and 5% more with every calm roll. Its dial has a dot per turn between rolls and burns down to the next."],
+    ["dial", "The forecast", "The sky over the river is the next roll's chance: 5%, and 5% more with every calm roll. The garland has a lantern per turn between rolls; one goes out each turn."],
   ]);
 
   // Mirrors RIVER_RISES_FROM / RIVER_CRAB_SHARE / RIVER_ROUNDS in server/src/rules/river.ts.
@@ -2097,10 +2105,9 @@ function renderStatus(state, players) {
 }
 
 /**
- * The storm forecast, in pictures (sprites.js stormDial, stormSky): the roll's
- * timer, one dot per turn between two rolls, burning down to the next; and the
- * sky the room's synced odds for that roll make (rules/storm.ts), calmer to
- * wilder as calm rolls pile up. The numbers are in the title and the label.
+ * The storm forecast's words, in the sky row: the sky's name for the room's synced odds of the
+ * next roll (rules/storm.ts), calmer to wilder as calm rolls pile up. The pictures are the sky
+ * itself (drawSky) and the garland (garlandView); the numbers are in the title.
  */
 function renderWeather(state) {
   const s = state.storm;
@@ -2122,31 +2129,32 @@ function renderWeather(state) {
     const word = document.createElement("span");
     word.className = "level";
     word.textContent = sky.name;
-    const head = document.createElement("div");
-    head.className = "head";
-    head.append(label, word);
-    const pictures = document.createElement("div");
-    pictures.className = "pictures";
-    if (s.every > 0) {
-      const left = state.status === "playing" ? turnsToRoll : s.every;
-      pictures.append(flicker("dial", (f) => G.stormDial(s.every, left, f), left <= 1 ? "urgent" : ""));
-    }
-    pictures.append(flicker("sky", (f) => G.stormSky(sky.id, f), sky.id));
-    meter.append(pictures, head);
+    meter.append(label, word);
     weatherEl.append(meter);
   });
 }
 
-/** Two frames of a sprite, one art pixel a pixel, that style.css swaps (.flicker). */
-function flicker(kind, frame, variant) {
-  const box = document.createElement("span");
-  box.className = `flicker ${kind}` + (variant ? ` ${variant}` : "");
-  for (const f of [0, 1]) {
-    const spr = frame(f);
-    box.append(artImg(spr.name, spr));
-  }
-  return box;
+/** The garland as the scene draws it: a lantern a turn between rolls, lit for the turns left. None with storms off. */
+function garlandView(state) {
+  if (!state || !(state.storm.every > 0)) return undefined;
+  const every = state.storm.every;
+  return { every, left: state.status === "playing" ? every - (state.turnCount % every) : every };
 }
+
+let skyImage = null; // the sky row's pixels, as wide as the scene
+let lastSkyKey = null;
+/** The sky row: the forecast's sky in its two frames, redrawn only when the picture changes. */
+function drawSky(now, reduced) {
+  if (!lastState || !skyImage) return;
+  const sky = G.stormSkyOf((Number(lastState.storm.chance) || 0) / 100);
+  const f = reduced ? 0 : Math.floor(now / (sky.beat / 2)) & 1;
+  const key = `${scene.width}:${sky.id}:${f}`;
+  if (key === lastSkyKey) return;
+  lastSkyKey = key;
+  G.skyBand(scene.width, sky.id, f).toRGBA(skyImage.data);
+  skyEl.getContext("2d").putImageData(skyImage, 0, 0);
+}
+
 
 /** The Pass button lives for as long as the game is on; Results appears once it is over. */
 function renderPass(state) {
@@ -2595,7 +2603,7 @@ const CAPTURES_UNSEEN = 9;
 const CAPTURE_LOOKS = [["black", [1, 3]], ["white", [2, 4]], ["gray", [5, 6]], ["transparent", [7, 8]]];
 
 /**
- * A seat's captured stones by colour, in a tip beside the sidebar while the
+ * A seat's captured stones by colour, in a tip beside the seat's island while the
  * pointer rests on its count (or it has keyboard focus): a line for each colour
  * it took, whoever's stones they were, its stone with its count, then those
  * taken in the storm's grey and those taken unseen in a mist -- the server
@@ -2654,12 +2662,12 @@ function showCaptureTip(count) {
   }
   document.body.appendChild(tip);
   count.setAttribute("aria-describedby", tip.id);
-  // Beside the seat's island, over the channel and the deck's edge; never over the sidebar.
-  const r = count.getBoundingClientRect(), side = document.getElementById("sidebar").getBoundingClientRect();
+  // Beside the seat's island, over the channel and the deck's edge; never off the stage.
+  const r = count.getBoundingClientRect(), stage = gameEl.getBoundingClientRect();
   const isle = count.closest(".player-row").getBoundingClientRect();
   const gap = 6, margin = 8;
   const top = Math.max(margin, Math.min(r.top + r.height / 2 - tip.offsetHeight / 2, window.innerHeight - margin - tip.offsetHeight));
-  Object.assign(tip.style, { left: `${Math.max(margin, Math.min(isle.right + gap, side.left - gap - tip.offsetWidth))}px`, top: `${top}px` });
+  Object.assign(tip.style, { left: `${Math.max(margin, Math.min(isle.right + gap, stage.right - gap - tip.offsetWidth))}px`, top: `${top}px` });
 }
 
 function hideCaptureTip() {

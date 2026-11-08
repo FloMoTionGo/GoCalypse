@@ -245,20 +245,30 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   height: calc(var(--stage-h) * var(--px));
 }
 
-/* The header (ideas.md §11.8): the history, the turn lantern, the actions, one row of pixel art. */
+/* The sky row (ideas.md §11.8, tasks/2026-11-08_storm_in_board): main.js drawSky paints the forecast's
+   night sky behind the history, the turn and the actions, which keep to the 14 rows above the hills. */
 #game-header {
+  position: relative;
+  isolation: isolate;
   flex: 0 0 auto;
+  box-sizing: border-box;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: calc(4 * var(--px));
-  height: calc(18 * var(--hdr-px));
-  margin-bottom: calc(6 * var(--px));
+  height: calc(21 * var(--px)); /* pixelScene.js STAGE.sky */
+  padding: 0 calc(4 * var(--px)) calc(7 * var(--px));
+  --sky-row: calc(14 * var(--px));
 }
-/* The header's art at 85 % of the stage's (main.js sizeCanvas sets --hdr-px; pixelScene.js STAGE.header). */
+/* The header's art at 85 % of the stage's (main.js sizeCanvas sets --hdr-px); the sky and the forecast's words at the stage's own. */
 #game-header > * { --px: var(--hdr-px); }
+#game-header > #sky, #game-header > #weather { --px: inherit; }
+#sky { position: absolute; inset: 0; z-index: -1; display: block; width: 100%; height: 100%; }
+#weather { position: absolute; top: 0; left: calc(var(--sky-words-x, 0) * var(--px)); height: var(--sky-row); display: flex; align-items: center; }
 #hdr-history, #hdr-actions { display: flex; align-items: center; gap: calc(2 * var(--px)); flex: 0 0 auto; }
-#hdr-turn { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; gap: calc(3 * var(--px)); }
+/* In the middle of the stage, whatever the planks either side weigh. */
+#hdr-turn { position: absolute; left: 0; right: 0; top: 0; height: var(--sky-row); display: flex; align-items: center; justify-content: center; gap: calc(3 * var(--px)); pointer-events: none; }
+#hdr-turn > * { pointer-events: auto; }
 #hdr-lantern { flex-shrink: 0; transform-origin: 50% 0; }
 #hdr-turn.my-turn #hdr-lantern { animation: lantern-sway 2.4s ease-in-out infinite; }
 @keyframes lantern-sway {
@@ -524,9 +534,9 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .territory-board img { border: var(--px) solid var(--teal); border-radius: var(--px); background: var(--amber); }
 #turn-indicator.my-turn { color: var(--amber); }
 
-#game-body { flex: 1 1 auto; min-height: 0; display: flex; gap: calc(6 * var(--px)); align-items: stretch; }
+#game-body { flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; }
 #board-wrap { flex: 0 0 auto; width: calc(var(--scene-w) * var(--px)); min-width: 0; display: flex; flex-direction: column; }
-/* Under the board, in its column: the hand row, then the three lines. The sidebar runs down beside them. */
+/* Under the board, in its column: the hand row, then the three lines. */
 #game-foot { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; margin-left: calc(var(--landing-w, 0) * var(--px)); margin-right: calc(var(--market-w, 0) * var(--px)); } /* the board above never gives way to it; under the deck, past the islands, short of the market */
 /* The three lines under it all: one line each, so a long one never pushes the stage taller. */
 #game-foot > .hint, #game-foot > .status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: var(--px); min-height: 0; line-height: 1.2; }
@@ -543,12 +553,6 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   touch-action: manipulation;
 }
 #board.my-turn, #board.targeting { cursor: pointer; }
-
-/* Exactly 192 art px (pixelScene.js STAGE.sidebar): min-width 0 stops long content from
-   widening it. Only the weather lives here since the players went onto the islands and the
-   market onto the water, which took its 72 art px from this column. */
-#sidebar { flex: 0 0 calc(192 * var(--px)); min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: calc(4 * var(--px)); }
-#sidebar > .panel { flex: 0 0 auto; }
 
 .panel {
   border: var(--px) solid var(--slate);
@@ -610,28 +614,12 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
 .player-row.faded .stones img, .player-row.faded .name, .player-row.faded .bot, .player-row.faded .card-mini { opacity: 0.45; }
 .player-row.faded .capt img, .player-row.faded .count img { opacity: 0.5; }
 
-/* Storm forecast (main.js renderWeather): the roll's dial and the sky, then STORM over the sky's name. */
-#weather .meter { display: flex; align-items: center; gap: calc(6 * var(--px)); }
-#weather .head { display: flex; flex-direction: column; gap: var(--px); min-width: 0; font-weight: 700; font-size: max(var(--min-font), calc(6.75 * var(--px))); }
+/* Storm forecast's words (main.js renderWeather), on an ink plate so a cloud behind them can't take them on a small scale. */
+#weather .meter { display: flex; align-items: center; gap: calc(3 * var(--px)); padding: 0 var(--px); background: var(--ink); white-space: nowrap; font-weight: 700; font-size: max(var(--min-font), calc(6.75 * var(--px))); }
 #weather .label { color: var(--amber); font-size: max(var(--min-font), calc(5.85 * var(--px))); }
 #weather .level { color: var(--muted); }
 #weather .sky-overcast .level, #weather .sky-rain .level { color: var(--amber); }
 #weather .sky-thunder .level { color: var(--cream); }
-#weather .pictures { display: flex; align-items: center; gap: calc(6 * var(--px)); flex-shrink: 0; }
-
-/* Two frames of a sprite swapped in place (main.js flicker): the dial blinks, the sky drifts and rains. */
-.flicker { display: grid; flex-shrink: 0; --beat: 1.2s; }
-.flicker > img { grid-area: 1 / 1; }
-.flicker > img:first-child { animation: flicker-a var(--beat) steps(1, end) infinite; }
-.flicker > img:last-child { animation: flicker-b var(--beat) steps(1, end) infinite; }
-@keyframes flicker-a { 0% { opacity: 1; } 50% { opacity: 0; } }
-@keyframes flicker-b { 0% { opacity: 0; } 50% { opacity: 1; } }
-.flicker.urgent { --beat: 0.5s; }
-.flicker.sky.clear, .flicker.sky.wisps { --beat: 2.4s; }
-.flicker.sky.clouding, .flicker.sky.overcast { --beat: 1.8s; }
-.flicker.sky.rain { --beat: 0.6s; }
-.flicker.sky.thunder { --beat: 0.4s; }
-@media (prefers-reduced-motion: reduce) { .flicker > img { animation: none !important; } .flicker > img:last-child { opacity: 0; } }
 
 .ff { display: inline-flex; align-items: center; gap: var(--px); white-space: nowrap; }
 .ff img { flex-shrink: 0; }

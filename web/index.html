@@ -75,6 +75,7 @@
            The planks are real buttons with their faces as images (renderHeader / plank() in
            main.js); their words are in aria-label. -->
       <header id="game-header">
+        <canvas id="sky" class="px" aria-hidden="true"></canvas>
         <div id="hdr-history">
           <div id="recall">
             <button id="recall-back" class="plank" type="button" aria-label="One move back" title="One move back (left arrow)"></button>
@@ -100,6 +101,8 @@
           <button id="help-button" class="plank" type="button" aria-label="How to play" title="How to play"></button>
           <button id="leave-button" class="plank" type="button" aria-label="Leave game" title="Leave the table"></button>
         </div>
+        <!-- The storm forecast's words (renderWeather() in main.js): the sky behind them and the garland are its pictures. -->
+        <div id="weather"></div>
       </header>
 
       <div id="game-body">
@@ -119,7 +122,7 @@
           </div>
           <!-- Under the board, never over it (the river carries the firefly boat): the hand of item
                cards (renderHand() in main.js), left aligned under the deck past the islands, then
-               the three lines. The sidebar runs down beside it all. -->
+               the three lines. -->
           <div id="game-foot">
             <div id="board-foot">
               <div id="hand" role="group" aria-label="Hand"></div>
@@ -129,10 +132,6 @@
             <p id="last-event" class="status" title="Click for the last ten events"></p>
           </div>
         </div>
-
-        <aside id="sidebar">
-          <div id="weather" class="panel"></div>
-        </aside>
       </div>
     </section>
   </div>

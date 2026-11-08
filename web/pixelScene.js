@@ -1286,6 +1286,26 @@
 
     const garland = [];
     for (let x = 10; x < W - 12; x += 25) garland.push({ x, phase: r() * 6.28, cream: garland.length % 2 === 1 });
+    const countingGarlands = new Map();
+    /** The garland as the forecast's dial: `every` lanterns along the rope, one a turn between rolls. With no count, the plain one. */
+    function garlandAt(every) {
+      if (!every) return garland;
+      if (!countingGarlands.has(every)) {
+        countingGarlands.set(every, Array.from({ length: every }, (_, i) => ({
+          x: 10 + Math.round(every > 1 ? (i * (W - 23)) / (every - 1) : (W - 23) / 2),
+          phase: garland[i % garland.length].phase,
+          cream: i % 2 === 1,
+        })));
+      }
+      return countingGarlands.get(every);
+    }
+    /** Which lanterns are out: those of the turns gone, from the left, and the next to go on its blink's off beat. */
+    function garlandOut(count, length, t, reduced) {
+      if (!count) return () => false;
+      const gone = length - count.left, beat = count.left <= 1 ? 0.5 : 1.2;
+      const blink = !reduced && (Math.floor(t / (beat / 2)) & 1) === 1;
+      return (i) => i < gone || (i === gone && blink);
+    }
 
     const fireflies = [];
     const addFly = (cx, cy, ax, ay) =>
@@ -1362,7 +1382,12 @@
       twinkles.push({ x: 2 + Math.floor(r() * (W - 4)), y: L.topWaterY0 + Math.floor(r() * (H - L.topWaterY0 - FAR_BANK)), period: 2.5 + r() * 3, phase: r() });
     }
 
-    const toro = { x: 3, y: H - 2 - 22, lightX: 9, lightY: H - 2 - 22 + 9 };
+    // The stone lantern stands on the frame beside the board's bottom right corner, over the edge of
+    // a stone on the corner point; it is drawn after the hover stone, so what is played there goes behind it.
+    const toroFoot = L.gridY + L.gridSpan + 12;
+    const toro = { x: L.gridX + L.gridSpan + 3, y: toroFoot - 21 };
+    toro.lightX = toro.x + 6;
+    toro.lightY = toro.y + 9;
 
     // --- helpers --------------------------------------------------------------
     const isWater = (x, y) => x >= 0 && y >= 0 && x < W && y < H && region[y * W + x] === R_WATER;
@@ -2437,9 +2462,10 @@
       const seats = st.seats || [];
       const lights = [];
       const toroFrame = Math.floor(t * ANIMS.toro.fps) % ANIMS.toro.frames.length;
-      lights.push({ x: toro.lightX, y: toro.lightY, r: 17 + (toroFrame === 1 ? 2 : 0), s: 0.6 });
       for (const fl of floats) lights.push({ x: fl.x, y: fl.y - 2, r: 9, s: 0.55 });
-      garland.forEach((g) => lights.push({ x: g.x, y: 5, r: 7, s: 0.45 }));
+      const lanterns = garlandAt(st.garland && st.garland.every);
+      const lanternOut = garlandOut(st.garland, lanterns.length, t, reduced);
+      lanterns.forEach((g, i) => { if (!lanternOut(i)) lights.push({ x: g.x, y: 5, r: 7, s: 0.45 }); });
       seats.forEach((seat, i) => { if (seat && seat.lit && L.islands[i]) lights.push({ x: L.channelCx, y: L.islands[i].y + 2, r: 13, s: 0.6 }); });
       const flies = fireflies.map((ff) => fireflyState(ff, t));
       if (!weather) for (const ff of flies) if (ff.frame === 2) lights.push({ x: ff.x, y: ff.y, r: 3.5, s: 0.7 });
@@ -2456,11 +2482,9 @@
       drawBoat(t, "R" + (st.round === undefined ? 1 : st.round), ROUND_BOAT);
       if (st.fireflies !== undefined) drawBoat(t, String(st.fireflies), FIREBOAT);
 
-      // 4. props: reeds, stone lantern, garland
+      // 4. props: reeds, garland
       for (const rd of reeds) surf.blit(animFrame(rd.anim, t, rd.phase / 3), rd.x, rd.y);
-      surf.blit(G.SPRITES.rock, toro.x - 1, H - 5);
-      surf.blit(ANIMS.toro.frames[toroFrame], toro.x, toro.y);
-      drawGarland(t);
+      drawGarland(t, lanterns, lanternOut);
 
       // 4b. the Night Market, in its water right of the channel
       if (st.market) drawMarket(st.market, t);
@@ -2630,6 +2654,12 @@
         drawHighlightTag(String(hover.y), L.kayaX - LABEL_GAP - 4, L.gridY + hover.y * SPACING, "right");
       }
 
+      // 9b. the stone lantern, in front of the stones and the hover stone in its corner, its
+      // shine laid over them: unlike every other light, this one reaches the playing surface
+      surf.ramp(G.LIGHT, toro.lightX, toro.lightY, 17 + (toroFrame === 1 ? 2 : 0), 0.6);
+      surf.blit(G.SPRITES.rock, toro.x - 1, toroFoot - 2);
+      surf.blit(ANIMS.toro.frames[toroFrame], toro.x, toro.y);
+
       // 10. fireflies (never over the playing surface; they sit the storm out)
       if (!weather) {
         for (const ff of flies) {
@@ -2657,13 +2687,13 @@
       }
     }
 
-    function drawGarland(t) {
+    function drawGarland(t, lanterns, lanternOut) {
       const ropeEnd = W - 5;
       // post on the far bank, at the right end of the rope
       for (let y = 0; y < L.topBank - 1; y++) { surf.set(ropeEnd, y, K); surf.set(ropeEnd + 1, y, S); surf.set(ropeEnd + 2, y, K); }
       surf.set(ropeEnd + 1, 0, C);
       // rope sagging between hooks
-      const hooks = [-10].concat(garland.map((g) => g.x), [ropeEnd]);
+      const hooks = [-10].concat(lanterns.map((g) => g.x), [ropeEnd]);
       for (let h = 0; h < hooks.length - 1; h++) {
         const a = hooks[h], b = hooks[h + 1];
         for (let x = a; x <= b; x++) {
@@ -2671,16 +2701,17 @@
           surf.set(x, 1 + Math.round(2.6 * 4 * u * (1 - u)), S);
         }
       }
-      garland.forEach((g) => {
+      lanterns.forEach((g, i) => {
         const sway = Math.round(Math.sin(t * 1.4 + g.phase) * 0.8);
         const spr = animFrame(g.cream ? "garlandCream" : "garlandAmber", t, g.phase / 6.28);
-        surf.blit(spr, g.x - 3 + sway, 1);
+        surf.blit(lanternOut(i) ? G.unlitLantern(spr) : spr, g.x - 3 + sway, 1);
         surf.set(g.x, 1, K);
       });
     }
 
     return {
       layout: L,
+      garlandAt,
       width: W,
       height: H,
       surface: surf,
@@ -2705,8 +2736,8 @@
   // ---------------------------------------------------------------------------
   // The stage (ideas.md §11.9): the whole game screen in art pixels -- one art
   // pixel is one scene pixel -- and the whole number k of device pixels each one
-  // takes. The scene and the sidebar side by side; above them the header; under
-  // both the hand of cards, on every board size, and the hint, notice and
+  // takes. The scene; above it the sky row, the header's planks in it; under it the
+  // hand of cards, on every board size, and the hint, notice and
   // last-event lines. The header's art is drawn smaller and the hand's larger
   // than the rest (HEADER_SCALE, HAND_SCALE). main.js lays the page out to these
   // numbers (sizeCanvas, --px, --hdr-px and --hand-px in style.css).
@@ -2716,9 +2747,7 @@
   const STAGE = {
     headerScale: HEADER_SCALE,
     handScale: HAND_SCALE,
-    header: 18 * HEADER_SCALE, // the header row: 18 of its own art pixels
-    gap: 6, // between the scene and the sidebar, and under the header
-    sidebar: 192, // the sidebar column: only the weather since the players and the market went on the water
+    sky: G.SKY_H, // the sky row over the scene, the header's planks and the forecast's words in it
     hand: 3 + (52 + 6) * HAND_SCALE, // the hand row: 3 above the cards, 52 of card, 6 for the Kata's UPGRADABLE under it
     status: 22, // the hint, notice and last-event lines under it all
   };
@@ -2726,8 +2755,8 @@
   function stageSize(size) {
     const L = computeLayout(size);
     return {
-      w: L.width + STAGE.gap + STAGE.sidebar,
-      h: STAGE.header + STAGE.gap + L.height + STAGE.hand + STAGE.status,
+      w: L.width,
+      h: STAGE.sky + L.height + STAGE.hand + STAGE.status,
     };
   }
 

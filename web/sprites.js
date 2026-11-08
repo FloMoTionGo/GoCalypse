@@ -1751,19 +1751,19 @@
   }
 
   // ---------------------------------------------------------------------------
-  // The storm forecast in the sidebar (main.js renderWeather): a dial of one dot
+  // The storm forecast as small pictures: a dial of one dot
   // per turn between two rolls, and the sky the next roll's odds make. Each comes
   // in two frames that main.js swaps, for the blink, the drift and the rain.
   // ---------------------------------------------------------------------------
 
-  /** The skies, calmest first, and the chance (0..1) each one starts at. */
+  /** The skies, calmest first, the chance (0..1) each one starts at, and its beat: seconds for its two frames. */
   const STORM_SKIES = [
-    { id: "clear", name: "clear", from: 0 },
-    { id: "wisps", name: "wisps", from: 0.1 },
-    { id: "clouding", name: "clouding over", from: 0.15 },
-    { id: "overcast", name: "overcast", from: 0.25 },
-    { id: "rain", name: "rain coming", from: 0.35 },
-    { id: "thunder", name: "thunder brewing", from: 0.5 },
+    { id: "clear", name: "clear", from: 0, beat: 2.4 },
+    { id: "wisps", name: "wisps", from: 0.1, beat: 2.4 },
+    { id: "clouding", name: "clouding over", from: 0.15, beat: 1.8 },
+    { id: "overcast", name: "overcast", from: 0.25, beat: 1.8 },
+    { id: "rain", name: "rain coming", from: 0.35, beat: 0.6 },
+    { id: "thunder", name: "thunder brewing", from: 0.5, beat: 0.4 },
   ];
 
   /** The sky for a chance of `chance` (0..1) that the next roll breaks a storm. */
@@ -1903,6 +1903,114 @@
     return (cardCache[key] = makeSprite(`storm_sky_${id}_${f}`, W, H, s.px));
   }
 
+  // ---------------------------------------------------------------------------
+  // The sky over the far bank (main.js drawSky): the forecast itself, a night sky in
+  // the row above the scene with the header's planks and the forecast's words in it.
+  // The moon and the clouds keep to the room those leave, on every board size.
+  // ---------------------------------------------------------------------------
+  const BAND_H = 21; // the row: as tall as the header and the gap under it were
+  const SKY_CLOUD_REACH = 11; // how far a cloud reaches either side of its middle
+  const SKY_CLOUD_COUNTS = { clouding: [0, 2], overcast: [3, 2], rain: [4, 2], thunder: [5, 3] }; // [left of the turn, right of the words]
+  const SKY_BOLT = [[0, 0], [-1, 1], [-2, 2], [-3, 3], [-2, 3], [-1, 3], [0, 3], [-1, 4], [-2, 5], [-3, 6], [-4, 7], [-5, 8], [-5, 9]];
+
+  /** Where things go at scene width W; `guards` are the [from, to] columns no cloud may reach. */
+  function skyPlan(W) {
+    const mid = W >> 1, moonX = mid + 36, wordsX = moonX + 14, wordsW = 80;
+    return {
+      mid, moonX, wordsX, wordsW,
+      guards: [[0, 86], [mid - 26, mid + 26], [wordsX - 3, wordsX + wordsW + 3], [W - 58, W]],
+      left: [98, mid - 39], right: [wordsX + wordsW + 16, W - 71],
+    };
+  }
+
+  /** Up to `n` middles spread over [x0, x1], 24 columns or more apart. */
+  function skySpread([x0, x1], n) {
+    if (!n || x1 < x0) return [];
+    const room = Math.min(n, Math.floor((x1 - x0) / 24) + 1);
+    return Array.from({ length: room }, (_, i) => Math.round(room === 1 ? (x0 + x1) / 2 : x0 + (i * (x1 - x0)) / (room - 1)));
+  }
+
+  /** The clouds of a sky at width W: [[middle, base], ...]. */
+  function skyClouds(id, W) {
+    const c = SKY_CLOUD_COUNTS[id];
+    if (!c) return [];
+    const plan = skyPlan(W);
+    return skySpread(plan.left, c[0]).concat(skySpread(plan.right, c[1])).map((x, i) => [x, [11, 13, 10, 12][i % 4]]);
+  }
+
+  const unlitCache = new Map();
+  /** A hanging lantern gone out: the same shape in ink with a slate edge. */
+  function unlitLantern(spr) {
+    if (unlitCache.has(spr.name)) return unlitCache.get(spr.name);
+    const at = (x, y) => (x < 0 || y < 0 || x >= spr.w || y >= spr.h ? TRANSPARENT : spr.px[y * spr.w + x]);
+    const s = new Surface(spr.w, spr.h);
+    s.fill(TRANSPARENT);
+    for (let y = 0; y < spr.h; y++) for (let x = 0; x < spr.w; x++) {
+      if (at(x, y) === TRANSPARENT) continue;
+      s.set(x, y, [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dx, dy]) => at(x + dx, y + dy) === TRANSPARENT) ? S : K);
+    }
+    const out = makeSprite(`${spr.name}_unlit`, spr.w, spr.h, s.px);
+    unlitCache.set(spr.name, out);
+    return out;
+  }
+
+  const skyCache = new Map();
+  /**
+   * One of STORM_SKIES as the band over a scene W wide, in frame 0 or 1: stars and the
+   * moon, wisps, then more and heavier clouds, rain, and at last a flash. In the rain and
+   * the thunder the clouds hold still and only the rain and the flash move.
+   */
+  function skyBand(W, id, frame) {
+    const f = frame ? 1 : 0, key = `${W}:${id}:${f}`;
+    if (skyCache.has(key)) return skyCache.get(key);
+    const plan = skyPlan(W);
+    const s = new Surface(W, BAND_H);
+    s.fill(K);
+    const open = (x) => !plan.guards.some(([a, b]) => x > a && x < b);
+    // A teal glow along the horizon, far hills black against it: the sky ends at the far bank.
+    for (const [y, coverage] of [[14, 0.06], [15, 0.125], [16, 0.25], [17, 0.35], [18, 0.5], [19, 0.6], [20, 0.7]]) {
+      for (let x = 0; x < W; x++) if (ditherOn(x, y, coverage)) s.set(x, y, T);
+    }
+    for (let x = 0; x < W; x++) {
+      const top = BAND_H - Math.round(3 + 1.7 * Math.sin(x * 0.031 + 1) + 1.2 * Math.sin(x * 0.083));
+      for (let y = top; y < BAND_H; y++) s.set(x, y, K);
+    }
+    let seed = 91;
+    const r = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+    const stars = Array.from({ length: 54 }, () => [Math.floor(r() * W), 1 + Math.floor(r() * (BAND_H - 9))]);
+    const shown = { clear: 54, wisps: 30, clouding: 16, overcast: 6 }[id] || 0;
+    stars.slice(0, shown).forEach(([x, y], i) => {
+      if (!open(x)) return;
+      s.set(x, y, C);
+      if ((i + f) % 3 === 0) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) s.set(x + dx, y + dy, S);
+    });
+    if (id === "clear" || id === "wisps" || id === "clouding") drawMoon(s, plan.moonX, 7);
+    if (id === "wisps") {
+      for (const [x0, y, n] of [[100, 6, 46], [160, 11, 34], [plan.right[0], 5, 40], [plan.right[0] + 6, 11, 30]]) {
+        for (let x = 0; x < n; x++) if (x % 7 !== 6 && open(x0 + x + f)) s.set(x0 + x + f, y, S);
+      }
+    }
+    const clouds = skyClouds(id, W), wet = id === "rain" || id === "thunder";
+    if (wet) {
+      for (const [cx, base] of clouds) for (let x = cx - 9; x < cx + 10; x += id === "thunder" ? 3 : 4) for (let k = 0; k < 2; k++) {
+        const y = base + 1 + ((x * 3 + k * 3 + f * 2) % Math.max(1, BAND_H - base - 2));
+        s.set(x, y, T);
+        if (y + 1 < BAND_H) s.set(x, y + 1, T);
+      }
+    }
+    const drift = wet ? 0 : f;
+    clouds.forEach(([cx, base], i) => {
+      const heavy = id !== "clouding";
+      drawCloud(s, cx + (i % 2 ? -drift : drift), base, 1, heavy ? S : C, heavy ? C : S, heavy ? T : S);
+    });
+    if (id === "thunder" && f === 0 && clouds.length) {
+      const near = clouds[clouds.length - 2] || clouds[0];
+      for (const [dx, dy] of SKY_BOLT) { s.set(near[0] + 15 + dx, 11 + dy, A); s.set(near[0] + 14 + dx, 11 + dy, C); }
+    }
+    skyCache.set(key, s);
+    return s;
+  }
+
   function textSprite(font, text, color) {
     const w = Math.max(1, textWidth(font, text)), h = font.height;
     const s = new Surface(w, h);
@@ -1967,6 +2075,12 @@
     stormSkyOf,
     stormDial,
     stormSky,
+    SKY_H: BAND_H,
+    SKY_CLOUD_REACH,
+    skyPlan,
+    skyClouds,
+    skyBand,
+    unlitLantern,
     textWidth,
     drawText,
     textSprite,

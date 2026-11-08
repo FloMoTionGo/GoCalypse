@@ -37,7 +37,6 @@ const ROWS = `(() => {
   return {
     px: artPx(),
     panel: box(playersEl),
-    sidebar: box(document.getElementById("sidebar")),
     v: Array.from(playersEl.querySelectorAll(".grid .v")).map(box),
     h: Array.from(playersEl.querySelectorAll(".grid .h")).map(box),
     ff: playersEl.querySelectorAll(".ff").length,
@@ -145,7 +144,7 @@ function tipFor(seats, seat) {
       storm: Array.from(tip.querySelectorAll(".storm .n")).map((n) => +n.textContent),
       unseen: Array.from(tip.querySelectorAll(".unseen .n")).map((n) => +n.textContent),
       right: tip.getBoundingClientRect().right, w: tip.getBoundingClientRect().width,
-      sideLeft: document.getElementById("sidebar").getBoundingClientRect().left,
+      stageRight: gameEl.getBoundingClientRect().right,
     };
     count.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" }));
     const gone = !document.querySelector(".capture-tip");
@@ -174,7 +173,7 @@ test("players: hovering a seat's captured count opens a tip with the stones it t
   assert.deepEqual(tip.storm, [1], "the stones taken in the storm's grey, whoever's they were");
   assert.deepEqual(tip.unseen, [1], "and those taken unseen in a mist");
   assert.ok(tip.w > 0, "on screen");
-  assert.ok(tip.right <= tip.sideLeft + 0.5, "beside the sidebar, not over it");
+  assert.ok(tip.right <= tip.stageRight + 0.5, "on the stage");
   assert.equal(gone, true, "gone once the pointer leaves");
 });
 
