@@ -910,8 +910,8 @@ html.in-game #app { max-width: none; min-height: 100vh; padding: 0; display: fle
   position: absolute;
   left: var(--px);
   top: var(--px);
-  width: calc(7 * var(--px));
-  height: calc(7 * var(--px));
+  width: calc(7 * var(--px)) !important; /* over .card img, which would stretch it off its node */
+  height: calc(7 * var(--px)) !important;
   opacity: 0;
   pointer-events: none;
 }
