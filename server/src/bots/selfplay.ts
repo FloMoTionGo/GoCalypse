@@ -13,7 +13,7 @@
 // are not exercised, and must not be tuned from these results.
 
 import { applyCaptures, boardIndex, isSuicide, stoneCode } from "../rules/goRules";
-import { finalResults, PlayerResult, Prisoners, territoryScore } from "../rules/endgame";
+import { finalResults, PlayerResult, Prisoners, ScoringMode, stoneScore, territoryScore } from "../rules/endgame";
 import { KoWatch, PositionHistory } from "../rules/ko";
 import { chooseAction } from "./index";
 import { Rng } from "./rng";
@@ -30,6 +30,8 @@ export interface MatchResult {
 
 export interface MatchOptions {
   size?: number;
+  /** How the table counts; GoCalypse when not said. */
+  scoring?: ScoringMode;
   /** Safety net, not a rule: a finished game ends on four passes long before this. */
   turnCap?: number;
 }
@@ -70,6 +72,7 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
       lastMove: last,
       fireflies: 0,
       rounds: moves[seat],
+      scoring: options.scoring,
       seats: SEATS,
       passes,
       prisoners: took[seat],
@@ -118,7 +121,9 @@ export function playMatch(seed: number, styles: Style[], options: MatchOptions =
   const results = finalResults(
     territoryScore(board, size),
     styles.map((_, seat) => seat + 1),
-    took
+    took,
+    options.scoring,
+    stoneScore(board, size)
   );
   return { results, turns, stones, board, finished };
 }

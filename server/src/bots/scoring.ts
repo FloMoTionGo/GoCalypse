@@ -13,7 +13,7 @@ import {
   twinCode,
   viewValue,
 } from "../rules/goRules";
-import { countedPrisoners, isSettled, Prisoners, regionAt, Side, sidesOf, Territory, territoryScore } from "../rules/endgame";
+import { isSettled, Prisoners, prisonersWorth, regionAt, ScoringMode, Side, sidesOf, stoneScore, Territory, territoryScore } from "../rules/endgame";
 import { koOpenedBy } from "../rules/ko";
 import { Rng } from "./rng";
 import { Style } from "./styles";
@@ -40,6 +40,7 @@ export interface BotView {
   lastMove: { x: number; y: number } | null;
   fireflies: number;
   rounds: number; // finished by the whole table; the market opens after shopAfter of them
+  scoring?: ScoringMode; // how this table counts; GoCalypse when not said
   /** Seats at this table, and how many of them have passed in a row already. */
   seats: number;
   passes: number;
@@ -262,8 +263,9 @@ function ownArea(area: Territory, color: number): number {
  */
 export function leaningFront(view: BotView, prefers: StoneView, area: Territory): StoneView {
   const sides = sidesOf(view.color);
-  const base = area[sides.base] + countedPrisoners(view.prisoners.base, area[sides.base]);
-  const pattern = area[sides.pattern] + countedPrisoners(view.prisoners.pattern, area[sides.pattern]);
+  const mode = view.scoring ?? "gocalypse";
+  const base = area[sides.base] + prisonersWorth(mode, view.prisoners.base, area[sides.base]);
+  const pattern = area[sides.pattern] + prisonersWorth(mode, view.prisoners.pattern, area[sides.pattern]);
   if (base === pattern) return prefers;
   return base < pattern ? "base" : "pattern";
 }
@@ -384,8 +386,7 @@ export function scoreMove(
     for (const front of AXES) {
       const taken = captured.filter((c) => c.view === front && !c.cross).length;
       if (taken === 0) continue;
-      const room = Math.max(0, areaAfter[sides[front]] - view.prisoners[front]);
-      counted += Math.min(taken, room);
+      counted += takenThatCount(view.scoring ?? "gocalypse", taken, areaAfter[sides[front]], view.prisoners[front]);
     }
   }
   let score = style.capture * counted;
@@ -544,6 +545,19 @@ const TACTICAL: Style = {
   judgement: false,
 };
 
+/** How many of `taken` new prisoners add to the score under this mode, with `held` already taken on `ground`. */
+function takenThatCount(mode: ScoringMode, taken: number, ground: number, held: number): number {
+  if (mode === "chinese") return 0;
+  return mode === "japanese" ? taken : Math.min(taken, Math.max(0, ground - held));
+}
+
+/** What the count pays for on this board: territory, and under Chinese scoring the stones as well. */
+function counted(view: BotView, board: number[], territory: Territory): Territory {
+  if (view.scoring !== "chinese") return territory;
+  const stones = stoneScore(board, view.size);
+  return { black: territory.black + stones.black, white: territory.white + stones.white, gray: territory.gray + stones.gray, transparent: territory.transparent + stones.transparent };
+}
+
 /**
  * The bot's two fronts, by the axis a stone is played on. Each is what the
  * final count would give it there: its side's territory plus the prisoners it
@@ -558,8 +572,9 @@ function frontsOf(
   took: Prisoners
 ): { mine: number; other: number } {
   const sides = sidesOf(view.color);
-  const base = territory[sides.base] + countedPrisoners(took.base, territory[sides.base]);
-  const pattern = territory[sides.pattern] + countedPrisoners(took.pattern, territory[sides.pattern]);
+  const mode = view.scoring ?? "gocalypse";
+  const base = territory[sides.base] + prisonersWorth(mode, took.base, territory[sides.base]);
+  const pattern = territory[sides.pattern] + prisonersWorth(mode, took.pattern, territory[sides.pattern]);
   return axis === "base" ? { mine: base, other: pattern } : { mine: pattern, other: base };
 }
 
@@ -623,10 +638,10 @@ export function isPointless(view: BotView, move: Candidate, judge?: Judgement): 
   const taken = applyCaptures(after, view.size, move.x, move.y, code, (i) => view.isWarded(i));
   const took = { ...view.prisoners };
   for (const c of taken) if (!c.cross) took[c.view] += 1;
-  const counted = judge?.territory ?? territoryScore(view.board, view.size);
-  if (judge) judge.territory = counted;
-  const before = frontsOf(view, counted, move.axis, view.prisoners);
-  const now = frontsOf(view, territoryScore(after, view.size), move.axis, took);
+  const ground = judge?.territory ?? territoryScore(view.board, view.size);
+  if (judge) judge.territory = ground;
+  const before = frontsOf(view, counted(view, view.board, ground), move.axis, view.prisoners);
+  const now = frontsOf(view, counted(view, after, territoryScore(after, view.size)), move.axis, took);
   const was = Math.min(before.mine, before.other);
   const is = Math.min(now.mine, now.other);
   if (is > was) return false; // the score rises: always worth the turn

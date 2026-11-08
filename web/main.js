@@ -161,6 +161,33 @@ let boardSize = (() => {
   }
   return 13;
 })();
+// How the next table counts, picked on the lobby board and remembered here; #scoring=chinese asks for one.
+const SCORING_MODES = ["gocalypse", "japanese", "chinese"];
+const SCORING_STORE = "gocalypse.scoring";
+let scoringMode = (() => {
+  const asked = hashParams.get("scoring");
+  if (SCORING_MODES.includes(asked)) return asked;
+  try {
+    const kept = localStorage.getItem(SCORING_STORE);
+    if (SCORING_MODES.includes(kept)) return kept;
+  } catch {
+    // No storage (a private window, blocked site data): every visit starts at GoCalypse.
+  }
+  return "gocalypse";
+})();
+function scoringPick() {
+  return scoringMode;
+}
+function setScoringPick(mode) {
+  if (!SCORING_MODES.includes(mode)) return;
+  scoringMode = mode;
+  try {
+    localStorage.setItem(SCORING_STORE, mode);
+  } catch {
+    // No storage: the pick lasts until the page is closed.
+  }
+}
+
 function boardSizePick() {
   return boardSize;
 }
@@ -646,7 +673,7 @@ async function connect(lobbyId) {
     }
 
     const client = new Colyseus.Client(endpoint);
-    const options = name ? { name, playerKey: playerKey(), size: boardSize } : { playerKey: playerKey(), size: boardSize };
+    const options = name ? { name, playerKey: playerKey(), size: boardSize, scoring: scoringMode } : { playerKey: playerKey(), size: boardSize, scoring: scoringMode };
     if (ROOM_NAME === "go_debug" && hashParams.has("nostorm")) options.storms = false; // GoDebugRoom: no storms (tests)
     // Bringing bots means a table of your own; without them you are matched with
     // whoever is already waiting, or sit down at the lobby island you picked.
@@ -876,6 +903,7 @@ function frame() {
     outLanterns,
     stoneLanternOut,
     festival,
+    deadStones: lastState && lastState.deadStones ? Array.from(lastState.deadStones) : [],
     fireflies: myPlayer && !P.isPureGo(lastState.size) ? myPlayer.fireflies : undefined,
     turnCount: snap ? snap.turnCount : turnCount,
     roundLength,
@@ -1701,6 +1729,31 @@ function renderFacts(el, rows) {
  * market. `state` is null on the home screen: then it tells the general rules
  * (no seat, no market yet) and closes back to the home screen.
  */
+const SCORING_NAME = { gocalypse: "GoCalypse", japanese: "Japanese", chinese: "Chinese" };
+
+/** The Scoring chapter for this table's mode. Mirrors finalResults and deadStones in server/src/rules/. */
+function scoringFacts(state, yourTwo = "your two totals, one per front", sharers = "Players who hold the same colour share its territory") {
+  const mode = (state && state.scoring) || "gocalypse";
+  const counted = {
+    gocalypse: ["prisoners", "Prisoners", "Add the stones you captured yourself on that side, but never more than your territory there: with 4 points of ground, 9 prisoners count as 4."],
+    japanese: ["prisoners", "Prisoners", "Add every prisoner you took yourself on that side, with no limit. Each dead stone counts as a prisoner for both players of the side around it."],
+    chinese: ["prisoners", "Stones on the board", "Add your side's stones still on the board. Prisoners don't count."],
+  }[mode];
+  const alive = mode === "gocalypse"
+    ? ["otherKill", "Alive groups", "Nothing is taken off at the end: whatever stands is alive, so capture what should go before you pass."]
+    : ["otherKill", "Dead groups", "When the game ends the server takes off groups that plainly can't live, surrounded by a side that plainly can: they fade on the final board and their points become ground. When in doubt a group stands."];
+  return [
+    ["territory", `This table counts the ${SCORING_NAME[mode]} way`, "Chosen when the table was made, and the same for everyone."],
+    ["passTally", "Four passes in a row", "That ends the game. A stone or an item played in between starts the count again."],
+    ["territory", "Territory", "Counted once per front: the empty points your side walls in alone. A stone of the other front counts for no one there."],
+    counted,
+    alive,
+    ["otherKill", "Kills on your other front", "Black smothering gray takes the stone off the board, but it is no prisoner and scores nothing."],
+    ["lowerScore", "Your score", `The lower of ${yourTwo}. The higher one only breaks ties.`],
+    ["allies", "Shared ground", `${sharers}, but prisoners are yours alone, so take the capture rather than leave it to them.`],
+  ];
+}
+
 function openWelcome(state) {
   fillHelpArt();
   sizeWelcome();
@@ -1813,17 +1866,7 @@ function openWelcome(state) {
   const sharers = seated
     ? `Players who also hold ${base} share the ${base} territory, and players who also hold ${pattern} share the ${pattern} territory`
     : `Players who hold the same colour share its territory`;
-  renderFacts(document.getElementById("welcome-scoring"), [
-    ["passTally", "Four passes in a row", "That ends the game. A stone or an item played in between starts the count again."],
-    ["territory", "Territory", "Counted once per front, the Japanese way: the empty points your side walls in alone. A stone is worth nothing itself, and one of the other front counts for no one there."],
-    ["prisoners", "Prisoners", "Add the stones you captured yourself on that side, but never more than your territory there: with 4 points of ground, at most 4 count."],
-    ["otherKill", "Kills on your other front", "Black smothering gray takes the stone off the board, but it is no prisoner and scores nothing."],
-    ["lowerScore", "Your score", `The lower of ${yourTwo}. The higher one only breaks ties.`],
-    ["allies", "Shared ground", `${sharers}, but prisoners are yours alone, so take the capture rather than leave it to them.`],
-    ["finishIt", "No dead stones", "Nothing is taken off as dead at the end: capture what should go before you pass."],
-  ]);
-
-  renderWelcomeBots(state);
+  renderFacts(document.getElementById("welcome-scoring"), scoringFacts(state, yourTwo, sharers));
 
   // Scoring stays folded until the game's first pass makes it matter.
   document.getElementById("welcome-scoring-fold").open = !!state && passSeen;
@@ -2205,6 +2248,12 @@ function openResult(state) {
       `with ${winners[0].finalScore}.`
     : "";
 
+  const mode = state.scoring || "gocalypse";
+  const dead = state.deadStones ? Array.from(state.deadStones).length : 0;
+  document.getElementById("result-scoring").textContent =
+    `Counted the ${SCORING_NAME[mode]} way` +
+    (mode === "gocalypse" ? ": whatever stood at the end was alive." : `: ${dead} dead stone${dead === 1 ? "" : "s"} taken off, faded on the board below.`);
+
   const table = document.getElementById("result-table");
   table.replaceChildren();
 
@@ -2265,16 +2314,17 @@ function openResult(state) {
       totalLine.className = "side-total";
       totalLine.textContent = `${label} ${total}`;
       cell.appendChild(totalLine);
-      if (prisoners > 0) {
+      if (mode === "chinese" || prisoners > 0) {
         const breakdown = document.createElement("span");
         breakdown.className = "side-breakdown";
         breakdown.textContent =
-          counted < prisoners
+          mode === "chinese" ? `${territory} territory + ${counted} stones`
+          : counted < prisoners
             ? `${territory} territory + ${counted} of ${prisoners} captured`
             : `${territory} territory + ${prisoners} captured`;
         cell.appendChild(breakdown);
       }
-      cell.title =
+      cell.title = mode === "chinese" ? `${territory} territory + ${counted} stones on the board` :
         `${territory} territory + ${prisoners} prisoner${prisoners === 1 ? "" : "s"}` +
         (counted < prisoners ? `, of which only ${counted} count: never more prisoners than territory` : "");
       return cell;

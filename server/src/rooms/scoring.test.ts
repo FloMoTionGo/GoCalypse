@@ -48,13 +48,13 @@ test("scoring: a GoCalypse table leaves a dead stone standing, and it spoils the
   const { room, seat } = finished();
   assert.deepEqual(Array.from(room.state.deadStones), []);
   assert.equal(room.state.board[at(1, 1)], stoneCode(2, "base"));
-  assert.equal(seat(1).baseTerritory, 0, "a white stone touches it");
+  assert.equal(seat(1).baseTerritory, 144, "only the open side: a white stone touches the corner");
 });
 
 test("scoring: a Japanese table takes the dead stone off, and both seats round it count a prisoner", () => {
   const { room, seat } = finished("japanese");
   assert.deepEqual(Array.from(room.state.deadStones), [at(1, 1)]);
-  assert.equal(seat(1).baseTerritory, 16);
+  assert.equal(seat(1).baseTerritory, 160, "the open side and the corner");
   for (const color of [1, 3]) {
     assert.equal(seat(color).basePrisoners, 1, `seat ${color}`);
     assert.equal(seat(color).baseCounted, 1, `seat ${color}`);
@@ -65,7 +65,7 @@ test("scoring: a Japanese table takes the dead stone off, and both seats round i
 test("scoring: a Chinese table takes the dead stone off, and counts ground and stones", () => {
   const { room, seat } = finished("chinese");
   assert.deepEqual(Array.from(room.state.deadStones), [at(1, 1)]);
-  assert.equal(seat(1).baseTerritory, 16);
+  assert.equal(seat(1).baseTerritory, 160, "the open side and the corner");
   assert.equal(seat(1).baseCounted, 9, "black's nine stones");
   assert.equal(seat(1).basePrisoners, 0);
   assert.equal(seat(2).baseCounted, 0, "white has none left");

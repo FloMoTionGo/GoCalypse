@@ -197,6 +197,8 @@ export class GoState extends Schema {
   @type("string") lastEvent: string = ""; // human-readable log of the last action, for client toasts
   @type("number") shopAfter: number = 5; // the market opens for the whole table once this many rounds are done
   @type("number") handLimit: number = 5; // cards a player may hold at once, the Stone Card included
+  @type("string") scoring: string = "gocalypse"; // how this table counts (rules/endgame.ts SCORING_MODES)
+  @type(["number"]) deadStones = new ArraySchema<number>(); // board points of the stones judged dead; set when the game ends
   @type([MarketItem]) market = new ArraySchema<MarketItem>();
   @type([BoardEffect]) effects = new ArraySchema<BoardEffect>();
   @type([HaikuPoint]) haiku = new ArraySchema<HaikuPoint>(); // tonight's haiku points, set when the game starts

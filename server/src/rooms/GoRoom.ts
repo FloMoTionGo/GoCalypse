@@ -32,7 +32,8 @@ import {
   StoneView,
   viewValue,
 } from "../rules/goRules";
-import { finalResults, territoryOwners, territoryScore } from "../rules/endgame";
+import { finalResults, SCORING_MODES, ScoringMode, sidesOf, stoneScore, territoryOwners, territoryScore } from "../rules/endgame";
+import { deadStones } from "../rules/deadStones";
 import {
   CARD_BASE,
   CARD_CELLS,
@@ -143,6 +144,11 @@ const BOARD_SIZE = 13; // the default table
 export { BOARD_SIZES }; // the tables one may ask for (rooms/sizes.ts)
 
 /** The board size a create asked for, if it is one of BOARD_SIZES; any other value is 13x13 (never trust client input). */
+/** The scoring mode a create asked for, if it is one; anything else is GoCalypse (never trust client input). */
+function scoringOf(asked: unknown): ScoringMode {
+  return SCORING_MODES.includes(asked as ScoringMode) ? (asked as ScoringMode) : "gocalypse";
+}
+
 function boardSizeOf(asked: unknown): number {
   return typeof asked === "number" && BOARD_SIZES.includes(asked) ? asked : BOARD_SIZE;
 }
@@ -276,12 +282,13 @@ export class GoRoom extends Room<GoState> {
     return { ip };
   }
 
-  onCreate(options?: { restoreToken?: string; size?: unknown; storms?: unknown }) {
+  onCreate(options?: { restoreToken?: string; size?: unknown; storms?: unknown; scoring?: unknown }) {
     const restored = takeRestore(options?.restoreToken);
     const state = new GoState();
     const size = boardSizeOf(options?.size);
     state.size = size;
     this.kos = new KoWatch(size);
+    state.scoring = scoringOf(options?.scoring);
     state.shopAfter = this.shopAfterMoves;
     const pure = isPureGo(size);
     if (pure) this.stormEvery = this.riverEvery = 0;
@@ -1359,6 +1366,7 @@ export class GoRoom extends Room<GoState> {
       lastMove: action.seq > 0 && action.x >= 0 ? { x: action.x, y: action.y } : null,
       fireflies: player.fireflies,
       rounds: Math.floor(this.state.turnCount / this.state.players.length),
+      scoring: this.state.scoring as ScoringMode,
       seats: this.state.players.length,
       passes: this.state.passes,
       prisoners: { base: player.basePrisoners, pattern: player.patternPrisoners },
@@ -1632,6 +1640,21 @@ export class GoRoom extends Room<GoState> {
     }
   }
 
+  /** Japanese scoring: each dead stone is a prisoner for both seats of the side that held it in, on its front. */
+  private bookDeadAsPrisoners(board: number[], dead: number[]) {
+    for (const at of dead) {
+      for (const view of viewsOf(board[at])) {
+        const mine = viewValue(view, board[at]);
+        for (const player of this.state.players) {
+          const side = sidesOf(player.color)[view];
+          if (side === mine) continue;
+          if (view === "base") player.basePrisoners += 1;
+          else player.patternPrisoners += 1;
+        }
+      }
+    }
+  }
+
   /** The storm is over: what it took shows in its real colours now, for everyone. */
   private resolveStormCaptures() {
     for (const { color, slot } of this.stormCaptures) {
@@ -1749,11 +1772,23 @@ export class GoRoom extends Room<GoState> {
     this.botTimer?.clear();
     this.botTimer = undefined;
 
+    const mode = state.scoring as ScoringMode;
     const board = state.board.toArray();
+    // Chinese and Japanese tables take dead groups off before counting; the stones stay on
+    // the real board for everyone to see, and only the count goes without them.
+    const dead = mode === "gocalypse" ? [] : deadStones(board, state.size);
+    const counted = board.slice();
+    for (const at of dead) {
+      counted[at] = 0;
+      state.deadStones.push(at);
+    }
+    if (mode === "japanese") this.bookDeadAsPrisoners(board, dead);
     const results = finalResults(
-      territoryScore(board, state.size),
+      territoryScore(counted, state.size),
       state.players.map((p) => p.color),
-      state.players.map((p) => ({ base: p.basePrisoners, pattern: p.patternPrisoners }))
+      state.players.map((p) => ({ base: p.basePrisoners, pattern: p.patternPrisoners })),
+      mode,
+      stoneScore(counted, state.size)
     );
     state.players.forEach((player, i) => {
       player.baseTerritory = results[i].baseTerritory;
@@ -1764,8 +1799,8 @@ export class GoRoom extends Room<GoState> {
       player.tiebreak = results[i].tiebreak;
       player.place = results[i].place;
     });
-    for (const owner of territoryOwners(board, state.size, "base")) state.baseTerritoryOwner.push(owner);
-    for (const owner of territoryOwners(board, state.size, "pattern")) state.patternTerritoryOwner.push(owner);
+    for (const owner of territoryOwners(counted, state.size, "base")) state.baseTerritoryOwner.push(owner);
+    for (const owner of territoryOwners(counted, state.size, "pattern")) state.patternTerritoryOwner.push(owner);
 
     // Turns stop here, so a storm still in its three rounds would leave its
     // weather hanging over the final board for good.
@@ -2100,7 +2135,7 @@ export class GoDebugRoom extends GoRoom {
    * GUI tests that need to tell my stones from the others', which a storm's grey
    * hides at random.
    */
-  onCreate(options?: { restoreToken?: string; size?: unknown; storms?: unknown }) {
+  onCreate(options?: { restoreToken?: string; size?: unknown; storms?: unknown; scoring?: unknown }) {
     if (options?.storms === false) this.stormEvery = 0;
     super.onCreate(options);
   }

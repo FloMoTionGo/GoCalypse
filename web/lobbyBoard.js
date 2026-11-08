@@ -55,12 +55,18 @@
   const SP = PS.SPACING;
   const SEATS = MAX_BOTS; // one row per seat a bot can take: Player 2 to 4
   const COLS = BOT_OPTIONS.length; // one column per bot kind
-  const ROWS = SEATS + 2; // the seats, the board sizes, then Start
+  const ROWS = SEATS + 3; // the seats, the scoring modes, the board sizes, then Start
   const START_ROW = ROWS - 1, START_COL = (COLS - 1) >> 1;
   // The board sizes on the line above Start.
-  const SIZE_ROW = SEATS;
+  const MODE_ROW = SEATS, SIZE_ROW = SEATS + 1;
+  const MODES = [
+    { mode: "gocalypse", label: "GO", name: "GoCalypse", text: "territory plus the prisoners you took, never more prisoners than territory; whatever stands is alive" },
+    { mode: "japanese", label: "JP", name: "Japanese", text: "territory plus every prisoner you took; dead groups come off at the end" },
+    { mode: "chinese", label: "CN", name: "Chinese", text: "territory plus your side's stones on the board, prisoners don't count; dead groups come off at the end" },
+  ].map((m, i) => ({ ...m, col: Math.max(0, Math.min(COLS - 1, START_COL - 1 + i)), row: MODE_ROW }));
   const SIZES = [9, 13, 19, 25].map((size, i) => ({ size, col: Math.max(0, Math.min(COLS - 1, START_COL - 2 + i)), row: SIZE_ROW }));
   const sizeAt = (col) => SIZES.find((s) => s.col === col);
+  const modeAt = (col) => MODES.find((m) => m.col === col);
   const KAYA_MARGIN = 6;
   const FRAME_TOP = 38, FRAME_LEFT = 38, FRAME_RIGHT = 16, FRAME_BOTTOM = 12; // the top holds your nameplate, then the bot initials and lamps
   const FRONT = 5; // the deck's front face
@@ -248,6 +254,11 @@
       base.rect(px(s.col) - (w >> 1) - 1, py(s.row) - 3, w + 2, 7, A);
       G.drawText(base, G.FONT_SMALL, String(s.size), px(s.col) - (w >> 1), py(s.row) - 2, K);
     }
+    for (const m of MODES) {
+      const w = G.textWidth(G.FONT_SMALL, m.label);
+      base.rect(px(m.col) - (w >> 1) - 1, py(m.row) - 3, w + 2, 7, A);
+      G.drawText(base, G.FONT_SMALL, m.label, px(m.col) - (w >> 1), py(m.row) - 2, K);
+    }
     // Lamps in the top frame, three under each bot's initials: how much of the Night Market it uses.
     BOT_OPTIONS.forEach((o, c) => {
       for (let i = 0; i < 3; i++) {
@@ -349,6 +360,16 @@
   function act(point, color) {
     if (!point) return;
     const time = now();
+    if (point.row === MODE_ROW) {
+      const m = modeAt(point.col);
+      if (!m) return;
+      if (color === "white") return say("Play a black stone on a mode to pick how the next table counts.");
+      if (m.mode === scoringPick()) return say(`${m.name} scoring is picked already.`);
+      setScoringPick(m.mode);
+      effects.push(PS.placeEffect(m.col, m.row, 1, time));
+      announce(`${m.name} scoring picked.`);
+      return updateCaption();
+    }
     if (point.row === SIZE_ROW) {
       const s = sizeAt(point.col);
       if (!s) return;
@@ -412,12 +433,17 @@
     const picked = s.size === boardSizePick() ? " (picked)" : ": play a black stone here to pick it";
     return `${s.size}×${s.size} board${picked}. ${SIZE_TEXT[s.size][0].toUpperCase()}${SIZE_TEXT[s.size].slice(1)}.`;
   }
+  function modeText(m) {
+    const picked = m.mode === scoringPick() ? " (picked)" : ": play a black stone here to pick it";
+    return `${m.name} scoring${picked}. ${m.text[0].toUpperCase()}${m.text.slice(1)}.`;
+  }
   function updateCaption() {
     let text;
     const p = keyboard ? cursor : hover;
     if (message && now() < messageUntil) text = message;
     else if (p && p.row === START_ROW) text = startText();
     else if (p && p.row === SIZE_ROW) text = sizeText(sizeAt(p.col));
+    else if (p && p.row === MODE_ROW) text = modeText(modeAt(p.col));
     else if (p) {
       const o = BOT_OPTIONS[p.col];
       text = `${o.name} as ${seatName(p.row)}, ${o.kind.toLowerCase()} (${o.itemsLabel.toLowerCase()}): ${o.desc}`;
@@ -462,6 +488,8 @@
     if (startStone) stones.push({ col: START_COL, row: START_ROW });
     const picked = SIZES.find((s) => s.size === boardSizePick());
     if (picked) stones.push({ col: picked.col, row: picked.row });
+    const pickedMode = MODES.find((m) => m.mode === scoringPick());
+    if (pickedMode) stones.push({ col: pickedMode.col, row: pickedMode.row });
     const black = G.STONES.black.normal, white = G.STONES.white.normal;
     for (const s of stones) {
       if (!busy.has(`${s.col},${s.row}`)) surf.blitCentered(black, px(s.col) + 1, py(s.row) + 1, { color: K, coverage: 0.5 });
@@ -471,6 +499,11 @@
     if (picked && !busy.has(`${picked.col},${picked.row}`)) {
       const w = G.textWidth(G.FONT_SMALL, String(picked.size));
       G.drawText(surf, G.FONT_SMALL, String(picked.size), px(picked.col) - (w >> 1), py(picked.row) - 2, C);
+    }
+
+    if (pickedMode && !busy.has(`${pickedMode.col},${pickedMode.row}`)) {
+      const w = G.textWidth(G.FONT_SMALL, pickedMode.label);
+      G.drawText(surf, G.FONT_SMALL, pickedMode.label, px(pickedMode.col) - (w >> 1), py(pickedMode.row) - 2, C);
     }
 
     // the point under the pointer (or the keyboard cursor): the stone a click would play
@@ -565,7 +598,7 @@
     const rect = canvas.getBoundingClientRect();
     const nx = ((evt.clientX - rect.left) * W) / rect.width, ny = ((evt.clientY - rect.top) * H) / rect.height;
     const col = Math.round((nx - gridX) / SP), row = Math.round((ny - gridY) / SP);
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS || (row === SIZE_ROW && !sizeAt(col))) return null;
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS || (row === SIZE_ROW && !sizeAt(col)) || (row === MODE_ROW && !modeAt(col))) return null;
     if (Math.abs(nx - px(col)) > SP / 2 || Math.abs(ny - py(row)) > SP / 2) return null;
     return { col: row === START_ROW ? START_COL : col, row };
   }
@@ -595,11 +628,12 @@
       keyboard = true;
       const row = Math.max(0, Math.min(START_ROW, cursor.row + move[1]));
       let col = row === START_ROW ? START_COL : Math.max(0, Math.min(COLS - 1, (cursor.row === START_ROW && move[1] ? START_COL : cursor.col) + move[0]));
-      if (row === SIZE_ROW) {
-        // Only the sizes are points on this line: step along them, or come to the nearest.
-        const at = SIZES.findIndex((s) => s.col === cursor.col && cursor.row === SIZE_ROW);
-        const near = (c) => SIZES.reduce((best, s) => (Math.abs(s.col - c) < Math.abs(best.col - c) ? s : best), SIZES[0]);
-        col = at >= 0 && move[0] ? SIZES[Math.max(0, Math.min(SIZES.length - 1, at + move[0]))].col : near(col).col;
+      const line = row === SIZE_ROW ? SIZES : row === MODE_ROW ? MODES : null;
+      if (line) {
+        // Only its own points are on this line: step along them, or come to the nearest.
+        const at = line.findIndex((s) => s.col === cursor.col && cursor.row === row);
+        const near = (c) => line.reduce((best, s) => (Math.abs(s.col - c) < Math.abs(best.col - c) ? s : best), line[0]);
+        col = at >= 0 && move[0] ? line[Math.max(0, Math.min(line.length - 1, at + move[0]))].col : near(col).col;
       }
       cursor = { col, row };
       updateCaption();
@@ -622,7 +656,7 @@
   // lobbyIslets.js hands the caption back with refreshCaption once the pointer leaves an islet.
   const solid = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) solid[i] = region[i] !== R_NONE ? 1 : 0;
-  window.GoLobbyIsland = { W, H, solid, wrap, point: (col, row) => ({ x: px(col), y: py(row) }), cols: COLS, startRow: START_ROW, sizes: SIZES, refreshCaption: updateCaption };
+  window.GoLobbyIsland = { modes: MODES, W, H, solid, wrap, point: (col, row) => ({ x: px(col), y: py(row) }), cols: COLS, startRow: START_ROW, sizes: SIZES, refreshCaption: updateCaption };
   updateCaption();
 
   function tick() {

@@ -2701,7 +2701,13 @@
       drawLilyPads(overlays, board, busy, hideOwners);
       drawHaiku(overlays, board);
       drawSeeds(overlays, board, busy, hideOwners, st.turnCount || 0, st.roundLength || 0);
-      drawStones(board, skip, greyW);
+      const dead = st.deadStones || [];
+      drawStones(board, dead.length ? new Set([...skip, ...dead]) : skip, greyW);
+      for (const at of dead) {
+        if (skip.has(at) || !board[at]) continue;
+        const p = pointToNative(at % size, (at / size) | 0);
+        surf.blitCentered(G.stoneSprite(board[at]), p.x, p.y, { coverage: 0.5 }); // judged dead: see-through on the final board
+      }
       drawWards(overlays, board, busy, time, reduced);
       drawMists(overlays, st.myColor);
       drawFogs(overlays);

@@ -48,7 +48,7 @@ const RUN = Date.now().toString(36);
  * ticks (bot turns are run by hand with room.runBotTurn()) and disconnect()
  * only counts its calls.
  */
-export function makeRoom(opts: { debug?: boolean; restoreToken?: string; roomName?: string; size?: unknown; storms?: unknown } = {}): any {
+export function makeRoom(opts: { debug?: boolean; restoreToken?: string; roomName?: string; size?: unknown; storms?: unknown; scoring?: unknown } = {}): any {
   const room: any = new (opts.debug ? GoDebugRoom : GoRoom)();
   room.roomId = `test-${process.pid}-${RUN}-${++rooms}`;
   room.roomName = opts.roomName ?? (opts.debug ? "go_debug" : "go_custom");
@@ -57,7 +57,7 @@ export function makeRoom(opts: { debug?: boolean; restoreToken?: string; roomNam
   room.disconnect = async () => {
     room.disconnects += 1;
   };
-  room.onCreate(opts.restoreToken ? { restoreToken: opts.restoreToken } : { size: opts.size, storms: opts.storms });
+  room.onCreate(opts.restoreToken ? { restoreToken: opts.restoreToken } : { size: opts.size, storms: opts.storms, scoring: opts.scoring });
   return room;
 }
 

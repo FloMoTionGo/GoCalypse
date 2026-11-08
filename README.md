@@ -437,6 +437,17 @@ whole table (`HISTORY_MIN_TURNS`), is never saved. Games saved before this rule
 are cleared with the same tool and `--short` instead of `--any-bot`, which
 removes those games and nothing else.
 
+### Scoring modes
+
+A table picks how it counts on the lobby board, default GoCalypse. Every mode
+counts per front, the lower front is your score and the higher breaks ties.
+**GoCalypse**: territory plus your prisoners, never more prisoners than
+territory; whatever stands is alive. **Japanese**: territory plus every
+prisoner. **Chinese**: territory plus your side's stones, no prisoners. Japanese
+and Chinese take dead groups off first (`server/src/rules/deadStones.ts`): only a
+group with too few eyes, inside ground only the other side touches, around which
+that side lives. When in doubt, a group stands.
+
 ## Architecture
 
 - `server/` — authoritative game server ([Colyseus](https://colyseus.io/)),

@@ -39,7 +39,7 @@ export function turns(room: any, clients: any[], n: number) {
   for (let k = 0; k < n; k++) {
     const before = room.state.turnCount;
     if (room.state.passes >= 2) {
-      const [x, y] = INSIDE.find(([px, py]) => at(room, px, py) === 0)!;
+      const [x, y] = INSIDE.find(([px, py]) => at(room, px, py) === 0 && !room.isBurning(py * room.state.size + px))!; // a bolt can land on any of them
       move(room, clients, x, y);
     } else {
       room.handlePass(onTurn(room, clients));
