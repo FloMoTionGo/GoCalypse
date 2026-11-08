@@ -130,6 +130,17 @@ test("diffTurn picks each item's own animation", () => {
   assert.deepEqual(kinds([0, 0, 0, 0, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], null, [{ kind: "fire", x: 1, y: 1 }]), ["burnAway"]);
 });
 
+test("diffTurn knows no gust, snipe or firework: a stone that vanishes under an item is captured like any other", () => {
+  // The removal items left the market on 2026-11-08; an old server's last action naming one gets the plain capture.
+  const n = 3, t = 1;
+  const kinds = (prev, next, action) => P.diffTurn(prev, next, n, action, [], t).map((e) => e.kind);
+  for (const id of ["gust", "remove_stone"]) {
+    assert.deepEqual(kinds([2, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], { kind: "powerup", id, x: 0, y: 0 }), ["capture"], id);
+  }
+  assert.deepEqual(kinds([0, 0, 0, 0, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], { kind: "powerup", id: "bomb", x: 1, y: 1 }), ["capture"]);
+  for (const kind of ["gust", "snipe", "firework"]) assert.ok(!P.EFFECT_KINDS.includes(kind), `${kind} still animates`);
+});
+
 test("every effect kind animates (reduced motion may skip it), and is pruned once it has run", () => {
   for (const kind of P.EFFECT_KINDS) {
     for (const reduced of [false, true]) {

@@ -155,3 +155,11 @@ test("a stone played under a lit Mist leaves a mist on its point for a round", (
   assert.ok(mist && mist.x === 7 && mist.y === 7 && mist.owner === me.color);
   assert.equal(mist.until, 0 + 4, "one round (four turns) from the turn it was played on");
 });
+
+test("the market knows no powerful item: no stall carries a removal flag and the state no powerful-item limit", () => {
+  // The removal items are gone (2026-11-08), and with them the one-powerful-item cap on the
+  // hand: its five places are the only limit, whatever the tier.
+  const { room } = richRoom();
+  assert.equal((room.state as any).powerfulLimit, undefined);
+  for (const m of Array.from(room.state.market) as any[]) assert.equal(m.removal, undefined, m.id);
+});

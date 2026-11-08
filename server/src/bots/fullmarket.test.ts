@@ -4,7 +4,7 @@ import { allPowerups, getPowerup } from "../powerups/definitions";
 import { boardIndex, stoneCode } from "../rules/goRules";
 import { chooseFree, planItem } from "./items";
 import { BotView, rankMoves, scoreMove } from "./scoring";
-import { magpie, reed, tanuki } from "./styles";
+import { magpie, randomStyle, RECRUIT_IDS, recruitStyle, reed, tanuki, temperamentFor } from "./styles";
 
 // Every item in the Night Market is something a bot can buy and use. Seat 1
 // is black+gray; seat 2 is white on the base front, so it fights seat 1 there.
@@ -198,4 +198,13 @@ test("a haiku point still to collect is worth more to a bot than the same point 
   const style = tanuki();
   assert.ok(scoreMove(marked, 2, 6, "base", style)! > scoreMove(plain, 2, 6, "base", style)!);
   assert.equal(scoreMove(marked, 6, 2, "base", style), scoreMove(plain, 6, 2, "base", style), "another point is worth the same");
+});
+
+test("no bot's shopping list names an item that removes stones", () => {
+  // Gust, Snipe, Firework and River Current left the market on 2026-11-08: the game stays cozy.
+  const gone = ["gust", "remove_stone", "bomb", "river_current"];
+  const styles = [...RECRUIT_IDS.map((id) => recruitStyle(id)!), randomStyle(), ...[0, 1, 2, 3].map(temperamentFor)];
+  for (const style of styles) {
+    for (const id of style.shopping) assert.ok(!gone.includes(id), `${style.name} shops for ${id}`);
+  }
 });

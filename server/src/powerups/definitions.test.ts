@@ -123,3 +123,22 @@ test("item descriptions leave the turn to the card's turn icon: none says whethe
     assert.doesNotMatch(p.description, /use[sd]? up (your|the) turn/i, p.id);
   }
 });
+
+// ---- the cozy rule (2026-11-08): nothing at the Night Market removes another player's stones ----
+
+const GONE = ["gust", "remove_stone", "bomb", "river_current"]; // Gust, Snipe, Firework, River Current
+
+test("the tier 3 stalls are Echo Chime and Stepping Stones: nothing at the Night Market removes another player's stones", () => {
+  assert.deepEqual(allPowerups().filter((p) => p.tier === 3).map((p) => p.id), ["echo_chime", "stepping_stones"]);
+  for (const id of GONE) assert.equal(getPowerup(id), undefined, `${id} is still for sale`);
+});
+
+test("nothing is stocked twice, and the tier 3 stall is Echo Chime or Stepping Stones", () => {
+  for (let k = 0; k < 100; k++) {
+    const stock = marketStock();
+    assert.equal(new Set(stock.map((p) => p.id)).size, stock.length);
+    const dear = stock.filter((p) => p.tier === 3).map((p) => p.id);
+    assert.equal(dear.length, 1);
+    assert.ok(["echo_chime", "stepping_stones"].includes(dear[0]), dear[0]);
+  }
+});

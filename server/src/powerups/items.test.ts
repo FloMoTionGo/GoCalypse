@@ -13,7 +13,7 @@ import {
   twinCode,
   viewValue,
 } from "../rules/goRules";
-import { getPowerup } from "./definitions";
+import { allPowerups, getPowerup } from "./definitions";
 import { EffectKind, PowerupContext } from "./types";
 
 const SIZE = 9;
@@ -341,4 +341,18 @@ test("Skiff refuses a diagonal, a blocked way, an occupied point and a stone tha
   assert.equal(use(t, "skiff", { x: 2, y: 2 }), false, "no destination");
   assert.equal(t.at(2, 2), mine, "the stone never moved");
   assert.equal(use(t, "skiff", { x: 2, y: 2 }, { x: 2, y: 4 }), true, "a clear stretch up to the blocker works");
+});
+
+// ---- the cozy rule (2026-11-08) ----------------------------------------------------
+
+test("no item takes the stone it is used on off the board: a rival's edge stone stands after every item", () => {
+  // The removal items (Gust, Snipe, Firework, River Current) are gone: whatever an item
+  // does about a rival's stone, the stone is still there afterwards, used or refused.
+  const rival = stoneCode(2, "base");
+  for (const def of allPowerups()) {
+    const t = table();
+    t.put(0, 4, rival); // on the edge, where River Current reached, with every liberty open
+    use(t, def.id, { x: 0, y: 4 }, { x: 1, y: 4 });
+    assert.equal(t.at(0, 4), rival, `${def.id} took the stone`);
+  }
 });

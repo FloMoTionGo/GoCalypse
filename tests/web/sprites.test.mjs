@@ -62,6 +62,15 @@ test("every item the server can stock has an icon and a card", () => {
   }
 });
 
+test("the item icons are the market's items and no more: no icon for Gust, Snipe, Firework or River Current", () => {
+  const { allPowerups } = serverModule("powerups/definitions.js");
+  assert.deepEqual(G.POWERUP_ICON_IDS.slice().sort(), allPowerups().map((p) => p.id).sort());
+  for (const id of ["gust", "remove_stone", "bomb", "river_current"]) {
+    assert.ok(!G.POWERUP_ICON_IDS.includes(id), `${id} still listed`);
+    assert.equal(G.powerupIcon(id), null, `${id} still has an icon`);
+  }
+});
+
 test("the Stone Card grid draws every cell state for every player", () => {
   for (const color of [1, 2, 3, 4]) {
     for (const cells of [Array(9).fill(0), Array(9).fill(1), Array(9).fill(2), [0, 1, 2, 0, 1, 2, 0, 1, 2]]) {
