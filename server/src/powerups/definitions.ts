@@ -435,9 +435,9 @@ function haikuWard(ctx: Parameters<PowerupDefinition["apply"]>[0], level: number
 function haikuSeeds(ctx: Parameters<PowerupDefinition["apply"]>[0], level: number): boolean {
   const effects = ctx.state.effects;
   const before = effects.length;
-  const plant = (target?: { x: number; y: number }) => !!target && seedling.apply({ ...ctx, target });
-  if (!plant(ctx.target)) return false;
-  if (level >= 3 && !plant(ctx.target2)) {
+  const plant = (target: { x: number; y: number } | undefined, axis: PowerupContext["axis"]) => !!target && seedling.apply({ ...ctx, target, axis });
+  if (!plant(ctx.target, ctx.axis)) return false;
+  if (level >= 3 && !plant(ctx.target2, ctx.axis2 ?? ctx.axis)) {
     effects.splice(before, effects.length - before); // both or neither
     return false;
   }
