@@ -6,7 +6,7 @@ import { DATA_DIR, makeRoom, move, onTurn, passAround, playerOf, seatHumans, sta
 import { queueRestore } from "../state/persist";
 import { recorderModule, storeModule } from "../history/history.testkit";
 
-// Every game a room plays is saved for replays (history/): when, what, and
+// Every game long enough that a room plays is saved for replays (history/): when, what, and
 // never before it is over.
 
 /** What is on disk for this room's game, read fresh: no cache shared with the room. */
