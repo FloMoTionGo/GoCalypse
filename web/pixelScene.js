@@ -101,6 +101,9 @@
     });
   }
 
+  /** The smallest table is pure Go: no market on the water, no hand on the stage (server/src/rooms/sizes.ts). */
+  const isPureGo = (size) => size === 9;
+
   function computeLayout(size) {
     const grid = (size - 1) * SPACING;
     const kaya = grid + 2 * KAYA_MARGIN;
@@ -112,14 +115,16 @@
     const boardBottom = boardY + board; // exclusive (top surface of the deck)
     const frontBottom = boardBottom + FRONT;
     const streamX0 = boardRight, streamX1 = streamX0 + STREAM;
-    const marketX0 = streamX1, marketX1 = marketX0 + MARKET_W; // the Night Market's water
+    const marketX0 = streamX1, marketX1 = marketX0 + (isPureGo(size) ? 0 : MARKET_W); // the Night Market's water
     const width = marketX1 + RIGHT_BANK;
     const riverY0 = frontBottom;
     const topWaterY0 = TOP_BANK; // first water row above the deck
     const height = riverY0 + RIVER;
-    // One island a seat, its middle on an eighth of the deck's height: the seats track the board at every size.
+    // One island a seat, its middle on an eighth of the deck's height: the seats track the board at
+    // every size, but a 9x9 deck is too short for four, so there they stand a little past it.
+    const islandStep = Math.max(board / 4, ISLAND_H + ISLAND_FRONT + 4);
     const islands = [0, 1, 2, 3].map((i) => ({
-      i, x: ISLAND_WATER, y: Math.round(boardY + ((2 * i + 1) * board) / 8 - (ISLAND_H + ISLAND_FRONT) / 2),
+      i, x: ISLAND_WATER, y: Math.round(boardY + board / 2 + (i - 1.5) * islandStep - (ISLAND_H + ISLAND_FRONT) / 2),
       w: ISLAND_W, h: ISLAND_H, front: ISLAND_FRONT, frame: ISLAND_FRAME,
     }));
     const channelX0 = ISLAND_WATER + ISLAND_W; // the first column of water past the islands' tips
@@ -131,7 +136,7 @@
       kayaX, kayaY, kayaW: kaya, kayaH: kaya,
       gridX, gridY, gridSpan: grid,
       streamX0, streamX1, riverY0, topWaterY0, topBank: TOP_BANK, farBank: FAR_BANK,
-      marketX0, marketX1, stalls: marketMoorings(marketX0, boardY, board),
+      marketX0, marketX1, stalls: isPureGo(size) ? [] : marketMoorings(marketX0, boardY, board),
     };
   }
 
@@ -2952,7 +2957,7 @@
     const L = computeLayout(size);
     return {
       w: L.width,
-      h: STAGE.sky + L.height + STAGE.hand + STAGE.status,
+      h: STAGE.sky + L.height + (isPureGo(size) ? 0 : STAGE.hand) + STAGE.status,
     };
   }
 
@@ -3033,6 +3038,7 @@
     stormLinger,
     REGION: { BANK: R_BANK, WATER: R_WATER, FRAME: R_FRAME, KAYA: R_KAYA, FRONT: R_FRONT, ISLAND: R_ISLAND },
     computeLayout,
+    isPureGo,
     marketBox,
     createScene,
     starPoints,

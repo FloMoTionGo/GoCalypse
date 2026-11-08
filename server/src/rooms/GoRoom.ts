@@ -5,7 +5,7 @@ import { randomGuestName, sanitizeName } from "../util/usernames";
 import { addressLimits, MessageBudget } from "../util/limits";
 import { clientIp } from "../util/net";
 import { Seat, startedTables } from "./tables";
-import { BOARD_SIZES } from "./sizes";
+import { BOARD_SIZES, isPureGo } from "./sizes";
 import { deleteSnapshot, restoreState, saveSnapshot, Snapshot, takeRestore } from "../state/persist";
 import { GameRecorder, Outcome } from "../history/recorder";
 import { historyStore, minReplayTurns, noiseOf, tooShort } from "../history/store";
@@ -283,6 +283,8 @@ export class GoRoom extends Room<GoState> {
     state.size = size;
     this.kos = new KoWatch(size);
     state.shopAfter = this.shopAfterMoves;
+    const pure = isPureGo(size);
+    if (pure) this.stormEvery = this.riverEvery = 0;
     state.handLimit = HAND_LIMIT;
     state.storm.every = this.stormEvery;
     state.river.every = this.riverEvery;
@@ -292,11 +294,13 @@ export class GoRoom extends Room<GoState> {
     this.positions.record(state.board.toArray());
     // Six stalls drawn per match (3 of tier 1, 2 of tier 2 and 1 of tier 3) and the
     // Bait's, which is there every match; the same for everyone at the table.
-    for (const def of tonightsStalls()) state.market.push(this.stall(def));
+    if (!pure) for (const def of tonightsStalls()) state.market.push(this.stall(def));
     if (restored) {
       restoreState(state, restored.state);
       // A game saved before the Bait was sold: its stall opens now.
-      for (const def of alwaysStocked()) {
+      // The size comes back with the snapshot, so whether it is pure Go is only known now.
+      if (isPureGo(state.size)) this.stormEvery = this.riverEvery = 0;
+      for (const def of isPureGo(state.size) ? [] : alwaysStocked()) {
         if (!state.market.some((m) => m.id === def.id)) state.market.push(this.stall(def));
       }
       // A game saved before stalls had stock: stock them now, less what was already bought.
@@ -878,8 +882,10 @@ export class GoRoom extends Room<GoState> {
 
   /** The Stone Card every seat starts with, in its hand and taking one of its places. */
   private dealStoneCard(player: PlayerState) {
-    player.powerups.push(STONE_CARD);
-    for (const cell of newCard()) player.card.push(cell);
+    if (!isPureGo(this.state.size)) {
+      player.powerups.push(STONE_CARD);
+      for (const cell of newCard()) player.card.push(cell);
+    }
   }
 
   private notice(client: Client, text: string) {

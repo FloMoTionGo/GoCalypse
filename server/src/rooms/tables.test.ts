@@ -30,7 +30,7 @@ test("tables: a locked, private, full or empty table is nobody to join", () => {
 
 test("tables: a table that never said its size is the 13x13 everyone knows, and a strange size is left out", () => {
   const { summarizeTables } = tables();
-  assert.deepEqual(summarizeTables([listing({ size: undefined }), listing({ size: 9 }), listing({ size: "19" })]), [{ size: 13, waiting: 1, tables: 1 }]);
+  assert.deepEqual(summarizeTables([listing({ size: undefined }), listing({ size: 11 }), listing({ size: "19" })]), [{ size: 13, waiting: 1, tables: 1 }]);
 });
 
 // Lobby islands (tasks/2026-11-02_lobby_islands): the home screen draws every open
@@ -58,7 +58,7 @@ test("tables: a locked, private, full, empty or strange-sized table is not liste
     listing({ roomId: "v", private: true, metadata: seats }),
     listing({ roomId: "f", clients: 4, metadata: seats }),
     listing({ roomId: "e", clients: 0, metadata: seats }),
-    listing({ roomId: "s", size: 9, metadata: seats }),
+    listing({ roomId: "s", size: 11, metadata: seats }),
   ]);
   assert.deepEqual(out, []);
 });

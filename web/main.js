@@ -146,9 +146,9 @@ let lastCreatureSeq = { crab: null, spirit: null };
 // "/index.html?..." to "/index" and drop the query (e.g. `npx serve`).
 const hashParams = new URLSearchParams(location.hash.slice(1));
 
-// The board size for the next table (ideas.md §11.10): 13, 19 or 25, picked on the
+// The board size for the next table (ideas.md §11.10): 9, 13, 19 or 25, picked on the
 // lobby board and remembered in this browser; debug.html can ask for one (#size=19).
-const BOARD_SIZES = [13, 19, 25];
+const BOARD_SIZES = [9, 13, 19, 25];
 const SIZE_STORE = "gocalypse.size";
 let boardSize = (() => {
   const asked = Number(hashParams.get("size"));
@@ -876,7 +876,7 @@ function frame() {
     outLanterns,
     stoneLanternOut,
     festival,
-    fireflies: myPlayer ? myPlayer.fireflies : undefined,
+    fireflies: myPlayer && !P.isPureGo(lastState.size) ? myPlayer.fireflies : undefined,
     turnCount: snap ? snap.turnCount : turnCount,
     roundLength,
     // The grey is judged by the live storm, not the one the snapshot saw: a
@@ -1716,6 +1716,7 @@ function openWelcome(state) {
 
   // Rates mirror FIREFLIES_PER_MOVE / _PER_CAPTURE / CONSOLATION_PER_STONE in server/src/rooms/GoRoom.ts.
   // Stock and shares are synced per stall (stallCopies / fairShare in server/src/powerups/definitions.ts).
+  document.getElementById("welcome-pure").hidden = !(state && P.isPureGo(state.size));
   const stalls = state ? Array.from(state.market).filter((m) => m.id !== BAIT) : [];
   const perTier = [1, 2, 3].map((tier) => stalls.filter((m) => m.tier === tier));
   const tierCounts = state ? perTier.map((list) => list.length) : WELCOME_DEFAULTS.stalls;
@@ -2767,6 +2768,8 @@ function fitHand() {
 }
 
 function renderHand(state) {
+  handEl.hidden = P.isPureGo(state.size); // pure Go: nothing to hold
+  if (handEl.hidden) return;
   const owned = myPlayer ? Array.from(myPlayer.powerups) : [];
   const bought = myPlayer ? myPlayer.bought.length : 0;
   // A purchase appends to both `bought` and `powerups` (GoRoom.applyBuy), so the
@@ -3477,7 +3480,7 @@ function stallView(m, c) {
 
 /** The Night Market as the scene draws it (pixelScene.js render `market`). */
 function marketView(state, me = myPlayer) {
-  if (!state) return null;
+  if (!state || P.isPureGo(state.size)) return null;
   const c = marketContext(state, me);
   const sign = c.open ? { text: "NIGHT MARKET", lit: true }
     : state.status === "finished" ? { text: "NIGHT MARKET", lit: false }
@@ -3510,6 +3513,11 @@ function stallStock(m, s) {
  * reader hears. The sign's words stay in #market-status for screen readers too.
  */
 function renderMarket(state) {
+  if (P.isPureGo(state.size)) {
+    marketStatusEl.textContent = "";
+    marketItemsEl.replaceChildren();
+    return;
+  }
   const c = marketContext(state, myPlayer);
   const items = Array.from(state.market);
   const drawn = items.filter((m) => m.id !== BAIT).length;

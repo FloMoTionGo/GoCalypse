@@ -57,9 +57,9 @@
   const COLS = BOT_OPTIONS.length; // one column per bot kind
   const ROWS = SEATS + 2; // the seats, the board sizes, then Start
   const START_ROW = ROWS - 1, START_COL = (COLS - 1) >> 1;
-  // The board sizes on the line above Start, one each side of it and one over it.
+  // The board sizes on the line above Start.
   const SIZE_ROW = SEATS;
-  const SIZES = [13, 19, 25].map((size, i) => ({ size, col: Math.max(0, Math.min(COLS - 1, START_COL - 1 + i)), row: SIZE_ROW }));
+  const SIZES = [9, 13, 19, 25].map((size, i) => ({ size, col: Math.max(0, Math.min(COLS - 1, START_COL - 2 + i)), row: SIZE_ROW }));
   const sizeAt = (col) => SIZES.find((s) => s.col === col);
   const KAYA_MARGIN = 6;
   const FRAME_TOP = 38, FRAME_LEFT = 38, FRAME_RIGHT = 16, FRAME_BOTTOM = 12; // the top holds your nameplate, then the bot initials and lamps
@@ -403,6 +403,7 @@
       (open > 0 ? ` ${open === 1 ? "One seat stays" : `${open} seats stay`} open for other players.` : "");
   }
   const SIZE_TEXT = {
+    9: "pure Go for four, and quick: no Night Market, Kata, haiku, river creatures or storm",
     13: "the table GoCalypse is made for, about 60 moves each",
     19: "the full Go board: a longer night, about 130 moves each, and up to six bolts a storm",
     25: "a very long night, about 225 moves each, and up to eleven bolts a storm",

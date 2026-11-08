@@ -318,9 +318,10 @@ consolation per stone, and nobody gets a prisoner. A **Bait** tossed onto an
 edge point lures the nearer creature there, its timer unchanged. The crab can be lured onto
 anyone's stones, the spirit only away from other players'; a game that ends while one is out sends it back.
 
-**Board sizes and haiku.** The lobby board's line above Start picks a 13×13
-(the default), 19×19 or 25×25 table; Quick join only finds tables of that size.
-Every match lays three haiku (月 moon, 川 river, 木 tree) line by line on the
+**Board sizes and haiku.** The lobby board's line above Start picks a 9×9,
+13×13 (the default), 19×19 or 25×25 table; Quick join only finds tables of that
+size. A 9×9 table is pure Go: no Night Market, Kata, haiku, river creatures or
+storm. Every other match lays three haiku (月 moon, 川 river, 木 tree) line by line on the
 least played points; a stone on a line collects it, the haiku's card comes to
 the hand and levels up with each line, and is played once at its level (see
 *How to play*, Haiku).

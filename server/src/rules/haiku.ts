@@ -78,9 +78,10 @@ export function haikuOfCard(card: string): Haiku | undefined {
 
 /**
  * How many haiku go on a board: 3 on 13x13, 4 on 19x19, 6 on 25x25 -- as many
- * of those as there are haiku written. Three for now, on every board.
+ * of those as there are haiku written, so three for now. None on 9x9, which is pure Go.
  */
 export function haikuCount(size: number): number {
+  if (size < 13) return 0;
   const wanted = size >= 25 ? 6 : size >= 19 ? 4 : 3;
   return Math.min(wanted, HAIKU.length);
 }

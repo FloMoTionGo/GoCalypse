@@ -45,8 +45,12 @@ test("nine: the scene is told no fireflies, and How to play says what this table
   await b.waitFor("window.__f !== 'unset'", 3000, "a frame");
   assert.equal(await b.ev("window.__f === undefined"), true);
   await b.ev("scene.render = window.__r0; true");
+  await b.ev("helpButton.click(); true");
+  await b.waitFor("welcomeEl.open", 3000, "How to play");
   assert.match(await b.ev("document.getElementById('welcome-pure').textContent"), /pure Go/);
   assert.equal(await b.ev("document.getElementById('welcome-pure').hidden"), false);
+  await b.ev("welcomeCloseButton.click(); true");
+  await b.waitFor("!welcomeEl.open", 3000, "How to play to close");
 });
 
 test("nine: a stone can be played on it", async () => {

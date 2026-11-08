@@ -24,7 +24,7 @@ test("board size: a room made for 19x19 has 361 points and a 19-wide ko watch; 2
   assert.deepEqual([big.state.size, big.state.board.length, big.kos.size], [25, 625, 25]);
 });
 
-test("board size: anything but 13, 19 or 25 makes a 13x13 room", () => {
+test("board size: anything but 9, 13, 19 or 25 makes a 13x13 room", () => {
   for (const size of [7, 21, "19", -1, 1e9, null, undefined, 19.5]) {
     const room = makeRoom({ size });
     assert.deepEqual([room.state.size, room.state.board.length, room.kos.size], [13, 169, 13], String(size));
