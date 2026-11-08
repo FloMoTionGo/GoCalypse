@@ -1,17 +1,4 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": [
-    {
-      "test": "haiku powers: none is explained by an item the player may never have seen",
-      "feature": "haiku-plain-words",
-      "tier": "web",
-      "since": "2026-11-08"
-    },
-    {
-      "test": "haiku powers: a ward and a seed say what they do",
-      "feature": "haiku-plain-words",
-      "tier": "web",
-      "since": "2026-11-08"
-    }
-  ]
+  "pending": []
 }

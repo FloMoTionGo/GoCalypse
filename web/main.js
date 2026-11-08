@@ -67,17 +67,17 @@ const HAIKU = [
   {
     id: "moon", kanji: "月", name: "Moon",
     lines: ["Autumn moon rises", "over the stones on the pier", "none of them shall fall"],
-    powers: ["Ward one of your stones until your next turn.", "Ward one of your groups until your next turn.", "Ward one of your groups for 2 rounds."],
+    powers: ["Ward one of your stones: it can't be captured or removed until your next turn.", "Ward one of your groups: it can't be captured or removed until your next turn.", "Ward one of your groups for 2 rounds: it can't be captured or removed."],
   },
   {
     id: "river", kanji: "川", name: "River",
     lines: ["The river carries", "one stone to a quiet shore", "the ferry comes home"],
-    powers: ["Move one of your stones one step, as a Ferry does.", "Glide one of your stones along its row or column, as a Skiff does.", "Glide one of your stones as a Skiff does, and keep your turn."],
+    powers: ["Move one of your stones one step to an empty point beside it.", "Glide one of your stones along its row or column to an empty point, as far as the way is clear.", "Glide one of your stones along its row or column, as far as the way is clear, and keep your turn."],
   },
   {
     id: "tree", kanji: "木", name: "Tree",
     lines: ["Small sprout by the edge", "the stones have left it alone", "one day it stands tall"],
-    powers: ["Plant a seed, as a Seedling does.", "Plant a seed that is already sprouting: only you may play there.", "Plant two seeds, both already sprouting."],
+    powers: ["Plant a seed. Anyone can trample it in its first round; then only you may play there. It grows into your stone after 3 rounds.", "Plant a seed already sprouting: only you may play there, and it grows into your stone after 2 rounds.", "Plant two seeds already sprouting: only you may play there, and they grow into your stones after 2 rounds."],
   },
 ];
 const HAIKU_LATE_FIREFLIES = 10; // a line found after its card was played
