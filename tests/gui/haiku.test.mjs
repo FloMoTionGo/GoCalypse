@@ -63,3 +63,18 @@ test("haiku: every power fits its card under the poem", async () => {
   assert.equal(sizes.length, 9);
   for (const s of sizes) assert.ok(s.need <= s.has + 1, `${s.id} level ${s.level}: needs ${s.need}, has ${s.has}`);
 });
+
+test("haiku: 川 at level 3 marks every stone of my two colours, below that only my own", async () => {
+  const v = await b.ev(`(() => {
+    const realPlayer = myPlayer, realLevel = haikuLevel, real = selectedPowerup;
+    myPlayer = Object.assign(Object.create(realPlayer), { color: 1 });
+    selectedPowerup = "haiku_river";
+    const codes = [1, 5, 3, 6, 2, 7, 4, 8, 10, 11, 12, 13];
+    const at = (level) => { haikuLevel = () => level; return codes.filter((c) => mayCarry(c)); };
+    const out = { two: at(2), three: at(3) };
+    haikuLevel = realLevel; myPlayer = realPlayer; selectedPowerup = real;
+    return out;
+  })()`);
+  assert.deepEqual(v.two, [1, 5, 10], "level 2: my own, the twin included");
+  assert.deepEqual(v.three, [1, 5, 3, 6, 10, 11, 12], "level 3: black and gray whoever's, and any twin showing either");
+});

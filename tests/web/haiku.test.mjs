@@ -25,3 +25,7 @@ test("haiku powers: a ward and a seed say what they do", () => {
   assert.match(tree[0], /trample/);
   for (const power of tree) assert.match(power, /grow/, power);
 });
+
+test("haiku powers: 川 at level 3 says it carries any stone of your two colours", () => {
+  assert.match(server()[1][2], /any stone of your two colours/);
+});

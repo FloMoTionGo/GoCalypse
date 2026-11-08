@@ -1,4 +1,29 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "haiku: 川 at level 3 glides an ally's stone of either shared colour, and keeps the turn",
+      "feature": "river-level-3",
+      "tier": "server",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "haiku: 川 at level 3 takes an ally's twin stone by either look, and never one of neither colour",
+      "feature": "river-level-3",
+      "tier": "server",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "haiku powers: 川 at level 3 says it carries any stone of your two colours",
+      "feature": "river-level-3",
+      "tier": "web",
+      "since": "2026-11-08"
+    },
+    {
+      "test": "haiku: 川 at level 3 marks every stone of my two colours, below that only my own",
+      "feature": "river-level-3",
+      "tier": "gui",
+      "since": "2026-11-08"
+    }
+  ]
 }

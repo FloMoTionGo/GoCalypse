@@ -187,3 +187,66 @@ test("haiku: bots see the haiku points still to collect, and their own levels", 
   assert.ok(view.haiku.some((h: any) => h.idx === boardIndex(room.state.size, p.x, p.y) && h.haiku === "moon"));
   assert.deepEqual(view.haikuLevels, { moon: 0, river: 0, tree: 0 });
 });
+
+// 川 at level 3 carries any stone of the player's two colours. The seat sharing the
+// base colour, the seat sharing the pattern colour, and the seat sharing neither.
+const baseAlly = (c: number) => ((c + 1) % 4) + 1;
+const patternAlly = (c: number) => (c % 2 === 1 ? c + 1 : c - 1);
+const opposite = (c: number) => 5 - c;
+const glideFrom = (room: any, client: any, x: number) => room.handleUsePowerup(client, { id: "haiku_river", target: { x, y: 6 }, target2: { x, y: 2 } });
+
+test("haiku: 川 at level 3 glides an ally's stone of either shared colour, and keeps the turn", () => {
+  for (const [ally, axis] of [[baseAlly, "base"], [patternAlly, "pattern"]] as const) {
+    const { room, clients } = startedRoom();
+    const { client, player } = holding(room, clients, "river", 3);
+    const code = stoneCode(ally(player.color), axis);
+    put(room, 5, 6, code);
+    const turn = room.state.turnCount;
+    glideFrom(room, client, 5);
+    assert.equal(at(room, 5, 2), code, `${axis}: the stone lands, still its owner's`);
+    assert.equal(at(room, 5, 6), 0, axis);
+    assert.equal(room.state.turnCount, turn, `${axis}: the turn is kept`);
+  }
+});
+
+test("haiku: 川 at level 3 refuses a stone of neither of your colours and keeps the card", () => {
+  const { room, clients } = startedRoom();
+  const { client, player } = holding(room, clients, "river", 3);
+  const others = [stoneCode(baseAlly(player.color), "pattern"), stoneCode(patternAlly(player.color), "base"), stoneCode(opposite(player.color), "base"), stoneCode(opposite(player.color), "pattern")];
+  others.forEach((code, i) => {
+    put(room, i + 1, 6, code);
+    glideFrom(room, client, i + 1);
+    assert.equal(at(room, i + 1, 6), code, `stone ${i} stays`);
+  });
+  assert.ok(Array.from(player.powerups).includes("haiku_river"), "the card is kept");
+});
+
+test("haiku: 川 at level 3 takes an ally's twin stone by either look, and never one of neither colour", () => {
+  const { room, clients } = startedRoom();
+  const { client, player } = holding(room, clients, "river", 3);
+  put(room, 1, 6, 9 + opposite(player.color));
+  glideFrom(room, client, 1);
+  assert.equal(at(room, 1, 6), 9 + opposite(player.color), "a twin of neither colour stays");
+  put(room, 2, 6, 9 + baseAlly(player.color));
+  glideFrom(room, client, 2);
+  assert.equal(at(room, 2, 2), 9 + baseAlly(player.color), "an ally's twin glides");
+});
+
+test("haiku: 川 below level 3 still carries only your own stones", () => {
+  const { room, clients } = startedRoom();
+  const { client, player } = holding(room, clients, "river", 2);
+  const code = stoneCode(baseAlly(player.color), "base");
+  put(room, 5, 6, code);
+  glideFrom(room, client, 5);
+  assert.equal(at(room, 5, 6), code, "the ally's stone stays");
+});
+
+test("haiku: 川 at level 3 can't carry a warded stone", () => {
+  const { room, clients } = startedRoom();
+  const { client, player } = holding(room, clients, "river", 3);
+  const code = stoneCode(baseAlly(player.color), "base");
+  put(room, 5, 6, code);
+  room.addEffect("ward", 5, 6, baseAlly(player.color), 2);
+  glideFrom(room, client, 5);
+  assert.equal(at(room, 5, 6), code, "warded: it stays");
+});
