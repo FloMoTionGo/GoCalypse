@@ -120,6 +120,7 @@ interface UsePowerupMessage {
   target?: { x: number; y: number };
   target2?: { x: number; y: number }; // second point, for items that take two (Ferry)
   axis?: StoneView; // Seedling: right click plants a seed that grows the pattern stone
+  axis2?: StoneView; // the 木 haiku at level 3: the second seed's, from its own click (absent: the same as axis)
 }
 
 interface BuyMessage {
@@ -1918,6 +1919,7 @@ export class GoRoom extends Room<GoState> {
       target: points >= 1 ? target : undefined,
       target2: points >= 2 ? target2 : undefined,
       axis: message.axis === "pattern" ? "pattern" : "base",
+      axis2: message.axis2 === "pattern" || message.axis2 === "base" ? message.axis2 : undefined,
       isWarded: (idx) => this.isWarded(idx),
       lilyOwnerAt: (idx) => this.reservedFor(idx),
       isBurning: (idx) => this.isBurning(idx),

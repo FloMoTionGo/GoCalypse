@@ -12,6 +12,7 @@ export interface PowerupContext {
   target2?: { x: number; y: number };
   /** Which stone view the use asks for (Seedling: what the seed grows into). Default "base". */
   axis?: "base" | "pattern";
+  axis2?: "base" | "pattern"; // the second target's, where a card takes two and each has its own colour
   /** Cell is inside an active Lantern Ward: can't be captured or removed. */
   isWarded(idx: number): boolean;
   /** Whom this cell is kept for: the owner of a Lily Pad, or of a seed past its first round; else 0. */

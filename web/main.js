@@ -1018,6 +1018,8 @@ function eventPoint(evt) {
   return scene.nativeToPoint(nx, ny);
 }
 
+let firstSeedAxis = "base"; // the 木 haiku at level 3: the colour the first click asked for
+
 function onBoardClick(evt) {
   if (!room || !lastState) return;
   if (clickLantern(evt)) return;
@@ -1029,13 +1031,14 @@ function onBoardClick(evt) {
   if (selectedPowerup) {
     const item = marketItem(selectedPowerup);
     if (item && item.points >= 2 && aimedAs(item.id) === "seedling") {
-      // The 木 haiku at level 3: two empty points, the seeds solid (a right click makes them gray or transparent).
+      // The 木 haiku at level 3: two empty points, each seed the colour of its own click.
       if (!firstTarget) {
         firstTarget = p;
+        firstSeedAxis = "base";
         setTargetingHint();
         return;
       }
-      room.send("usePowerup", { id: selectedPowerup, target: firstTarget, target2: p, axis: "base" });
+      room.send("usePowerup", { id: selectedPowerup, target: firstTarget, target2: p, axis: firstSeedAxis, axis2: "base" });
       setSelectedPowerup(null);
       return;
     }
@@ -1079,11 +1082,12 @@ function onBoardRightClick(evt) {
     // The 木 haiku at level 3 plants two: the first click picks a point, the second plants both.
     if (marketItem(selectedPowerup).points >= 2 && !firstTarget) {
       firstTarget = seedPoint;
+      firstSeedAxis = "pattern";
       setTargetingHint();
       return;
     }
-    const twin = firstTarget ? { target: firstTarget, target2: seedPoint } : { target: seedPoint };
-    room.send("usePowerup", { id: selectedPowerup, ...twin, axis: "pattern" });
+    const twin = firstTarget ? { target: firstTarget, target2: seedPoint, axis: firstSeedAxis, axis2: "pattern" } : { target: seedPoint, axis: "pattern" };
+    room.send("usePowerup", { id: selectedPowerup, ...twin });
     setSelectedPowerup(null);
     return;
   }
@@ -1262,8 +1266,8 @@ function targetingText() {
   return aimedAs(item.id) === "seedling"
     ? item.points >= 2
       ? firstTarget
-        ? `${item.name}: now the second point -- click for solid seeds, right click for gray or transparent ones.`
-        : `${item.name}: pick the first of two points for its seeds -- right click to cancel.`
+        ? `${item.name}: now the second point -- click for a solid seed, right click for a gray or transparent one.`
+        : `${item.name}: pick the first of two points -- click for a solid seed, right click for a gray or transparent one -- Esc to cancel.`
       : `${item.name}: click for a solid seed, right click for a gray or transparent one -- Esc to cancel.`
     : item.id === "bait"
     ? "Bait: pick an edge point to lure the creature to -- right click to cancel."
