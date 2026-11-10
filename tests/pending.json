@@ -1,4 +1,17 @@
 {
   "$comment": "Tests written ahead of their feature: each must FAIL until the feature is in, then come off this list. See tests/README.md (red first). Only new tests belong here; the floor guard refuses an existing test listed as pending.",
-  "pending": []
+  "pending": [
+    {
+      "test": "table: the hint under Results explains the way this table counted",
+      "feature": "result-hint-per-mode",
+      "tier": "gui",
+      "since": "2026-11-10"
+    },
+    {
+      "test": "table: opening How to play draws the bots menu for the room as it stands",
+      "feature": "welcome-bots-on-open",
+      "tier": "gui",
+      "since": "2026-11-10"
+    }
+  ]
 }

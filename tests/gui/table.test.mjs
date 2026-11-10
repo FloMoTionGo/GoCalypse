@@ -190,6 +190,36 @@ test("table: Results shows prisoners past the cap as captured but not counted", 
   rig.assertClean("the table");
 });
 
+test("table: the hint under Results explains the way this table counted", async () => {
+  const hints = await b.ev(`(() => {
+    const hintOf = (scoring) => {
+      openResult({ players: Array.from(lastState.players), size: lastState.size, scoring });
+      return document.querySelector("#result .hint").textContent;
+    };
+    const out = { japanese: hintOf("japanese"), chinese: hintOf("chinese") };
+    openResult(lastState);
+    return out;
+  })()`);
+  assert.doesNotMatch(hints.japanese, /never more prisoners/, "Japanese has no cap");
+  assert.match(hints.japanese, /every one/);
+  assert.doesNotMatch(hints.chinese, /never more prisoners/, "Chinese counts no prisoners");
+  assert.match(hints.chinese, /prisoners don't count/);
+  rig.assertClean("the table");
+});
+
+test("table: opening How to play draws the bots menu for the room as it stands", async () => {
+  // A finished table has no seats to fill, so a section left showing must go as the dialog opens.
+  const hidden = await b.ev(`(() => {
+    welcomeBotsEl.hidden = false;
+    openWelcome(lastState);
+    const now = welcomeBotsEl.hidden;
+    welcomeEl.close();
+    return now;
+  })()`);
+  assert.equal(hidden, true);
+  rig.assertClean("the table");
+});
+
 test("table: Results from a server without the prisoner cap counts every prisoner and highlights its score", async () => {
   // The Pages client ships before the Fly server: a server from before the cap
   // sends no counted prisoners, and its scores count every one. The window must
