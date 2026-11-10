@@ -5,7 +5,8 @@
 // appetite as lanterns under them. Each row is a seat, P2 to P4, in the left
 // frame (you are P1, on the nameplate): a black stone seats that column's bot there, a
 // white stone captures it again. A black stone on Start joins. The line above
-// Start holds the board sizes, 13, 19 and 25: a black stone there picks one. The
+// Start holds the board sizes, 9, 13, 19 and 25, and the line above it the scoring
+// modes: a black stone on either picks one. The
 // name is written on a nameplate set into the frame above the kaya, over the bots.
 //
 // The island is drawn on its own transparent canvas at twice the logo's pixel

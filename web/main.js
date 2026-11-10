@@ -1724,11 +1724,6 @@ function renderFacts(el, rows) {
   );
 }
 
-/**
- * The welcome screen: how to play, the bots menu while the room waits, and tonight's
- * market. `state` is null on the home screen: then it tells the general rules
- * (no seat, no market yet) and closes back to the home screen.
- */
 const SCORING_NAME = { gocalypse: "GoCalypse", japanese: "Japanese", chinese: "Chinese" };
 
 /** The Scoring chapter for this table's mode. Mirrors finalResults and deadStones in server/src/rules/. */
@@ -1754,6 +1749,11 @@ function scoringFacts(state, yourTwo = "your two totals, one per front", sharers
   ];
 }
 
+/**
+ * The welcome screen: how to play, the bots menu while the room waits, and tonight's
+ * market. `state` is null on the home screen: then it tells the general rules
+ * (no seat, no market yet) and closes back to the home screen.
+ */
 function openWelcome(state) {
   fillHelpArt();
   sizeWelcome();
@@ -1867,6 +1867,8 @@ function openWelcome(state) {
     ? `Players who also hold ${base} share the ${base} territory, and players who also hold ${pattern} share the ${pattern} territory`
     : `Players who hold the same colour share its territory`;
   renderFacts(document.getElementById("welcome-scoring"), scoringFacts(state, yourTwo, sharers));
+
+  renderWelcomeBots(state);
 
   // Scoring stays folded until the game's first pass makes it matter.
   document.getElementById("welcome-scoring-fold").open = !!state && passSeen;
@@ -2254,6 +2256,14 @@ function openResult(state) {
   document.getElementById("result-scoring").textContent =
     `Counted the ${SCORING_NAME[mode]} way` +
     (mode === "gocalypse" ? ": whatever stood at the end was alive." : `: ${dead} dead stone${dead === 1 ? "" : "s"} taken off, faded on the board below.`);
+  const smothered = " Stones killed with a stone of the other front are smothered: off the board, but no prisoners.";
+  document.getElementById("result-hint").textContent =
+    "A player's score is the lower of their two totals; the higher one only breaks ties. " +
+    {
+      gocalypse: "Territory is shared with anyone who also holds your side, but prisoners are counted per player, and never more prisoners than territory: on a front with 4 points of ground, at most 4 count." + smothered,
+      japanese: "Territory is shared with anyone who also holds your side, but prisoners are counted per player, every one of them." + smothered,
+      chinese: "Territory and stones on the board are shared with anyone who also holds your side, and prisoners don't count.",
+    }[mode];
 
   const table = document.getElementById("result-table");
   table.replaceChildren();

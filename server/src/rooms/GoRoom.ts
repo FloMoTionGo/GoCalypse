@@ -143,12 +143,12 @@ interface AddBotsMessage {
 const BOARD_SIZE = 13; // the default table
 export { BOARD_SIZES }; // the tables one may ask for (rooms/sizes.ts)
 
-/** The board size a create asked for, if it is one of BOARD_SIZES; any other value is 13x13 (never trust client input). */
 /** The scoring mode a create asked for, if it is one; anything else is GoCalypse (never trust client input). */
 function scoringOf(asked: unknown): ScoringMode {
   return SCORING_MODES.includes(asked as ScoringMode) ? (asked as ScoringMode) : "gocalypse";
 }
 
+/** The board size a create asked for, if it is one of BOARD_SIZES; any other value is 13x13 (never trust client input). */
 function boardSizeOf(asked: unknown): number {
   return typeof asked === "number" && BOARD_SIZES.includes(asked) ? asked : BOARD_SIZE;
 }

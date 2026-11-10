@@ -105,7 +105,7 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer }),
 });
 
-// Quick join finds only a waiting table of the board size asked for (13, 19 or 25).
+// Quick join finds only a waiting table of the board size (9, 13, 19 or 25) and scoring mode asked for.
 gameServer.define("go_custom", GoRoom).filterBy(["size", "scoring"]);
 // Separate matchmaking pool for web/debug.html: same rules, but everyone
 // starts with enough fireflies to try every market item. Local servers and

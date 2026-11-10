@@ -6,7 +6,7 @@ import { BOARD_SIZES } from "./sizes";
  * out at "Waiting for players (1/4)". Built from the matchmaker's room listings:
  * `clients` counts the people (bots hold seats without sockets, and
  * countBotSeats lowers maxClients for them), `size` is the filter option the
- * table was created with (gameServer.define(...).filterBy(["size"])).
+ * table was created with (gameServer.define(...).filterBy(["size", "scoring"])).
  */
 
 export type TableListing = {
