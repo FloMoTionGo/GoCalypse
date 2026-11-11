@@ -148,7 +148,7 @@ test("lobby stones: the stones beside the tengen share a colour with it more oft
 });
 
 test("hover stone: it floats 2 px up and bobs by one with the clock, with a shadow under it and a glow on the up beat", () => {
-  const top = (surf) => { for (let y = 0; y < surf.h; y++) for (let x = 0; x < surf.w; x++) if (surf.px[y * surf.w + x] !== A && surf.px[y * surf.w + x] !== K) return y; return -1; };
+  const top = (surf) => { for (let y = 0; y < surf.h; y++) for (let x = 0; x < surf.w; x++) if (surf.px[y * surf.w + x] !== A) return y; return -1; };
   const draw = (time, still) => {
     const surf = new G.Surface(40, 40);
     surf.fill(A);

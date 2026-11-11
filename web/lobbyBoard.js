@@ -6,7 +6,11 @@
 // frame (you are P1, on the nameplate): a black stone seats that column's bot there, a
 // white stone captures it again. A black stone on Start joins. The line above
 // Start holds the board sizes, 9, 13, 19 and 25, and the line above it the scoring
-// modes: a black stone on either picks one. The
+// modes: a black stone on either picks one. Under Start, a free row of plain points
+// gives the board a centre row, so it has a tengen: stones played there change nothing.
+// Every point wears its own two-look stone, drawn from the tengen outwards by
+// lobbyStones.js; an empty point shows it as the game's hover stone, a placed one
+// shows nothing on hover. The
 // name is written on a nameplate set into the frame above the kaya, over the bots.
 //
 // The island is drawn on its own transparent canvas at twice the logo's pixel
@@ -20,6 +24,7 @@
   "use strict";
   const G = window.GoSprites;
   const PS = window.GoPixelScene;
+  const LS = window.GoLobbyStones;
   const canvas = document.getElementById("lobby-board");
   const wrap = document.getElementById("lobby-board-wrap");
   const labelsEl = document.getElementById("lobby-board-labels");
@@ -27,7 +32,7 @@
   const captionEl = document.getElementById("lobby-caption");
   const announceEl = document.getElementById("lobby-announce"); // polite live region: seat changes and refusals
   const lobby = document.getElementById("lobby");
-  if (!G || !PS || !canvas || typeof BOT_OPTIONS === "undefined") return;
+  if (!G || !PS || !LS || !canvas || typeof BOT_OPTIONS === "undefined") return;
   const { K, C, A, T, S } = G.INDEX;
   const NONE = G.TRANSPARENT;
   const ANIMS = G.ANIMS;
@@ -56,10 +61,14 @@
   const SP = PS.SPACING;
   const SEATS = MAX_BOTS; // one row per seat a bot can take: Player 2 to 4
   const COLS = BOT_OPTIONS.length; // one column per bot kind
-  const ROWS = SEATS + 3; // the seats, the scoring modes, the board sizes, then Start
-  const START_ROW = ROWS - 1, START_COL = (COLS - 1) >> 1;
+  const ROWS = SEATS + 4; // the seats, the scoring modes, the board sizes, Start, then a free row
+  const START_ROW = SEATS + 2, START_COL = (COLS - 1) >> 1;
+  const FREE_ROW = ROWS - 1; // plain points under Start: it makes the row count odd, so the board has a centre
   // The board sizes on the line above Start.
   const MODE_ROW = SEATS, SIZE_ROW = SEATS + 1;
+  // One stone for every point, drawn once from the tengen outwards.
+  const grown = LS.growStones({ cols: COLS, rows: ROWS });
+  const stoneAt = (col, row) => grown.grid[row][col];
   const MODES = [
     { mode: "gocalypse", label: "GO", name: "GoCalypse", text: "territory plus the prisoners you took, never more prisoners than territory; whatever stands is alive" },
     { mode: "japanese", label: "JP", name: "Japanese", text: "territory plus every prisoner you took; dead groups come off at the end" },
@@ -69,7 +78,7 @@
   const sizeAt = (col) => SIZES.find((s) => s.col === col);
   const modeAt = (col) => MODES.find((m) => m.col === col);
   const KAYA_MARGIN = 6;
-  const FRAME_TOP = 38, FRAME_LEFT = 38, FRAME_RIGHT = 16, FRAME_BOTTOM = 12; // the top holds your nameplate, then the bot initials and lamps
+  const FRAME_TOP = 38, FRAME_LEFT = 38, FRAME_RIGHT = 16, FRAME_BOTTOM = 5; // the top holds your nameplate, then the bot initials and lamps
   const FRONT = 5; // the deck's front face
   const CLIFF = 3; // earth face under the island's near shore
 
@@ -319,6 +328,7 @@
   const seated = BOT_OPTIONS.map(() => []); // per bot (column): the seats (rows) holding its black stone, oldest first
   const ownerOf = (seat) => seated.findIndex((have) => have.includes(seat));
   let startStone = false, startAt = 0;
+  const free = new Set(); // "col,row" of the stones played on the free row
   let effects = [];
   let hover = null; // {col, row} under the pointer
   let cursor = { col: 0, row: 0 }; // keyboard point, shown while the board has focus
@@ -355,19 +365,33 @@
     const have = seated[col];
     have.splice(have.indexOf(row), 1);
     changePick(BOT_OPTIONS[col].id, -1);
-    effects.push(PS.captureEffect(col, row, 1, time));
+    effects.push(PS.captureEffect(col, row, stoneAt(col, row), time));
   }
 
   function act(point, color) {
     if (!point) return;
     const time = now();
+    if (point.row === FREE_ROW) {
+      const key = `${point.col},${point.row}`;
+      if (color === "white") {
+        if (!free.delete(key)) return say("No stone here to take off.");
+        effects.push(PS.captureEffect(point.col, point.row, stoneAt(point.col, point.row), time));
+        announce("Stone taken off the free row.");
+        return updateCaption();
+      }
+      if (free.has(key)) return say("There is a stone here already.");
+      free.add(key);
+      effects.push(PS.placeEffect(point.col, point.row, stoneAt(point.col, point.row), time));
+      announce("Stone played on the free row. It changes nothing.");
+      return updateCaption();
+    }
     if (point.row === MODE_ROW) {
       const m = modeAt(point.col);
       if (!m) return;
       if (color === "white") return say("Play a black stone on a mode to pick how the next table counts.");
       if (m.mode === scoringPick()) return say(`${m.name} scoring is picked already.`);
       setScoringPick(m.mode);
-      effects.push(PS.placeEffect(m.col, m.row, 1, time));
+      effects.push(PS.placeEffect(m.col, m.row, stoneAt(m.col, m.row), time));
       announce(`${m.name} scoring picked.`);
       return updateCaption();
     }
@@ -377,7 +401,7 @@
       if (color === "white") return say("Play a black stone on a size to pick the board for the next table.");
       if (s.size === boardSizePick()) return say(`${s.size}×${s.size} is picked already.`);
       setBoardSize(s.size);
-      effects.push(PS.placeEffect(s.col, s.row, 1, time));
+      effects.push(PS.placeEffect(s.col, s.row, stoneAt(s.col, s.row), time));
       announce(`${s.size}×${s.size} board picked.`);
       return updateCaption();
     }
@@ -386,7 +410,7 @@
       if (joinButton.disabled || startStone) return say(lobbyStatus.textContent || "Hold on a moment...");
       startStone = true;
       startAt = time;
-      effects.push(PS.placeEffect(START_COL, START_ROW, 1, time));
+      effects.push(PS.placeEffect(START_COL, START_ROW, stoneAt(START_COL, START_ROW), time));
       setTimeout(() => joinButton.click(), reduced.matches ? 0 : 320);
       return updateCaption();
     }
@@ -406,7 +430,7 @@
     if (pickedTotal() >= MAX_BOTS) return say(`${MAX_BOTS} bots at most. Capture one with a white stone first.`);
     have.push(point.row);
     changePick(o.id, 1);
-    effects.push(PS.placeEffect(point.col, point.row, 1, time));
+    effects.push(PS.placeEffect(point.col, point.row, stoneAt(point.col, point.row), time));
     announce(`${o.name} seated as ${seatName(point.row)}.${replaced}`);
     updateCaption();
   }
@@ -443,6 +467,9 @@
     const p = keyboard ? cursor : hover;
     if (message && now() < messageUntil) text = message;
     else if (p && p.row === START_ROW) text = startText();
+    else if (p && p.row === FREE_ROW) text = free.has(`${p.col},${p.row}`)
+      ? "A free point with a stone on it: a white stone (right click) takes it off. It changes nothing."
+      : "A free point: play a stone here for fun. It changes nothing; a white stone takes it off again.";
     else if (p && p.row === SIZE_ROW) text = sizeText(sizeAt(p.col));
     else if (p && p.row === MODE_ROW) text = modeText(modeAt(p.col));
     else if (p) {
@@ -459,7 +486,7 @@
     for (const el of labelsEl.children) {
       const row = el.dataset.row === undefined ? -1 : Number(el.dataset.row);
       const col = el.dataset.col === undefined ? -1 : Number(el.dataset.col);
-      el.classList.toggle("hot", !!p && (p.row === row || (p.row !== START_ROW && p.col === col)));
+      el.classList.toggle("hot", !!p && (p.row === row || (p.row !== START_ROW && p.row !== FREE_ROW && p.col === col)));
     }
   }
 
@@ -491,29 +518,40 @@
     if (picked) stones.push({ col: picked.col, row: picked.row });
     const pickedMode = MODES.find((m) => m.mode === scoringPick());
     if (pickedMode) stones.push({ col: pickedMode.col, row: pickedMode.row });
-    const black = G.STONES.black.normal, white = G.STONES.white.normal;
-    for (const s of stones) {
-      if (!busy.has(`${s.col},${s.row}`)) surf.blitCentered(black, px(s.col) + 1, py(s.row) + 1, { color: K, coverage: 0.5 });
+    for (const key of free) {
+      const [col, row] = key.split(",").map(Number);
+      stones.push({ col, row });
     }
-    for (const s of stones) if (!busy.has(`${s.col},${s.row}`)) surf.blitCentered(black, px(s.col), py(s.row));
-    // The picked size still reads on its stone, in cream.
+    for (const s of stones) {
+      if (!busy.has(`${s.col},${s.row}`)) surf.blitCentered(G.stoneSprite(stoneAt(s.col, s.row)), px(s.col) + 1, py(s.row) + 1, { color: K, coverage: 0.5 });
+    }
+    for (const s of stones) if (!busy.has(`${s.col},${s.row}`)) surf.blitCentered(G.stoneSprite(stoneAt(s.col, s.row)), px(s.col), py(s.row));
+    // The picked size and mode still read on their stones, in cream with an ink edge, so any stone carries them.
+    const inkText = (font, text, x, y) => {
+      for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) G.drawText(surf, font, text, x + dx, y + dy, K);
+      G.drawText(surf, font, text, x, y, C);
+    };
     if (picked && !busy.has(`${picked.col},${picked.row}`)) {
       const w = G.textWidth(G.FONT_SMALL, String(picked.size));
-      G.drawText(surf, G.FONT_SMALL, String(picked.size), px(picked.col) - (w >> 1), py(picked.row) - 2, C);
+      inkText(G.FONT_SMALL, String(picked.size), px(picked.col) - (w >> 1), py(picked.row) - 2);
     }
 
     if (pickedMode && !busy.has(`${pickedMode.col},${pickedMode.row}`)) {
       const w = G.textWidth(G.FONT_BIG, pickedMode.label);
-      G.drawText(surf, G.FONT_BIG, pickedMode.label, px(pickedMode.col) - (w >> 1), py(pickedMode.row) - 3, C);
+      inkText(G.FONT_BIG, pickedMode.label, px(pickedMode.col) - (w >> 1), py(pickedMode.row) - 3);
     }
 
-    // the point under the pointer (or the keyboard cursor): the stone a click would play
+    // the point under the pointer (or the keyboard cursor): its own stone as the game's hover stone over an
+    // empty point; over a placed stone nothing at all
     const p = keyboard ? cursor : hover;
     if (p) {
       const col = p.row === START_ROW ? START_COL : p.col;
-      const taken = p.row < SEATS ? seated[col].includes(p.row) : p.row === SIZE_ROW ? picked && picked.col === col : startStone;
-      const ghost = taken ? white : black;
-      if (!(p.row === START_ROW && startStone)) surf.blitCentered(ghost, px(col), py(p.row), { coverage: taken ? 0.75 : 0.5 });
+      const taken = p.row < SEATS ? seated[col].includes(p.row)
+        : p.row === MODE_ROW ? !!pickedMode && pickedMode.col === col
+        : p.row === SIZE_ROW ? !!picked && picked.col === col
+        : p.row === FREE_ROW ? free.has(`${col},${p.row}`)
+        : startStone;
+      if (!taken) PS.drawHoverStone(surf, G.stoneSprite(stoneAt(col, p.row)), px(col), py(p.row), t, reduced.matches);
       if (keyboard) surf.blitCentered(animFrame("reticle", t), px(col), py(p.row));
     }
     // Start invites a stone: the game's target reticle breathing on the star point while it is free.
@@ -585,6 +623,7 @@
   addLabel("Scoring", MODE_ROW, py(MODE_ROW) + 0.5, "start");
   addLabel("Size", SIZE_ROW, py(SIZE_ROW) + 0.5, "start");
   addLabel("Start", START_ROW, py(START_ROW) + 0.5, "start");
+  addLabel("Extra", FREE_ROW, py(FREE_ROW) + 0.5, "start");
   addLabel("P1", null, PLATE.y + PLATE.h / 2, "name");
   Object.assign(plateEl.style, {
     left: `${(PLATE.x / W) * 100}%`,
@@ -628,7 +667,7 @@
     if (move) {
       evt.preventDefault();
       keyboard = true;
-      const row = Math.max(0, Math.min(START_ROW, cursor.row + move[1]));
+      const row = Math.max(0, Math.min(FREE_ROW, cursor.row + move[1]));
       let col = row === START_ROW ? START_COL : Math.max(0, Math.min(COLS - 1, (cursor.row === START_ROW && move[1] ? START_COL : cursor.col) + move[0]));
       const line = row === SIZE_ROW ? SIZES : row === MODE_ROW ? MODES : null;
       if (line) {
@@ -658,7 +697,7 @@
   // lobbyIslets.js hands the caption back with refreshCaption once the pointer leaves an islet.
   const solid = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) solid[i] = region[i] !== R_NONE ? 1 : 0;
-  window.GoLobbyIsland = { modes: MODES, W, H, solid, wrap, point: (col, row) => ({ x: px(col), y: py(row) }), cols: COLS, startRow: START_ROW, sizes: SIZES, refreshCaption: updateCaption };
+  window.GoLobbyIsland = { modes: MODES, W, H, solid, wrap, point: (col, row) => ({ x: px(col), y: py(row) }), cols: COLS, rows: ROWS, startRow: START_ROW, freeRow: FREE_ROW, tengen: grown.tengen, stoneAt, sizes: SIZES, refreshCaption: updateCaption };
   updateCaption();
 
   function tick() {

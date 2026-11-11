@@ -20,7 +20,7 @@ after(async () => rig?.close());
 /** The canvas around a point, as a short hash: whatever is drawn there right now. */
 const snap = (col, row) => b.ev(`(() => {
   const I = window.GoLobbyIsland, p = I.point(${col}, ${row}), ctx = document.getElementById("lobby-board").getContext("2d");
-  const d = ctx.getImageData(p.x - 12, p.y - 16, 25, 30).data;
+  const d = ctx.getImageData(p.x - 12, p.y - 16, 25, 21).data; // stops inside the kaya: the frame below it is lit by the stone lantern, and flickers
   let h = 2166136261;
   for (let i = 0; i < d.length; i++) h = Math.imul(h ^ d[i], 16777619);
   return (h >>> 0).toString(16);
@@ -38,6 +38,16 @@ const wrongPixels = (col, row) => b.ev(`(() => {
   }
   return wrong;
 })()`);
+/** Polls until `ok(await read())` holds (a slow machine draws its frames late); returns the last read. */
+const settle = async (read, ok, label, ms = 8000) => {
+  const end = Date.now() + ms;
+  for (;;) {
+    const v = await read();
+    if (ok(v)) return v;
+    if (Date.now() > end) assert.fail(`${label}: still ${JSON.stringify(v)}`);
+    await wait(150);
+  }
+};
 const away = async () => {
   await b.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: 2, y: 2 });
   await wait(350);
@@ -53,7 +63,8 @@ test("lobby stones: the lobby board has seven rows, a free Extra row under Start
   assert.equal(I.rows, 7);
   assert.equal(I.startRow, 5);
   assert.equal(I.freeRow, 6);
-  assert.deepEqual(I.tengen, { col: 2, row: 3 });
+  assert.equal(I.cols, 6, "one column for each of the six bots");
+  assert.deepEqual(I.tengen, { col: 3, row: 3 }, "six columns have no centre one: a spare seventh is drawn along and cropped, so the tengen is column 4");
   assert.equal(await b.ev(`document.querySelector('.board-label[data-row="6"]').textContent`), "Extra");
 });
 
@@ -74,7 +85,7 @@ test("lobby stones: every point wears one of the 16 two-look stones, and none ma
 test("lobby stones: a black stone seats a bot and is drawn as that point's own stone, and the pick count follows", async () => {
   await rig.clickLobby(0, 0);
   assert.equal(await b.ev("pickedTotal()"), 1);
-  await wait(1300); // the landing is over
+  await settle(() => wrongPixels(0, 0), (n) => n === 0, "the stone on the canvas is the point's stone");
   assert.equal(await wrongPixels(0, 0), 0, "the stone on the canvas is the point's stone");
 });
 
@@ -115,11 +126,11 @@ test("lobby stones: the free Extra row takes stones for fun, changes no pick, an
   const empty = await snap(1, 6);
   await rig.clickLobby(1, 6);
   assert.equal(await b.ev("pickedTotal()"), 0, "no bot seated");
-  await wait(1300);
+  await settle(() => wrongPixels(1, 6), (n) => n === 0, "the point's stone is there");
   assert.equal(await wrongPixels(1, 6), 0, "the point's stone is there");
   await rig.clickLobby(1, 6, "right");
-  await wait(1800); // it floats off
   await away();
+  await settle(() => snap(1, 6), (h) => h === empty, "and gone again once it has floated off");
   assert.equal(await snap(1, 6), empty, "and gone again");
 });
 
