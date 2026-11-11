@@ -776,6 +776,35 @@
     surf.blitCentered(G.pieceSprite(look, shape), cx, cy, { color: K, coverage: 0.5 });
   }
 
+  /** Edge pixels of a sprite centred on (cx, cy), set to `color`: the glow's outline. */
+  function outlineGlow(surf, spr, cx, cy, color = C) {
+    const x0 = cx - ((spr.w - 1) >> 1), y0 = cy - ((spr.h - 1) >> 1);
+    for (let y = 0; y < spr.h; y++) {
+      for (let x = 0; x < spr.w; x++) {
+        const v = spr.px[y * spr.w + x];
+        if (v === G.TRANSPARENT) continue;
+        const edge =
+          x === 0 || y === 0 || x === spr.w - 1 || y === spr.h - 1 ||
+          spr.px[y * spr.w + x - 1] === G.TRANSPARENT || spr.px[y * spr.w + x + 1] === G.TRANSPARENT ||
+          spr.px[(y - 1) * spr.w + x] === G.TRANSPARENT || spr.px[(y + 1) * spr.w + x] === G.TRANSPARENT;
+        if (edge) surf.set(x0 + x, y0 + y, color);
+      }
+    }
+  }
+
+  /**
+   * The hover stone, in the game and on the lobby board: the stone floats 2 px over its point and bobs by one
+   * with the clock (`time`, seconds), a soft shadow on the point and, on the up beat, a cream outline.
+   * Reduced motion keeps it still, with no glow.
+   */
+  function drawHoverStone(surf, spr, x, y, time, reducedMotion) {
+    const bob = reducedMotion ? 0 : Math.round(Math.sin(time * 3.2) * 1);
+    const lift = 2 + bob;
+    surf.blitCentered(spr, x + 1, y + 1, { color: K, coverage: 0.5 });
+    surf.blitCentered(spr, x, y - lift);
+    if (!reducedMotion && Math.sin(time * 3.2) > 0.55) outlineGlow(surf, spr, x, y - lift);
+  }
+
   /**
    * Draw one effect frame centred on native pixel (cx, cy). Exposed so the
    * sprite-sheet preview can show effects in isolation. `grey` (0..1) is the
@@ -2844,13 +2873,7 @@
         const kind = st.hoverKind || "none";
         const occupied = !!board[hover.y * size + hover.x];
         if (kind === "stone" && !occupied && st.myColor) {
-          const spr = G.splitPreviewSprite(st.myColor);
-          const bob = reduced ? 0 : Math.round(Math.sin(time * 3.2) * 1);
-          const lift = 2 + bob;
-          surf.blitCentered(spr, p.x + 1, p.y + 1, { color: K, coverage: 0.5 });
-          const pulse = !reduced && Math.sin(time * 3.2) > 0.55;
-          surf.blitCentered(spr, p.x, p.y - lift);
-          if (pulse) outlineGlow(spr, p.x, p.y - lift);
+          drawHoverStone(surf, G.splitPreviewSprite(st.myColor), p.x, p.y, time, reduced);
         } else if (kind === "target") {
           surf.blitCentered(animFrame("reticle", reduced ? 0 : time), p.x, p.y);
         } else if (kind === "card") {
@@ -2884,21 +2907,6 @@
     }
 
     /** A colour rim traced around a sprite's outline (cream by default: the hover pulse). */
-    function outlineGlow(spr, cx, cy, color = C) {
-      const x0 = cx - ((spr.w - 1) >> 1), y0 = cy - ((spr.h - 1) >> 1);
-      for (let y = 0; y < spr.h; y++) {
-        for (let x = 0; x < spr.w; x++) {
-          const v = spr.px[y * spr.w + x];
-          if (v === G.TRANSPARENT) continue;
-          const edge =
-            x === 0 || y === 0 || x === spr.w - 1 || y === spr.h - 1 ||
-            spr.px[y * spr.w + x - 1] === G.TRANSPARENT || spr.px[y * spr.w + x + 1] === G.TRANSPARENT ||
-            spr.px[(y - 1) * spr.w + x] === G.TRANSPARENT || spr.px[(y + 1) * spr.w + x] === G.TRANSPARENT;
-          if (edge) surf.set(x0 + x, y0 + y, color);
-        }
-      }
-    }
-
     function drawGarland(t, lanterns, lanternOut) {
       const ropeEnd = W - 5;
       // post on the far bank, at the right end of the rope
@@ -3071,6 +3079,7 @@
     diffBoards,
     diffTurn,
     drawEffect,
+    drawHoverStone,
     timelineFor,
     PLACE_TIMELINE,
     CAPTURE_TIMELINE,

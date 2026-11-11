@@ -184,6 +184,8 @@
   /** A player stone the server sends only as grey, during a storm (server/src/rules/goRules.ts GREY_STONE). */
   const GREY_STONE = 14;
   function lookForCode(code) {
+    const lobby = lobbyStoneLooks(code);
+    if (lobby) return lobby[0] === "transparent" ? lobby[1] : lobby[0]; // a lobby stone flashes like its solid side
     return CODE_LOOK[code] || null;
   }
   /** Player p's pattern-axis code is p + 4 (matches server/src/rules/goRules.ts). */
@@ -234,6 +236,7 @@
   }
   /** Stone sprite for a board code (1..8) and shape ("normal", "squash", ...). */
   function stoneSprite(code, shape = "normal") {
+    if (code >= LOBBY_STONE_BASE) return lobbyStoneSprite(code, shape);
     // A twin stone (10..13, player + 9) fights on both fronts, so it wears both: the split stone.
     if (code >= 10 && code <= 13) return splitPreviewSprite(code - 9, shape);
     const look = lookForCode(code);
@@ -262,6 +265,48 @@
     }
     const name = shape === "normal" ? `preview_p${playerColor}` : `preview_p${playerColor}_${shape}`;
     return (splitCache[key] = makeSprite(name, w, h, px));
+  }
+
+  // The lobby board's stones (web/lobbyStones.js): every combination of two looks, left | right, reverse
+  // orders and plain stones included. Client-only codes from 100, clear of the board's 1..14: code 100 + 4 * left
+  // look + right look, the looks in LOOKS order (black, white, gray, transparent).
+  const LOBBY_STONE_BASE = 100;
+  const LOBBY_STONE_CODES = [];
+  for (let i = 0; i < LOOKS.length * LOOKS.length; i++) LOBBY_STONE_CODES.push(LOBBY_STONE_BASE + i);
+  /** The code of the stone with look `left` on its left half and `right` on its right half. */
+  function lobbyStoneCode(left, right) {
+    const l = LOOKS.indexOf(left), r = LOOKS.indexOf(right);
+    if (l < 0 || r < 0) throw new Error(`no such look: ${left} | ${right}`);
+    return LOBBY_STONE_BASE + l * LOOKS.length + r;
+  }
+  /** [left look, right look] of a lobby stone's code, or null for any other code. */
+  function lobbyStoneLooks(code) {
+    const i = code - LOBBY_STONE_BASE;
+    return i >= 0 && i < LOOKS.length * LOOKS.length ? [LOOKS[Math.floor(i / LOOKS.length)], LOOKS[i % LOOKS.length]] : null;
+  }
+  const lobbyCache = {};
+  /**
+   * A lobby stone in any shape. One look twice is that plain stone; two looks are split down the middle with
+   * an ink divider. The outline comes from a solid stone, since a see-through half has no pixels of its own.
+   */
+  function lobbyStoneSprite(code, shape = "normal") {
+    const looks = lobbyStoneLooks(code);
+    if (!looks) return null;
+    const key = `${code}_${shape}`;
+    if (lobbyCache[key]) return lobbyCache[key];
+    const [l, r] = looks;
+    if (l === r) return (lobbyCache[key] = STONES[l][shape]);
+    const left = STONES[l][shape], right = STONES[r][shape], outline = STONES.black[shape];
+    const w = outline.w, h = outline.h, mid = (w - 1) >> 1;
+    const px = new Uint8Array(w * h).fill(TRANSPARENT);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (outline.px[i] === TRANSPARENT) continue;
+        px[i] = x < mid ? left.px[i] : x > mid ? right.px[i] : K;
+      }
+    }
+    return (lobbyCache[key] = makeSprite(`lobby_${l}_${r}_${shape}`, w, h, px));
   }
 
   /** Board code 9 (matches DRIFTWOOD in server/src/rules/goRules.ts): a neutral log. */
@@ -2067,6 +2112,9 @@
     lookForCode,
     patternCode,
     stoneSprite,
+    lobbyStoneCode,
+    lobbyStoneLooks,
+    LOBBY_STONE_CODES,
     splitPreviewSprite,
     DRIFTWOOD,
     pieceSprite,

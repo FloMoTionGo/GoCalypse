@@ -331,6 +331,8 @@ least played points; a stone on a line collects it, the haiku's card comes to
 the hand and levels up with each line, and is played once at its level (see
 *How to play*, Haiku).
 
+Every point of the lobby board wears its own stone, one of the 16 two-look combinations (black, white, gray and transparent, left | right, in both orders), drawn fresh at each page load from the centre point outwards: a stone that shares a colour with the one it grew from is 50 % more likely, and no two alike sit side by side or above each other. An empty point shows its stone as the game's hover stone; a placed stone shows nothing on hover. The row under Start is free: stones played there change nothing, and give the board a centre row.
+
 ## Reading the board
 
 Anything that doesn't last shows a small **timer**: the rounds it has left (a
